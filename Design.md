@@ -21,9 +21,13 @@ C is also the symbol for Celsius, and Kelvin is its natural successor. The
 step size is the same, so everything you know about C carries over one to
 one, but it sits on an absolute scale. The source extension is `.k`.
 
-## Status: v0.1.1 (#496)
+## Status: v0.2.0 (#514)
 
-- 0.1.1 adds `#import <fetch>` and `#import <localStorage>`, JS's, to
+- 0.2.0 puts `RegExp` and `BigInt` in the prelude, with the `123n`
+  literal, and the language changes they asked for, #497 to #513:
+  converters that never cast, functions called before they are written,
+  lent operands and parameters.
+- 0.1.1 added `#import <fetch>` and `#import <localStorage>`, JS's, to
   0.1.0 (#467), with the fixes found on the way, #468 to #495.
 - `kelvinc` translates Kelvin into C and hands the result to the C
   compiler (`$CC`, which defaults to `cc`).
@@ -558,6 +562,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 511 | BigInt's arithmetic finished, as the user asked: `b ** e` of an i64 or a BigInt, `b.pow(e)`, Python's `pow(b, e, m)` as a function and as `b.pow(e, m)`, a BigInt or an i64 in each place, lent (#510); `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()`; `.sign` for `.signum`; `b.exactI64` and `b.exactU64`, an i64? and a u64?; products past 40 limbs by Karatsuba's; a negative exponent, m of 0, no inverse and a negative isqrt end the program in words | modules/BigInt.k; tests; documents/bigint.md, README.md | `pow(b, e, m)` | 2026-11-10 |
 | 512 | A converter of a struct is its attribute of that name, as `i64(s)` and `s.i64` of text are one: `i64(b)`, `u64(b)` and `f64(b)` of a BigInt are `b.i64`, `b.u64` and `b.f64`, where they were C's error of a cast, as the user found; a value an expression gives is held; a struct without the attribute is an error in words. kc the same | src/parser.c's convert; selfhost/gen.k's gen_converter; tests; documents/strings.md, bigint.md, properties.md, README.md, selfhost/README.md, selfhost/sample.k | `i64(b)` | 2026-11-10 |
 | 513 | `T(v)` is always a converter, never C's cast, as the user said: of a number, the nearest value T holds, as text's is, `u8(300)` 255, `i64(1e30)` i64's largest, `i32(3.9)` 3, NaN 0, `f32(1e300)` an infinity; a global's value stays C's constant; of a pointer that is no text, an error in words; BigInt's `b.i64` and `b.u64` the nearest too, so `i64(1n << 1024)` is i64's largest; `v as T` stays C's conversion, which wraps, as the user chose. kc the same | modules/kelvin_prelude.h's KV_CLAMP and the rest; src/parser.c's convert, widens, int_kind; src/codegen.c's converted, clamp_limits, clamp_text; src/main.c's -Wno-tautological-constant-out-of-range-compare; selfhost/gen.k's gen_converter, kind_bits, kind_widens, put_clamp_limits; selfhost/kc.k; modules/BigInt.k; tests; documents/integers.md, floatingpoint.md, bigint.md, README.md, selfhost/README.md, selfhost/sample.k | `u8(300)` is 255 | 2026-11-10 |
+| 514 | The version bumped to 0.2.0, as the user asked once RegExp and BigInt were in the prelude: kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.2.0 notes, #497 to #513, the prelude, the language, the fixes and kc; README.md's line of the release notes. No tag, the user not having asked for one | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.2.0` | 2026-11-10 |
 
 Notes:
 
@@ -1142,6 +1147,19 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (514) Agreed details: "bump the version to 0.2.0", as the user planned
+  with RegExp and BigInt in the prelude (#504 on).
+  - The places #467 and #496 set: kelvinc's KELVIN_VERSION, the VS Code
+    package's version and the .vsix's name in its README, which
+    tests/run.sh checks agree; Design.md's status; CHANGELOG.md; the
+    README's line of the release notes.
+  - CHANGELOG.md's 0.2.0 comes before 0.1.1's: the prelude, RegExp and
+    BigInt; the language, converters that never cast, functions called
+    before they are written, lent operands and parameters, owners in
+    literals, bitwise operators, a type's own String; the fixes; and kc.
+  - The intro decks stay at 0.1.0, as of the talk.
+  - No tag or release: the user asks for those.
 
 - (513) Agreed details: the user's "Make sure `T(v)` is ALWAYS a type
   converter even when C typecast results in the same result. kelvin has
@@ -8095,6 +8113,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P523 | Details of #511 | modules/BigInt.k: #import <math.h> as C; kv_bi_slice, kv_bi_uadd, kv_bi_usub, kv_bi_add_at, kv_bi_umul by Karatsuba's past 40 limbs, kv_bi_school; kv_bi_upow, kv_bi_pow, kv_bi_floor_mod, kv_bi_inverse, kv_bi_mul, kv_bi_powmod, kv_bi_gcd, kv_bi_isqrt by kv_array_fail's words; sign, exactI64, exactU64, pow(e), pow(e, m) of four, gcd, lcm of two each, isqrt(); ** of an i64 and of a BigInt; pow(x:f64, y:f64), C's, and pow(b, e, m) of seven, lent; tests/run/bigint_arith.k, bigint_pow_random.k, bigint_negative_exponent.k, bigint_pow_zero_modulus.k, bigint_pow_no_inverse.k, bigint_isqrt_negative.k; bigint_basics.k and bigint_random.k of .sign | provisional |
 | P524 | Details of #512 | src/parser.c: convert, of a value of a struct (expr_class 's'), its attribute of the converter's name by method_named as an E_METHOD of attr, the receiver held where an expression gives an owner; else the error, with a base's words; selfhost/gen.k: gen_converter of a struct or a tagged type, method_named of the callee's token, attributes, the node made N_METHOD of attr_reads; else kelvinc's error; tests/run/converter_attribute.k, tests/error/converter_struct_attribute.k | provisional |
 | P525 | Details of #513 | modules/kelvin_prelude.h: float.h; KV_CLAMP_S, KV_CLAMP_U, KV_CLAMP_F, KV_I128_MAX, KV_I128_MIN, KV_U128_MAX, KV_CLAMP_U128, KV_CLAMP, KV_NARROW_F, KV_TO_F32, KV_TO_F64, KV_TEXT_CLAMP; src/parser.c: int_kind, widens, convert's pointer error and op widen; src/codegen.c: E_CAST of widen as C's, of converter by converted; clamp_limits, converted (a hidden temporary inside a function), clamp_text in text_number; src/main.c and selfhost/kc.k: -Wno-tautological-constant-out-of-range-compare; selfhost/gen.k: kind_bits, kind_widens, put_clamp_limits, gen_converter's pointer error, KV_TEXT_CLAMP and KV_CLAMP; modules/BigInt.k: i64 and u64 clamped; tests/run/converter_clamp.k, tests/error/converter_address.k | provisional |
+| P526 | Details of #514 | src/main.c: KELVIN_VERSION 0.2.0; editors/vscode/package.json and README.md: 0.2.0 and kelvin-lang-0.2.0.vsix; Design.md: the status's heading and its lines of 0.2.0 and 0.1.1; CHANGELOG.md: 0.2.0 before 0.1.1; README.md: the release notes' line | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

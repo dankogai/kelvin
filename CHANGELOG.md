@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.2.0 (#514)
+
+`RegExp` and `BigInt` in the prelude, as JS and Swift have `RegExp` and
+Python and Ruby integers of any size, with the language changes they
+asked for: #497 to #513.
+
+### The prelude
+
+- **`RegExp`** needs no import: a program that names it, or writes a
+  `$/.../` literal, has it, with `Match` and `BytesMatch`;
+  `#import <RegExp>` still builds (#504)
+  ([regexp.md](documents/regexp.md)).
+  - libkelvin holds RegExp, UnicodeData and the Unicode tables, built
+    by `kelvinc --prelude`; a program that uses none of them links none
+    of them, from the static libkelvin.a. `#import <UnicodeData>` stays.
+- **`BigInt`**, integers of any size, written in Kelvin after
+  swift-bignum, two's complement in u64 limbs (#507)
+  ([bigint.md](documents/bigint.md)):
+  - literals `123n`, `0xffn`, `0b101n`, as JS's (#508);
+  - `+ - * / %` truncated as Kelvin's integers, comparisons,
+    `& | ~ << >>`, an `i64` on either side (#507);
+  - `b ** e`, Python's `pow(b, e, m)` as a function and a method,
+    `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()`, Karatsuba's multiplication past
+    40 limbs (#511);
+  - its text is its literal everywhere, `123n`, which reads back;
+    `b.hex`, `b.oct`, `b.bin` are `+0xffn`, `-0o17n`, `+0b101n` (#509);
+    `b.text(base)` the bare digits;
+  - `i64(b)`, `u64(b)`, `f64(b)`, the nearest value, as `b.i64` and the
+    rest (#512, #513); `b.exactI64` and `b.exactU64`, an `i64?` and a
+    `u64?` (#511);
+  - division by zero ends the program in words, as a failed check does.
+
+### The language
+
+- **`T(v)` is always a converter, never C's cast** (#513): of a number,
+  the nearest value `T` holds, `u8(300)` is 255, `i64(1e30)` i64's
+  largest, NaN 0; of a pointer that is no text, an error. `v as T`
+  stays C's, which wraps.
+  - Of a struct, a converter is its attribute of that name, `i64(b)` is
+    `b.i64` (#512).
+- **Called before written** (#505): a function, a method, an operator or
+  a function of a type may be used before its definition, as in Swift;
+  kelvinc writes its prototype, and every overload is seen.
+- **Owners:**
+  - an operator is lent its owner operands, which its caller keeps: `a *
+    a + b` leaves `a` and `b` (#501);
+  - so is a parameter written `b:lent T` (#510);
+  - a local owner named in a struct's literal moves into it,
+    `(Big){r, false}` (#503);
+  - an owner that moves out in an expression is named nowhere else in
+    it: `f(s, s)` and `s.count + f(s)` are errors in words, where C's
+    order of evaluation decided (#500); `==` wraps a copy (#500).
+- **Operators:** a struct defines `& | ~ << >>` and unary `~` (#502).
+- **A type's own text** of any length, `let T.string:String { ... }`,
+  which print shows whole (#506).
+- **An attribute may be named as a converter**, `let i64:i64 { }` (#507).
+
+### Fixes
+
+- Kelvin errors in words where C's came before: a member a type does not
+  have (#497); a converter of a struct, or of a pointer (#512, #513).
+- An array of empty structs counts by its declared length, where it was
+  0 / 0 (#499).
+- A clean build of libkelvin, which CI found, after #504.
+
+### kc
+
+- kc, the compiler in Kelvin, does the same of each change but the
+  prelude's modules, which it does not link; it zeroes an empty struct
+  by `{}` (#498), and refuses a `123n` literal in words.
+
 ## 0.1.1 (#496)
 
 `fetch()` and `localStorage`, JS's, as modules, with fixes found on the

@@ -11,7 +11,7 @@ From the top of the repository (#191):
 make vscode
 ```
 
-- It packages this folder as `build/kelvin-lang-0.1.1.vsix`, with
+- It packages this folder as `build/kelvin-lang-0.2.0.vsix`, with
   `tools/vsix.sh` and `zip`, no npm, and installs it with VS Code's `code`
   command.
   - Without `code`: in VS Code, run "Shell Command: Install 'code'
@@ -20,7 +20,7 @@ make vscode
 - After a `git pull` that changes the grammar, `make vscode` again: it
   installs over the one installed.
 - `make vsix` only makes the package, to share; anyone installs it with
-  `code --install-extension kelvin-lang-0.1.1.vsix`, or with "Install
+  `code --install-extension kelvin-lang-0.2.0.vsix`, or with "Install
   from VSIX..." of the Extensions view.
 - A link to this folder in `~/.vscode/extensions` does not install it:
   VS Code loads only the extensions it has installed itself, and marks
