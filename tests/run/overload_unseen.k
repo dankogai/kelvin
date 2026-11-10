@@ -84,4 +84,4 @@ let main():int32 {
 // c: __builtin_choose_expr(KV_NUMBER(_kv_self0) == KV_N_I64, kind__i64
 // c: __builtin_choose_expr(KV_POINTER(_kv_self6), len__const_u8p
 // c: _Generic((_kv_self11), size_t: measure__size_t, default:
-// c: _Generic((_kv_self14), struct vec: sqrt__vec, default: __builtin_choose_expr(KV_NUMBER(_kv_self14) == KV_N_F64, sqrt,
+// c: _Generic((_kv_self15), struct vec: sqrt__vec, default: __builtin_choose_expr(KV_NUMBER(_kv_self15) == KV_N_F64, sqrt,

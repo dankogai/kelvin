@@ -557,6 +557,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 510 | A parameter written `b:lent T`, of a function or a method, is lent its caller's owner, as the user chose, as an operator's operands are (#501): the caller keeps it, one an expression gives is held and freed after, and inside it is a let that moves into no function and is returned as a copy; `var` with it, a number and an anonymous function's are errors in words. kc the same | src/parser.c's parse_var, lent_param, lent_words, borrow_temps, move_args and the method call; src/codegen.c's method call; src/kelvin.h's lent_written; selfhost/parse.k's lent_at and lent_params; selfhost/gen.k's lent_param, lent_words and the errors; tests; documents/functions.md, ownership.md, README.md, selfhost/README.md, selfhost/sample.k | `b:lent T` | 2026-11-10 |
 | 511 | BigInt's arithmetic finished, as the user asked: `b ** e` of an i64 or a BigInt, `b.pow(e)`, Python's `pow(b, e, m)` as a function and as `b.pow(e, m)`, a BigInt or an i64 in each place, lent (#510); `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()`; `.sign` for `.signum`; `b.exactI64` and `b.exactU64`, an i64? and a u64?; products past 40 limbs by Karatsuba's; a negative exponent, m of 0, no inverse and a negative isqrt end the program in words | modules/BigInt.k; tests; documents/bigint.md, README.md | `pow(b, e, m)` | 2026-11-10 |
 | 512 | A converter of a struct is its attribute of that name, as `i64(s)` and `s.i64` of text are one: `i64(b)`, `u64(b)` and `f64(b)` of a BigInt are `b.i64`, `b.u64` and `b.f64`, where they were C's error of a cast, as the user found; a value an expression gives is held; a struct without the attribute is an error in words. kc the same | src/parser.c's convert; selfhost/gen.k's gen_converter; tests; documents/strings.md, bigint.md, properties.md, README.md, selfhost/README.md, selfhost/sample.k | `i64(b)` | 2026-11-10 |
+| 513 | `T(v)` is always a converter, never C's cast, as the user said: of a number, the nearest value T holds, as text's is, `u8(300)` 255, `i64(1e30)` i64's largest, `i32(3.9)` 3, NaN 0, `f32(1e300)` an infinity; a global's value stays C's constant; of a pointer that is no text, an error in words; BigInt's `b.i64` and `b.u64` the nearest too, so `i64(1n << 1024)` is i64's largest; `v as T` stays C's conversion, which wraps, as the user chose. kc the same | modules/kelvin_prelude.h's KV_CLAMP and the rest; src/parser.c's convert, widens, int_kind; src/codegen.c's converted, clamp_limits, clamp_text; src/main.c's -Wno-tautological-constant-out-of-range-compare; selfhost/gen.k's gen_converter, kind_bits, kind_widens, put_clamp_limits; selfhost/kc.k; modules/BigInt.k; tests; documents/integers.md, floatingpoint.md, bigint.md, README.md, selfhost/README.md, selfhost/sample.k | `u8(300)` is 255 | 2026-11-10 |
 
 Notes:
 
@@ -1141,6 +1142,38 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (513) Agreed details: the user's "Make sure `T(v)` is ALWAYS a type
+  converter even when C typecast results in the same result. kelvin has
+  NO TYPE CAST", and "`i64(1n << 1024)` gives `0`. Isn't it `i64.max`?"
+  - Asked, the user chose that a converter of a number clamps, as text
+    does, over wrapping; that `v as T` stays C's, the way to wrap; and
+    that BigInt's `b.i64` clamps too, one with `i64(b)` as #512 made
+    them.
+  - KV_CLAMP(T, lo, hi, v) chooses by v's type with _Generic: a floating
+    v NaN to 0, at or past a limit to it, else truncated; an unsigned v
+    above hi to hi; any other below lo or above hi to them. Comparisons
+    alone, so a global's `let small:u8 = u8(300)` stays C's constant.
+  - Inside a function v is put in a temporary first, evaluated once.
+  - KV_TO_F32 and KV_TO_F64 give an infinity past a narrower float's
+    range, where C's conversion is undefined; NaN stays NaN.
+  - Where T holds every value of v's type, an integer of as many bits
+    and the same sign or a signed one of more bits than an unsigned, a
+    float of an integer, f64 of f32, the converter stays C's
+    conversion, as it means the same: op widen.
+  - Where kelvinc cannot see whether v is text, KV_TEXT_CLAMP reads text
+    or clamps a number.
+  - A converter of a pointer that is no text, of a function or of an
+    array, is an error in words, where it was C's cast to an integer:
+    `.addr`, or `v as T`. tests/run/text_numbers_more.k's
+    `int64(vp) == vp as int64` is `vp.addr == vp as int64` now.
+  - clang notes that an enum or an int never reaches a limit KV_CLAMP
+    compares; kelvinc and kc pass
+    -Wno-tautological-constant-out-of-range-compare, as they pass
+    others for C kelvinc writes.
+  - Tests that printed C's wrap print the nearest value now: casts.k,
+    casts_edge2.k, declarations.k, text_numbers.k; bigint_basics.k,
+    bigint_literal.k and converter_attribute.k BigInt's clamps.
 
 - (512) Agreed details: the user's "`f64(bi)` and `i64(bi)` return error
   while `bi.f64` and `bi.i64` work as expected".
@@ -8061,6 +8094,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P522 | Details of #510 | src/kelvin.h: Var's lent_written; src/parser.c: parse_var takes a lent after : of a parameter before a type; lent_param, its two errors; lent_words, an operand and the operator in an operator, a value and this function elsewhere; parse_fn_tail and the method parse set p->lent of it, LET_LENT; the anonymous function's error; borrow_temps holds an owner an expression gives for a lent parameter; move_args and the method call move none into one; move_argument's and return_owner's errors by lent_words; src/codegen.c: the method call takes no local owner into a lent parameter; selfhost/parse.k: lent_at, lent_params, parse_type and parse_params; selfhost/gen.k: lent_param of lent_params, lent_words, move_out's and move_back's words, the parameter errors; tests/run/lent_param.k, tests/error/lent_var.k, lent_number.k, lent_return.k, lent_move.k, lent_anonymous.k | provisional |
 | P523 | Details of #511 | modules/BigInt.k: #import <math.h> as C; kv_bi_slice, kv_bi_uadd, kv_bi_usub, kv_bi_add_at, kv_bi_umul by Karatsuba's past 40 limbs, kv_bi_school; kv_bi_upow, kv_bi_pow, kv_bi_floor_mod, kv_bi_inverse, kv_bi_mul, kv_bi_powmod, kv_bi_gcd, kv_bi_isqrt by kv_array_fail's words; sign, exactI64, exactU64, pow(e), pow(e, m) of four, gcd, lcm of two each, isqrt(); ** of an i64 and of a BigInt; pow(x:f64, y:f64), C's, and pow(b, e, m) of seven, lent; tests/run/bigint_arith.k, bigint_pow_random.k, bigint_negative_exponent.k, bigint_pow_zero_modulus.k, bigint_pow_no_inverse.k, bigint_isqrt_negative.k; bigint_basics.k and bigint_random.k of .sign | provisional |
 | P524 | Details of #512 | src/parser.c: convert, of a value of a struct (expr_class 's'), its attribute of the converter's name by method_named as an E_METHOD of attr, the receiver held where an expression gives an owner; else the error, with a base's words; selfhost/gen.k: gen_converter of a struct or a tagged type, method_named of the callee's token, attributes, the node made N_METHOD of attr_reads; else kelvinc's error; tests/run/converter_attribute.k, tests/error/converter_struct_attribute.k | provisional |
+| P525 | Details of #513 | modules/kelvin_prelude.h: float.h; KV_CLAMP_S, KV_CLAMP_U, KV_CLAMP_F, KV_I128_MAX, KV_I128_MIN, KV_U128_MAX, KV_CLAMP_U128, KV_CLAMP, KV_NARROW_F, KV_TO_F32, KV_TO_F64, KV_TEXT_CLAMP; src/parser.c: int_kind, widens, convert's pointer error and op widen; src/codegen.c: E_CAST of widen as C's, of converter by converted; clamp_limits, converted (a hidden temporary inside a function), clamp_text in text_number; src/main.c and selfhost/kc.k: -Wno-tautological-constant-out-of-range-compare; selfhost/gen.k: kind_bits, kind_widens, put_clamp_limits, gen_converter's pointer error, KV_TEXT_CLAMP and KV_CLAMP; modules/BigInt.k: i64 and u64 clamped; tests/run/converter_clamp.k, tests/error/converter_address.k | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

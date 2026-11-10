@@ -5652,6 +5652,47 @@ let put_text_rest(y:int64, base:int64) {
     if k == Y_I128 || k == Y_U128 { put(")") }
 }
 
+// an integer kind's bits, 1 of bool, 0 of another (#513)
+let kind_bits(k:ykind):int64 {
+    if k == Y_I8 || k == Y_U8 { return 8 }
+    if k == Y_I16 || k == Y_U16 { return 16 }
+    if k == Y_I32 || k == Y_U32 { return 32 }
+    if k == Y_I64 || k == Y_U64 { return 64 }
+    if k == Y_I128 || k == Y_U128 { return 128 }
+    return k == Y_BOOL ? 1 : 0
+}
+
+// whether the kind to holds every value of the kind from, as kelvinc's
+// widens: C's conversion is then the converter's (#513)
+let kind_widens(from:ykind, to:ykind):bool {
+    let fb:int64 = kind_bits(from)
+    let tb:int64 = kind_bits(to)
+    if fb > 0 && tb > 1 {
+        let fs = is_signed_kind(from)
+        let ts = is_signed_kind(to)
+        if fs == ts { return fb <= tb }
+        return !fs && ts && fb < tb
+    }
+    if fb > 0 && (to == Y_F64 || to == Y_F32) { return true }
+    return to == Y_F64 && (from == Y_F32 || from == Y_F64)
+}
+
+// KV_CLAMP's type and limits of the integer kind k, kelvinc's (#513)
+let put_clamp_limits(y:int64) {
+    let k:ykind = types[y].kind
+    put_ctype(y)
+    if k == Y_I8 { put(", INT8_MIN, INT8_MAX, ") }
+    if k == Y_I16 { put(", INT16_MIN, INT16_MAX, ") }
+    if k == Y_I32 { put(", INT32_MIN, INT32_MAX, ") }
+    if k == Y_I64 { put(", INT64_MIN, INT64_MAX, ") }
+    if k == Y_I128 { put(", KV_I128_MIN, KV_I128_MAX, ") }
+    if k == Y_U8 { put(", 0, UINT8_MAX, ") }
+    if k == Y_U16 { put(", 0, UINT16_MAX, ") }
+    if k == Y_U32 { put(", 0, UINT32_MAX, ") }
+    if k == Y_U64 { put(", 0, UINT64_MAX, ") }
+    if k == Y_U128 { put(", 0, KV_U128_MAX, ") }
+}
+
 // T(v) and T(text, base), the converter n (#429), as kelvinc's #36: a
 // number C's cast, text the number in it, read as strtol and strtod
 // read it; what only C sees, C's _Generic chooses, as kelvinc's KV_TEXT
@@ -5726,6 +5767,17 @@ let gen_converter(n:int64) {
         return
     }
     let number = !unseen && (is_number_kind(types[vy].kind) || types[vy].kind == Y_UCHR)
+    if !text && !unseen && k != Y_BOOL && (types[vy].kind == Y_PTR || types[vy].kind == Y_FIXED) {   // as kelvinc says it (#513)
+        var m = name.copy()
+        m += "(v) converts a number, or reads one from text, and "
+        let w:String = kelvin_type_text(vy)
+        m += &w
+        m += " is neither: an address is '.addr', and 'v as "
+        m += &name
+        m += "' is C's cast (#513)"
+        gen_error(n, m.cstr)
+        return
+    }
     if !text && !unseen && !number && !(k == Y_BOOL && (types[vy].kind == Y_PTR || types[vy].kind == Y_CSTR)) {
         var m = name.copy()
         m += " converts a number, or reads one from text, and this is "
@@ -5753,6 +5805,12 @@ let gen_converter(n:int64) {
             put(")_Generic(KV_TEXT_TAG(_kv_conv), kv_text_tag *: ")
             put_text_read(y)
             put(", default: kv_base_needs_text)(KV_TEXT_PTR(_kv_conv)")
+        } else if kind_bits(k) > 1 {                     // a number clamped, as kelvinc's (#513)
+            put("KV_TEXT_CLAMP(")
+            put_clamp_limits(y)
+            put("_kv_conv, ")
+            put_text_read(y)
+            put("(KV_TEXT_PTR(_kv_conv)")
         } else {
             put("KV_TEXT(")
             put_ctype(y)
@@ -5767,9 +5825,23 @@ let gen_converter(n:int64) {
             put("); })")
         }
     } else {
+        let from:ykind = types[vy].kind == Y_UCHR ? Y_U32 : types[vy].kind
+        let clamp = k != Y_BOOL && !kind_widens(from, k)   // the nearest value T holds, as kelvinc's (#513)
+        if clamp { put("({ __auto_type _kv_conv = ((void)0, ") }
         put("(")
         gen_expr(v)
         put(types[vy].kind == Y_UCHR ? ").cp" : ")")   // i64(c) is i64(c.utf32), as kelvinc's (#478)
+        if clamp {
+            put("); ")
+            if kind_bits(k) > 1 {
+                put("KV_CLAMP(")
+                put_clamp_limits(y)
+                put("_kv_conv)")
+            } else {
+                put(k == Y_F32 ? "KV_TO_F32(_kv_conv)" : "KV_TO_F64(_kv_conv)")
+            }
+            put("; })")
+        }
     }
     put(")")
     close_holds(&opened)

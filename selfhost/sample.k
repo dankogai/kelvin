@@ -1347,6 +1347,8 @@ on a new line`
     println(ln_total(ln_a, ln_a), " ", ln_total(ln_a, (op_owner){$"lb", 6}), " ", ln_a)   // a kept, a temporary held (#510)
     let cv_m:cv_money = {1234}
     println(i64(cv_m), " ", cv_m.i64)                    // (#512)
+    let cl_n:i64 = 300
+    println(u8(cl_n), " ", i8(0 - cl_n), " ", u64(0 - 1), " ", i32(0.0 - 3.9), " ", cl_n as u8)   // clamped, as #513; as wraps
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

@@ -8,7 +8,7 @@ A number with a fraction: C's `float` and `double`, named by their size.
 ```swift
 let d = 1.5                         // an f64, inferred
 var f:float32 = 1.5                     // no 1.5f: the type is on the declaration
-let half = float64(n) / 2               // a converter, as C's cast
+let half = float64(n) / 2               // a converter
 let x = float64("0x1.8p1")              // read from text: 3.0
 println(0.1, " ", $[1.0, 0.5])      // 0.10000000000000001 [1.0, 0.5]
 println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
@@ -53,8 +53,10 @@ text, print and show as text. Integers are in
 |---|--------|
 | `float f = 1.5f;` | `var f:f32 = 1.5` |
 
-- **Converting** is C's cast: `f64(n)`, `n as f64`, `n:f64`, and the
-  property form `n.f64`; `i32(3.9)` and `3.9.i32` are 3. The rules are in
+- **Converting:** `f64(n)` and the property form `n.f64` are
+  converters (#513), the nearest value: `i32(3.9)` and `3.9.i32` are 3,
+  `i64(1e30)` i64's largest, `i32(NaN)` 0, `f32(1e300)` an infinity;
+  `n as f64` and `n:f64` are C's conversion. The rules are in
   [integers.md](integers.md#conversions-no-c-casts).
 - **From text**, a converter reads the number as C's `strtod` and
   `strtof` read it (#36): `f64("1.5")`, `"1.5".f64`, and hex floats,

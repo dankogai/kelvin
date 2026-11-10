@@ -722,6 +722,9 @@ int main(int argc, char **argv) {
         "-Wno-pointer-sign",
         "-Wno-incompatible-library-redeclaration",
         "-Wno-builtin-declaration-mismatch",
+        /* a converter's clamp (#513) compares a value with T's limits, which
+           an enum or an int may never reach: clang's note of it, not ours */
+        "-Wno-tautological-constant-out-of-range-compare",
         /* gcc on x86-64 notes that passing a struct with a flexible array
            member changed ABI in GCC 4.4, e.g. for a derived .cstr */
         "-Wno-psabi",

@@ -91,6 +91,7 @@ static char *show_call(Expr *e, Type *t, const char *x, const char *out, const c
 static char *template_room(Expr *e);
 static Decl *text_method_of(const char *tag);
 static Decl *string_method_of(const char *tag);
+static char *converted(Expr *e);
 
 /* The size of the buffer that .dec, .hex, .oct or .bin of a number writes
    into, its NUL included: the longest is an i128's */
@@ -1085,8 +1086,10 @@ static char *expr_bare(Expr *e) {
             return strfmt("%s->%s", expr(e->a->a), e->text);
         return strfmt("%s.%s", e->a ? expr(e->a) : "", e->text);
     case E_CAST:
-        if (e->op && !strcmp(e->op, "converter"))
+        if (e->op && !strcmp(e->op, "widen")) /* T holds every value of v's (#513) */
             return strfmt("(%s)(%s)", decl(e->type, ""), expr_bare(e->a));
+        if (e->op && !strcmp(e->op, "converter"))
+            return converted(e);
         if (e->op && !strcmp(e->op, "uchr")) /* uchr(x) (#56) */
             return strfmt("KV_UCHR_OF(%s)", expr_bare(e->a));
         if (e->op && !strncmp(e->op, "text", 4))
@@ -2208,6 +2211,48 @@ static char *text_arg(Expr *e) {
    converting it, and with a base, only text compiles. Inside a function
    the value goes into a temporary first, so that it is evaluated and
    written once; at file scope, KV_TEXT of a number stays a constant. */
+/* T's limits as C names them, for a converter's clamp (#513); NULL of a
+   type that is no integer */
+static bool clamp_limits(const char *name, const char **lo, const char **hi) {
+    static const char *names[][3] = {
+        {"i8", "INT8_MIN", "INT8_MAX"},       {"i16", "INT16_MIN", "INT16_MAX"}, {"i32", "INT32_MIN", "INT32_MAX"},
+        {"i64", "INT64_MIN", "INT64_MAX"},    {"i128", "KV_I128_MIN", "KV_I128_MAX"},
+        {"u8", "0", "UINT8_MAX"},             {"u16", "0", "UINT16_MAX"},        {"u32", "0", "UINT32_MAX"},
+        {"u64", "0", "UINT64_MAX"},           {"u128", "0", "KV_U128_MAX"}};
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
+        if (!strcmp(name, names[i][0])) {
+            *lo = names[i][1];
+            *hi = names[i][2];
+            return true;
+        }
+    return false;
+}
+
+/* text read where kelvinc cannot see whether v is text, else v clamped
+   as a converter clamps (#513) */
+static char *clamp_text(const char *name, const char *type, const char *x, const char *read) {
+    const char *lo, *hi;
+    if (clamp_limits(name, &lo, &hi))
+        return strfmt("KV_TEXT_CLAMP(%s, %s, %s, %s, %s)", type, lo, hi, x, read);
+    return strfmt("KV_TEXT(%s, %s, %s)", type, x, read);
+}
+
+/* T(v) of a number (#513): the nearest value T holds, never C's cast; v
+   once, in a temporary, inside a function */
+static char *converted(Expr *e) {
+    const char *name = e->type->name, *type = decl(e->type, ""), *lo, *hi;
+    char *v = strfmt("(%s)", expr_bare(e->a)), *x = v, *tmp = NULL;
+    if (text_bufs)
+        x = tmp = hidden(source_of(e->a), "self");
+    char *c = clamp_limits(name, &lo, &hi) ? strfmt("KV_CLAMP(%s, %s, %s, %s)", type, lo, hi, x)
+              : !strcmp(name, "f32")       ? strfmt("KV_TO_F32(%s)", x)
+              : !strcmp(name, "f64")       ? strfmt("KV_TO_F64(%s)", x)
+                                           : strfmt("(%s)(%s)", type, x);
+    if (!strcmp(c, strfmt("(%s)(%s)", type, x)))
+        return strfmt("(%s)%s", type, v); /* bool: v != 0 */
+    return tmp ? strfmt("({ __auto_type %s = ((void)0, %s); %s; })", tmp, v, c) : c;
+}
+
 static char *text_number(Expr *e) {
     const char *name = e->type->name, *type = decl(e->type, ""), *bits = name + 1;
     char *base = e->b ? strfmt("(%s)", expr_bare(e->b)) : "10";
@@ -2232,7 +2277,7 @@ static char *text_number(Expr *e) {
         x = tmp = hidden(source_of(e->a), "self");
     char *c = e->b ? strfmt("(%s)_Generic(KV_TEXT_TAG(%s), kv_text_tag *: %s, default: kv_base_needs_text)(KV_TEXT_PTR(%s)%s)",
                             type, x, read, x, rest)
-                   : strfmt("KV_TEXT(%s, %s, %s(KV_TEXT_PTR(%s)%s))", type, x, read, x, rest);
+                   : clamp_text(name, type, x, strfmt("%s(KV_TEXT_PTR(%s)%s)", read, x, rest));
     /* (void)0, v: a bit-field cannot initialize __auto_type */
     return tmp ? strfmt("({ __auto_type %s = ((void)0, %s); %s; })", tmp, v, c) : c;
 }

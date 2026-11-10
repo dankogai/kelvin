@@ -13,5 +13,5 @@ let main():int32 {
     return 0
 }
 // out: 123n 255n 5n 1267650600228229401496703205376n -5n 0n 7n
-// out: 52n ffffffffffffffffff 0
+// out: 52n ffffffffffffffffff 18446744073709551615
 // out: 15511210043330985984000000n true 101

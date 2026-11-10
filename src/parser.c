@@ -6980,6 +6980,38 @@ static bool float_operand(Expr *e) {
     }
 }
 
+/* an integer type's sign and bits, Kelvin's names; false of another */
+static bool int_kind(const char *n, bool *sign, int *bits) {
+    static const struct { const char *name; bool sign; int bits; } kinds[] = {
+        {"i8", true, 8},   {"i16", true, 16},  {"i32", true, 32},  {"i64", true, 64},   {"i128", true, 128},
+        {"u8", false, 8},  {"u16", false, 16}, {"u32", false, 32}, {"u64", false, 64},  {"u128", false, 128},
+        {"bool", false, 1}};
+    for (size_t i = 0; i < sizeof kinds / sizeof kinds[0]; i++)
+        if (!strcmp(n, kinds[i].name)) {
+            *sign = kinds[i].sign;
+            *bits = kinds[i].bits;
+            return true;
+        }
+    return false;
+}
+
+/* Does the type named to hold every value of from (#513): an integer of
+   the same sign and as many bits or more, or a signed one of more bits
+   than an unsigned; a float of an integer or of f32? */
+static bool widens(Type *from, const char *to) {
+    from = from ? unqualified(from) : NULL;
+    if (!from || from->kind != T_BASE)
+        return false;
+    bool fs, ts;
+    int fb, tb;
+    bool fi = int_kind(from->name, &fs, &fb), ti = int_kind(to, &ts, &tb);
+    if (fi && ti)
+        return fs == ts ? fb <= tb : (!fs && ts && fb < tb);
+    if (fi && (!strcmp(to, "f64") || !strcmp(to, "f32")))
+        return true;
+    return !strcmp(to, "f64") && (!strcmp(from->name, "f32") || !strcmp(from->name, "f64"));
+}
+
 /* T(v), T(text, base) and v.T (#36): v converted as C's cast converts
    it, or where v is text, the number read from it as C's strtol and
    strtod read it (op "text"); where kelvinc cannot see whether v is text,
@@ -7087,6 +7119,16 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
         error_at(base->pos, "a base is for reading text, as in %s(\"755\", 8); %s converts a number", name, name);
     if (base)
         check_base(base);
+    if (!strcmp(e->op, "converter") && !is_bool && vt && (vt->kind == T_PTR || vt->kind == T_FUNC || vt->kind == T_ARRAY)) {
+        bare_tags = true;
+        char *tn = kelvin_type(vt);
+        bare_tags = false;
+        error_at(t->pos, "%s(v) converts a number, or reads one from text, and %s is neither: an address is '.addr', "
+                         "and 'v as %s' is C's cast (#513)",
+                 name, tn, name);
+    }
+    if (!strcmp(e->op, "converter") && !is_bool && widens(vt, name))
+        e->op = "widen"; /* T holds every value of v's type: C's conversion is the converter's (#513) */
     return e;
 }
 

@@ -2,7 +2,7 @@
 #import <stdlib.h> as C
 
 let main():int32 {
-    // converters: T(v) for built-in types, with C's conversion semantics
+    // converters: T(v) for built-in types, the nearest value the type holds (#513)
     printf("%d %d %.1f %d\n", int32(3.9), uint8(300), float64(7) / 2, bool(5));
 
     // v as T for any type; malloc(...) as T is the typical use
@@ -27,7 +27,7 @@ let main():int32 {
     printf("%d %d\n", (int32(2.5) + 1), int32(sizeof(int64(x))));
     return 0;
 }
-// out: 3 44 3.5 1
+// out: 3 255 3.5 1
 // out: 30 1
 // out: 255
 // out: 1

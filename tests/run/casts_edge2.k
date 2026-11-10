@@ -14,5 +14,5 @@ let main():int32 {
     printf("%d %d %d %d\n", int32(a[1]), d[1].quot, int32(c), int32(sizeof ([size_t](2))[1, 2]));
     return 0;
 }
-// out: 4 0 7
+// out: 4 255 7
 // out: 2 3 3 16

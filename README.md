@@ -377,6 +377,9 @@ So far the changes from C are these, by topic.
   `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()` (#511); `i64(b)` and `f64(b)`
   are `b.i64` and `b.f64`, as a converter of a struct is its attribute
   (#512)
+- `T(v)` is a converter, never C's cast: the nearest value `T` holds,
+  `u8(300)` is 255, `i64(1e30)` i64's largest, NaN 0; `v as T` is C's,
+  which wraps (#513)
 - `#import <fetch>` is JS's `fetch(url)`, a GET over HTTP and HTTPS:
   `var r = fetch("https://example.com/")`, a `Result<Response, Error>`,
   `res.status`, `res.headers["content-type"]`, `res.text()`; HTTPS is

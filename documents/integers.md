@@ -7,10 +7,10 @@ A whole number that says its size: `i8` to `i128`, `u8` to `u128`.
 ```swift
 var v:u64 = 10                        // no 10UL: the type is on the declaration
 let n:i64 = 3
-let b = u8(300)                       // a converter, as C's cast: 44
+let b = u8(300)                       // a converter: the nearest u8, 255
 let k = i64("42")                     // a converter of text reads it
 let big:u64 = 1:u64 << 40             // C: 1UL << 40
-println(v, " ", b, " ", k, " ", big)  // 10 44 42 1099511627776
+println(v, " ", b, " ", k, " ", big)  // 10 255 42 1099511627776
 println(n ** 4, " ", (-5).abs, " ", (-3).sign, " ", 255.hex)   // 81 5 -1 +0xff
 ```
 
@@ -77,21 +77,30 @@ Everything else about literals is C's:
 
 These serve every number, floats and `bool` included.
 
-C's `(T)v` does not exist in Kelvin. There are two ways to convert, and
-both mean exactly what the C cast means (`i32(3.9)` is 3, `u8(300)` is 44),
-except that a converter of text reads the number in it (#36), while
-`s as i64` and `s:i64` stay C's cast:
+C's `(T)v` does not exist in Kelvin. There are two ways to convert:
 
 - **`T(v)`**, a converter, for built-in types: `i32(x)`, `u8(c)`,
-  `f64(n) / 2`, `bool(flags & 4)` *(provisional P18)*. Of text, it reads
-  the number (#36, below).
+  `f64(n) / 2`, `bool(flags & 4)` *(provisional P18)*. It is never C's
+  cast (#513): it gives the nearest value `T` holds.
+  - An integer past `T`'s range is `T`'s limit: `u8(300)` is 255,
+    `i8(-200)` -128, `u64(-1)` 0.
+  - A floating number is truncated toward zero, `i32(3.9)` is 3, and
+    past `T`'s range is its limit, `i64(1e30)` is i64's largest; NaN is
+    0.
+  - A narrower float past its range is an infinity, `f32(1e300)`.
+  - Of text, it reads the number (#36, below), clamped the same way.
+  - Of a struct, it is the struct's attribute of that name (#512):
+    `i64(1n << 1024)` of a BigInt is i64's largest.
+  - Of a pointer that is no text it is an error: an address is `p.addr`.
+  - At the top level it stays C's constant: `let small:u8 = u8(300)`.
 - **`v:T`**, a type annotation, means exactly `v as T`: `0xdead:u16`,
   `1:u64 << 40`, `n:size_t`.
   - In the middle of a ternary (`c ? a : b`) and in a `case` label, a
     bare name after `:` is the separator, so annotate with a typedef
     there by using parentheses or `as`.
 - **`v as T`**, for any type, including pointers and C typedef names:
-  `malloc(n) as i32^`, `p as any^`, `n as size_t`.
+  `malloc(n) as i32^`, `p as any^`, `n as size_t`. It is C's
+  conversion, which wraps: `300 as u8` is 44, the way to the low bits.
 
 #### Numbers from text
 

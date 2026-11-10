@@ -43,7 +43,7 @@ let main():int32 {
     return 0;
 }
 // out: 8 2 2 8 1 8
-// out: 57005 44 5
+// out: 57005 255 5
 // out: 3 1
 // out: 4 10
 // out: 1 2 1 1

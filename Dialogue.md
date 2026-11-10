@@ -9696,3 +9696,18 @@ them; one without is an error in words. kc the same. Details are
 provisional P524.
 
 There are 1267 tests, and all pass with clang and with gcc 15.
+
+### 560. A converter, never a cast
+
+> * Make sure `T(v)` is ALWAYS a type converter even when C typecast
+>   results in the same result. kelvin has NO TYPE CAST
+> * `i64(1n << 1024)` gives `0`. Isn't it `i64.max`?
+
+**Claude** asked: the user chose that a converter of a number gives the
+nearest value T holds, as text's does, `u8(300)` 255, `i64(1e30)` i64's
+largest, NaN 0; `v as T` stays C's, which wraps; and BigInt's `b.i64`
+clamps too, so `i64(1n << 1024)` is i64's largest. A converter of a
+pointer that is no text is an error. kc the same. Details are
+provisional P525.
+
+There are 1269 tests, and all pass with clang and with gcc 15.

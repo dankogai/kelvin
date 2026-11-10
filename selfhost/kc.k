@@ -281,6 +281,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     cc_arg(&args, "-Wno-pointer-sign")
     cc_arg(&args, "-Wno-incompatible-library-redeclaration")
     cc_arg(&args, "-Wno-builtin-declaration-mismatch")
+    cc_arg(&args, "-Wno-tautological-constant-out-of-range-compare")   // a converter's clamp (#513)
     cc_arg(&args, "-isystem")
     args += mods.copy()
     if compile_only { cc_arg(&args, "-c") }        // an object, and nothing linked (#281)

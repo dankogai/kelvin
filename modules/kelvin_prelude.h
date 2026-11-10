@@ -40,6 +40,7 @@
 #define KV_CSTR_SCALAR 64
 #include <stdlib.h> /* realloc and free, for Array<T>'s functions (#57) */
 #include <string.h>
+#include <float.h> /* FLT_MAX, DBL_MAX of the converters (#513) */
 
 /* a check that failed (#174): the message is printed, and the program exits
    with status 1; with KELVIN_ABORT set in the environment it aborts instead,
@@ -914,6 +915,38 @@ typedef struct kv_text_tag kv_text_tag;
 #define KV_TEXT_PTR(v) _Generic(KV_TEXT_TAG(v), kv_text_tag *: (v), default: (const void *)0)
 #define KV_NOT_TEXT(v) _Generic(KV_TEXT_TAG(v), kv_text_tag *: 0, default: (v))
 #define KV_TEXT(T, v, read) _Generic(KV_TEXT_TAG(v), kv_text_tag *: (T)(read), default: (T)(KV_NOT_TEXT(v)))
+
+/* T(v), a converter of a number (#513), never C's cast: the nearest value
+   T holds, as text's is. An integer past T's range is T's limit; a
+   floating number truncated toward zero, past T's range its limit, NaN 0.
+   Comparisons alone, so that a converter stays a constant expression at
+   file scope; inside a function kelvinc evaluates v once, first. */
+#define KV_CLAMP_S(T, lo, hi, v) ((v) < (lo) ? (T)(lo) : (v) > (hi) ? (T)(hi) : (T)(v))
+#define KV_CLAMP_U(T, hi, v) ((v) > (hi) ? (T)(hi) : (T)(v))
+#define KV_CLAMP_F(T, lo, hi, v)                                                                                \
+    ((v) != (v) ? (T)0 : (v) <= (long double)(lo) ? (T)(lo) : (v) >= (long double)(hi) ? (T)(hi) : (T)(v))
+#ifdef __SIZEOF_INT128__
+#define KV_I128_MAX ((__int128)(~(unsigned __int128)0 >> 1))
+#define KV_I128_MIN (-KV_I128_MAX - 1)
+#define KV_U128_MAX (~(unsigned __int128)0)
+#define KV_CLAMP_U128(T, hi, v) unsigned __int128: KV_CLAMP_U(T, hi, v),
+#else
+#define KV_CLAMP_U128(T, hi, v)
+#endif
+#define KV_CLAMP(T, lo, hi, v)                                                                                   \
+    _Generic((v), float: KV_CLAMP_F(T, lo, hi, v), double: KV_CLAMP_F(T, lo, hi, v),                            \
+             long double: KV_CLAMP_F(T, lo, hi, v), _Bool: (T)(v), unsigned char: KV_CLAMP_U(T, hi, v),          \
+             unsigned short: KV_CLAMP_U(T, hi, v), unsigned int: KV_CLAMP_U(T, hi, v),                           \
+             unsigned long: KV_CLAMP_U(T, hi, v), unsigned long long: KV_CLAMP_U(T, hi, v),                      \
+             KV_CLAMP_U128(T, hi, v) default: KV_CLAMP_S(T, lo, hi, v))
+/* a floating number into a narrower one: past its range an infinity, as
+   IEEE's rounding gives, where C's conversion is undefined */
+#define KV_NARROW_F(T, big, v) ((v) != (v) ? (T)(v) : (v) > (big) ? (T)(big) * 2 : (v) < -(big) ? -(T)(big) * 2 : (T)(v))
+#define KV_TO_F32(v) _Generic((v), double: KV_NARROW_F(float, FLT_MAX, v), long double: KV_NARROW_F(float, FLT_MAX, v), default: (float)(v))
+#define KV_TO_F64(v) _Generic((v), long double: KV_NARROW_F(double, DBL_MAX, v), default: (double)(v))
+/* where kelvinc cannot see whether v is text (#513): a number clamped */
+#define KV_TEXT_CLAMP(T, lo, hi, v, read)                                                                        \
+    _Generic(KV_TEXT_TAG(v), kv_text_tag *: (T)(read), default: KV_CLAMP(T, lo, hi, KV_NOT_TEXT(v)))
 struct kv_base_needs_text { char unused; };
 void kv_base_needs_text(struct kv_base_needs_text, ...);
 

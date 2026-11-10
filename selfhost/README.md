@@ -604,6 +604,11 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A converter clamps** (#513), as kelvinc's: `T(v)` of a number is
+  KV_CLAMP's nearest value, or C's conversion where T holds every value
+  (kind_widens); KV_TEXT_CLAMP where kc cannot see text; a pointer's is
+  kelvinc's error. kc's cc takes clang's
+  -Wno-tautological-constant-out-of-range-compare too.
 - **A converter of a struct** (#512), as kelvinc's: `i64(v)` of a struct
   that has an attribute `i64` is `v.i64`, by gen_converter making the
   call that attribute's read; one without it is kelvinc's error.

@@ -700,8 +700,15 @@ extend BigInt {
     let lcm(b:i64):BigInt { self.lcm(BigInt(b)) }
     let isqrt():BigInt { (BigInt){kv_bi_isqrt(&self.limbs)} }
     let abs:BigInt { (BigInt){kv_bi_signed(kv_bi_mag(&self.limbs), false)} }
-    let i64:i64 { kv_bi_limb(&self.limbs, 0) as i64 }
-    let u64:u64 { kv_bi_limb(&self.limbs, 0) }
+    let i64:i64 {                                        // the nearest i64, its limit past its range (#513)
+        if self.limbs.count <= 1 { return kv_bi_limb(&self.limbs, 0) as i64 }
+        return kv_bi_negative(&self.limbs) ? 0 - 9223372036854775807 - 1 : 9223372036854775807
+    }
+    let u64:u64 {                                        // the nearest u64: 0 of a negative one (#513)
+        if kv_bi_negative(&self.limbs) { return 0 }
+        if self.limbs.count <= 1 || (self.limbs.count == 2 && self.limbs[1] == 0) { return kv_bi_limb(&self.limbs, 0) }
+        return kv_bi_ones()
+    }
     let f64:f64 {
         let m = kv_bi_mag(&self.limbs)
         var d:f64 = 0.0

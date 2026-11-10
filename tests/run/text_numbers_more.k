@@ -61,7 +61,7 @@ let main(argc:int32, argv:uint8^^):int32 {
     let missing:cstr := getenv("KELVIN_UNSET")
     var digits:[uint8](3) = ['4', '2', 0]
     let vp:volatile uint8^ := &digits[0]
-    println(bool(missing), " ", bool(fallback), " ", int64(vp) == vp as int64)
+    println(bool(missing), " ", bool(fallback), " ", vp.addr == vp as int64)   // a pointer converts by as (#513)
 
     // fields named like types win where the receiver may be a C struct
     var o:object = make_object(-42)
