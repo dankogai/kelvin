@@ -562,7 +562,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 511 | BigInt's arithmetic finished, as the user asked: `b ** e` of an i64 or a BigInt, `b.pow(e)`, Python's `pow(b, e, m)` as a function and as `b.pow(e, m)`, a BigInt or an i64 in each place, lent (#510); `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()`; `.sign` for `.signum`; `b.exactI64` and `b.exactU64`, an i64? and a u64?; products past 40 limbs by Karatsuba's; a negative exponent, m of 0, no inverse and a negative isqrt end the program in words | modules/BigInt.k; tests; documents/bigint.md, README.md | `pow(b, e, m)` | 2026-11-10 |
 | 512 | A converter of a struct is its attribute of that name, as `i64(s)` and `s.i64` of text are one: `i64(b)`, `u64(b)` and `f64(b)` of a BigInt are `b.i64`, `b.u64` and `b.f64`, where they were C's error of a cast, as the user found; a value an expression gives is held; a struct without the attribute is an error in words. kc the same | src/parser.c's convert; selfhost/gen.k's gen_converter; tests; documents/strings.md, bigint.md, properties.md, README.md, selfhost/README.md, selfhost/sample.k | `i64(b)` | 2026-11-10 |
 | 513 | `T(v)` is always a converter, never C's cast, as the user said: of a number, the nearest value T holds, as text's is, `u8(300)` 255, `i64(1e30)` i64's largest, `i32(3.9)` 3, NaN 0, `f32(1e300)` an infinity; a global's value stays C's constant; of a pointer that is no text, an error in words; BigInt's `b.i64` and `b.u64` the nearest too, so `i64(1n << 1024)` is i64's largest; `v as T` stays C's conversion, which wraps, as the user chose. kc the same | modules/kelvin_prelude.h's KV_CLAMP and the rest; src/parser.c's convert, widens, int_kind; src/codegen.c's converted, clamp_limits, clamp_text; src/main.c's -Wno-tautological-constant-out-of-range-compare; selfhost/gen.k's gen_converter, kind_bits, kind_widens, put_clamp_limits; selfhost/kc.k; modules/BigInt.k; tests; documents/integers.md, floatingpoint.md, bigint.md, README.md, selfhost/README.md, selfhost/sample.k | `u8(300)` is 255 | 2026-11-10 |
-| 514 | The version bumped to 0.2.0, as the user asked once RegExp and BigInt were in the prelude: kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.2.0 notes, #497 to #513, the prelude, the language, the fixes and kc; README.md's line of the release notes. No tag, the user not having asked for one | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.2.0` | 2026-11-10 |
+| 514 | The version bumped to 0.2.0, as the user asked once RegExp and BigInt were in the prelude: kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.2.0 notes, #497 to #513, the prelude, the language, the fixes and kc; README.md's line of the release notes; then, as the user asked, the tag v0.2.0 and the release Kelvin 0.2.0 | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.2.0` | 2026-11-10 |
 
 Notes:
 
@@ -1159,7 +1159,10 @@ Notes:
     before they are written, lent operands and parameters, owners in
     literals, bitwise operators, a type's own String; the fixes; and kc.
   - The intro decks stay at 0.1.0, as of the talk.
-  - No tag or release: the user asks for those.
+  - Then, as the user asked once CI passed all 9 jobs: the annotated tag
+    v0.2.0, "Kelvin 0.2.0: RegExp and BigInt in the prelude", and the
+    release "Kelvin 0.2.0" of CHANGELOG.md's notes, its links to
+    documents at the tag, as v0.1.1's.
 
 - (513) Agreed details: the user's "Make sure `T(v)` is ALWAYS a type
   converter even when C typecast results in the same result. kelvin has

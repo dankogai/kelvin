@@ -9720,7 +9720,9 @@ There are 1269 tests, and all pass with clang and with gcc 15.
 and BigInt went into the prelude: kelvinc's and the VS Code package's,
 Design.md's status, and CHANGELOG.md's notes of #497 to #513, the
 prelude's RegExp and BigInt, converters that never cast, functions called
-before they are written, lent operands and parameters. No tag, the user
-not having asked for one. Details are provisional P526.
+before they are written, lent operands and parameters. Then, as the user
+asked, "push. then tag v0.2.0 and make a release", once CI passed: the
+tag v0.2.0 and the release Kelvin 0.2.0, of CHANGELOG.md's notes.
+Details are provisional P526.
 
 There are 1269 tests, and all pass with clang and with gcc 15.
