@@ -175,6 +175,9 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     - A struct or union may define its own,
       `let T.cstr():cstr { `...` }`, one template literal (#53); see
       [structs.md](structs.md).
+    - Or its own as a String, of any length,
+      `let T.string:String { ... }` (#506): `.cstr` is that text, cut
+      at 256 bytes as a String value's is.
   - **Arrays** have no `.cstr` (C arrays are not values); index them, or
     put them in a struct. An `Array<T>`, a `Dictionary` and a `Set` have
     none either: `print` shows them, and `.pretty` is their text.
@@ -355,6 +358,7 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
 | `static let T.x:R = v` | `static let x:R = v` | a type attribute, a constant (#133) | `T.x` |
 | `static var T.x:R = v` | `static var x:R = v` | a type attribute, a variable (#133) | `T.x`, `T.x = y` |
 | `let T.cstr():cstr { `...` }` | `let cstr():cstr { `...` }` | the type's own text (#53) | `v.cstr`, `print(v)` |
+| `let T.string:String { }` | `let string:String { }` | the type's own text as a String, of any length (#506) | `print(v)`, `` $`${v}` ``, `v.string` |
 | `let +(a:T, b:T):T { }` | `static let +(a:T, b:T):T { }` | an operator (#42, #135) | `a + b`, `a += b` |
 | `let T[](i:I):R { }` | `let [](i:I):R { }` | a subscript, its getter (#136) | `v[i]`, `v[r, c]` |
 | `var T[](i:I):R { get { } set(v) { } }` | `var [](i:I):R { get { } set(v) { } }` | a subscript with a setter (#136) | `v[i]`, `v[i] = y`, `v[i] += y` |

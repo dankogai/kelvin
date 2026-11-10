@@ -3899,6 +3899,19 @@ static bool static_init;
 /* v as a template shows it (#39): a struct by its .cstr text, an Array,
    a Dictionary or a Set by kelvinc's printer, an owner an expression
    gives held; and a.join(sep)'s each element and separator (#461) */
+/* the attribute T.string of t, its own text as a String (#506), or NULL */
+static Decl *string_text_of(Type *t) {
+    t = t ? unqualified(t) : NULL;
+    if (!t || t->kind != T_BASE)
+        return NULL;
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (d->string_text && d->recv && !strcmp(kelvin_type(unqualified(d->recv)), kelvin_type(t)))
+            return d;
+    }
+    return NULL;
+}
+
 static Expr *template_value(Expr *v) {
     Type *vt = value_type(v);
     if ((vt && vt->kind == T_FUNC) || is_function_designator(v))
@@ -3906,6 +3919,17 @@ static Expr *template_value(Expr *v) {
     if (is_owner(vt) && !owner_place(v) && !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")))
         v = make_temp(v, "a value that an expression gives in a template: bind it to a variable first"); /* held (#187) */
     Decl *record;
+    if (type_class(value_type(v), &record) == 's' && string_text_of(value_type(v))) {
+        /* T.string (#506): the type's text by the printer, whole in $`...`, cut in `...` */
+        Expr *s = new_expr(E_PROPERTY, v->pos);
+        s->a = v;
+        s->text = "text";
+        s->op = "tpl_show";
+        s->recv_type = unqualified(value_type(v));
+        s->type = base_type("String", v->pos);
+        s->shown = shown_type(s);
+        return s;
+    }
     if (type_class(value_type(v), &record) == 's')
         v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
     Type *ct = shown_array(shown_value_type(v)) ? shown_value_type(v) : value_type(v); /* (#481) */
@@ -15018,6 +15042,25 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
                                   "result: write the type itself",
                      kelvin_type(d->ret));
     }
+    if (d->attribute && !strcmp(d->name, "string") && d->ret && is_string(d->ret) && !d->type_fn && d->recv &&
+        kelvin_record(d->recv)) { /* a type's own text as a String, of any length (#506) */
+        d->string_text = true;
+        for (int i = 0; i < functions.len; i++) {
+            Decl *o = functions.data[i];
+            if (o != d && o->recv && o->text_method && !strcmp(kelvin_type(o->recv), kelvin_type(d->recv)))
+                error_at(name->pos, "%s has its own text already, '.cstr()': a type gives its text once, by "
+                                    "'.string' or by '.cstr()'",
+                         kelvin_type(d->recv));
+        }
+    }
+    if (d->text_method && d->recv)
+        for (int i = 0; i < functions.len; i++) {
+            Decl *o = functions.data[i];
+            if (o != d && o->string_text && !strcmp(kelvin_type(o->recv), kelvin_type(d->recv)))
+                error_at(name->pos, "%s has its own text already, '.string': a type gives its text once, by "
+                                    "'.string' or by '.cstr()'",
+                         kelvin_type(d->recv));
+        }
     if (d->attribute && !is_p(peek(), "{") && !in_kh(name->pos)) /* a prototype in M.kh (#146) */
         error_at(peek()->pos, "an attribute is computed by its body: write 'let %s.%s:%s { ... }'", d->recv_name,
                  d->name, kelvin_type(d->ret));

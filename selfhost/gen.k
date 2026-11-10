@@ -3045,12 +3045,30 @@ let shown_by_type(y:int64):bool {
     return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET || types[y].kind == Y_RANGE)
 }
 
+// the attribute T.string of the struct, union or enum with values y, its
+// own text as a String, which print shows whole, as kelvinc's (#506); or -1
+let string_text_fn(y:int64):int64 {
+    if y < 0 || types[y].kind != Y_STRUCT { return 0 - 1 }
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c < 0 || !tok_is(nodes[d].t, "string") { continue }
+        let what:int64 = attributes.get(d, 0)
+        if (what == 1 || what == 2) && same_text(nodes[d].c, types[y].name) && nodes[d].ty >= 0 && types[nodes[d].ty].kind == Y_STRING {
+            return d
+        }
+    }
+    return 0 - 1
+}
+
 // whether print can show a value of y, an enum with values (an Optional, a
 // Result), a struct or an Array, as kelvinc does, by a _kv_show_T of its
 // own; what it holds is shown too. Where kc cannot show it, n is an error
 let need_show(y:int64, n:int64):bool {
     if shown_types.has(y) { return true }
     shown_types[y] = 1
+    if string_text_fn(y) >= 0 {                          // its own text, by T.string (#506)
+        shown += y
+        return true
+    }
     if types[y].kind == Y_RANGE {                        // 0..<3, as kelvinc prints it (#373)
         shown += y
         return true
@@ -3700,6 +3718,15 @@ let gen_show(y:int64) {
     put_record_word(y)
     put_tok(types[y].name)
     put(" *self = _kv_v;\n")
+    let own:int64 = string_text_fn(y)
+    if own >= 0 {                                        // its own text as a String, whole, as kelvinc's (#506)
+        put("    (void)level;\n    kv_string _kv_s = ")
+        put_tok(nodes[own].c)
+        put("__")
+        put_tok(nodes[own].t)
+        put("(*self);\n    kv_out_put(o, _kv_s.b.at ? (const char *)_kv_s.b.at : \"\");\n    kv_string_free(&_kv_s);\n}\n\n")
+        return
+    }
     let d = tagged_of(y)
     if d < 0 && nodes[struct_of(y)].flag == 1 {         // <union bits>, as kelvinc shows one (#453)
         put("    (void)self;\n    (void)level;\n    kv_out_put(o, \"<")

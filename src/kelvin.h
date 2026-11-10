@@ -315,6 +315,8 @@ struct Decl {
                              function, named by its types as its definition is, not C's */
     bool text_method;     /* D_FN: T.cstr(), the text of a struct or union, one
                              template, written into the caller's buffer (#53) */
+    bool string_text;     /* D_FN: let T.string:String { ... }, a type's own text as a String,
+                             of any length, which print shows whole (#506) */
     char *spelling;       /* D_STRUCT with no tag (#59): its Kelvin spelling,
                              {x: f64, y: f64}; name is _kv_anonN */
     struct Expr *cond;    /* D_ASSERT: the condition (#394) */

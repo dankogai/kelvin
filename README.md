@@ -254,6 +254,8 @@ So far the changes from C are these, by topic.
 - a function with no result is `let f() { }`, or `let f():() { }` with
   the result written out; the two mean the same
 - `extend T { }`, as Swift's `extension`, holds a type's methods
+- a type's own text, of any length, is `let T.string:String { ... }`,
+  which print shows whole (#506)
   `let f()`, functions `static let f()`, computed attributes
   `let area:f64 { .w * .h }` read as `r.area`, attributes with a setter
   `var celsius:f64 { get { ... } set(v) { ... } }`, type attributes

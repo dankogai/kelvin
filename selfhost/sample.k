@@ -498,6 +498,12 @@ extend fw_w {
     let scaled(k:u64):Self { (Self){self.n * k} }
 }
 let fw_first(n:i64):i64 { fw_later(n) + 1 }
+struct st_nines { n: i64 }                              // a type's own text as a String (#506)
+let st_nines.string:String {
+    var s = $""
+    for i in 0..<.n { s += "9" }
+    return s
+}
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1329,6 +1335,9 @@ on a new line`
     let lm_p = (op_owner){lm_s, 5}
     println(lm_p)
     println(fw_first(3), " ", (fw_w.of(1) + fw_w.of(2)).n, " ", fw_w.of(8).twice().n)   // (#505)
+    let st_a:st_nines = {300}
+    var st_t = $`${st_a}`
+    println(st_t.count, " ", (st_nines){3}, " ", `<${(st_nines){2}}>`)   // whole, and in `...` too (#506)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

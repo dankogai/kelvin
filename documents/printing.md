@@ -94,7 +94,8 @@ var text = ages.pretty                   // a String, where print does not show 
 
 - **The text** of each kind:
   - A struct is `{x: 1, y: 2}`, the derived text, or the type's own
-    `T.cstr()` where it defines one (#53).
+    `T.cstr()` where it defines one (#53), or its `T.string`, a String,
+    shown whole (#506).
   - An enum with values is `n(v)` or `none`; an Optional `some(v)` or
     `none`; a Result `ok(v)` or `err(e)`.
   - An `Array` is `[a, b]`, a `Dictionary` `{"k": v}` and a `Set`

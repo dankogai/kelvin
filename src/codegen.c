@@ -90,6 +90,7 @@ static Type *global_owner_type(const char *name);
 static char *show_call(Expr *e, Type *t, const char *x, const char *out, const char *level);
 static char *template_room(Expr *e);
 static Decl *text_method_of(const char *tag);
+static Decl *string_method_of(const char *tag);
 
 /* The size of the buffer that .dec, .hex, .oct or .bin of a number writes
    into, its NUL included: the longest is an i128's */
@@ -2619,6 +2620,16 @@ static char *template_room(Expr *e) {
     return strfmt("sizeof%s%s", lits.len ? lits.buf : " \"\"", bounds.buf);
 }
 
+/* the attribute T.string, a type's own text as a String (#506), or NULL */
+static Decl *string_method_of(const char *tag) {
+    for (int i = 0; i < program->decls.len; i++) {
+        Decl *d = program->decls.data[i];
+        if (d->kind == D_FN && d->string_text && d->recv && !strcmp(d->recv->name, tag))
+            return d;
+    }
+    return NULL;
+}
+
 /* the T.cstr() method that gives a struct's or union's text (#53), or NULL */
 static Decl *text_method_of(const char *tag) {
     for (int i = 0; i < program->decls.len; i++) {
@@ -4767,6 +4778,10 @@ static void emit_decl(Decl *d) {
                 line("enum { _kv_%s_cstr_size = %s };", d->name, template_room(only->expr));
                 line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf);", d->name,
                      decl(recv, "self"));
+            } else if (string_method_of(recv->name)) { /* T.string (#506): its String, cut as a template cuts one */
+                line("enum { _kv_%s_cstr_size = KV_TEMPLATE_STR + 1 };", d->name);
+                line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf);", d->name,
+                     decl(recv, "self"));
             } else if (is_cstr_used(d->name)) {
                 emit_derived_cstr(d, recv);
             }
@@ -4838,6 +4853,10 @@ static void emit_decl(Decl *d) {
                    prototype here, its definition where it is written */
                 Stmt *only = tm->body->stmts.data[0];
                 line("enum { _kv_%s_cstr_size = %s };", d->name, template_room(only->expr));
+                line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf);", d->name,
+                     decl(recv, "self"));
+            } else if (string_method_of(recv->name)) { /* T.string (#506): its String, cut as a template cuts one */
+                line("enum { _kv_%s_cstr_size = KV_TEMPLATE_STR + 1 };", d->name);
                 line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf);", d->name,
                      decl(recv, "self"));
             } else if (is_cstr_used(d->name)) {
@@ -4944,7 +4963,7 @@ static void need_show(Type *t) {
         return;
     }
     Decl *r = kelvin_record(t->name);
-    if (r->kind == D_UNION || text_method_of(t->name))
+    if (r->kind == D_UNION || text_method_of(t->name) || string_method_of(t->name))
         return;
     for (int i = 0; i < r->members.len; i++)
         need_show_inside(((Var *)r->members.data[i])->type);
@@ -5177,10 +5196,14 @@ static void emit_show(Type *t) {
     Decl *r = kelvin_record(t->name);
     char *ctype = decl(t, "");
     line("const %s *self = _kv_v;", ctype);
-    Decl *own = text_method_of(t->name);
+    Decl *own = text_method_of(t->name), *own_string = string_method_of(t->name);
     if (own) { /* the type's own text (#53), on one line however it is printed */
         line("uint8_t _kv_b[_kv_%s_cstr_size];", r->name);
         line("kv_out_put(o, _kv_%s_cstr(*self, _kv_b));", r->name);
+    } else if (own_string) { /* its own text as a String (#506), whole however long */
+        line("kv_string _kv_s = %s(*self);", method_cname(own_string));
+        line("kv_out_put(o, _kv_s.b.at ? (const char *)_kv_s.b.at : \"\");");
+        line("kv_string_free(&_kv_s);");
     } else if (r->kind == D_UNION) {
         line("(void)self;");
         line("kv_out_put(o, \"<%s>\");", r->spelling ? r->spelling : strfmt("union %s", r->kelvin_name ? r->kelvin_name : r->name));
@@ -5300,6 +5323,21 @@ char *gen_program(Program *prog, bool with_lines) {
     for (int i = 0; i < show_types.len; i++) { /* the printers, which may ask for more (#123) */
         line("%s", "");
         emit_show(show_types.data[i]);
+    }
+    for (int i = 0; i < prog->decls.len; i++) { /* T.string's .cstr (#506): its String, cut as a template's */
+        Decl *d = prog->decls.data[i];
+        Decl *r = d->kind == D_FN && d->string_text && d->recv ? kelvin_record(d->recv->name) : NULL;
+        if (!r || string_method_of(d->recv->name) != d)
+            continue;
+        line("%s", "");
+        line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf)", r->name,
+             decl(d->recv, "self"));
+        line("{");
+        line("    kv_string _kv_s = %s(self);", method_cname(d));
+        line("    *kv_template_string((char *)_kv_buf, KV_TEMPLATE_STR, _kv_s) = '\\0';");
+        line("    kv_string_free(&_kv_s);");
+        line("    return _kv_buf;");
+        line("}");
     }
     emit_first_use_globals();
     if (global_owners.len) {

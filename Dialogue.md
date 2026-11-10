@@ -9597,3 +9597,18 @@ with it. #492's errors of an overload declared after a call are gone.
 Details are provisional P517.
 
 There are 1243 tests, and all pass with clang and with gcc 15.
+
+### 553. A type's own text, a String
+
+> push. then go on with BigInt
+
+**Claude** pushed #505 after a clean battery; CI passed all 9 jobs. A
+BigInt's text outgrows a type's own `T.cstr()`, one template, cut at 256
+bytes. Asked, the user chose a number of its own first: `let
+T.string:String { ... }`, which print, `$`...`` and `.pretty` show whole,
+and `` `...` `` and `.cstr` cut at 256 as any String value. For BigInt,
+next, the user chose text read as `i64(s)` reads it, division by zero
+ending the program, and the bitwise operators with the core. kc the
+same. Details are provisional P518.
+
+There are 1245 tests, and all pass with clang and with gcc 15.

@@ -204,6 +204,25 @@ let vector2d.cstr():cstr { `(${.x}, ${.y})` }            // .x is self.x
 - It takes no parameters, gives a `cstr`, is read as a property,
   `v.cstr`, and a built-in type's text stays fixed *(provisional P65)*.
   See [properties.md](properties.md).
+- **Text of any length** is `let T.string:String { ... }` (#506), an
+  attribute that builds a String, as a big number's digits need:
+
+```swift
+struct digits { n: i64 }
+let digits.string:String {
+    var s = $""
+    for i in 0..<.n { s += "9" }
+    return s
+}
+```
+
+  - `print`, `println`, `` $`${v}` ``, `.pretty` and a value that holds
+    one show it whole, however long.
+  - `` `${v}` `` and `v.cstr`, whose room is bounded, cut it at 256
+    bytes, as a String value's (*P56*).
+  - A type gives its text once: `.string` and `.cstr()` together are an
+    error.
+  - In `extend T { }` it is `let string:String { ... }`.
 
 ### Methods
 
@@ -373,7 +392,8 @@ The core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a
 | On | Property or method | Gives |
 |---|---|---|
 | any struct kelvinc sees | `.member` | a field, a place |
-| | `.cstr` | the derived text, `{x: 3, y: 4}`, or `T.cstr()`'s |
+| | `.cstr` | the derived text, `{x: 3, y: 4}`, or `T.cstr()`'s, or `T.string`'s cut at 256 bytes (#506) |
+| | `.string`, where defined | its own text as a String, which print shows whole (#506) |
 | | `.size`, `.type`, `.typename` | `sizeof`; the type; its name, or the spelling of one with no tag |
 | | `.align` | its type's alignment, `alignof`, a `size_t` (#395); a field of the name wins; a member's `alignas(16)` (#396) raises it |
 | | `.method(...)` | a method declared `let T.method()` |

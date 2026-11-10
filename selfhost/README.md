@@ -604,6 +604,11 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A type's own text as a String** (#506), as kelvinc's: where a
+  struct or an enum with values has `let T.string:String`, its printer
+  shows that String, whole, by `T__string`; `$`...``, `` `...` `` and
+  `.pretty` with it.
+  - kc has no `T.cstr()` (#53) yet, so neither its error of both.
 - **Called before written** (#505): kc reads every declaration first, so
   a function, a method or a function of a type called before it is
   written was kc's already; kelvinc is now the same, by the prototypes
