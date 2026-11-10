@@ -370,6 +370,17 @@ let kv_bi_text(a:const $[u64]^, base:i64):String {
     return out.string() ?? $""
 }
 
+// a's text as a literal, which reads back as a (#509): a sign, the prefix of
+// the base, its digits and an n, +0xffn
+let kv_bi_prefixed(a:const $[u64]^, base:i64, prefix:cstr):String {
+    let m = kv_bi_mag(a)
+    var s = String(kv_bi_negative(a) ? "-" : "+")
+    s += prefix
+    s += kv_bi_text(&m, base)
+    s += "n"
+    return s
+}
+
 // the value of a digit in base, or -1
 let kv_bi_digit(c:u8, base:i64):i64 {
     var v:i64 = 0 - 1
@@ -391,7 +402,8 @@ let kv_bi_mul_add(m:$[u64]^, f:u64, a:u64):() {
 }
 
 // text read as i64(s) reads it, strtol's way: spaces, a sign, a 0x before
-// base 16's digits, then the longest run of digits; 0 for none
+// base 16's digits, 0o before 8's and 0b before 2's, then the longest run
+// of digits, so that the n after them ends it; 0 for none
 let kv_bi_parse(s:cstr, base:i64):$[u64] {
     var m:$[u64] = $[]
     if base < 2 || base > 36 { return Array<u64>() }
@@ -402,8 +414,9 @@ let kv_bi_parse(s:cstr, base:i64):$[u64] {
         negative = s[i] == '-' as u8
         i += 1
     }
-    if base == 16 && s[i] == '0' as u8 && (s[i + 1] == 'x' as u8 || s[i + 1] == 'X' as u8) && kv_bi_digit(s[i + 2], 16) >= 0 {
-        i += 2
+    let mark:u8 = base == 16 ? 'x' as u8 : base == 8 ? 'o' as u8 : base == 2 ? 'b' as u8 : 0
+    if mark != 0 && s[i] == '0' as u8 && (s[i + 1] == mark || s[i + 1] == mark - 32) && kv_bi_digit(s[i + 2], base) >= 0 {
+        i += 2                                           // 0x of base 16, 0o of 8 and 0b of 2, as i64(s, base) reads them
     }
     var chunk:u64 = 0
     var scale:u64 = 1
@@ -437,7 +450,14 @@ let BigInt(text:const String^):BigInt { (BigInt){kv_bi_parse(text^.cstr, 10)} }
 let BigInt(text:const String^, base:i64):BigInt { (BigInt){kv_bi_parse(text^.cstr, base)} }
 
 extend BigInt {
-    let string:String { kv_bi_text(&self.limbs, 10) }
+    let string:String {                                   // 123n, its literal, which reads back as it (#509)
+        var s = kv_bi_text(&self.limbs, 10)
+        s += "n"
+        return s
+    }
+    let hex:String { kv_bi_prefixed(&self.limbs, 16, "0x") }
+    let oct:String { kv_bi_prefixed(&self.limbs, 8, "0o") }
+    let bin:String { kv_bi_prefixed(&self.limbs, 2, "0b") }
     let text(base:i64):String { kv_bi_text(&self.limbs, base) }
     let isZero:bool { self.limbs.count == 0 }
     let isNegative:bool { kv_bi_negative(&self.limbs) }

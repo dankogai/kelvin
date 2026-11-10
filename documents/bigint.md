@@ -13,11 +13,11 @@ let factorial(n:i64):BigInt {
 
 let main():int32 {
     let f = factorial(30)
-    println(f, " ", f.text(16))                    // 265252859812191058636308480000000 d13f6370f96865df5dd54000000
+    println(f, " ", f.hex)                         // 265252859812191058636308480000000n +0xd13f6370f96865df5dd54000000n
     let big = 1n << 100                            // 123n, a literal (#508)
     var n = BigInt("123456789012345678901234567890")
-    println(big, " ", n % 97, " ", -n / 7, " ", n > big)   // 1267650600228229401496703205376 52 -17636684144620811271604938270 false
-    println(BigInt(-7) / 2, " ", BigInt(-7) % 2, " ", BigInt(-6) & 0xff, " ", ~BigInt(0))   // -3 -1 250 -1
+    println(big, " ", n % 97, " ", -n / 7, " ", n > big)   // 1267650600228229401496703205376n 52n -17636684144620811271604938270n false
+    println(BigInt(-7) / 2, " ", BigInt(-7) % 2, " ", BigInt(-6) & 0xff, " ", ~BigInt(0))   // -3n -1n 250n -1n
     return 0
 }
 ```
@@ -44,8 +44,9 @@ names it has it, with no import.
   - `BigInt(text)` of a `cstr` or a `String` by reference, `BigInt(&s)`,
     and `BigInt(text, base)` with a base from 2 to 36.
   - The text is read as `i64(s)` reads it, `strtol`'s way: leading
-    spaces, a sign, a `0x` before base 16's digits, then the longest
-    run of digits; `0` where there are none, `BigInt("12x")` is 12.
+    spaces, a sign, a `0x` before base 16's digits, `0o` before 8's and
+    `0b` before 2's, then the longest run of digits; `0` where there are
+    none, `BigInt("12x")` is 12, and `BigInt("123n")` 123n.
 - **Operators,** with C's precedence:
   - `+ - * / %`, with `/` truncated toward zero and `%` of the
     dividend's sign, as Kelvin's integers are: `BigInt(-7) / 2` is -3,
@@ -60,13 +61,19 @@ names it has it, with no import.
     `b & 0xff`.
 - **Division by zero** ends the program, as a failed check does (#174):
   `kelvin: division of a BigInt by zero`, status 1.
-- **Text:**
-  - `print`, `println`, `$`${b}``, and a value that holds one show the
-    decimal digits whole, by `b.string` (#506); `` `${b}` `` cuts them at
-    256 bytes, as a String value's.
-  - `b.text(base)` is the text in a base from 2 to 36, its letters
-    lowercase, a `-` before a negative one; another base ends the
-    program.
+- **Text** is the literal, `123n`, `-5n`, `0n` (#509), so that it reads
+  back as the value: `BigInt($`${b}`)` is `b`, the reader stopping at
+  the `n`.
+  - `print`, `println`, `$`${b}``, `.cstr` and a value that holds one,
+    `[1n, -2n]`, all show it, by `b.string` (#506); `` `${b}` `` and
+    `.cstr` cut it at 256 bytes, as a String value's.
+  - `b.hex`, `b.oct` and `b.bin` are the literal in base 16, 8 and 2,
+    signed as Kelvin's signed integers are, `+0xffn`, `-0o17n`,
+    `+0b101n`; `BigInt(b.hex, 16)` reads it back, as `i64(s, 16)` does
+    `0x`, and base 8 `0o` and base 2 `0b`.
+  - `b.text(base)` is the bare digits in a base from 2 to 36, as JS's
+    `b.toString(16)`, its letters lowercase, a `-` before a negative
+    one, no prefix and no `n`; another base ends the program.
 - **Numbers out:** `b.i64` and `b.u64` are the low 64 bits, as C's
   casts wrap them; `b.f64` is the nearest double, about.
 - **Not yet:** `**`, `gcd`, the square root, Karatsuba's multiplication,
@@ -96,8 +103,9 @@ repeated to the left, kept as short as it can be; zero is no limbs.
 | a literal | `123n`, `0xffn`, `0b101n` | a `BigInt` (#508) |
 | the type | `BigInt(n)` | of an integer, an `i64` or a `u64` |
 | | `BigInt(text)`, `BigInt(text, base)` | of a `cstr` or a `String` by reference, read as `i64(s)` reads it |
-| a `BigInt` | `.string` | its decimal text, a String, which print shows (#506) |
-| | `.text(base)` | its text in a base from 2 to 36, a String |
+| a `BigInt` | `.string` | its literal, `123n`, a String, which print shows (#506, #509) |
+| | `.hex`, `.oct`, `.bin` | its literal in base 16, 8 or 2, `+0xffn`, `-0o17n`, `+0b101n` (#509) |
+| | `.text(base)` | its bare digits in a base from 2 to 36, a String |
 | | `.isZero`, `.isNegative` | bools |
 | | `.signum` | -1, 0 or 1, an `i64` |
 | | `.abs` | its magnitude, a `BigInt` |

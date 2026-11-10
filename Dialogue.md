@@ -9639,3 +9639,20 @@ digits as text, so a literal of any length is whole and brings in the
 prelude's BigInt. kc refuses one in words. Details are provisional P520.
 
 There are 1253 tests, and all pass with clang and with gcc 15.
+
+### 556. A BigInt's text, its literal
+
+> Stringification of BigInt is WRONG!
+>
+> * append `n` for all cases. BigInt($`${b}`) needs to round-trip
+> * implement `.bin`, `.oct` and `.hex` which prepends `[+-]` `0b`, `0o`,
+>   and `0x`
+
+**Claude** made a BigInt's text its literal everywhere, `123n`, in
+print, templates, `.cstr` and inside values, so it reads back, BigInt's
+reader stopping at the n. `.hex`, `.oct` and `.bin` are `+0xffn`,
+`-0o17n` and `+0b101n`, signed as Kelvin's signed integers, and read back
+with their base, the reader skipping `0o` and `0b` as it did `0x`.
+`.text(base)` stays the bare digits. Details are provisional P521.
+
+There are 1253 tests, and all pass with clang and with gcc 15.
