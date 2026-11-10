@@ -556,6 +556,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 509 | A BigInt's text is its literal, as the user said: `123n`, `-5n`, `0n`, in print, a template, `.cstr` and inside a value, so that `BigInt($`${b}`)` reads it back; `b.hex`, `b.oct` and `b.bin` are the literal in base 16, 8 and 2, signed and prefixed as Kelvin's signed integers' are, `+0xffn`, `-0o17n`, `+0b101n`, which `BigInt(t, 16)`, `(t, 8)` and `(t, 2)` read back; `b.text(base)` stays the bare digits | modules/BigInt.k's string, hex, oct, bin, kv_bi_prefixed and kv_bi_parse's 0o and 0b; tests; documents/bigint.md | `123n` printed | 2026-11-10 |
 | 510 | A parameter written `b:lent T`, of a function or a method, is lent its caller's owner, as the user chose, as an operator's operands are (#501): the caller keeps it, one an expression gives is held and freed after, and inside it is a let that moves into no function and is returned as a copy; `var` with it, a number and an anonymous function's are errors in words. kc the same | src/parser.c's parse_var, lent_param, lent_words, borrow_temps, move_args and the method call; src/codegen.c's method call; src/kelvin.h's lent_written; selfhost/parse.k's lent_at and lent_params; selfhost/gen.k's lent_param, lent_words and the errors; tests; documents/functions.md, ownership.md, README.md, selfhost/README.md, selfhost/sample.k | `b:lent T` | 2026-11-10 |
 | 511 | BigInt's arithmetic finished, as the user asked: `b ** e` of an i64 or a BigInt, `b.pow(e)`, Python's `pow(b, e, m)` as a function and as `b.pow(e, m)`, a BigInt or an i64 in each place, lent (#510); `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()`; `.sign` for `.signum`; `b.exactI64` and `b.exactU64`, an i64? and a u64?; products past 40 limbs by Karatsuba's; a negative exponent, m of 0, no inverse and a negative isqrt end the program in words | modules/BigInt.k; tests; documents/bigint.md, README.md | `pow(b, e, m)` | 2026-11-10 |
+| 512 | A converter of a struct is its attribute of that name, as `i64(s)` and `s.i64` of text are one: `i64(b)`, `u64(b)` and `f64(b)` of a BigInt are `b.i64`, `b.u64` and `b.f64`, where they were C's error of a cast, as the user found; a value an expression gives is held; a struct without the attribute is an error in words. kc the same | src/parser.c's convert; selfhost/gen.k's gen_converter; tests; documents/strings.md, bigint.md, properties.md, README.md, selfhost/README.md, selfhost/sample.k | `i64(b)` | 2026-11-10 |
 
 Notes:
 
@@ -1140,6 +1141,20 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (512) Agreed details: the user's "`f64(bi)` and `i64(bi)` return error
+  while `bi.f64` and `bi.i64` work as expected".
+  - kelvinc wrote `i64(bi)` as C's cast, `(int64_t)(bi)`, which C
+    refused of a struct.
+  - A converter's text form and its property are one, `i64(s)` and
+    `s.i64` (#36); so of a struct, `i64(v)` is its attribute `v.i64`,
+    any struct's, BigInt's `.i64`, `.u64` and `.f64` among them.
+  - The receiver an expression gives, `f64(bi * 2)`, is held and freed,
+    as an attribute's is (#152, #187).
+  - A struct without the attribute, and one given a base, is an error
+    in words, where it was C's: `i32(bi)` too, as BigInt has no `.i32`.
+  - kc: gen_converter makes the call the attribute's read, N_METHOD of
+    attr_reads; its error kelvinc's words.
 
 - (511) Agreed details: "Finish all BigInt arithmetics. Make sure
   `pow(b, e, m)` supports `BigInt`", with the user's choices in (510).
@@ -8045,6 +8060,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P521 | Details of #509 | modules/BigInt.k: string appends n to kv_bi_text; kv_bi_prefixed(a, base, prefix), "+" or "-", the prefix, the magnitude's text and n; hex, oct and bin by it; kv_bi_parse's mark, x of 16, o of 8, b of 2, either case, skipped before a digit of the base; tests/run/bigint_basics.k, bigint_literal.k and bigint_random.k with n | provisional |
 | P522 | Details of #510 | src/kelvin.h: Var's lent_written; src/parser.c: parse_var takes a lent after : of a parameter before a type; lent_param, its two errors; lent_words, an operand and the operator in an operator, a value and this function elsewhere; parse_fn_tail and the method parse set p->lent of it, LET_LENT; the anonymous function's error; borrow_temps holds an owner an expression gives for a lent parameter; move_args and the method call move none into one; move_argument's and return_owner's errors by lent_words; src/codegen.c: the method call takes no local owner into a lent parameter; selfhost/parse.k: lent_at, lent_params, parse_type and parse_params; selfhost/gen.k: lent_param of lent_params, lent_words, move_out's and move_back's words, the parameter errors; tests/run/lent_param.k, tests/error/lent_var.k, lent_number.k, lent_return.k, lent_move.k, lent_anonymous.k | provisional |
 | P523 | Details of #511 | modules/BigInt.k: #import <math.h> as C; kv_bi_slice, kv_bi_uadd, kv_bi_usub, kv_bi_add_at, kv_bi_umul by Karatsuba's past 40 limbs, kv_bi_school; kv_bi_upow, kv_bi_pow, kv_bi_floor_mod, kv_bi_inverse, kv_bi_mul, kv_bi_powmod, kv_bi_gcd, kv_bi_isqrt by kv_array_fail's words; sign, exactI64, exactU64, pow(e), pow(e, m) of four, gcd, lcm of two each, isqrt(); ** of an i64 and of a BigInt; pow(x:f64, y:f64), C's, and pow(b, e, m) of seven, lent; tests/run/bigint_arith.k, bigint_pow_random.k, bigint_negative_exponent.k, bigint_pow_zero_modulus.k, bigint_pow_no_inverse.k, bigint_isqrt_negative.k; bigint_basics.k and bigint_random.k of .sign | provisional |
+| P524 | Details of #512 | src/parser.c: convert, of a value of a struct (expr_class 's'), its attribute of the converter's name by method_named as an E_METHOD of attr, the receiver held where an expression gives an owner; else the error, with a base's words; selfhost/gen.k: gen_converter of a struct or a tagged type, method_named of the callee's token, attributes, the node made N_METHOD of attr_reads; else kelvinc's error; tests/run/converter_attribute.k, tests/error/converter_struct_attribute.k | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -91,6 +91,8 @@ names it has it, with no import.
   which a negative `a` ends the program of.
 - **Numbers out:** `b.i64` and `b.u64` are the low 64 bits, as C's
   casts wrap them; `b.f64` is the nearest double, about.
+  - `i64(b)`, `u64(b)` and `f64(b)` are the same (#512), as a
+    converter of a struct is its attribute of that name.
   - `b.exactI64` and `b.exactU64` (#511) are an `i64?` and a `u64?`:
     `some` where `b` fits, else `none`, as Swift's `Int(exactly:)`.
 - **Not yet:** kc, which reads no module written in Kelvin and refuses
@@ -135,7 +137,7 @@ repeated to the left, kept as short as it can be; zero is no limbs.
 | | `.isqrt()` | the floor of the square root (#511) |
 | a function | `pow(b, e, m)` | Python's, one of the three at least a `BigInt`; lent (#510, #511) |
 | | `.abs` | its magnitude, a `BigInt` |
-| | `.i64`, `.u64` | its low 64 bits |
-| | `.f64` | the nearest double, about |
+| | `.i64`, `.u64` | its low 64 bits; `i64(b)` and `u64(b)` too (#512) |
+| | `.f64` | the nearest double, about; `f64(b)` too (#512) |
 | | `.copy()` | a new `BigInt` of the same value |
 | | `+ - * / %`, `== != < <= > >=`, `& \| ~ << >>`, `-b`, `~b` | with a `BigInt` or an `i64` on the other side; `<<` and `>>` by an `i64` |

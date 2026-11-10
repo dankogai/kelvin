@@ -9682,3 +9682,17 @@ Karatsuba's multiplication past 40 limbs. C's `pow` of doubles stays
 beside it. Checked against Python. Details are provisional P523.
 
 There are 1265 tests, and all pass with clang and with gcc 15.
+
+### 559. A converter of a struct
+
+> `f64(bi)` and `i64(bi)` return error while `bi.f64` and `bi.i64` work
+> as expected. here `bi` is an instance of `BigInt`
+
+**Claude** found kelvinc wrote `i64(bi)` as C's cast, which C refuses of
+a struct. As `i64(s)` and `s.i64` of text are one, a converter of a
+struct is now its attribute of that name: `i64(bi)`, `u64(bi)` and
+`f64(bi)` are `bi.i64`, `bi.u64` and `bi.f64`, of any struct that has
+them; one without is an error in words. kc the same. Details are
+provisional P524.
+
+There are 1267 tests, and all pass with clang and with gcc 15.

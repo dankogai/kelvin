@@ -5676,6 +5676,37 @@ let gen_converter(n:int64) {
     }
     let vy:int64 = type_of(v)
     if failed { return }
+    if vy >= 0 && types[vy].kind == Y_STRUCT && (struct_of(vy) >= 0 || tagged_of(vy) >= 0) {   // i64(b) is b.i64, as kelvinc's (#512)
+        let f:int64 = method_named(types[vy].name, nodes[nodes[n].a].t)
+        if f >= 0 && attributes.get(f, 0) != 0 && base < 0 {
+            let t:int64 = nodes[nodes[n].a].t
+            nodes[n].kind = N_METHOD
+            nodes[n].a = v
+            nodes[n].t = t
+            nodes[n].b = 0 - 1
+            attr_reads[n] = true
+            gen_expr(n)
+            return
+        }
+        var m = name.copy()
+        m += "(v) of "
+        let w:String = kelvin_type_text(vy)
+        m += &w
+        m += " is its attribute '."
+        m += &name
+        m += "', which it has not"
+        if base >= 0 {
+            m += ", and that takes no base"
+        } else {
+            m += ": define one, as in 'let "
+            m += &name
+            m += ":"
+            m += &name
+            m += " { ... }'"
+        }
+        gen_error(n, m.cstr)
+        return
+    }
     let text:bool = converter_text(v)
     if base >= 0 && (k == Y_F64 || k == Y_F32) {
         var m = $"a base is for reading an integer from text; "

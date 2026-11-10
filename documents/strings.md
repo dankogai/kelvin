@@ -166,6 +166,9 @@ A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 - **They read** as `strtol` and `strtod` do: leading spaces and a sign,
   the longest number, 0 for none, and the type's limits with `errno`
   set.
+- **Of a struct**, a converter is its attribute of that name (#512):
+  `i64(b)` of a BigInt is `b.i64`, as `i64(s)` and `s.i64` of text are
+  one; a struct without the attribute is an error in words.
 - See [integers.md](integers.md) for the table.
 
 ### Walking and indexing

@@ -604,6 +604,9 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A converter of a struct** (#512), as kelvinc's: `i64(v)` of a struct
+  that has an attribute `i64` is `v.i64`, by gen_converter making the
+  call that attribute's read; one without it is kelvinc's error.
 - **A lent parameter** (#510), as kelvinc's: `b:lent T` of a function or
   a method is its caller's, as an operator's operand (#501), by
   lent_params, which parse_type steps the `lent` of; errors in

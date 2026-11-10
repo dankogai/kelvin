@@ -354,6 +354,7 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
 | `let T.f(a:A):R { }` | `let f(a:A):R { }` | a method, with `self` | `v.f(a)` |
 | `static let T.f(a:A):R { }` | `static let f(a:A):R { }` | a function of the type, no `self` (#111) | `T.f(a)` |
 | `let T.x:R { }` | `let x:R { }` | a computed attribute, its getter (#131) | `v.x` |
+| `let T.i64:i64 { }` | `let i64:i64 { }` | an attribute named as a converter (#507) | `v.i64`, and `i64(v)` (#512) |
 | `var T.x:R { get { } set(v) { } }` | `var x:R { get { } set(v) { } }` | a computed attribute with a setter (#132) | `v.x`, `v.x = y`, `v.x += y` |
 | `static let T.x:R = v` | `static let x:R = v` | a type attribute, a constant (#133) | `T.x` |
 | `static var T.x:R = v` | `static var x:R = v` | a type attribute, a variable (#133) | `T.x`, `T.x = y` |

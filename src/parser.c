@@ -6985,6 +6985,27 @@ static bool float_operand(Expr *e) {
    strtod read it (op "text"); where kelvinc cannot see whether v is text,
    C's _Generic chooses (op "text?"). bool reads no text. */
 static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
+    Decl *rec;
+    if (expr_class(v, &rec) == 's' && rec) {
+        /* i64(b) of a struct is its attribute b.i64, as i64(s) and s.i64 of
+           text are one (#512): BigInt's .i64, .u64 and .f64 */
+        Decl *g = method_named(v, name);
+        Type *vt = value_type(v);
+        if (g && g->attribute && vt && vt->kind == T_BASE && !strcmp(vt->name, g->recv->name) && !base) {
+            if (is_owner(vt) && !owner_place(v)) /* the receiver, held (#187) */
+                v = make_temp(v, "an attribute of an owner that an expression gives: bind it to a variable first");
+            Expr *x = new_expr(E_METHOD, t->pos);
+            x->a = v;
+            x->text = (char *)name;
+            x->attr = true;
+            return x;
+        }
+        bare_tags = true;
+        char *tn = kelvin_type(unqualified(vt ? vt : base_type(rec->name, t->pos)));
+        bare_tags = false;
+        error_at(t->pos, "%s(v) of %s is its attribute '.%s', which it has not%s", name, tn, name,
+                 base ? ", and that takes no base" : strfmt(": define one, as in 'let %s:%s { ... }'", name, name));
+    }
     Expr *e = new_expr(E_CAST, t->pos);
     e->type = base_type(name, t->pos);
     e->paren = true;

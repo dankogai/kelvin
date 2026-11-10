@@ -374,7 +374,9 @@ So far the changes from C are these, by topic.
   n`, `+ - * / %` truncated, comparisons, `& | ~ << >>`, an `i64` on
   either side, `b.text(16)` (#507); `123n`, `0xffn` and `0b101n` are
   BigInt literals, as JS's (#508); `b ** e`, Python's `pow(b, e, m)`,
-  `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()` (#511)
+  `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()` (#511); `i64(b)` and `f64(b)`
+  are `b.i64` and `b.f64`, as a converter of a struct is its attribute
+  (#512)
 - `#import <fetch>` is JS's `fetch(url)`, a GET over HTTP and HTTPS:
   `var r = fetch("https://example.com/")`, a `Result<Response, Error>`,
   `res.status`, `res.headers["content-type"]`, `res.text()`; HTTPS is

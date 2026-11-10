@@ -499,6 +499,10 @@ extend fw_w {
 }
 let fw_first(n:i64):i64 { fw_later(n) + 1 }
 let ln_total(a:lent op_owner, b:lent op_owner):int64 { a.n + b.n }   // lent its caller's (#510)
+struct cv_money { cents: i64 }                          // a converter of a struct is its attribute (#512)
+extend cv_money {
+    let i64:i64 { self.cents / 100 }
+}
 struct st_nines { n: i64 }                              // a type's own text as a String (#506)
 let st_nines.string:String {
     var s = $""
@@ -1341,6 +1345,8 @@ on a new line`
     println(st_t.count, " ", (st_nines){3}, " ", `<${(st_nines){2}}>`)   // whole, and in `...` too (#506)
     let ln_a:op_owner = {$"la", 4}
     println(ln_total(ln_a, ln_a), " ", ln_total(ln_a, (op_owner){$"lb", 6}), " ", ln_a)   // a kept, a temporary held (#510)
+    let cv_m:cv_money = {1234}
+    println(i64(cv_m), " ", cv_m.i64)                    // (#512)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }
