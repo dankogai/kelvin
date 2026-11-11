@@ -566,6 +566,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 515 | kc reads the prelude's modules, as the user asked, BigInt and RegExp both, as the user chose: a program that names BigInt or RegExp, or writes `123n` or `$/.../`, reads its `M.kh` from the modules, as kelvinc's #504, UnicodeData's too; kc writes the declarations' prototypes and links libkelvin, which defines them, by kelvinc's C names. With it, for any program: methods overloaded by their parameters, methods of String, Bytes and uchr, a `T^` where a `const T^` goes, an owner an expression gives lent where a `T^` is taken, `$0` functions to overloads, function values of owners given to a module, `b.escape()` and `Bytes.unescape(text)` | selfhost/kc.k's load_prelude; selfhost/lex.k's big_literal, lex_regexp, add_made; selfhost/parse.k's in_kh, bodiless attributes and subscripts, `:()`; selfhost/gen.k's name_methods, method_chosen, choose_among, recv_tok, recv_type, lend_temps, pointer_text, mangled_text, kh_fns, arg_fit, gen_fn_value, Bytes's escape and unescape; selfhost/README.md, selfhost/sample.k | `kc` builds `2n ** 100` and `s.split($/\s+/)` | 2026-11-10 |
 | 516 | kc reads `#import <M>` of any module, as the user asked, with JSON's tests in it, as the user chose: `M.kh`, else `M.k`, in ./modules, else in the modules, as kelvinc's import_path; a header's `libkM.a` beside it linked, or `-lkM` of a shared one, with `libkM.link`'s flags, as kelvinc's module_library; `<x.k>` that file; ./modules's C headers seen. With it, for any program: `"""text"""` and `$"""text"""`, `j["key"]` and `j[i]` of an enum with values through its Dictionary or Array case (#117), a function's name given to an overload, `&d[k]` the entry's place | selfhost/kc.k's load_module, module_import, module_library, link_flags, module_libs, exists; selfhost/lex.k's lex_triple; selfhost/parse.k's `&d[k]`; selfhost/gen.k's is_case_word, indexes_enums, index_case, resolve_subscript; selfhost/README.md, selfhost/sample.k | `kc` builds `JSON.stringify(&j, f)` and `j["tags"][0]` | 2026-11-11 |
 | 517 | benchmarks/bigint, as the user asked: Kelvin's `BigInt` against GMP, Ruby, Python and Node, swift-bigint-gmp's 11 cases and inputs, as the user chose, best of 3, each language's own gcd, isqrt and modular power where it has one, as the user chose; run.sh builds and runs them, checks they agree, and prints a Markdown table; `.github/workflows/benchmark.yml` runs it by hand only, made and not run, as the user asked | benchmarks/bigint/bench.k, bench.c, bench.rb, bench.py, bench.mjs, run.sh, README.md; .github/workflows/benchmark.yml; .gitignore's `/benchmarks/*/out/`; documents/bigint.md | `sh benchmarks/bigint/run.sh` | 2026-11-11 |
+| 518 | BigInt faster, as the user asked, than Ruby and Python in each of benchmarks/bigint's cases: the prelude's and `--lib`'s modules built with `-O -g`, as the user chose; limb loops by `a.at`, unchecked, into results made once, non-negative operands read in place; squares by half the products; powers with their factors of 2 shifted in; Lehmer's gcd; isqrt by doubled precision, Python's; text divided and conquered; and `x op= y` that a type defines, `static let +=(a:Self^, b:U)`, as the user chose, which BigInt's `+=`, `-=` and `*=` are, in place; kc the same. `.hex`, `.oct` and `.bin` of a full top limb read back again | GNUmakefile; modules/BigInt.k; src/parser.c's compound_text, compound_op, compound_target, resolve_compound, check_overload; src/codegen.c; selfhost/parse.k's compound_tok; selfhost/gen.k's compound_fits, compound_assign_call, operator_word; documents/operators.md, structs.md, properties.md, bigint.md; benchmarks/bigint/README.md; selfhost/README.md | `s += i` of a BigInt `s`, in place | 2026-11-11 |
 
 Notes:
 
@@ -1150,6 +1151,41 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (518) Agreed details: "Improve the performance.  This is unforgivably too slow."
+  - The user asked that BigInt beat Ruby and Python, as swift-bignum
+    did; asked, the user chose one number for every case of
+    benchmarks/bigint.
+  - The cause of most of it: the Makefile built the prelude's modules
+    and `--lib`'s without `-O`. Asked, the user chose that the Makefile
+    pass `-O -g` to `--prelude` and `--lib`, as to `--runtime`; kelvinc's
+    flags are as they were.
+  - BigInt, in Kelvin still: loops by `a.at`, unchecked; a result made
+    once at its size; a non-negative operand read in place, not copied
+    into a magnitude; `+ - *` of an `i64` with no BigInt made of it.
+  - Algorithms: a square by each product once, Karatsuba's halves too;
+    `m ** e` with m's factors of 2 shifted in at the end; Lehmer's gcd
+    on 62 bits, Knuth's test by one division and a product, the whole
+    changed in place; Python's `math.isqrt`; text divided and conquered
+    by the chunk squared, its small parts by half-limb divisions.
+  - 100k small adds still lost to Python, a malloc and a free each;
+    asked, the user chose that a type may define `x op= y`:
+    `static let +=(a:Self^, b:U)`, or `let +=(a:T^, b:U)` at the top
+    level, two values, the first a pointer to a Kelvin struct or union
+    that is no const, and no result; else kelvinc's error.
+    - `x += y` calls it with `&x` and `y` where its types fit, x
+      evaluated once, y lent as an operand; else `x = x + y`, as
+      before. A Dictionary's entry, an attribute and a subscript stay
+      `x = x op y`.
+    - Its C name is `_kv_add_assign_op__` and its types, without
+      warn_unused_result.
+    - BigInt's `+=` and `-=` of a BigInt or an `i64`, and `*=` of an
+      `i64`, grow x's limbs in place; `s += s` makes a new one, as its
+      limbs are the operand's.
+  - kc reads and calls them as kelvinc does, with kelvinc's C names.
+  - Found by a fuzz against Python: `.hex`, `.oct` and `.bin` of a value
+    whose top limb is full showed `+0x-1n` since #509; the magnitude is
+    made a value before its digits.
 
 - (517) Agreed details: "benchmark bigint"
   - The user asked for `benchmarks/bigint`, against Ruby, Python, Node
@@ -8204,6 +8240,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P527 | Details of #515 | selfhost/kc.k: names_word, own_type, prelude_import, load_module, load_prelude; selfhost/lex.k: add_made, big_lits, rx_lits, big_literal, lex_regexp; selfhost/parse.k: in_kh, parse_attribute and parse_subscript without a body in a .kh, parse_function's `:()`; selfhost/gen.k: choose_among, method_chosen, method_names_of, method_targets, name_methods, kh_fns, put_fn_name, recv_tok, builtin_recv, recv_type, resolve_attr and method_of by recv_tok, gen_signature's self, pointer_text, mangled_text, mangled of Y_PTR and Y_FN, arg_fit, lend_temps, gen_call and gen_method_of holding arguments, gen_fn_value, bytes_method_type and gen_bytes_method's escape, Bytes.unescape(text); selfhost/sample.k; selfhost/README.md | provisional |
 | P528 | Details of #516 | selfhost/kc.k: module_libs, exists, read_already, link_flags, module_library, load_module, module_import, load_prelude by module_import, ./modules as -I, the modules' libraries linked; selfhost/lex.k: lex_triple, `"""` and `$"""`; selfhost/parse.k: `&d[k]` a place; selfhost/gen.k: is_case_word of a function's name, enum_index_known, indexes_enums, index_case, resolve_subscript; selfhost/sample.k; selfhost/README.md | provisional |
 | P529 | Details of #517 | benchmarks/bigint: bench.k, bench.c, bench.rb, bench.py, bench.mjs, run.sh (KELVINC, CC, RUBY, PYTHON, NODE, GMP_CFLAGS, GMP_LIBS; out/<name>.tsv and out/results.md; the results checked mod 1000000007), README.md with the Apple M1 table; .github/workflows/benchmark.yml (workflow_dispatch; ubuntu-latest and macos-latest; GMP, Ruby 4.0, Python 3.14, Node 24; the table to the summary, out/ an artifact); .gitignore; documents/bigint.md | provisional |
+| P530 | Details of #518 | GNUmakefile's `-O -g` of `--prelude` and `--lib`; modules/BigInt.k: kv_bi_ext, kv_bi_addp, kv_bi_add_i64, kv_bi_i64_sub, kv_bi_norm_in, kv_bi_addto, kv_bi_add_to, kv_bi_add_to_i64, kv_bi_mul_to_i64, kv_bi_ucount, kv_bi_mul_into, kv_bi_sqr_into, kv_bi_mul_i64, kv_bi_chunk, kv_bi_text_small, kv_bi_text_dc, kv_bi_gcd1, kv_bi_top62, kv_bi_bitlen, Lehmer's kv_bi_gcd, kv_bi_isqrt, kv_bi_upow's shift, kv_bi_prefixed's value; src/parser.c: compound_text, compound_op, compound_target, resolve_compound, check_overload, the `op=` C names; src/codegen.c: no warn_unused_result without a result; selfhost: compound_tok, compound_fits, compound_assign_call; tests/run/compound_operator.k, bigint_in_place.k, bigint_hex_full_limb.k, bigint_large.k; tests/error/compound_operator_shape.k, compound_operator_result.k, operator_cannot.k's words | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

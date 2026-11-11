@@ -604,6 +604,13 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A type's own `x op= y`** (#518), as kelvinc's.
+  - `static let +=(a:Self^, b:U)`, and `let +=(a:T^, b:U)` at the top
+    level, are read, with kelvinc's errors of another shape.
+  - `x += y` calls it with `&x` and `y` where its types fit, by
+    kelvinc's C name, `_kv_add_assign_op__BigIntp__i64`; else it is
+    `x = x + y`, as before.
+  - So BigInt's `s += i` is in place in kc's build too.
 - **The modules of the prelude** (#515), as kelvinc's #504: BigInt,
   RegExp and UnicodeData.
   - A program that names BigInt or RegExp, or writes `123n` or

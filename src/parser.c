@@ -1724,6 +1724,8 @@ static Decl *method_named(Expr *recv, const char *name);
 static Type *arg_type(Expr *e);
 static Expr *parse_dollar(void);
 static bool overloadable_op(Token *t);
+static bool compound_text(const char *s); /* x op= y a type defines (#518) */
+static bool compound_op(Token *t);
 static int function_shape(int i);
 static bool params_ahead(int i);
 static void resolve_call(Expr *call);
@@ -8104,6 +8106,45 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
     return wrap_temps(call, &held);
 }
 
+/* x op= y with the op= that x's type defines (#518): a call of it with &x
+   and y, which changes x in place; NULL where none takes them, and x op= y
+   is x = x op y */
+static Expr *resolve_compound(Expr *e, Expr *lhs) {
+    List cands = overloads_of(NULL, e->op);
+    Decl *r;
+    Type *lt = value_type(lhs);
+    if (!cands.len || !lt || type_class(lt, &r) != 's')
+        return NULL;
+    if ((lhs->kind != E_IDENT && lhs->kind != E_FIELD && lhs->kind != E_INDEX && lhs->kind != E_DEREF) ||
+        (lhs->kind == E_INDEX && lhs->op && !strcmp(lhs->op, "dict")))
+        return NULL; /* a place it can point to; a Dictionary's entry is x = x op y */
+    Expr *amp = new_expr(E_PREFIX, lhs->pos);
+    amp->op = "&";
+    amp->a = lhs;
+    Expr *args[2] = {amp, e->b};
+    List maybe = {0};
+    Decl *d = choose(&cands, args, 2, &maybe, e->pos, strfmt("'%s'", e->op));
+    if (!d)
+        return NULL;
+    Expr *call = new_expr(E_CALL, e->pos);
+    call->a = new_expr(E_IDENT, e->pos);
+    call->a->text = (char *)e->op;
+    call->target = d;
+    list_push(&call->items, amp);
+    list_push(&call->items, e->b);
+    /* y is lent, as an operator's operand is (#501) */
+    List held = {0};
+    Var *p = d->params.data[1];
+    Expr *x = e->b;
+    if (is_owner(param_type(p->type)) && is_owner(value_type(x))) {
+        if (p->lent && !owner_place(x))
+            call->items.data[1] = hold_operand(x, &held);
+        else if (!p->lent && owner_place(x))
+            call->items.data[1] = eq_copy(x);
+    }
+    return wrap_temps(call, &held);
+}
+
 /* ---------- b ** e and b.pow(e, m) (#380) ---------- */
 
 /* a literal integer written in digits, possibly negated: its magnitude in
@@ -8613,7 +8654,10 @@ static void name_functions(void) {
     static const struct { const char *op, *word; } words[] = {
         {"+", "add"}, {"-", "sub"}, {"*", "mul"}, {"/", "div"}, {"%", "mod"}, {"==", "eq"}, {"!=", "ne"}, {"**", "pow"},
         {"<", "lt"}, {"<=", "le"}, {">", "gt"}, {">=", "ge"}, {"&", "and"}, {"|", "or"}, {"~", "xor"}, {"<<", "shl"},
-        {">>", "shr"}}; /* (#502) */
+        {">>", "shr"}, /* (#502) */
+        {"+=", "add_assign"}, {"-=", "sub_assign"}, {"*=", "mul_assign"}, {"/=", "div_assign"}, {"%=", "mod_assign"},
+        {"**=", "pow_assign"}, {"&=", "and_assign"}, {"|=", "or_assign"}, {"~=", "xor_assign"},
+        {"<<=", "shl_assign"}, {">>=", "shr_assign"}}; /* x op= y (#518) */
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
         Buf types = {0};
@@ -9911,6 +9955,11 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             if (!strcmp(t->text, ":=") && lhs->kind == E_IDENT && target_type(lhs) && target_type(lhs)->kind == T_PTR)
                 check_typed_value(e->b, target_type(lhs), strfmt("'%s' is", lhs->text), e->b->pos); /* q := &x of a let (#273) */
             reject_template_escape(lhs, e->b, t->pos);
+            if (compound_text(e->op)) { /* x op= y that x's type defines, in place (#518) */
+                Expr *c = resolve_compound(e, lhs);
+                if (c)
+                    return c;
+            }
             if (!strcmp(e->op, "**=")) { /* x **= y is x = x ** y (#380) */
                 if (!repeatable(lhs))
                     error_at(lhs->pos, "'x **= y' is 'x = x ** y', which evaluates x twice, so x may not hold a call");
@@ -14785,6 +14834,26 @@ static bool overloadable_op(Token *t) {
     return false;
 }
 
+/* x op= y that a type defines (#518): static let +=(a:T^, b:U), which
+   changes the value at a in place */
+static bool compound_text(const char *s) {
+    static const char *ops[] = {"+=", "-=", "*=", "/=", "%=", "**=", "&=", "|=", "~=", "<<=", ">>=", NULL};
+    for (int i = 0; ops[i]; i++)
+        if (!strcmp(s, ops[i]))
+            return true;
+    return false;
+}
+
+static bool compound_op(Token *t) { return t->kind == TK_PUNCT && compound_text(t->text); }
+
+/* the type x op= y's definition changes (#518): what its first parameter
+   points to, a Kelvin struct or union, not const; NULL where it is not */
+static Type *compound_target(Decl *d) {
+    Type *pt = d->params.len ? param_type(((Var *)d->params.data[0])->type) : NULL;
+    Type *to = pt && pt->kind == T_PTR ? pt->elem : NULL;
+    return to && !to->is_const && kelvin_record(to) ? to : NULL;
+}
+
 /* What starts at token i at the top level: 1 a method `type.name(`, 2 a
    function `name(`, 3 an operator `+(` (#42), 4 another `op(`, which no
    struct may define, or 0 none of these */
@@ -14803,8 +14872,8 @@ static int function_shape(int i) {
         return 7; /* T[](i:I):R { }, a subscript (#136) */
     if (t->kind == TK_IDENT && is_p(t + 1, "("))
         return 2;
-    if (overloadable_op(t) && is_p(t + 1, "("))
-        return 3;
+    if ((overloadable_op(t) || compound_op(t)) && is_p(t + 1, "("))
+        return 3; /* x op= y of a type too (#518) */
     if (t->kind == TK_PUNCT && is_p(t + 1, "(") && !is_p(t, "(") && !is_p(t, ";"))
         return 4;
     return 0;
@@ -14963,7 +15032,16 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
    main has one form. An operator (#42) takes one or two values, at least
    one of a Kelvin struct or union, and has a result. */
 static void check_overload(Decl *d, Token *name) {
-    if (d->op) {
+    if (d->op && compound_text(d->op)) {
+        /* x op= y (#518): two parameters, the first a pointer to the value
+           it changes, in place, and no result */
+        if (d->params.len != 2 || d->variadic || !compound_target(d))
+            error_at(name->pos, "'%s' changes the value its first parameter points to: write 'static let %s(a:T^, b:U)', "
+                                "T a Kelvin struct or union (#518)",
+                     d->op, d->op);
+        if (d->ret)
+            error_at(name->pos, "'%s' changes the value a points to and gives nothing: drop its result type", d->op);
+    } else if (d->op) {
         int n = d->params.len;
         bool unary = !strcmp(d->op, "-") || !strcmp(d->op, "~"); /* -a, ~a (#502) */
         if ((n != 2 && !(n == 1 && unary)) || d->variadic)
@@ -15766,9 +15844,9 @@ static void parse_extend(Program *prog) {
         if (nm->kind == TK_PUNCT) {
             /* static let +(a:T, b:T):T { } (#135): an operator, as Swift's
                static func +, which is the top level's let + */
-            if (!overloadable_op(nm) || !is_p(after, "("))
+            if ((!overloadable_op(nm) && !compound_op(nm)) || !is_p(after, "("))
                 error_at(nm->pos, "'%s' cannot be defined: an operator is one of + - * / %% ** == != < <= > >= & | ~ << >>, "
-                                  "or unary - and ~",
+                                  "unary - and ~, or x op= y of one of them (#518)",
                          nm->text);
             if (!storage || !is_let)
                 error_at(m->pos, "an operator in extend is a function of the type, as Swift's static func: write 'static "
@@ -15784,6 +15862,13 @@ static void parse_extend(Program *prog) {
                 Type *pt = unqualified(((Var *)d->params.data[k])->type);
                 takes = pt && pt->kind == T_BASE && rt->kind == T_BASE && !strcmp(pt->name, rt->name);
             }
+            if (compound_op(nm)) { /* x op= y changes a Self, through a Self^ (#518) */
+                Type *to = compound_target(d);
+                takes = to && rt->kind == T_BASE && !strcmp(unqualified(to)->name, rt->name);
+            }
+            if (!takes && compound_op(nm))
+                error_at(nm->pos, "'%s' in extend %s changes a %s: write 'static let %s(a:Self^, b:U)'", nm->text,
+                         recv->text, recv->text, nm->text);
             if (!takes)
                 error_at(nm->pos, "an operator in extend %s takes a %s, as one of its values", recv->text, recv->text);
             add_top_decl(prog, d);
@@ -17086,11 +17171,11 @@ Program *parse(Token *tokens, int ntoks) {
             reject_c_fn_pointer(cur, "var ");
             top_name = peek()->text;
             add_top_decl(prog, parse_fn(t->pos, storage));
-        } else if (overloadable_op(peek()) && is_p(peek2(), "(")) {
-            add_top_decl(prog, parse_fn(t->pos, storage)); /* +(a:T, b:U):R { ... } (#42) */
+        } else if ((overloadable_op(peek()) || compound_op(peek())) && is_p(peek2(), "(")) {
+            add_top_decl(prog, parse_fn(t->pos, storage)); /* +(a:T, b:U):R { ... } (#42); +=(a:T^, b:U) (#518) */
         } else if (peek()->kind == TK_PUNCT && is_p(peek2(), "(") && !is_p(peek(), "(") && !is_p(peek(), ";")) {
             error_at(peek()->pos, "'%s' cannot be defined: an operator a struct defines is one of + - * / %% ** == != "
-                                  "< <= > >= & | ~ << >>, or unary - and ~, and 'x op= y' is 'x = x op y'",
+                                  "< <= > >= & | ~ << >>, unary - and ~, or x op= y of one of them (#518)",
                      peek()->text);
         } else if (is_kw(peek(), "let") || is_kw(peek(), "var") ||
                    (storage && !strcmp(storage, "extern") && peek()->kind == TK_IDENT && !strcmp(peek()->text, "lazy") &&

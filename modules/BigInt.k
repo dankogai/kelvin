@@ -5,6 +5,10 @@
 // Built by kelvinc --prelude into BigInt.kh and an object that libkelvin
 // holds; a program that names BigInt has it with no import.
 //
+// Its loops walk the limbs by pointers, a.at, unchecked, into results made
+// at their size once (#518); a non-negative operand is read where it is,
+// not copied into a magnitude.
+//
 //     let f = BigInt(1) << 100                    // 1267650600228229401496703205376
 //     var n = BigInt("123456789012345678901234567890")
 //     println(n * n + 1, " ", n / 7, " ", n % 7, " ", n.text(16), " ", -n >> 3)
@@ -26,29 +30,33 @@ let kv_bi_ones():u64 { ~(0 as u64) }
 // whether the limbs l are of a negative value: its top bit set
 let kv_bi_negative(l:const $[u64]^):bool { l^.count > 0 && (l^[l^.count - 1] >> 63) == 1 }
 
+// the limb that l's sign repeats past its top: all ones or 0
+let kv_bi_ext(l:const $[u64]^):u64 { kv_bi_negative(l) ? kv_bi_ones() : 0 }
+
 // limb i of l, past its top the sign repeated
 let kv_bi_limb(l:const $[u64]^, i:i64):u64 {
     if i < l^.count as i64 { return l^[i] }
-    return kv_bi_negative(l) ? kv_bi_ones() : 0
+    return kv_bi_ext(l)
 }
 
 // l without the top limbs that only repeat the sign
 let kv_bi_norm(var l:$[u64]):$[u64] {
-    var more = true
-    while more && l.count > 0 {
-        let top:u64 = l[l.count - 1]
-        if l.count == 1 {
-            if top == 0 { l.pop() }
-            more = false
+    var n:i64 = l.count as i64
+    let p:const u64^ := l.at
+    while n > 0 {
+        let top:u64 = p[n - 1]
+        if n == 1 {
+            if top == 0 { n = 0 }
+            break
+        }
+        let below:u64 = p[n - 2] >> 63
+        if (top == 0 && below == 0) || (top == kv_bi_ones() && below == 1) {
+            n -= 1
         } else {
-            let below:u64 = l[l.count - 2] >> 63
-            if (top == 0 && below == 0) || (top == kv_bi_ones() && below == 1) {
-                l.pop()
-            } else {
-                more = false
-            }
+            break
         }
     }
+    while l.count as i64 > n { l.pop() }
     return l
 }
 
@@ -58,36 +66,122 @@ let kv_bi_strip(var l:$[u64]):$[u64] {
     return l
 }
 
-let kv_bi_add(a:const $[u64]^, b:const $[u64]^):$[u64] {
-    let n:i64 = (a^.count > b^.count ? a^.count : b^.count) as i64 + 1
-    var r:$[u64] = $[]
-    var carry:u64 = 0
-    for i in 0..<n {
-        let x:u64 = kv_bi_limb(a, i)
-        let s:u64 = x + kv_bi_limb(b, i)
-        let t:u64 = s + carry
-        carry = (s < x ? 1 : 0) + (t < s ? 1 : 0)
-        r += t
+// a + b, or a - b where sub, of raw limbs: a's an limbs with sa, all ones or
+// 0, repeated past them, and b's bn with sb; one result, made once
+let kv_bi_addp(ap:const u64^, an:i64, sa:u64, bp:const u64^, bn:i64, sb:u64, sub:bool):$[u64] {
+    let n:i64 = (an > bn ? an : bn) + 1
+    var r = Array<u64>(n)
+    let rp:u64^ := r.at
+    let flip:u64 = sub ? kv_bi_ones() : 0                // a - b is a + ~b + 1
+    let eb:u64 = sb ~ flip
+    var carry:u64 = sub ? 1 : 0
+    let m:i64 = an < bn ? an : bn
+    var i:i64 = 0
+    while i < m {
+        let t:u128 = (ap[i] as u128) + ((bp[i] ~ flip) as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+        i += 1
     }
+    while i < an {
+        let t:u128 = (ap[i] as u128) + (eb as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+        i += 1
+    }
+    while i < bn {
+        let t:u128 = (sa as u128) + ((bp[i] ~ flip) as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+        i += 1
+    }
+    rp[n - 1] = sa + eb + carry
     return kv_bi_norm(r)
 }
 
-let kv_bi_neg(a:const $[u64]^):$[u64] {
-    let n:i64 = a^.count as i64 + 1
-    var r:$[u64] = $[]
-    var carry:u64 = 1
-    for i in 0..<n {
-        let x:u64 = ~kv_bi_limb(a, i)
-        let t:u64 = x + carry
-        carry = t < x ? 1 : 0
-        r += t
-    }
-    return kv_bi_norm(r)
+let kv_bi_add(a:const $[u64]^, b:const $[u64]^):$[u64] {
+    return kv_bi_addp(a^.at, a^.count as i64, kv_bi_ext(a), b^.at, b^.count as i64, kv_bi_ext(b), false)
 }
 
 let kv_bi_sub(a:const $[u64]^, b:const $[u64]^):$[u64] {
-    let nb = kv_bi_neg(b)
-    return kv_bi_add(a, &nb)
+    return kv_bi_addp(a^.at, a^.count as i64, kv_bi_ext(a), b^.at, b^.count as i64, kv_bi_ext(b), true)
+}
+
+// a + x, or a - x where sub, of an i64 x, with no BigInt made of it
+let kv_bi_add_i64(a:const $[u64]^, x:i64, sub:bool):$[u64] {
+    var limb:u64 = x as u64
+    return kv_bi_addp(a^.at, a^.count as i64, kv_bi_ext(a), &limb, 1, x < 0 ? kv_bi_ones() : 0, sub)
+}
+
+// x - a of an i64 x
+let kv_bi_i64_sub(x:i64, a:const $[u64]^):$[u64] {
+    var limb:u64 = x as u64
+    return kv_bi_addp(&limb, 1, x < 0 ? kv_bi_ones() : 0, a^.at, a^.count as i64, kv_bi_ext(a), true)
+}
+
+// l without the top limbs that only repeat the sign, in place
+let kv_bi_norm_in(l:$[u64]^):() {
+    var n:i64 = l^.count as i64
+    let p:const u64^ := l^.at
+    while n > 1 {
+        let top:u64 = p[n - 1]
+        let below:u64 = p[n - 2] >> 63
+        if (top == 0 && below == 0) || (top == kv_bi_ones() && below == 1) {
+            n -= 1
+        } else {
+            break
+        }
+    }
+    if n == 1 && p[0] == 0 { n = 0 }
+    while l^.count as i64 > n { l^.pop() }
+}
+
+// r += b, or r -= b where sub, in place (#518): r grown by its sign to
+// the limbs the result needs, which it holds after the first steps, so
+// that a sum kept in a var is made no more; bp is none of r's limbs
+let kv_bi_addto(r:$[u64]^, bp:const u64^, bn:i64, sb:u64, sub:bool):() {
+    let an:i64 = r^.count as i64
+    let n:i64 = (an > bn ? an : bn) + 1
+    let sa:u64 = kv_bi_ext(r)
+    while r^.count as i64 < n { r^ += sa }
+    let rp:u64^ := r^.at
+    let flip:u64 = sub ? kv_bi_ones() : 0
+    let eb:u64 = sb ~ flip
+    var carry:u64 = sub ? 1 : 0
+    var i:i64 = 0
+    while i < bn {
+        let t:u128 = (rp[i] as u128) + ((bp[i] ~ flip) as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+        i += 1
+    }
+    while i < n {
+        let t:u128 = (rp[i] as u128) + (eb as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+        i += 1
+    }
+    kv_bi_norm_in(r)
+}
+
+// r += b and r -= b of a BigInt; of r itself, s += s, a new one
+let kv_bi_add_to(r:$[u64]^, b:const $[u64]^, sub:bool):() {
+    if b^.count > 0 && r^.at == b^.at {
+        r^ = kv_bi_addp(r^.at, r^.count as i64, kv_bi_ext(r), b^.at, b^.count as i64, kv_bi_ext(b), sub)
+        return
+    }
+    kv_bi_addto(r, b^.at, b^.count as i64, kv_bi_ext(b), sub)
+}
+
+// r += x and r -= x of an i64
+let kv_bi_add_to_i64(r:$[u64]^, x:i64, sub:bool):() {
+    var limb:u64 = x as u64
+    kv_bi_addto(r, &limb, 1, x < 0 ? kv_bi_ones() : 0, sub)
+}
+
+let kv_bi_neg(a:const $[u64]^):$[u64] {
+    var zero:u64 = 0
+    return kv_bi_addp(&zero, 0, 0, a^.at, a^.count as i64, kv_bi_ext(a), true)
 }
 
 // -1, 0 or 1 as a is below, at or above b
@@ -108,9 +202,7 @@ let kv_bi_cmp(a:const $[u64]^, b:const $[u64]^):i64 {
 // the magnitude of a, unsigned limbs with no top zeros
 let kv_bi_mag(a:const $[u64]^):$[u64] {
     if kv_bi_negative(a) { return kv_bi_strip(kv_bi_neg(a)) }
-    var r:$[u64] = $[]
-    for x in a^ { r += x }
-    return kv_bi_strip(r)
+    return kv_bi_strip(a^.copy())
 }
 
 // the value of the magnitude m with a sign
@@ -121,113 +213,175 @@ let kv_bi_signed(var m:$[u64], negative:bool):$[u64] {
     return kv_bi_norm(m)
 }
 
+// the limbs of a non-negative value without its top zero limb: the count of
+// its magnitude, read in place
+let kv_bi_ucount(a:const $[u64]^):i64 {
+    var n:i64 = a^.count as i64
+    while n > 0 && a^[n - 1] == 0 { n -= 1 }
+    return n
+}
+
 // ---------- magnitudes: multiplication and division ----------
 
 // the limbs of the magnitude a from lo up to hi, no top zeros
 let kv_bi_slice(a:const $[u64]^, lo:i64, hi:i64):$[u64] {
-    var r:$[u64] = $[]
-    var i:i64 = lo
-    while i < hi && i < a^.count as i64 {
-        r += a^[i]
-        i += 1
-    }
+    let top:i64 = hi < a^.count as i64 ? hi : a^.count as i64
+    if lo >= top { return Array<u64>() }
+    var r = Array<u64>(top - lo)
+    let rp:u64^ := r.at
+    let ap:const u64^ := a^.at
+    for i in lo..<top { rp[i - lo] = ap[i] }
     return kv_bi_strip(r)
 }
 
 // the magnitudes a + b
 let kv_bi_uadd(a:const $[u64]^, b:const $[u64]^):$[u64] {
-    let n:i64 = (a^.count > b^.count ? a^.count : b^.count) as i64
-    var r:$[u64] = $[]
-    var carry:u64 = 0
-    for i in 0..<n {
-        let x:u64 = i < a^.count as i64 ? a^[i] : 0
-        let s:u64 = x + (i < b^.count as i64 ? b^[i] : 0)
-        let t:u64 = s + carry
-        carry = (s < x ? 1 : 0) + (t < s ? 1 : 0)
-        r += t
-    }
-    if carry != 0 { r += carry }
-    return r
+    var r = kv_bi_addp(a^.at, a^.count as i64, 0, b^.at, b^.count as i64, 0, false)
+    return kv_bi_strip(r)
 }
 
 // the magnitudes a - b, where a is b or more
 let kv_bi_usub(a:const $[u64]^, b:const $[u64]^):$[u64] {
-    var r:$[u64] = $[]
-    var borrow:u64 = 0
-    for i in 0..<(a^.count as i64) {
-        let x:u64 = a^[i]
-        let y:u64 = i < b^.count as i64 ? b^[i] : 0
-        let t:u64 = x - y
-        let u:u64 = t - borrow
-        borrow = (x < y ? 1 : 0) + (t < borrow ? 1 : 0)
-        r += u
-    }
+    var r = kv_bi_addp(a^.at, a^.count as i64, 0, b^.at, b^.count as i64, 0, true)
+    if r.count > 0 && r[r.count - 1] == kv_bi_ones() { r.pop() }   // not reached where a is b or more
     return kv_bi_strip(r)
 }
 
 // r += a, shifted up k limbs, in place; r has room
 let kv_bi_add_at(r:$[u64]^, a:const $[u64]^, k:i64):() {
+    let rp:u64^ := &r^.at[k]
+    let ap:const u64^ := a^.at
+    let n:i64 = a^.count as i64
     var carry:u64 = 0
     var i:i64 = 0
-    while i < a^.count as i64 || carry != 0 {
-        let x:u64 = r^[k + i]
-        let s:u64 = x + (i < a^.count as i64 ? a^[i] : 0)
-        let t:u64 = s + carry
-        carry = (s < x ? 1 : 0) + (t < s ? 1 : 0)
-        r^[k + i] = t
+    while i < n {
+        let t:u128 = (rp[i] as u128) + (ap[i] as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+        i += 1
+    }
+    while carry != 0 {
+        let t:u64 = rp[i] + carry
+        carry = t < carry ? 1 : 0
+        rp[i] = t
         i += 1
     }
 }
 
-// the magnitudes a * b, by Karatsuba's three halves past 40 limbs each,
-// as swift-bignum, else the schoolbook's
-let kv_bi_umul(a:const $[u64]^, b:const $[u64]^):$[u64] {
-    if a^.count >= 40 && b^.count >= 40 {
-        let k:i64 = ((a^.count > b^.count ? a^.count : b^.count) as i64 + 1) / 2
-        let a0 = kv_bi_slice(a, 0, k)
-        let a1 = kv_bi_slice(a, k, a^.count as i64)
-        let b0 = kv_bi_slice(b, 0, k)
-        let b1 = kv_bi_slice(b, k, b^.count as i64)
-        let z0 = kv_bi_umul(&a0, &b0)
-        let z2 = kv_bi_umul(&a1, &b1)
-        let sa = kv_bi_uadd(&a0, &a1)
-        let sb = kv_bi_uadd(&b0, &b1)
-        let z1a = kv_bi_umul(&sa, &sb)
-        let z1b = kv_bi_usub(&z1a, &z0)
-        let z1 = kv_bi_usub(&z1b, &z2)
-        var r = Array<u64>(a^.count + b^.count + 1)
-        kv_bi_add_at(&r, &z0, 0)
-        kv_bi_add_at(&r, &z1, k)
-        kv_bi_add_at(&r, &z2, 2 * k)
-        return kv_bi_strip(r)
+// rp += ap * bp, the schoolbook's, rp zeroed for its an + bn limbs
+let kv_bi_mul_into(rp:u64^, ap:const u64^, an:i64, bp:const u64^, bn:i64):() {
+    for i in 0..<an {
+        let x:u128 = ap[i] as u128
+        if x != 0 {
+            let rq:u64^ := &rp[i]
+            var carry:u64 = 0
+            for j in 0..<bn {
+                let t:u128 = x * (bp[j] as u128) + (rq[j] as u128) + (carry as u128)
+                rq[j] = t as u64
+                carry = (t >> 64) as u64
+            }
+            rq[bn] = carry
+        }
     }
-    return kv_bi_school(a, b)
+}
+
+// rp = ap squared, the schoolbook's, each product of two limbs once and
+// doubled, rp zeroed for its 2an limbs
+let kv_bi_sqr_into(rp:u64^, ap:const u64^, an:i64):() {
+    for i in 0..<(an - 1) {
+        let x:u128 = ap[i] as u128
+        if x != 0 {
+            var carry:u64 = 0
+            for j in (i + 1)..<an {
+                let t:u128 = x * (ap[j] as u128) + (rp[i + j] as u128) + (carry as u128)
+                rp[i + j] = t as u64
+                carry = (t >> 64) as u64
+            }
+            rp[i + an] = carry
+        }
+    }
+    var top:u64 = 0                                      // doubled
+    for i in 0..<(2 * an) {
+        let x:u64 = rp[i]
+        rp[i] = (x << 1) | top
+        top = x >> 63
+    }
+    var carry:u64 = 0                                    // and the squares added
+    for i in 0..<an {
+        let t:u128 = (ap[i] as u128) * (ap[i] as u128) + (rp[2 * i] as u128) + (carry as u128)
+        rp[2 * i] = t as u64
+        let u:u128 = (t >> 64) + (rp[2 * i + 1] as u128)
+        rp[2 * i + 1] = u as u64
+        carry = (u >> 64) as u64
+    }
 }
 
 let kv_bi_school(a:const $[u64]^, b:const $[u64]^):$[u64] {
-    if a^.count == 0 || b^.count == 0 { return Array<u64>() }
-    var r = Array<u64>(a^.count + b^.count)
-    for i in 0..<a^.count as i64 {
-        var carry:u64 = 0
-        let x:u128 = a^[i] as u128
-        for j in 0..<b^.count as i64 {
-            let t:u128 = x * (b^[j] as u128) + (r[i + j] as u128) + (carry as u128)
-            r[i + j] = t as u64
-            carry = (t >> 64) as u64
-        }
-        r[i + b^.count as i64] = carry
+    let an:i64 = a^.count as i64
+    let bn:i64 = b^.count as i64
+    if an == 0 || bn == 0 { return Array<u64>() }
+    var r = Array<u64>(an + bn)
+    if a == b {
+        kv_bi_sqr_into(r.at, a^.at, an)
+    } else {
+        kv_bi_mul_into(r.at, a^.at, an, b^.at, bn)
     }
     return kv_bi_strip(r)
+}
+
+// the magnitudes a * b, by Karatsuba's three halves past 40 limbs each,
+// as swift-bignum, else the schoolbook's; a square where a is b, its
+// halves squares too
+let kv_bi_umul(a:const $[u64]^, b:const $[u64]^):$[u64] {
+    if a^.count >= 40 && b^.count >= 40 {
+        let k:i64 = ((a^.count > b^.count ? a^.count : b^.count) as i64 + 1) / 2
+        if a == b {
+            let a0 = kv_bi_slice(a, 0, k)
+            let a1 = kv_bi_slice(a, k, a^.count as i64)
+            let z0 = kv_bi_umul(&a0, &a0)
+            let z2 = kv_bi_umul(&a1, &a1)
+            let sa = kv_bi_uadd(&a0, &a1)
+            let z1a = kv_bi_umul(&sa, &sa)
+            let z1b = kv_bi_usub(&z1a, &z0)
+            let z1 = kv_bi_usub(&z1b, &z2)
+            var r = Array<u64>(2 * a^.count + 1)
+            kv_bi_add_at(&r, &z0, 0)
+            kv_bi_add_at(&r, &z1, k)
+            kv_bi_add_at(&r, &z2, 2 * k)
+            return kv_bi_strip(r)
+        }
+        if b^.count as i64 > k && a^.count as i64 > k {
+            let a0 = kv_bi_slice(a, 0, k)
+            let a1 = kv_bi_slice(a, k, a^.count as i64)
+            let b0 = kv_bi_slice(b, 0, k)
+            let b1 = kv_bi_slice(b, k, b^.count as i64)
+            let z0 = kv_bi_umul(&a0, &b0)
+            let z2 = kv_bi_umul(&a1, &b1)
+            let sa = kv_bi_uadd(&a0, &a1)
+            let sb = kv_bi_uadd(&b0, &b1)
+            let z1a = kv_bi_umul(&sa, &sb)
+            let z1b = kv_bi_usub(&z1a, &z0)
+            let z1 = kv_bi_usub(&z1b, &z2)
+            var r = Array<u64>(a^.count + b^.count + 1)
+            kv_bi_add_at(&r, &z0, 0)
+            kv_bi_add_at(&r, &z1, k)
+            kv_bi_add_at(&r, &z2, 2 * k)
+            return kv_bi_strip(r)
+        }
+    }
+    return kv_bi_school(a, b)
 }
 
 // the magnitude a divided by the limb d, the remainder into rem
 let kv_bi_udiv1(a:const $[u64]^, d:u64, rem:u64^):$[u64] {
     var q = Array<u64>(a^.count)
+    let qp:u64^ := q.at
+    let ap:const u64^ := a^.at
     var r:u128 = 0
     var i:i64 = a^.count as i64 - 1
     while i >= 0 {
-        let cur:u128 = (r << 64) | (a^[i] as u128)
-        q[i] = (cur / (d as u128)) as u64
+        let cur:u128 = (r << 64) | (ap[i] as u128)
+        qp[i] = (cur / (d as u128)) as u64
         r = cur % (d as u128)
         i -= 1
     }
@@ -239,6 +393,9 @@ let kv_bi_udiv1(a:const $[u64]^, d:u64, rem:u64^):$[u64] {
 let kv_bi_clz(x:u64):i64 {
     var n:i64 = 0
     var y:u64 = x
+    if (y >> 32) == 0 { n += 32; y = y << 32 }
+    if (y >> 48) == 0 { n += 16; y = y << 16 }
+    if (y >> 56) == 0 { n += 8; y = y << 8 }
     while (y >> 63) == 0 {
         y = y << 1
         n += 1
@@ -253,66 +410,69 @@ let kv_bi_udivmod(u:const $[u64]^, v:const $[u64]^, q:$[u64]^, r:$[u64]^):() {
     let n:i64 = v^.count as i64
     if u^.count < v^.count || kv_bi_cmp_mag(u, v) < 0 {
         q^ = Array<u64>()
-        var c:$[u64] = $[]
-        for x in u^ { c += x }
-        r^ = kv_bi_strip(c)
+        r^ = kv_bi_strip(u^.copy())
         return
     }
     let m:i64 = u^.count as i64 - n
     let s:i64 = kv_bi_clz(v^[n - 1])
     var vn = Array<u64>(n)
     var un = Array<u64>(u^.count + 1)
+    let vp:u64^ := vn.at
+    let up:u64^ := un.at
+    let v0:const u64^ := v^.at
+    let u0:const u64^ := u^.at
     for i in 0..<n {
-        let lo:u64 = v^[i] << s
-        let carry:u64 = s > 0 && i > 0 ? v^[i - 1] >> (64 - s) : 0
-        vn[i] = lo | carry
+        vp[i] = s > 0 && i > 0 ? (v0[i] << s) | (v0[i - 1] >> (64 - s)) : v0[i] << s
     }
     for i in 0..<(u^.count as i64) {
-        let lo:u64 = u^[i] << s
-        let carry:u64 = s > 0 && i > 0 ? u^[i - 1] >> (64 - s) : 0
-        un[i] = lo | carry
+        up[i] = s > 0 && i > 0 ? (u0[i] << s) | (u0[i - 1] >> (64 - s)) : u0[i] << s
     }
-    un[u^.count] = s > 0 ? u^[u^.count - 1] >> (64 - s) : 0
+    up[u^.count] = s > 0 ? u0[u^.count - 1] >> (64 - s) : 0
     var qs = Array<u64>(m + 1)
+    let qp:u64^ := qs.at
     let base:u128 = (1 as u128) << 64
-    let mask:u128 = base - 1
+    let vtop:u128 = vp[n - 1] as u128
+    let vnext:u128 = vp[n - 2] as u128
     var j:i64 = m
     while j >= 0 {
-        let num:u128 = ((un[j + n] as u128) << 64) | (un[j + n - 1] as u128)
-        var qhat:u128 = num / (vn[n - 1] as u128)
-        var rhat:u128 = num % (vn[n - 1] as u128)
-        while qhat >= base || qhat * (vn[n - 2] as u128) > ((rhat << 64) | (un[j + n - 2] as u128)) {
+        let uj:u64^ := &up[j]
+        let num:u128 = ((uj[n] as u128) << 64) | (uj[n - 1] as u128)
+        var qhat:u128 = num / vtop
+        var rhat:u128 = num - qhat * vtop
+        while qhat >= base || qhat * vnext > ((rhat << 64) | (uj[n - 2] as u128)) {
             qhat -= 1
-            rhat += vn[n - 1] as u128
+            rhat += vtop
             if rhat >= base { break }
         }
-        var k:i128 = 0
+        let qd:u64 = qhat as u64
+        var carry:u64 = 0                                // uj -= qd * v
+        var borrow:u64 = 0
         for i in 0..<n {
-            let p:u128 = qhat * (vn[i] as u128)
-            let t:i128 = (un[i + j] as i128) - k - ((p & mask) as i128)
-            un[i + j] = t as u64
-            k = ((p >> 64) as i128) - (t >> 64)
+            let p:u128 = (qd as u128) * (vp[i] as u128) + (carry as u128)
+            carry = (p >> 64) as u64
+            let t:u128 = (uj[i] as u128) - ((p as u64) as u128) - (borrow as u128)
+            uj[i] = t as u64
+            borrow = ((t >> 64) as u64) & 1
         }
-        let t:i128 = (un[j + n] as i128) - k
-        un[j + n] = t as u64
-        qs[j] = qhat as u64
-        if t < 0 {
-            qs[j] = qs[j] - 1
-            var c:u128 = 0
+        let t:u128 = (uj[n] as u128) - (carry as u128) - (borrow as u128)
+        uj[n] = t as u64
+        qp[j] = qd
+        if ((t >> 64) as u64) != 0 {                     // one too many: v added back
+            qp[j] = qd - 1
+            var c:u64 = 0
             for i in 0..<n {
-                let w:u128 = (un[i + j] as u128) + (vn[i] as u128) + c
-                un[i + j] = w as u64
-                c = w >> 64
+                let w:u128 = (uj[i] as u128) + (vp[i] as u128) + (c as u128)
+                uj[i] = w as u64
+                c = (w >> 64) as u64
             }
-            un[j + n] = un[j + n] + (c as u64)
+            uj[n] = uj[n] + c
         }
         j -= 1
     }
     var rs = Array<u64>(n)
+    let rp:u64^ := rs.at
     for i in 0..<n {
-        let lo:u64 = s > 0 ? un[i] >> s : un[i]
-        let hi:u64 = s > 0 ? un[i + 1] << (64 - s) : 0
-        rs[i] = lo | hi
+        rp[i] = s > 0 ? (up[i] >> s) | (up[i + 1] << (64 - s)) : up[i]
     }
     q^ = kv_bi_strip(qs)
     r^ = kv_bi_strip(rs)
@@ -359,34 +519,44 @@ let kv_bi_divmod(a:const $[u64]^, b:const $[u64]^, q:$[u64]^, r:$[u64]^):() {
 // a op b limb by limb: 0 and, 1 or, 2 xor
 let kv_bi_bits(a:const $[u64]^, b:const $[u64]^, op:i64):$[u64] {
     let n:i64 = (a^.count > b^.count ? a^.count : b^.count) as i64
-    var r:$[u64] = $[]
+    var r = Array<u64>(n)
+    let rp:u64^ := r.at
     for i in 0..<n {
         let x:u64 = kv_bi_limb(a, i)
         let y:u64 = kv_bi_limb(b, i)
-        r += op == 0 ? x & y : op == 1 ? x | y : x ~ y
+        rp[i] = op == 0 ? x & y : op == 1 ? x | y : x ~ y
     }
     return kv_bi_norm(r)
 }
 
 let kv_bi_not(a:const $[u64]^):$[u64] {
-    var r:$[u64] = $[]
-    for x in a^ { r += ~x }
-    if r.count == 0 { r += kv_bi_ones() }
+    if a^.count == 0 {
+        var r:$[u64] = $[]
+        r += kv_bi_ones()
+        return r
+    }
+    var r = Array<u64>(a^.count)
+    let rp:u64^ := r.at
+    let ap:const u64^ := a^.at
+    for i in 0..<(a^.count as i64) { rp[i] = ~ap[i] }
     return kv_bi_norm(r)
 }
 
 let kv_bi_shl(a:const $[u64]^, k:i64):$[u64] {
     let w:i64 = k / 64
     let b:i64 = k % 64
-    var r:$[u64] = $[]
-    for i in 0..<w { r += 0 }
+    let n:i64 = a^.count as i64
+    var r = Array<u64>(w + n + 1)
+    let rp:u64^ := r.at
+    let ap:const u64^ := a^.at
     var prev:u64 = 0
-    for x in a^ {
-        r += b > 0 ? (x << b) | (prev >> (64 - b)) : x
+    for i in 0..<n {
+        let x:u64 = ap[i]
+        rp[w + i] = b > 0 ? (x << b) | (prev >> (64 - b)) : x
         prev = x
     }
-    let ext:u64 = kv_bi_negative(a) ? kv_bi_ones() : 0
-    r += b > 0 ? (ext << b) | (prev >> (64 - b)) : ext
+    let ext:u64 = kv_bi_ext(a)
+    rp[w + n] = b > 0 ? (ext << b) | (prev >> (64 - b)) : ext
     return kv_bi_norm(r)
 }
 
@@ -394,13 +564,18 @@ let kv_bi_shl(a:const $[u64]^, k:i64):$[u64] {
 let kv_bi_shr(a:const $[u64]^, k:i64):$[u64] {
     let w:i64 = k / 64
     let b:i64 = k % 64
-    var r:$[u64] = $[]
-    for i in w..<(a^.count as i64) {
-        let lo:u64 = kv_bi_limb(a, i)
-        let hi:u64 = kv_bi_limb(a, i + 1)
-        r += b > 0 ? (lo >> b) | (hi << (64 - b)) : lo
+    let n:i64 = a^.count as i64
+    let ext:u64 = kv_bi_ext(a)
+    let len:i64 = n > w ? n - w : 0
+    var r = Array<u64>(len + 1)
+    let rp:u64^ := r.at
+    let ap:const u64^ := a^.at
+    for i in 0..<len {
+        let lo:u64 = ap[w + i]
+        let hi:u64 = w + i + 1 < n ? ap[w + i + 1] : ext
+        rp[i] = b > 0 ? (lo >> b) | (hi << (64 - b)) : lo
     }
-    r += kv_bi_negative(a) ? kv_bi_ones() : 0          // all of it shifted out: 0, or -1 of a negative one
+    rp[len] = ext                                        // all of it shifted out: 0, or -1 of a negative one
     return kv_bi_norm(r)
 }
 
@@ -413,50 +588,128 @@ let kv_bi_bad_base(base:i64):() {
     kv_exit_failure()
 }
 
-// the text of a in base, its digits lowercase, a '-' before a negative one
-let kv_bi_text(a:const $[u64]^, base:i64):String {
-    if base < 2 || base > 36 { kv_bi_bad_base(base) }
-    if a^.count == 0 { return $"0" }
-    var chunk:u64 = base as u64                          // the largest power of base in a limb, and its digits
-    var width:i64 = 1
+// the largest power of base in a limb, and its digits, into width
+let kv_bi_chunk(base:i64, width:i64^):u64 {
+    var chunk:u64 = base as u64
+    var w:i64 = 1
     while chunk <= kv_bi_ones() / (base as u64) {
+        chunk = chunk * (base as u64)
+        w += 1
+    }
+    width^ = w
+    return chunk
+}
+
+// the digits of the magnitude m into out, by the schoolbook's: divided in
+// halves of a limb, so that each step is a u64's division; exactly pad of
+// them, zeros before, where pad > 0, else with no leading zeros
+let kv_bi_text_small(m:const $[u64]^, base:i64, pad:i64, out:Bytes^):() {
+    var chunk:u64 = base as u64                          // the largest power of base below 2 ** 32
+    var width:i64 = 1
+    while chunk * (base as u64) < ((1 as u64) << 32) {
         chunk = chunk * (base as u64)
         width += 1
     }
-    var m = kv_bi_mag(a)
-    var parts:$[u64] = $[]
-    while m.count > 0 {
-        var rem:u64 = 0
-        m = kv_bi_udiv1(&m, chunk, &rem)
-        parts += rem
+    var h = Array<u64>(2 * m^.count)
+    let hp:u64^ := h.at
+    let mp:const u64^ := m^.at
+    for i in 0..<(m^.count as i64) {
+        hp[2 * i] = mp[i] & 0xffffffff
+        hp[2 * i + 1] = mp[i] >> 32
     }
-    var out = Bytes()
-    if kv_bi_negative(a) { out += '-' as u8 }
+    var hn:i64 = h.count as i64
+    while hn > 0 && hp[hn - 1] == 0 { hn -= 1 }
+    var parts:$[u64] = $[]
+    while hn > 0 {
+        var r:u64 = 0
+        var i:i64 = hn - 1
+        while i >= 0 {
+            let cur:u64 = (r << 32) | hp[i]
+            hp[i] = cur / chunk
+            r = cur - hp[i] * chunk
+            i -= 1
+        }
+        parts += r
+        while hn > 0 && hp[hn - 1] == 0 { hn -= 1 }
+    }
+    let total:i64 = parts.count as i64 * width
+    var skip:i64 = 0
+    if pad > 0 {
+        for _ in total..<pad { out^ += '0' as u8 }
+        skip = total > pad ? total - pad : 0
+    }
     let digits := kv_bi_digits()
+    var here = Array<u8>(width)
+    let ep:u8^ := here.at
+    var first = pad == 0
     var i:i64 = parts.count as i64 - 1
     while i >= 0 {
         var v:u64 = parts[i]
-        var here = Array<u8>(width)
         var k:i64 = width - 1
         while k >= 0 {
-            here[k] = digits[v % (base as u64)]
+            ep[k] = digits[v % (base as u64)]
             v = v / (base as u64)
             k -= 1
         }
         var from:i64 = 0
-        if i == parts.count as i64 - 1 {
-            while from < width - 1 && here[from] == '0' as u8 { from += 1 }
+        if first {
+            while from < width - 1 && ep[from] == '0' as u8 { from += 1 }
+            first = false
         }
-        for d in from..<width { out += here[d] }
+        while skip > 0 && from < width {
+            from += 1
+            skip -= 1
+        }
+        for d in from..<width { out^ += ep[d] }
         i -= 1
     }
+}
+
+// the digits of the magnitude m into out, divided and conquered: by pows[k],
+// the chunk to the 2 ** k, into a high half and a low half of width * 2 ** k
+// digits; pad as kv_bi_text_small's
+let kv_bi_text_dc(m:const $[u64]^, pows:const $[$[u64]]^, k:i64, base:i64, width:i64, pad:i64, out:Bytes^):() {
+    if k < 1 || m^.count < 32 {
+        kv_bi_text_small(m, base, pad, out)
+        return
+    }
+    if pad == 0 && kv_bi_cmp_mag(m, &pows^[k]) < 0 {
+        kv_bi_text_dc(m, pows, k - 1, base, width, 0, out)
+        return
+    }
+    var q:$[u64] = $[]
+    var r:$[u64] = $[]
+    kv_bi_udivmod(m, &pows^[k], &q, &r)
+    let low:i64 = width << k
+    kv_bi_text_dc(&q, pows, k - 1, base, width, pad > 0 ? pad - low : 0, out)
+    kv_bi_text_dc(&r, pows, k - 1, base, width, low, out)
+}
+
+// the text of a in base, its digits lowercase, a '-' before a negative one
+let kv_bi_text(a:const $[u64]^, base:i64):String {
+    if base < 2 || base > 36 { kv_bi_bad_base(base) }
+    if a^.count == 0 { return $"0" }
+    var width:i64 = 0
+    let chunk:u64 = kv_bi_chunk(base, &width)
+    let m = kv_bi_mag(a)
+    var pows:$[$[u64]] = $[]                             // the chunk, squared and squared
+    var p:$[u64] = $[]
+    p += chunk
+    pows += &p
+    while pows[pows.count - 1].count * 2 <= m.count {
+        let last:const $[u64]^ := &pows[pows.count - 1]
+        pows += kv_bi_umul(last, last)
+    }
+    var out = Bytes()
+    if kv_bi_negative(a) { out += '-' as u8 }
+    kv_bi_text_dc(&m, &pows, pows.count as i64 - 1, base, width, 0, &out)
     return out.string() ?? $""
 }
 
 // a's text as a literal, which reads back as a (#509): a sign, the prefix of
 // the base, its digits and an n, +0xffn
 let kv_bi_prefixed(a:const $[u64]^, base:i64, prefix:cstr):String {
-    let m = kv_bi_mag(a)
+    let m = kv_bi_signed(kv_bi_mag(a), false)           // the value of the magnitude: a full top limb is no sign (#518)
     var s = String(kv_bi_negative(a) ? "-" : "+")
     s += prefix
     s += kv_bi_text(&m, base)
@@ -475,13 +728,14 @@ let kv_bi_digit(c:u8, base:i64):i64 {
 
 // the magnitude m times f plus a, in place
 let kv_bi_mul_add(m:$[u64]^, f:u64, a:u64):() {
-    var carry:u128 = a as u128
+    var carry:u64 = a
+    let mp:u64^ := m^.at
     for i in 0..<(m^.count as i64) {
-        let t:u128 = (m^[i] as u128) * (f as u128) + carry
-        m^[i] = t as u64
-        carry = t >> 64
+        let t:u128 = (mp[i] as u128) * (f as u128) + (carry as u128)
+        mp[i] = t as u64
+        carry = (t >> 64) as u64
     }
-    if carry != 0 { m^ += carry as u64 }
+    if carry != 0 { m^ += carry }
 }
 
 // text read as i64(s) reads it, strtol's way: spaces, a sign, a 0x before
@@ -501,17 +755,21 @@ let kv_bi_parse(s:cstr, base:i64):$[u64] {
     if mark != 0 && s[i] == '0' as u8 && (s[i + 1] == mark || s[i + 1] == mark - 32) && kv_bi_digit(s[i + 2], base) >= 0 {
         i += 2                                           // 0x of base 16, 0o of 8 and 0b of 2, as i64(s, base) reads them
     }
+    var start:i64 = i
+    while kv_bi_digit(s[i], base) >= 0 { i += 1 }
+    m.reserve((i - start) / 8 + 2)
     var chunk:u64 = 0
     var scale:u64 = 1
-    while s[i] != 0 && kv_bi_digit(s[i], base) >= 0 {
-        chunk = chunk * (base as u64) + (kv_bi_digit(s[i], base) as u64)
+    var j:i64 = start
+    while j < i {
+        chunk = chunk * (base as u64) + (kv_bi_digit(s[j], base) as u64)
         scale = scale * (base as u64)
         if scale > kv_bi_ones() / (base as u64) {
             kv_bi_mul_add(&m, scale, chunk)
             chunk = 0
             scale = 1
         }
-        i += 1
+        j += 1
     }
     if scale > 1 { kv_bi_mul_add(&m, scale, chunk) }
     return kv_bi_signed(m, negative)
@@ -519,18 +777,29 @@ let kv_bi_parse(s:cstr, base:i64):$[u64] {
 
 // ---------- powers, gcd, square roots ----------
 
-// the magnitude m squared and multiplied: m ** e
+// the magnitude m squared and multiplied: m ** e; the factors of 2 in m
+// shifted in at the end, so that a power of 2 is a shift
 let kv_bi_upow(m:const $[u64]^, e:u64):$[u64] {
+    if m^.count == 0 {                                   // 0 ** 0 is 1, 0 ** e 0
+        var z:$[u64] = $[]
+        if e == 0 { z += 1 }
+        return z
+    }
     var r:$[u64] = $[]
     r += 1
-    var x = kv_bi_strip(kv_bi_slice(m, 0, m^.count as i64))
+    var tz:i64 = 0                                       // m's trailing zero bits
+    while ((m^[tz / 64] >> (tz % 64)) & 1) == 0 { tz += 1 }
+    let v = kv_bi_signed(m^.copy(), false)               // the value, so that shr keeps it non-negative
+    var x = kv_bi_strip(kv_bi_shr(&v, tz))
     var k:u64 = e
     while k > 0 {
         if (k & 1) == 1 { r = kv_bi_umul(&r, &x) }
         k = k >> 1
         if k > 0 { x = kv_bi_umul(&x, &x) }
     }
-    return r
+    let s = kv_bi_signed(r, false)                       // 2 ** (tz * e) shifted in
+    let t = kv_bi_shl(&s, tz * (e as i64))
+    return kv_bi_strip(t)
 }
 
 // a ** e, an exponent of 0 or more
@@ -575,12 +844,65 @@ let kv_bi_inverse(a:const $[u64]^, n:const $[u64]^):$[u64] {
     return kv_bi_floor_mod(&t0, n)
 }
 
-// a * b of two values, the sign by theirs
+// a * b of two values, the sign by theirs; non-negative ones read in place
 let kv_bi_mul(a:const $[u64]^, b:const $[u64]^):$[u64] {
+    if a^.count == 0 || b^.count == 0 { return Array<u64>() }
+    if !kv_bi_negative(a) && !kv_bi_negative(b) {
+        let p = kv_bi_umul(a, b)
+        return kv_bi_signed(p, false)
+    }
     let ma = kv_bi_mag(a)
+    if a == b { return kv_bi_signed(kv_bi_umul(&ma, &ma), false) }
     let mb = kv_bi_mag(b)
     let p = kv_bi_umul(&ma, &mb)
     return kv_bi_signed(p, kv_bi_negative(a) != kv_bi_negative(b))
+}
+
+// a * x of an i64 x: one pass of a non-negative a by a non-negative x, with
+// no BigInt made of it
+let kv_bi_mul_i64(a:const $[u64]^, x:i64):$[u64] {
+    if x < 0 || kv_bi_negative(a) {
+        var b:$[u64] = $[]
+        b += x as u64                                    // an i64's limb is its value in two's complement
+        let c = kv_bi_norm(b)
+        return kv_bi_mul(a, &c)
+    }
+    let n:i64 = a^.count as i64
+    if n == 0 || x == 0 { return Array<u64>() }
+    var r = Array<u64>(n + 1)
+    let rp:u64^ := r.at
+    let ap:const u64^ := a^.at
+    var carry:u64 = 0
+    for i in 0..<n {
+        let t:u128 = (ap[i] as u128) * (x as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+    }
+    rp[n] = carry
+    return kv_bi_norm(r)
+}
+
+// r *= x of an i64, in place where both are non-negative (#518)
+let kv_bi_mul_to_i64(r:$[u64]^, x:i64):() {
+    if x < 0 || kv_bi_negative(r) {
+        r^ = kv_bi_mul_i64(r, x)
+        return
+    }
+    if x == 0 {
+        r^.clear()
+        return
+    }
+    let n:i64 = r^.count as i64
+    let rp:u64^ := r^.at
+    var carry:u64 = 0
+    for i in 0..<n {
+        let t:u128 = (rp[i] as u128) * (x as u128) + (carry as u128)
+        rp[i] = t as u64
+        carry = (t >> 64) as u64
+    }
+    if carry != 0 { r^ += carry }
+    if r^.count > 0 && (r^[r^.count - 1] >> 63) == 1 { r^ += 0 }   // still non-negative
+    kv_bi_norm_in(r)
 }
 
 // b to the e, mod m, as Python's pow(b, e, m): the result takes m's sign; a
@@ -599,49 +921,203 @@ let kv_bi_powmod(b:const $[u64]^, e:const $[u64]^, m:const $[u64]^):$[u64] {
             let p = kv_bi_mul(&r, &x)
             r = kv_bi_floor_mod(&p, &n)
         }
-        let s = kv_bi_mul(&x, &x)
-        x = kv_bi_floor_mod(&s, &n)
+        if i + 1 < k.count as i64 * 64 {
+            let s = kv_bi_mul(&x, &x)
+            x = kv_bi_floor_mod(&s, &n)
+        }
     }
     if kv_bi_negative(m) && r.count > 0 { r = kv_bi_sub(&r, &n) }
     return r
 }
 
-// the greatest common divisor of a and b, 0 or more, by Euclid's
-let kv_bi_gcd(a:const $[u64]^, b:const $[u64]^):$[u64] {
-    var x = kv_bi_signed(kv_bi_mag(a), false)
-    var y = kv_bi_signed(kv_bi_mag(b), false)
-    while y.count > 0 {
-        var q:$[u64] = $[]
-        var r:$[u64] = $[]
-        kv_bi_divmod(&x, &y, &q, &r)
-        x = y.copy()
-        y = r.copy()
+// the greatest common divisor of two u64s, by Euclid's
+let kv_bi_gcd1(a:u64, b:u64):u64 {
+    var x:u64 = a
+    var y:u64 = b
+    while y != 0 {
+        let t:u64 = x % y
+        x = y
+        y = t
     }
     return x
 }
 
-// the floor of the square root of a, by Newton's, from a power of 2 above it
+// the top 62 bits of the magnitude at p, of n limbs, at the place of the
+// magnitude of top limbs: 0 above n
+let kv_bi_top62(p:const u64^, n:i64, top:i64, sh:i64):i64 {
+    let hi:u64 = top < n ? p[top] : 0
+    let lo:u64 = top - 1 < n && top >= 1 ? p[top - 1] : 0
+    let x:u64 = sh > 0 ? (hi << sh) | (lo >> (64 - sh)) : hi
+    return (x >> 2) as i64
+}
+
+// the greatest common divisor of a and b, 0 or more, by Lehmer's: the
+// steps of Euclid's on their top 62 bits, as long as Knuth's test says
+// they are its steps on the whole, then the whole changed by them at once,
+// in place; a step of a whole division where none was found
+let kv_bi_gcd(a:const $[u64]^, b:const $[u64]^):$[u64] {
+    var xs = kv_bi_mag(a)
+    var ys = kv_bi_mag(b)
+    var xp:u64^ := xs.at
+    var yp:u64^ := ys.at
+    var xn:i64 = xs.count as i64
+    var yn:i64 = ys.count as i64
+    if kv_bi_cmp_mag(&xs, &ys) < 0 {
+        let tp:u64^ := xp
+        xp := yp
+        yp := tp
+        let tn:i64 = xn
+        xn = yn
+        yn = tn
+    }
+    while yn > 1 {
+        let sh:i64 = kv_bi_clz(xp[xn - 1])
+        var xh:i64 = kv_bi_top62(xp, xn, xn - 1, sh)
+        var yh:i64 = kv_bi_top62(yp, yn, xn - 1, sh)
+        var aa:i64 = 1                                   // each below 2 ** 62, as xh is
+        var bb:i64 = 0
+        var cc:i64 = 0
+        var dd:i64 = 1
+        while true {
+            let d1:i64 = yh + cc
+            let d2:i64 = yh + dd
+            if d1 <= 0 || d2 <= 0 { break }
+            let n1:i64 = xh + aa
+            let n2:i64 = xh + bb
+            if n1 < 0 || n2 < 0 { break }
+            var q:i64 = 0                                // 1, 2 and 3, most of them, without a division
+            let r1:i64 = n1 - d1
+            if r1 < 0 {
+                q = 0
+            } else if r1 < d1 {
+                q = 1
+            } else if r1 - d1 < d1 {
+                q = 2
+            } else if r1 - d1 - d1 < d1 {
+                q = 3
+            } else {
+                q = n1 / d1
+            }
+            let p:i128 = (q as i128) * (d2 as i128)      // q is n2 / d2's too: Knuth's test, by a product
+            if p > (n2 as i128) || (n2 as i128) - p >= (d2 as i128) { break }
+            let t1:i64 = (aa as i128 - (q as i128) * (cc as i128)) as i64
+            aa = cc
+            cc = t1
+            let t2:i64 = (bb as i128 - (q as i128) * (dd as i128)) as i64
+            bb = dd
+            dd = t2
+            let t3:i64 = (xh as i128 - (q as i128) * (yh as i128)) as i64
+            xh = yh
+            yh = t3
+        }
+        if bb == 0 {                                     // a step of a whole division
+            var u = Array<u64>(xn)
+            var v = Array<u64>(yn)
+            let upp:u64^ := u.at
+            let vpp:u64^ := v.at
+            for i in 0..<xn { upp[i] = xp[i] }
+            for i in 0..<yn { vpp[i] = yp[i] }
+            var q:$[u64] = $[]
+            var r:$[u64] = $[]
+            kv_bi_udivmod(&u, &v, &q, &r)
+            for i in 0..<yn { xp[i] = yp[i] }
+            xn = yn
+            let rp:const u64^ := r.at
+            for i in 0..<(r.count as i64) { yp[i] = rp[i] }
+            yn = r.count as i64
+        } else {                                         // x, y = a x + b y, c x + d y
+            // a and b have opposite signs, as c and d do: each a difference
+            // of two products of u64s, its carry signed
+            // a and c of opposite signs, as Euclid's cofactors alternate
+            let pa:bool = aa >= 0
+            let ua:u128 = (pa ? aa : 0 - aa) as u128
+            let ub:u128 = (pa ? 0 - bb : bb) as u128
+            let uc:u128 = (pa ? 0 - cc : cc) as u128
+            let ud:u128 = (pa ? dd : 0 - dd) as u128
+            // x' = |a| x - |b| y and y' = |d| y - |c| x where a >= 0, else
+            // each the other way; past y, whose limbs are 0, x' and y' are
+            // 0, so its limbs are not read
+            var cx:i128 = 0
+            var cy:i128 = 0
+            if pa {
+                for i in 0..<yn {
+                    let xv:u128 = xp[i] as u128
+                    let yv:u128 = yp[i] as u128
+                    let s:i128 = ((ua * xv) as i128) - ((ub * yv) as i128) + cx
+                    let t:i128 = ((ud * yv) as i128) - ((uc * xv) as i128) + cy
+                    xp[i] = s as u64
+                    yp[i] = t as u64
+                    cx = s >> 64
+                    cy = t >> 64
+                }
+            } else {
+                for i in 0..<yn {
+                    let xv:u128 = xp[i] as u128
+                    let yv:u128 = yp[i] as u128
+                    let s:i128 = ((ub * yv) as i128) - ((ua * xv) as i128) + cx
+                    let t:i128 = ((uc * xv) as i128) - ((ud * yv) as i128) + cy
+                    xp[i] = s as u64
+                    yp[i] = t as u64
+                    cx = s >> 64
+                    cy = t >> 64
+                }
+            }
+            xn = yn
+            while xn > 0 && xp[xn - 1] == 0 { xn -= 1 }
+            while yn > 0 && yp[yn - 1] == 0 { yn -= 1 }
+        }
+    }
+    var g = Array<u64>(xn)
+    let gp:u64^ := g.at
+    for i in 0..<xn { gp[i] = xp[i] }
+    if yn == 1 {
+        let yv:u64 = yp[0]
+        var r:u128 = 0
+        var i:i64 = xn - 1
+        while i >= 0 {
+            r = ((r << 64) | (xp[i] as u128)) % (yv as u128)
+            i -= 1
+        }
+        var one:$[u64] = $[]
+        one += kv_bi_gcd1(yv, r as u64)
+        return kv_bi_signed(one, false)
+    }
+    return kv_bi_signed(g, false)
+}
+
+// the bits of the magnitude m
+let kv_bi_bitlen(m:const $[u64]^):i64 {
+    let n:i64 = kv_bi_ucount(m)
+    if n == 0 { return 0 }
+    return n * 64 - kv_bi_clz(m^[n - 1])
+}
+
+// the floor of the square root of a, Python's math.isqrt: Newton's with
+// its precision doubled each step, from the top bits down, then corrected
+// by one at most
 let kv_bi_isqrt(a:const $[u64]^):$[u64] {
     if kv_bi_negative(a) { kv_array_fail("'.isqrt()' of a negative BigInt has none") }
     if a^.count == 0 { return Array<u64>() }
-    let m = kv_bi_mag(a)
-    let bits:i64 = (m.count as i64) * 64 - kv_bi_clz(m[m.count - 1])
-    var one:$[u64] = $[]
-    one += 1
-    var x = kv_bi_shl(&one, (bits + 1) / 2)
-    var going = true
-    while going {
+    let c:i64 = (kv_bi_bitlen(a) - 1) / 2
+    var x:$[u64] = $[]
+    x += 1
+    var d:i64 = 0
+    var cb:i64 = 0                                       // c's bits
+    while (c >> cb) > 0 { cb += 1 }
+    var s:i64 = cb - 1
+    while s >= 0 {
+        let e:i64 = d
+        d = c >> s
+        let hi = kv_bi_shl(&x, d - e - 1)
+        let lo = kv_bi_shr(a, 2 * c - e - d + 1)
         var q:$[u64] = $[]
         var r:$[u64] = $[]
-        kv_bi_divmod(a, &x, &q, &r)
-        let s = kv_bi_add(&x, &q)
-        let y = kv_bi_shr(&s, 1)
-        if kv_bi_cmp(&y, &x) < 0 {
-            x = y.copy()
-        } else {
-            going = false
-        }
+        kv_bi_divmod(&lo, &x, &q, &r)
+        x = kv_bi_add(&hi, &q)
+        s -= 1
     }
+    let sq = kv_bi_mul(&x, &x)
+    if kv_bi_cmp(&sq, a) > 0 { x = kv_bi_add_i64(&x, 1, true) }
     return x
 }
 
@@ -736,6 +1212,12 @@ extend BigInt {
         kv_bi_divmod(&a.limbs, &b.limbs, &q, &r)
         return (Self){r}
     }
+    // x += y, x -= y and x *= n in place, the limbs x holds reused (#518)
+    static let +=(a:Self^, b:Self) { kv_bi_add_to(&a^.limbs, &b.limbs, false) }
+    static let +=(a:Self^, b:i64) { kv_bi_add_to_i64(&a^.limbs, b, false) }
+    static let -=(a:Self^, b:Self) { kv_bi_add_to(&a^.limbs, &b.limbs, true) }
+    static let -=(a:Self^, b:i64) { kv_bi_add_to_i64(&a^.limbs, b, true) }
+    static let *=(a:Self^, b:i64) { kv_bi_mul_to_i64(&a^.limbs, b) }
     static let ==(a:Self, b:Self):bool { kv_bi_cmp(&a.limbs, &b.limbs) == 0 }
     static let !=(a:Self, b:Self):bool { kv_bi_cmp(&a.limbs, &b.limbs) != 0 }
     static let <(a:Self, b:Self):bool { kv_bi_cmp(&a.limbs, &b.limbs) < 0 }
@@ -755,12 +1237,12 @@ extend BigInt {
     static let >>(a:Self, k:i64):Self { (Self){k < 0 ? kv_bi_shl(&a.limbs, 0 - k) : kv_bi_shr(&a.limbs, k)} }
 
     // with an i64 on either side
-    static let +(a:Self, b:i64):Self { a + BigInt(b) }
-    static let +(a:i64, b:Self):Self { BigInt(a) + b }
-    static let -(a:Self, b:i64):Self { a - BigInt(b) }
-    static let -(a:i64, b:Self):Self { BigInt(a) - b }
-    static let *(a:Self, b:i64):Self { a * BigInt(b) }
-    static let *(a:i64, b:Self):Self { BigInt(a) * b }
+    static let +(a:Self, b:i64):Self { (Self){kv_bi_add_i64(&a.limbs, b, false)} }   // no BigInt made of b (#518)
+    static let +(a:i64, b:Self):Self { (Self){kv_bi_add_i64(&b.limbs, a, false)} }
+    static let -(a:Self, b:i64):Self { (Self){kv_bi_add_i64(&a.limbs, b, true)} }
+    static let -(a:i64, b:Self):Self { (Self){kv_bi_i64_sub(a, &b.limbs)} }
+    static let *(a:Self, b:i64):Self { (Self){kv_bi_mul_i64(&a.limbs, b)} }
+    static let *(a:i64, b:Self):Self { (Self){kv_bi_mul_i64(&b.limbs, a)} }
     static let /(a:Self, b:i64):Self { a / BigInt(b) }
     static let /(a:i64, b:Self):Self { BigInt(a) / b }
     static let %(a:Self, b:i64):Self { a % BigInt(b) }

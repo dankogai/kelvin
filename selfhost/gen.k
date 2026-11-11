@@ -2763,10 +2763,51 @@ let op_record(y:int64):bool {
     return y >= 0 && types[y].kind == Y_STRUCT && (decl_named(types[y].name, D_STRUCT) >= 0 || tagged_of(y) >= 0)
 }
 
+// x op= y's definition takes two values, the first a pointer to a Kelvin
+// struct or union, not const, which it changes, and gives nothing, else
+// kelvinc's error (#518)
+let compound_fits(d:int64):bool {
+    let t:int64 = nodes[d].t
+    var count = 0
+    var p:int64 = nodes[d].a
+    while p >= 0 {
+        count += 1
+        p = nodes[p].next
+    }
+    p = nodes[d].a
+    var target = false
+    if p >= 0 {
+        let py:int64 = nodes[p].ty
+        target = py >= 0 && types[py].kind == Y_PTR && types[py].name != 1 && op_record(types[py].elem)
+    }
+    var variadic = false
+    for v in variadic_fns {
+        if v == d { variadic = true }
+    }
+    if count != 2 || variadic || !target {
+        var m = $"'"
+        m += tok_text(t)
+        m += "' changes the value its first parameter points to: write 'static let "
+        m += tok_text(t)
+        m += "(a:T^, b:U)', T a Kelvin struct or union (#518)"
+        gen_error(d, m.cstr)
+        return false
+    }
+    if nodes[d].ty >= 0 && types[nodes[d].ty].kind != Y_VOID {
+        var m = $"'"
+        m += tok_text(t)
+        m += "' changes the value a points to and gives nothing: drop its result type"
+        gen_error(d, m.cstr)
+        return false
+    }
+    return true
+}
+
 // an operator takes one value or two, one of them a Kelvin struct's or
 // union's, and gives a value, else kelvinc's error (#42)
 let operator_fits(d:int64):bool {
     let t:int64 = nodes[d].t
+    if compound_tok(t) { return compound_fits(d) }      // x op= y (#518)
     let minus = tok_is(t, "-") || tok_is(t, "~")            // -a, ~a (#502)
     var count = 0
     var record = false
@@ -2892,6 +2933,17 @@ let is_operator(d:int64):bool {
 // _kv_neg_op of the unary -
 let operator_word(d:int64):cstr {
     let t:int64 = nodes[d].t
+    if tok_is(t, "+=") { return "_kv_add_assign_op" }    // x op= y (#518)
+    if tok_is(t, "-=") { return "_kv_sub_assign_op" }
+    if tok_is(t, "*=") { return "_kv_mul_assign_op" }
+    if tok_is(t, "/=") { return "_kv_div_assign_op" }
+    if tok_is(t, "%=") { return "_kv_mod_assign_op" }
+    if tok_is(t, "**=") { return "_kv_pow_assign_op" }
+    if tok_is(t, "&=") { return "_kv_and_assign_op" }
+    if tok_is(t, "|=") { return "_kv_or_assign_op" }
+    if tok_is(t, "~=") { return "_kv_xor_assign_op" }
+    if tok_is(t, "<<=") { return "_kv_shl_assign_op" }
+    if tok_is(t, ">>=") { return "_kv_shr_assign_op" }
     if tok_is(t, "+") { return "_kv_add_op" }
     if tok_is(t, "-") { return nodes[d].a >= 0 && nodes[nodes[d].a].next < 0 ? "_kv_neg_op" : "_kv_sub_op" }
     if tok_is(t, "*") { return "_kv_mul_op" }
@@ -3224,6 +3276,49 @@ let resolve_op(n:int64) {
         return
     }
     targets[n] = d
+}
+
+// x op= y with the op= x's type defines (#518), as a statement: the call
+// of it with &x and y, written, which changes x in place, as kelvinc's
+// resolve_compound; false where none takes them, and x op= y is x = x op y
+let compound_assign_call(n:int64):bool {
+    let t:int64 = nodes[n].t
+    if !compound_tok(t) { return false }
+    var defined = false
+    for d in decls {
+        if nodes[d].kind == D_FN && same_text(nodes[d].t, t) { defined = true }
+    }
+    if !defined { return false }
+    let lhs:int64 = nodes[n].a
+    resolve_attr(lhs)
+    if attr_reads.has(lhs) || sub_targets.has(lhs) { return false }   // its setter's (#132, #136)
+    let lk:nkind = nodes[lhs].kind
+    if lk != N_ID && lk != N_FIELD && lk != N_INDEX && lk != N_DEREF { return false }
+    if lk == N_INDEX && nodes[lhs].flag == 1 { return false }         // a Dictionary's entry is x = x op y
+    let ya:int64 = type_of(lhs)
+    if failed || !op_record(ya) { return false }
+    var amp_text = $"&"
+    let amp_tok:int64 = made_token(&amp_text)
+    toks[amp_tok].kind = T_PUNCT
+    toks[amp_tok].line = toks[t].line
+    toks[amp_tok].file = toks[t].file
+    let amp:int64 = make_node(N_ADDR, amp_tok)       // &x
+    nodes[amp].a = lhs
+    let rhs:int64 = nodes[n].b
+    let call:int64 = make_node(N_CALL, t)
+    nodes[call].a = make_node(N_ID, t)
+    nodes[call].b = amp
+    nodes[amp].next = rhs
+    nodes[rhs].next = 0 - 1
+    var name = tok_text(t)
+    var d = choose_overload(call, &name, false)
+    if d == 0 - 1 { d = choose_overload(call, &name, true) }
+    if failed { return true }
+    if d < 0 { return false }
+    targets[call] = d
+    gen_expr(call)
+    put(";\n")
+    return true
 }
 
 // x op= y where a struct's operator takes them is x = x op y (#42): false
@@ -16796,6 +16891,7 @@ let gen_stmt_of(n:int64, depth:int64) {
         gen_var(n)
         declare_as(nodes[n].t, nodes[n].ty, nodes[n].flag == 1 ? 1 : 0)   // a let or a var (#271)
     case S_ASSIGN:
+        if compound_assign_call(n) || failed { return }  // z += w of z's own +=, in place (#518)
         if compound_by_operator(n) || failed { return }  // z += w, z = z + w of a struct's operator (#42)
         if tok_is(nodes[n].t, "=") && declaration_shaped(nodes[n].a) { put("if (1) ") }   // (#402)
         let fresh = tok_is(nodes[n].t, "=") && nodes[nodes[n].a].kind == N_ID   // t = v gives t anew (#441)

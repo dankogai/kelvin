@@ -27,7 +27,8 @@ MOD_LIBS := modules/libkIO.a modules/libkOS.a
 # runtime/unicode_*.c, which tools/gen_unicode.py makes from tools/ucd/; RegExp
 # (#157) over its engine, runtime/regexp*.c, on UnicodeData. Both are modules of
 # the prelude (#504): kelvinc --prelude makes each one's M.kh and object, which
-# libkelvin holds with their C, so a program links them only where it uses them
+# libkelvin holds with their C, so a program links them only where it uses them;
+# optimized (-O -g), as the runtime is, and so are the modules of --lib (#518)
 RX_OBJS := build/runtime/regexp.o build/runtime/regexp_parse.o
 PRELUDE_OBJS := build/prelude/UnicodeData.o build/prelude/RegExp.o build/prelude/BigInt.o
 # JSON (#113) is built by kelvinc --lib from modules/JSON.k alone (#484), so that a
@@ -122,20 +123,20 @@ src/ident.c selfhost/ident.k: tools/gen_ident.py tools/ucd/DerivedCoreProperties
 
 # a module of the prelude (#504): its M.kh into modules/, its object for libkelvin
 build/prelude/UnicodeData.o: modules/UnicodeData.k modules/kUnicodeData.h modules/kelvin_prelude.h kelvinc
-	./kelvinc --prelude modules/UnicodeData.k -o build/prelude
+	./kelvinc --prelude -O -g modules/UnicodeData.k -o build/prelude
 	cp build/prelude/UnicodeData.kh modules/UnicodeData.kh
 modules/UnicodeData.kh: build/prelude/UnicodeData.o
 
 build/runtime/regexp%.o: runtime/regexp%.c runtime/regexp_internal.h modules/kelvin_prelude.h modules/kUnicodeData.h modules/kRegExp.h | build/runtime
 	$(CC) $(RT_CFLAGS) -Imodules -c -o $@ $<
 build/prelude/RegExp.o: modules/RegExp.k modules/kRegExp.h modules/UnicodeData.kh modules/kelvin_prelude.h kelvinc
-	./kelvinc --prelude modules/RegExp.k -o build/prelude
+	./kelvinc --prelude -O -g modules/RegExp.k -o build/prelude
 	cp build/prelude/RegExp.kh modules/RegExp.kh
 modules/RegExp.kh: build/prelude/RegExp.o
 
 # BigInt (#507), integers of any size, written in Kelvin alone
 build/prelude/BigInt.o: modules/BigInt.k modules/kelvin_prelude.h kelvinc
-	./kelvinc --prelude modules/BigInt.k -o build/prelude
+	./kelvinc --prelude -O -g modules/BigInt.k -o build/prelude
 	cp build/prelude/BigInt.kh modules/BigInt.kh
 modules/BigInt.kh: build/prelude/BigInt.o
 
@@ -144,12 +145,12 @@ build/runtime/fetch.o: runtime/fetch.c modules/kelvin_prelude.h modules/kfetch.h
 	    echo "HAS_SSL=1, but no OpenSSL that $(CC) compiles and links was found: install it (libssl-dev, openssl), say where with SSL_CFLAGS and SSL_LIBS, or build with HAS_SSL=0, with no HTTPS" >&2; exit 1; fi
 	$(CC) $(RT_CFLAGS) $(FETCH_CFLAGS) -Imodules -c -o $@ $<
 modules/JSON.kh: modules/JSON.k kelvinc modules/libkelvin.a modules/$(SHLIB)
-	./kelvinc --lib modules/JSON.k -o modules
+	./kelvinc --lib -O -g modules/JSON.k -o modules
 # localStorage (#491), JS's, a program's text kept in a JSON file between runs
 modules/localStorage.kh: modules/localStorage.k modules/JSON.kh $(MOD_LIBS) kelvinc modules/libkelvin.a modules/$(SHLIB)
-	./kelvinc --lib modules/localStorage.k -o modules
+	./kelvinc --lib -O -g modules/localStorage.k -o modules
 modules/fetch.kh: modules/fetch.k build/runtime/fetch.o modules/libkfetch.link modules/JSON.kh kelvinc modules/libkelvin.a modules/$(SHLIB)
-	./kelvinc --lib modules/fetch.k build/runtime/fetch.o -o modules
+	./kelvinc --lib -O -g modules/fetch.k build/runtime/fetch.o -o modules
 
 build build/runtime:
 	mkdir -p $@

@@ -351,7 +351,8 @@ let main():int32 {
     it is the complement (#502).
   - `<<` and `>>` take what their parameters say: `let <<(a:T,
     n:int64):T` shifts by an integer.
-  - Other operators (`!`, `&&`, `+=`) cannot be defined.
+  - `x op= y`, `+=` and the rest, is defined apart (#518), below.
+  - Other operators (`!`, `&&`) cannot be defined.
   - Precedence is C's, and `**`'s Python's, as Kelvin's `**` is
     ([operators.md](operators.md)); `x **= y` is `x = x ** y`.
   - A definition is a `let` at the top level, `let +(a:T, b:U):R`, or a
@@ -374,8 +375,22 @@ let main():int32 {
   - A `var` parameter, `static let -(var a:Self, b:Self):Self`, is given
     a copy of its own, which it may change and return.
   - A struct that owns nothing is only read.
-- `x op= y` is `x = x op y`, so `x` is evaluated twice and may not hold
-  a call *(provisional P53)*.
+- **`x op= y` of a type's own** (#518): `static let +=(a:Self^, b:U)`,
+  or `let +=(a:T^, b:U)` at the top level, changes the value `a` points
+  to, in place.
+  - It takes two values, the first a pointer to a Kelvin struct or union
+    that is no `const`, and gives nothing; another shape is an error that
+    shows this one.
+  - `x += y` calls it with `&x` and `y`, where its types fit; `x` is
+    evaluated once, so it may be an element or a field, `xs[i] += y`.
+  - `y` is lent, as an operator's operand is: one an expression gives is
+    held for the call and freed after.
+  - It is how a type that owns changes without a new value: BigInt's
+    `s += i` keeps the limbs `s` holds ([bigint.md](bigint.md)).
+  - Its C name is named by its types, as an operator's is:
+    `_kv_add_assign_op__BigIntp__i64`.
+- `x op= y` where the type defines no `op=` that fits is `x = x op y`,
+  so `x` is evaluated twice and may not hold a call *(provisional P53)*.
   - The same for an enum with values (#128), and for one that owns,
     `x` is read before what it held is freed, so `x += y` keeps its
     value; so does `x = f(x)`.
@@ -403,6 +418,7 @@ The core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a
 | | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
 | | `a ** b` | an operator declared `let **(a:T, b:U):T` (#380) |
 | | `a & b`, `a \| b`, `a ~ b`, `a << n`, `a >> n`, `~a` | an operator declared `let &(a:T, b:T):T`, and the rest (#502) |
+| | `x += y` and the rest of `op=` | an in-place operator declared `static let +=(a:Self^, b:U)`, else `x = x + y` (#518) |
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
 | | passing, `return` | a move; `=` is an error |
 | | an operator's operand | lent, its caller's (#501) |

@@ -9776,3 +9776,23 @@ GMP on most and far more on isqrt, gcd and decimal text, which division
 and copies dominate. Details are provisional P529.
 
 There are 1269 tests, and all pass with clang and with gcc 15.
+
+### 565. BigInt as fast as it should be
+
+> Improve the performance.  This is unforgivably too slow.  At least `BigInt` in `dankogai/swift-bigint` was faster than that. At least it beated ruby and python.
+
+**Claude** found most of it in the build: the Makefile compiled the
+prelude's modules, BigInt's among them, and `--lib`'s without `-O`.
+Asked, the user chose that the Makefile pass `-O -g`, as to the runtime,
+and that one number take every case. BigInt now loops by unchecked
+pointers into results made once; squares, powers of 2, gcd (Lehmer's),
+isqrt (Python's) and text (divided and conquered) have algorithms of
+their own. 100k small adds still lost to Python by a malloc each, so,
+asked, the user chose that a type may define `x op= y`, as `static let
++=(a:Self^, b:U)`, which changes x in place; BigInt's `+=`, `-=` and
+`*=` are such, and kc reads and calls them too. Kelvin's BigInt now
+beats Ruby and Python in all 11 cases, Node in six, and GMP at gcd. A
+fuzz against Python found `.hex` of a full top limb wrong since #509,
+fixed. Details are provisional P530.
+
+There are 1275 tests, and all pass with clang and with gcc 15.

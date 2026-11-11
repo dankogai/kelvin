@@ -3617,7 +3617,7 @@ static char *fn_head(Decl *d) {
     /* an operator's value is what it is for, so C warns where a statement
        drops it, as it does for `n == 2;` (#42) */
     return strfmt("%s%s%s%s%s", d->anon ? "__attribute__((unused)) " : "",
-                  d->op ? "__attribute__((warn_unused_result)) " : "", d->storage ? d->storage : "",
+                  d->op && d->ret ? "__attribute__((warn_unused_result)) " : "" /* not of x op= y (#518) */, d->storage ? d->storage : "",
                   d->storage ? " " : "", head);
 }
 

@@ -36,8 +36,8 @@ sh benchmarks/bigint/run.sh
   - Python `pow(b, e, m)`, `math.gcd` and `math.isqrt`;
   - Ruby `Integer#pow(e, m)`, `Integer#gcd` and `Integer.sqrt`;
   - Kelvin `.pow(e, m)`, `.gcd(b)` and `.isqrt()`;
-  - JS, which has none of the three, Euclid's, Newton's and square and
-    multiply, as Kelvin's `BigInt` does them.
+  - JS, which has none of the three, the textbook's: Euclid's, Newton's
+    and square and multiply.
 - **fib is `a += b; b += a`,** 5,000 times, in every language: the same
   10,000 additions as swift-bigint-gmp's `(a, b) = (b, a + b)`, which
   Kelvin's ownership would write with a move (O3).
@@ -58,7 +58,7 @@ Bold is the fastest of a row; the others have their ratio to it.
 | Machine | Apple M1 |
 | OS | macOS 26.7.1 |
 | C compiler | Apple clang version 21.0.0 (clang-2100.4.1.1) |
-| Kelvin | kelvinc 0.2.0 |
+| Kelvin | kelvinc 0.2.0, with #518 |
 | GMP | GMP 6.3.0 (MacPorts) |
 | Ruby | ruby 4.0.8 +PRISM (MacPorts, without GMP) |
 | Python | Python 3.14.9 (MacPorts) |
@@ -67,49 +67,67 @@ Bold is the fastest of a row; the others have their ratio to it.
 
 | Benchmark | Kelvin | GMP | Ruby | Python | Node |
 |:--|--:|--:|--:|--:|--:|
-| sum 1...100_000 (100k small ops) | 15.83 ms (28.2×) | **560.50 µs** | 3.45 ms (6.1×) | 2.36 ms (4.2×) | 1.67 ms (3.0×) |
-| fib(10_000) (2,090 digits) | 8.15 ms (34.8×) | **234.42 µs** | 1.94 ms (8.3×) | 1.49 ms (6.4×) | 728.04 µs (3.1×) |
-| factorial(1_000) (2,568 digits) | 1.78 ms (42.0×) | **42.33 µs** | 284.00 µs (6.7×) | 265.75 µs (6.3×) | 104.04 µs (2.5×) |
-| 2 ** 100_000 (30,103 digits) | 928.58 µs (3714.3×) | **0.25 µs** | 7.00 µs (28.0×) | 269.12 µs (1076.5×) | 0.38 µs (1.5×) |
-| 10k-digit × 10k-digit, 100 times | 120.82 ms (31.6×) | **3.83 ms** | 31.04 ms (8.1×) | 53.56 ms (14.0×) | 7.77 ms (2.0×) |
-| 20k-digit ÷ 10k-digit, 100 times | 447.69 ms (42.4×) | **10.56 ms** | 149.75 ms (14.2×) | 107.81 ms (10.2×) | 18.73 ms (1.8×) |
-| 2060-bit modular power | 105.74 ms (44.7×) | **2.36 ms** | 34.42 ms (14.6×) | 33.27 ms (14.1×) | 12.74 ms (5.4×) |
-| gcd of two 1,000-digit numbers, 10 times | 39.42 ms (250.7×) | **157.21 µs** | 3.19 ms (20.3×) | 190.38 µs (1.2×) | 3.97 ms (25.2×) |
-| isqrt of a 20k-digit number, 10 times | 717.97 ms (1064.7×) | **674.33 µs** | 13.63 ms (20.2×) | 15.23 ms (22.6×) | 29.64 ms (44.0×) |
-| 2 ** 100_000 to decimal text | 54.75 ms (109.0×) | **502.29 µs** | 5.92 ms (11.8×) | 5.12 ms (10.2×) | 1.52 ms (3.0×) |
-| parse 10,000 decimal digits, 100 times | 225.05 ms (47.9×) | **4.70 ms** | 30.67 ms (6.5×) | 45.34 ms (9.6×) | 9.23 ms (2.0×) |
+| sum 1...100_000 (100k small ops) | 606.87 µs (1.7×) | **349.50 µs** | 3.52 ms (10.1×) | 2.38 ms (6.8×) | 4.95 ms (14.2×) |
+| fib(10_000) (2,090 digits) | 569.50 µs (2.5×) | **227.25 µs** | 1.93 ms (8.5×) | 1.44 ms (6.3×) | 709.96 µs (3.1×) |
+| factorial(1_000) (2,568 digits) | 53.38 µs (1.3×) | **41.50 µs** | 309.00 µs (7.4×) | 262.33 µs (6.3×) | 107.00 µs (2.6×) |
+| 2 ** 100_000 (30,103 digits) | 1.29 µs (6.2×) | **0.21 µs** | 10.00 µs (48.1×) | 264.17 µs (1270.0×) | 0.38 µs (1.8×) |
+| 10k-digit × 10k-digit, 100 times | 15.70 ms (4.1×) | **3.84 ms** | 31.26 ms (8.1×) | 53.73 ms (14.0×) | 7.84 ms (2.0×) |
+| 20k-digit ÷ 10k-digit, 100 times | 37.34 ms (3.6×) | **10.45 ms** | 149.99 ms (14.4×) | 108.85 ms (10.4×) | 18.85 ms (1.8×) |
+| 2060-bit modular power | 9.99 ms (4.2×) | **2.38 ms** | 34.71 ms (14.6×) | 33.47 ms (14.0×) | 12.73 ms (5.3×) |
+| gcd of two 1,000-digit numbers, 10 times | **133.75 µs** | 157.25 µs (1.2×) | 3.35 ms (25.1×) | 182.42 µs (1.4×) | 3.92 ms (29.3×) |
+| isqrt of a 20k-digit number, 10 times | 3.47 ms (5.1×) | **678.38 µs** | 13.79 ms (20.3×) | 15.37 ms (22.7×) | 29.76 ms (43.9×) |
+| 2 ** 100_000 to decimal text | 2.15 ms (4.3×) | **496.67 µs** | 6.00 ms (12.1×) | 5.21 ms (10.5×) | 1.59 ms (3.2×) |
+| parse 10,000 decimal digits, 100 times | 10.87 ms (2.4×) | **4.57 ms** | 30.66 ms (6.7×) | 45.82 ms (9.9×) | 9.30 ms (2.0×) |
+
+Kelvin's own column, before and after #518:
+
+| Benchmark | #517 | #518 | Faster |
+|:--|--:|--:|--:|
+| sum 1...100_000 | 15.83 ms | 606.87 µs | 26× |
+| fib(10_000) | 8.15 ms | 569.50 µs | 14× |
+| factorial(1_000) | 1.78 ms | 53.38 µs | 33× |
+| 2 ** 100_000 | 928.58 µs | 1.29 µs | 720× |
+| 10k × 10k, 100 times | 120.82 ms | 15.70 ms | 7.7× |
+| 20k ÷ 10k, 100 times | 447.69 ms | 37.34 ms | 12× |
+| 2060-bit modular power | 105.74 ms | 9.99 ms | 11× |
+| gcd, 10 times | 39.42 ms | 133.75 µs | 295× |
+| isqrt, 10 times | 717.97 ms | 3.47 ms | 207× |
+| to decimal text | 54.75 ms | 2.15 ms | 25× |
+| parse, 100 times | 225.05 ms | 10.87 ms | 21× |
 
 ## What the numbers say
 
-- **GMP is fastest everywhere,** as in swift-bigint-gmp; Node's V8 is
-  next in most rows, within 2× of GMP on multiplication, division and
-  parsing.
-- **Kelvin is last in every row:** on most, 28× to 50× behind GMP and 4×
-  to 15× behind Ruby and Python; the rows below go far past that.
-- **Small operations** (sum, fib, factorial) cost Kelvin about 160 ns an
-  addition, against Python's 24:
-  - each makes a new limb array, appended a limb at a time
-    (`kv_bi_add`'s `r += t`), and normalizes it;
-  - `s += i` makes a `BigInt` of `i` first.
-- **Multiplication and division** are the algorithms, not the language:
-  - Karatsuba from 40 limbs, as Python's, where Ruby goes on to Toom-3
-    and GMP and V8 further;
-  - Knuth's algorithm D, quadratic, about 4.5 ms a 20k ÷ 10k division.
-- **The worst rows** are those built on division:
-  - **isqrt,** 1065×: Newton's from a power of 2, a whole division a
-    step, and each step copies (`x = y.copy()`); Python's and GMP's
-    `isqrt` grow their precision instead;
-  - **gcd,** 251×: Euclid's, about 1,900 divisions, each copying both
-    operands; Python and GMP use Lehmer's;
-  - **decimal text,** 109×: a division by 10^19 for each 19 digits,
-    quadratic, where Python 3.12+ and GMP divide and conquer.
-- **`2 ** 100_000`** is squares and multiplies in Kelvin and Python;
-  GMP and V8 see a power of 2 and shift.
-- **Where to start,** if Kelvin's `BigInt` is to be faster:
-  - make a result's limbs once, at their size, not by `+=`;
-  - divide and conquer for text, both ways;
-  - move instead of `.copy()` in gcd and isqrt, and Lehmer's gcd;
-  - a Newton's isqrt that doubles its precision.
+- **GMP is the champion,** the fastest in ten rows of eleven, 1.3× to
+  6× ahead of Kelvin; gcd alone is Kelvin's, 1.2× ahead of `mpz_gcd`
+  on numbers of this size.
+- **Kelvin is second to GMP in five rows,** Node in the other five, and
+  Kelvin beats Ruby and Python in every row, by 1.4× (gcd, against Python's Lehmer's) to 200×
+  (`2 ** 100_000`, against Python's squares).
+- **It beats Node in six rows:** sum, fib, factorial, modular power,
+  gcd and isqrt.
+  - Node's V8 wins multiplication, division and the text both ways by
+    about 2×, and `2 ** 100_000`, a shift in both.
+- **Where #517's 30× to 1000× went:**
+  - **`-O0`:** the Makefile built BigInt's object, and the prelude's
+    and `--lib`'s others, without `-O`; built as the runtime is, with
+    `-O -g`, it is 3× to 6× faster by itself.
+  - **Allocations:** each limb was appended, `r += t`, each operand
+    copied into a magnitude, and `x += y` made a new BigInt each time.
+    Now a result is made once at its size, a non-negative operand is
+    read in place, and BigInt's own `+=`, `-=` and `*=` change `x` in
+    its limbs (#518's `static let +=(a:Self^, b:U)`).
+  - **Bounds checks:** the loops index `a.at`, unchecked, not `a[i]`.
+  - **Algorithms:**
+    - gcd is Lehmer's, not Euclid's whole divisions;
+    - isqrt doubles its precision, as Python's `math.isqrt`, not
+      Newton's from a power of 2 with a whole division a step;
+    - decimal text divides and conquers, not a division by 10^19 for
+      each 19 digits;
+    - a power of a value with factors of 2 shifts them in at the end;
+    - a square takes each product of two limbs once.
+- **What is left,** where GMP and V8 are ahead: Toom-Cook and FFT
+  multiplication past Karatsuba, a division that multiplies
+  (Burnikel-Ziegler), and assembly for the limb loops.
 
 ## In CI
 

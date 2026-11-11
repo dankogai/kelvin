@@ -361,6 +361,7 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
 | `let T.cstr():cstr { `...` }` | `let cstr():cstr { `...` }` | the type's own text (#53) | `v.cstr`, `print(v)` |
 | `let T.string:String { }` | `let string:String { }` | the type's own text as a String, of any length (#506) | `print(v)`, `` $`${v}` ``, `v.string` |
 | `let +(a:T, b:T):T { }` | `static let +(a:T, b:T):T { }` | an operator (#42, #135) | `a + b`, `a += b` |
+| `let +=(a:T^, b:U) { }` | `static let +=(a:Self^, b:U) { }` | an operator that changes `a` in place (#518) | `a += b` |
 | `let T[](i:I):R { }` | `let [](i:I):R { }` | a subscript, its getter (#136) | `v[i]`, `v[r, c]` |
 | `var T[](i:I):R { get { } set(v) { } }` | `var [](i:I):R { get { } set(v) { } }` | a subscript with a setter (#136) | `v[i]`, `v[i] = y`, `v[i] += y` |
 

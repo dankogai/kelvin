@@ -1,7 +1,7 @@
 // bench.mjs - JavaScript's BigInt in Node, the cases of bench.k, best of 3.
 // Each line is a case's id, its best time in seconds and its result mod
-// 1000000007.  JS has no gcd, isqrt or modular power: they are Euclid's,
-// Newton's and square-and-multiply, as Kelvin's BigInt has them.
+// 1000000007.  JS has no gcd, isqrt or modular power: they are the
+// textbook's, Euclid's, Newton's and square-and-multiply.
 
 const now = () => Number(process.hrtime.bigint()) / 1e9;
 

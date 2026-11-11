@@ -2954,6 +2954,11 @@ let overloadable_tok(t:int64):bool {
     return tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "==") || tok_is(t, "!=") || tok_is(t, "<") || tok_is(t, "<=") || tok_is(t, ">") || tok_is(t, ">=") || tok_is(t, "**") || tok_is(t, "&") || tok_is(t, "|") || tok_is(t, "~") || tok_is(t, "<<") || tok_is(t, ">>")   // bitwise (#502)
 }
 
+// whether token t is x op= y that a type may define (#518)
+let compound_tok(t:int64):bool {
+    return tok_is(t, "+=") || tok_is(t, "-=") || tok_is(t, "*=") || tok_is(t, "/=") || tok_is(t, "%=") || tok_is(t, "**=") || tok_is(t, "&=") || tok_is(t, "|=") || tok_is(t, "~=") || tok_is(t, "<<=") || tok_is(t, ">>=")
+}
+
 // whether a method's head is at token i, T.m( or point.kind.m( (#389)
 let head_method(i:int64):bool {
     type_path(i)
@@ -3475,10 +3480,10 @@ let parse_extend() {
             continue
         }
         if at_kind(T_PUNCT) {                            // static let +(a:T, b:T):T { } (#135): the top level's let +
-            if !overloadable_tok(pos) || !tok_is(pos + 1, "(") {
+            if (!overloadable_tok(pos) && !compound_tok(pos)) || !tok_is(pos + 1, "(") {
                 var m = $"'"
                 m += tok_text(pos)
-                m += "' cannot be defined: an operator is one of + - * / % ** == != < <= > >= & | ~ << >>, or unary - and ~"
+                m += "' cannot be defined: an operator is one of + - * / % ** == != < <= > >= & | ~ << >>, unary - and ~, or x op= y of one of them (#518)"
                 parse_error(m.cstr)
                 return
             }
@@ -3497,13 +3502,39 @@ let parse_extend() {
                 return
             }
             let at:int64 = pos
+            let compound = compound_tok(pos)
             let f:int64 = parse_function()
             var takes = false
             var p:int64 = nodes[f].a
             while p >= 0 {
                 let py:int64 = nodes[p].ty
-                if py >= 0 && types[py].kind == Y_STRUCT && same_text(types[py].name, recv) { takes = true }
+                if !compound && py >= 0 && types[py].kind == Y_STRUCT && same_text(types[py].name, recv) { takes = true }
                 p = nodes[p].next
+            }
+            p = nodes[f].a                               // x op= y changes a Self, through a Self^ (#518)
+            if compound && p >= 0 {
+                let py:int64 = nodes[p].ty
+                if py >= 0 && types[py].kind == Y_PTR {
+                    let e:int64 = types[py].elem
+                    if e >= 0 && types[e].kind == Y_STRUCT && same_text(types[e].name, recv) { takes = true }
+                }
+            }
+            if !takes && compound {
+                var m = $"'"
+                let w:String = tok_text(recv)
+                m += tok_text(at)
+                m += "' in extend "
+                m += &w
+                m += " changes a "
+                m += &w
+                m += ": write 'static let "
+                m += tok_text(at)
+                m += "(a:Self^, b:U)'"
+                let back:int64 = pos
+                pos = at
+                parse_error(m.cstr)
+                pos = back
+                return
             }
             if !takes {
                 var m = $"an operator in extend "
@@ -3645,11 +3676,11 @@ let parse_program() {
             m += tok_text(pos)
             m += "(...)', or, for a variable holding a function, 'var f:(T):R := g'"
             parse_error(m.cstr)
-        } else if at_word("let") && toks[pos + 1].kind == T_PUNCT && !tok_is(pos + 1, "(") && !overloadable_tok(pos + 1) && tok_is(pos + 2, "(") {
+        } else if at_word("let") && toks[pos + 1].kind == T_PUNCT && !tok_is(pos + 1, "(") && !overloadable_tok(pos + 1) && !compound_tok(pos + 1) && tok_is(pos + 2, "(") {
             advance()
             var m = $"'"
             m += tok_text(pos)
-            m += "' cannot be defined: an operator a struct defines is one of + - * / % ** == != < <= > >= & | ~ << >>, or unary - and ~"
+            m += "' cannot be defined: an operator a struct defines is one of + - * / % ** == != < <= > >= & | ~ << >>, unary - and ~, or x op= y of one of them (#518)"
             parse_error(m.cstr)
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()

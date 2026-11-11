@@ -57,6 +57,9 @@ names it has it, with no import.
   - `<<` and `>>` by an `i64`; `>>` keeps the sign, rounding down, and a
     negative count shifts the other way.
   - Unary `-`; and `x op= y`, which is `x = x op y`.
+  - **`+=` and `-=`** of a BigInt or an `i64`, and **`*=`** of an
+    `i64`, change `x` in place (#518), in the limbs it holds: `s += i`
+    in a loop makes no new BigInt.
   - An `i64` may be on either side: `b + 1`, `1 + b`, `b == 0`,
     `b & 0xff`.
 - **Division by zero** ends the program, as a failed check does (#174):
@@ -98,8 +101,8 @@ names it has it, with no import.
   - The low 64 bits are `(b & 0xffffffffffffffffn).u64`.
   - `b.exactI64` and `b.exactU64` (#511) are an `i64?` and a `u64?`:
     `some` where `b` fits, else `none`, as Swift's `Int(exactly:)`.
-- **Not yet:** kc, which reads no module written in Kelvin and refuses
-  a `123n` literal in words.
+- **kc** builds a program that uses it, as kelvinc does (#515), its
+  `+=` in place too (#518).
 
 ## Where it lives
 
@@ -107,25 +110,39 @@ names it has it, with no import.
 swift-bignum: two's complement in little-endian `u64` limbs, the top bit
 repeated to the left, kept as short as it can be; zero is no limbs.
 
-- Multiplication is the schoolbook one, and Karatsuba's three halves
-  where both have 40 limbs or more (#511), as swift-bignum's; division
-  is Knuth's algorithm D; both on the magnitudes, with `u128` for two
-  limbs.
-- A power is squared and multiplied, a modular one reduced at each
-  step; gcd is Euclid's, isqrt Newton's.
+- **Its loops** walk the limbs by pointers, `a.at`, unchecked, into a
+  result made at its size once (#518); a non-negative operand is read
+  where it is, not copied.
+- **Multiplication** is the schoolbook one, and Karatsuba's three halves
+  where both have 40 limbs or more (#511), as swift-bignum's.
+  - A square, `a * a`, takes each product of two limbs once (#518), and
+    so do Karatsuba's halves of it.
+- **Division** is Knuth's algorithm D, on the magnitudes, with `u128`
+  for two limbs.
+- **A power** is squared and multiplied, its factors of 2 shifted in at
+  the end (#518): `2n ** 100000` is a shift. A modular one is reduced at
+  each step.
+- **gcd** is Lehmer's (#518): Euclid's steps on the top 62 bits, as long
+  as Knuth's test says they are the whole's, then the whole changed by
+  them at once, in place.
+- **isqrt** is Python's `math.isqrt` (#518): Newton's with its precision
+  doubled each step, from the top bits down.
+- **Text** is divided and conquered (#518): by the chunk, the largest
+  power of the base in a limb, squared and squared, into halves, and
+  the small ones by divisions of half a limb.
 - `make` builds its header, `modules/BigInt.kh`, and its object with
-  `kelvinc --prelude` (#504); libkelvin holds the object, and a program
-  links it only where it uses it.
+  `kelvinc --prelude -O -g` (#504, #518), optimized as the runtime is;
+  libkelvin holds the object, and a program links it only where it uses
+  it.
 - kelvinc brings `BigInt.kh` in where a program names `BigInt`; a
   program with a type of its own named `BigInt` keeps it.
 - Its helpers are `kv_bi_`, the runtime's names, which a program may not
   write.
 - **How fast:** `benchmarks/bigint` (#517) races it against GMP, Ruby,
   Python and Node, `sh benchmarks/bigint/run.sh`.
-  - It is last in every case, 28× to 50× behind GMP in most.
-  - isqrt, gcd and decimal text are far behind, as division and copies
-    dominate them; [its README](../benchmarks/bigint/README.md) has the
-    table.
+  - Since #518 it is faster than Ruby and Python in every case, and
+    than Node in about half; GMP is 2× to 8× faster in most cases.
+  - [Its README](../benchmarks/bigint/README.md) has the table.
 
 ## Properties and methods
 
@@ -144,6 +161,7 @@ repeated to the left, kept as short as it can be; zero is no limbs.
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's; a `BigInt` or an `i64` each (#511) |
 | | `.gcd(b)`, `.lcm(b)` | the greatest common divisor and the least common multiple, of a `BigInt` or an `i64` (#511) |
 | | `.isqrt()` | the floor of the square root (#511) |
+| | `x += y`, `x -= y`, `x *= n` | in place, of a `BigInt` or an `i64` `y`, an `i64` `n` (#518) |
 | a function | `pow(b, e, m)` | Python's, one of the three at least a `BigInt`; lent (#510, #511) |
 | | `.abs` | its magnitude, a `BigInt` |
 | | `.i64`, `.u64` | the nearest i64 and u64, past the range its limit (#513); `i64(b)` and `u64(b)` too (#512) |
