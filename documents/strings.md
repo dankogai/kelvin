@@ -94,6 +94,14 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
     (#70): `var s:String = "x"`, `s = "y"`, a member, an element or an
     entry written as `"text"`.
   - `` $`a${x}b` `` from a template, with no bound on its length.
+  - **Of codepoints** (#526): `String.fromCodepoints(0x48, 0x69)` is
+    `ok("Hi")`, and `grapheme(0x65, 0x301)` `ok("e\u0301")`, the first
+    grapheme alone, a `Result<String, CodepointError>`.
+    - Of any number of integers, or of one `Array<u32>`.
+    - The codepoints are kept as given, not normalized: `0x65, 0x301`
+      is two codepoints of one grapheme.
+    - None at all, a surrogate, and a number past U+10FFFF or below 0
+      are an `err`: [unicodedata.md](unicodedata.md#codepoints-into-a-string-grapheme-and-stringfromcodepoints).
   - A `Bytes` is made its own ways, `Bytes("text")`, `Bytes([...])`,
     `Bytes.fromBase64(text)`: [bytes.md](bytes.md).
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
@@ -201,6 +209,8 @@ The prelude's, `libkelvin`, linked without an import: `String` and `uchr` (#55, 
 | | `s[lo..<hi]` | a slice by grapheme, a new String (#68, #522) |
 | | `s[r]` | a slice by a Range value, a new String (#377) |
 | | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` graphemes, or of those before the first `f` says false for, `f` of each, a String (#372, #522) |
+| | `String.fromCodepoints(c0, c1, ...)` | a `Result<String, CodepointError>` of the codepoints, integers or one `Array<u32>` (#526): [unicodedata.md](unicodedata.md) |
+| | `grapheme(c0, c1, ...)` | the same of the first grapheme alone, the rest checked and dropped (#526) |
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | the prelude's `UnicodeData` (#156, #520): [unicodedata.md](unicodedata.md) |
 | | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with the prelude's `RegExp` (#157, #504), `re` a `$/.../`: [regexp.md](regexp.md) |
 | | `==`, `!=` | by the bytes, with a String, text, a `uchr` or a character (#522) |

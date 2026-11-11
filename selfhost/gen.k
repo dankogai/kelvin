@@ -985,6 +985,7 @@ let is_comparison(t:int64):bool {
 
 let type_of(n:int64):int64
 let resolve_op(n:int64)           // and a + b, a struct's operator, as the call of it (#471)
+let resolve_codepoints(n:int64)   // and grapheme(c0, c1, ...) as the call it is (#526)
 let is_operator(d:int64):bool     // and whether a function is such an operator
 let gen_generic_call(n:int64)     // and a call only C's _Generic chooses for (#41)
 let lazy_of(n:int64):int64    // prototypes: a lazy Sequence's (#324)
@@ -1651,6 +1652,7 @@ let arith_type(n:int64):int64 {
 let type_of(n:int64):int64 {
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
     resolve_attr(n)                                      // x.y, an attribute, of its getter (#131)
+    resolve_codepoints(n)                                // grapheme(c0, c1, ...) (#526)
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
     if os_call(n) { return os_type(n) }                  // OS.cwd, OS.name(args), SYS.argv (#463)
@@ -3321,6 +3323,92 @@ let resolve_op(n:int64) {
         return
     }
     targets[n] = d
+}
+
+// grapheme(c0, c1, ...) and String.fromCodepoints(c0, c1, ...) (#526):
+// the prelude's, which take an Array<u32>, of any number of integers are
+// its kv_codepoints_string of an array of them as i64, their count and
+// whether the first grapheme alone, as kelvinc's codepoints_call: from
+// here on that call; else as it was
+let resolve_codepoints(n:int64) {
+    let k:nkind = nodes[n].kind
+    if k != N_CALL && k != N_METHOD { return }
+    let f:int64 = nodes[n].a
+    var one = false
+    var d:int64 = 0 - 1
+    var who = $""
+    if k == N_CALL && nodes[f].kind == N_ID && tok_is(nodes[f].t, "grapheme") {
+        if fn_overloads.get($"grapheme", 0) > 1 { return }   // a program's own grapheme
+        one = true
+        d = decl_named(nodes[f].t, D_FN)
+        who += "grapheme"
+    } else if k == N_METHOD && nodes[f].kind == N_TYPE && tok_is(nodes[f].t, "String") && tok_is(nodes[n].t, "fromCodepoints") {
+        d = method_named(nodes[f].t, nodes[n].t)
+        who += "String.fromCodepoints"
+    }
+    if d < 0 || !fnames[toks[nodes[d].t].file].ends("UnicodeData.kh") { return }
+    let args:int64 = nodes[n].b
+    if args >= 0 && nodes[args].next < 0 {
+        let y:int64 = type_of(args)
+        if y >= 0 && types[y].kind == Y_ARRAY { return }   // the Array<u32>
+    }
+    let list:int64 = make_node(N_LIST, nodes[n].t)
+    var count:int64 = 0
+    var last:int64 = 0 - 1
+    var a:int64 = args
+    while a >= 0 {
+        let y:int64 = type_of(a)
+        if y >= 0 && !is_int_kind(types[y].kind) && types[y].kind != Y_C {
+            let yk = types[y].kind
+            var why = who.copy()
+            why += "(...) takes codepoints, integers, or one Array<u32>, and this is "
+            if yk == Y_BOOL {
+                why += "a bool"
+            } else if (yk == Y_CSTR || yk == Y_STRING) && one {
+                why += "text: $\"...\"[0] is its first grapheme, a String"
+            } else if yk == Y_CSTR || yk == Y_STRING {
+                why += "text: $\"...\" is a String of it"
+            } else {
+                why += kelvin_type_text(y)
+            }
+            gen_error(a, why.cstr)
+            return
+        }
+        let next:int64 = nodes[a].next
+        var as_word = $"as"
+        let c:int64 = make_node(N_CAST, made_token(&as_word))
+        toks[nodes[c].t].line = toks[nodes[a].t].line
+        toks[nodes[c].t].file = toks[nodes[a].t].file
+        nodes[c].a = a
+        nodes[a].next = 0 - 1
+        set_ty(c, base_type(Y_I64))
+        if last < 0 { nodes[list].b = c } else { nodes[last].next = c }
+        last = c
+        count += 1
+        a = next
+    }
+    if count == 0 {                                      // C has no empty array: one 0, of a count of none
+        var zero = $"0"
+        let z:int64 = make_node(N_NUM, made_token(&zero))
+        toks[nodes[z].t].kind = T_NUM
+        nodes[list].b = z
+    }
+    set_ty(list, type_of_kind(Y_FIXED, base_type(Y_I64), 0 - 1))
+    var helper = $"kv_codepoints_string"
+    let g:int64 = make_node(N_ID, made_token(&helper))
+    toks[nodes[g].t].line = toks[nodes[n].t].line
+    toks[nodes[g].t].file = toks[nodes[n].t].file
+    var digits = String(count)
+    let num:int64 = make_node(N_NUM, made_token(&digits))
+    toks[nodes[num].t].kind = T_NUM
+    var word = $"false"
+    if one { word = $"true" }
+    let b:int64 = make_node(N_BOOL, made_token(&word))
+    nodes[list].next = num
+    nodes[num].next = b
+    nodes[n].kind = N_CALL
+    nodes[n].a = g
+    nodes[n].b = list
 }
 
 // x op= y with the op= x's type defines (#518), as a statement: the call
@@ -10300,6 +10388,7 @@ let gen_expr_of(n:int64)    // a prototype: gen_expr writes n by it
 let gen_expr(n:int64) {
     resolve_op(n)
     resolve_attr(n)
+    resolve_codepoints(n)
     gen_expr_of(n)
     if nodes[n].kind == N_CALL || nodes[n].kind == N_METHOD { moves_done() }
 }

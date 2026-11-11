@@ -1389,6 +1389,8 @@ on a new line`
     let fe_p:int32^ := &fe_ended[0]
     for fe_y in fe_p { fe_n += fe_y }
     println(fe_sum4(fe_five), " ", fe_n)
+    var gc_cs:$[u32] = $[0x48, 0x69]                  // a String of codepoints, the first grapheme alone (#526)
+    println(grapheme(0x65, 0x301, 0x41), " ", String.fromCodepoints(gc_cs), " ", grapheme(0xD800), " ", String.fromCodepoints())
     return 0
 }
 

@@ -574,6 +574,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 523 | kc's typed loops, as the user asked, every kind kelvinc types, as the user chose: `for x:T in` a range, of T, a Range, a String by codepoint, an Array, a fixed array, a cstr, a list, a Dictionary, a Set, a Bits, each element converted as T(v), and an iterator, `f.lines` and `f.read(n)`, of what they give; kelvinc's errors | selfhost/parse.k's for; selfhost/gen.k's S_FOR, gen_each, gen_iter_each, gen_read_each, gen_lines_each, range_type_wrong, each_type_wrong, each_types; selfhost/sample.k; selfhost/README.md | `for c:uchr in s` in kc | 2026-11-11 |
 | 524 | kc's `for x in s` at the edges for_each_edge.k shows, as the user asked, as kelvinc's #30: a fixed array read once, to its count or a zero, of structs whole; a let parameter's array to its declared count, a var one as a pointer, `xs := xs.next`; a pointer up to a 0 or nowhere, main's `u8^^` argv; `(int64){1}` | selfhost/parse.k's literal_ahead; selfhost/gen.k's gen_each, param_arrays, fixed_params, pointer_property, assigns_as, gen_assign, argv_bytes, gen_signature, gen_function, N_INIT of a number; selfhost/sample.k; selfhost/README.md | `for _ in argv` in kc | 2026-11-11 |
 | 525 | strings.md split, as the user asked: documents/cstr.md of C's text, `cstr`, literals, byte arrays, reading and walking by byte, and documents/strings.md of `String` and `uchr`; each says, briefly, in a table, how it differs from the other; the links and the lists of documents follow. The first of three, as the user chose: #526 uchr removed, `.codepoints` of u32s, #527 grapheme(...) and String.fromCodepoints(...) | documents/cstr.md, strings.md, README.md, c-interfaces.md, arrays.md, integers.md, grammar.md, pointers.md, printing.md, properties.md, versusC.md; README.md | documents/cstr.md | 2026-11-11 |
+| 526 | A String of codepoints, as the user asked, swapped before uchr's removal as the user chose: `grapheme(c0, c1, ...)`, the first grapheme alone, the codepoints after it checked and dropped, and `String.fromCodepoints(c0, c1, ...)`, all of them, each a `Result<String, CodepointError>`, `enum CodepointError { empty; surrogate: u32; outOfRange: i64 }`; of one `Array<u32>`, or of any number of integers, which kelvinc and kc read into `kv_codepoints_string` of an array of them as i64, their count and whether one grapheme; a float, a bool and text are errors | modules/UnicodeData.k, src/parser.c, selfhost/gen.k, selfhost/sample.k, GNUmakefile, documents/unicodedata.md, strings.md, README.md; README.md, selfhost/README.md | tests/run/grapheme_of_codepoints.k, tests/error/grapheme_text.k, tests/error/codepoints_bool.k | 2026-11-12 |
 
 Notes:
 
@@ -1158,6 +1159,36 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (526) Agreed details: "go on with #526"
+  - The user asked for `grapheme(c0, c1, ...)`, failable, its error a
+    surrogate or too few codepoints, those after the grapheme ignored,
+    or `String.fromCodepoints()`; asked, the user chose both names, an
+    enum of reasons, and, asked again, this before uchr's removal, which
+    needs it for `n.uchr`, so that #526 and #527 swapped.
+  - Any one codepoint is a grapheme (UAX #29), so too few is none at
+    all: the cases are `empty`, `surrogate(u32)` and `outOfRange(i64)`,
+    past U+10FFFF or below 0, of the first argument that makes none;
+    asked, the user chose `CodepointError` with the values.
+  - A Kelvin function is not variadic: asked, the user chose both forms,
+    one `Array<u32>`, and any number of integers, which kelvinc and kc
+    read into the prelude's `kv_codepoints_string(cps:const i64^, n:i64,
+    one:bool)` of an array of them, as they read `println`'s.
+  - The codepoints after the grapheme are checked too, then dropped; the
+    text is as given, not normalized.
+  - Asked about `.codepoints` for #527, the user chose `Array<u32>`, and
+    a codepoint's properties on `u32`, `extend u32` in UnicodeData.
+  - GNUmakefile: BigInt.o waits for UnicodeData.kh, which every build
+    brings in since #520; under `make -j8`, BigInt.k was compiled before
+    it was made and took UnicodeData.k whole, duplicate symbols that a
+    clean -j8 build of this number showed.
+  - The untagged structs, unions and enums are numbered `_kv_anon1` on
+    among themselves, not with the Optionals and Results kelvinc keeps
+    beside them: the prelude's `Result<String, CodepointError>` had made
+    every program's first one `_kv_anon2`.
+  - Not here: a printed enum with values, `err(surrogate(55296))`, does
+    not paste back, as no enum with values does, `n(1.5)` of any; a
+    change of its own.
 
 - (525) Agreed details: "split documents for String from cstr"
   - The user asked that String's document be apart from cstr's, each
@@ -8377,6 +8408,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P535 | Details of #523 | selfhost/parse.k: `:T` after the loop's names; selfhost/gen.k: S_FOR's counter of T, range_type_wrong, each_type_wrong, each_types by declare_each, gen_each's hidden element and x of T, the Range's counter, a String by codepoint, gen_iter_each, gen_read_each and gen_lines_each checked; selfhost/sample.k's typed loops; selfhost/README.md | provisional |
 | P536 | Details of #524 | selfhost/parse.k: literal_ahead of a number's type; selfhost/gen.k: gen_each's walk of a fixed array, a parameter's array and a pointer, param_arrays, pointer_property of a parameter's array, assigns_as and gen_assign of `:=`, argv_bytes with gen_signature's and gen_function's `#define`, a number's N_INIT; selfhost/sample.k's fe_ walks; selfhost/README.md | provisional |
 | P537 | Details of #525 | documents/cstr.md, new; documents/strings.md, String's alone; the links of documents/README.md, c-interfaces.md, arrays.md, integers.md, grammar.md, pointers.md, printing.md, properties.md, versusC.md and README.md | provisional |
+| P538 | Details of #526 | `grapheme(...)` and `String.fromCodepoints(...)`: UnicodeData's, of one `Array<u32>` or of integers, read by kelvinc's codepoints_call and kc's resolve_codepoints into `kv_codepoints_string`; `CodepointError`, an enum with values | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

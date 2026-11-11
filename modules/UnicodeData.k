@@ -38,7 +38,41 @@ let kv_ucd_script_name(id:i32):cstr
 let kv_ucd_property_id(name:cstr):i32
 let kv_ucd_has_property(cp:u32, id:i32):bool
 
+// why codepoints make no String (#526): there are none, one is a
+// surrogate, or one is no codepoint, past U+10FFFF or below 0
+enum CodepointError { empty; surrogate: u32; outOfRange: i64 }
+
+// the String of the n codepoints at cps, or of its first grapheme where one
+// is true, the rest checked but dropped: what grapheme(c0, c1, ...) and
+// String.fromCodepoints(c0, c1, ...) of integers are (#526)
+let kv_codepoints_string(cps:const i64^, n:i64, one:bool):Result<String, CodepointError> {
+    if n <= 0 { return err(CodepointError.empty) }
+    for i in 0..<n {
+        let c = cps[i]
+        if c < 0 || c > 0x10FFFF { return err(CodepointError.outOfRange(c)) }
+        if c >= 0xD800 && c <= 0xDFFF { return err(CodepointError.surrogate(c as u32)) }
+    }
+    var s = $""
+    for i in 0..<n { s += cps[i] }
+    if one { return s[0] }
+    return s
+}
+
+// the same of an Array of codepoints
+let kv_codepoints_array(cps:lent Array<u32>, one:bool):Result<String, CodepointError> {
+    var xs = Array<i64>()
+    for c in cps { xs += c as i64 }
+    return kv_codepoints_string(xs.at, xs.count, one)
+}
+
+// the first grapheme of the codepoints, a String: grapheme(0x65, 0x301)
+// is "é"; kelvinc and kelvin's kc read it of any number of integers
+let grapheme(cps:lent Array<u32>):Result<String, CodepointError> { kv_codepoints_array(cps, true) }
+
 extend String {
+    // the String of the codepoints, all of them (#526)
+    static let fromCodepoints(cps:lent Array<u32>):Result<String, CodepointError> { kv_codepoints_array(cps, false) }
+
     // the String normalized: s.normalize(nfc), nfd, nfkc or nfkd (UAX #15)
     let normalize(form:NormalForm):String { kv_ucd_normalize(&self, form as i32) }
 

@@ -101,7 +101,9 @@ the design decisions, numbered `#N` throughout, are in
 - [sion.md](sion.md): `#import <SION>`, SION values, JSON with more.
 - [msgpack.md](msgpack.md): `#import <MsgPack>`, MessagePack of a SION.
 - [unicodedata.md](unicodedata.md): the prelude's `UnicodeData` (#520),
-  normalization, graphemes, the case mappings, a codepoint's data.
+  normalization, graphemes, the case mappings, a codepoint's data; a
+  String of codepoints, `grapheme(...)` and `String.fromCodepoints(...)`
+  (#526).
 - [regexp.md](regexp.md): the prelude's `RegExp` (#504), `$/pattern/flags`, JS's
   regular expressions over Strings and Bytes.
 - [bigint.md](bigint.md): the prelude's `BigInt` (#507), integers of any

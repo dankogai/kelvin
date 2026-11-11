@@ -604,6 +604,11 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`grapheme(c0, c1, ...)` and `String.fromCodepoints(c0, c1, ...)`**
+  (#526), as kelvinc's: UnicodeData's, of one `Array<u32>`, or of any
+  number of integers, which kc reads into an array of them as i64 and
+  the call of `kv_codepoints_string`, the count, and whether the first
+  grapheme alone; with kelvinc's errors of a float, a bool or text.
 - **The edges of `for x in s`** (#524), as kelvinc's #30, tests/run's
   for_each_edge.k:
   - A fixed array is read once, by its address, so `for x in m[row()]`

@@ -26,7 +26,9 @@ codepoints, after Python's `unicodedata`.
   `String`, with no import.
   - `#import <UnicodeData>`, as programs before #520 write it, is still
     read, and adds nothing.
-  - Its `nfc`, `nfd`, `nfkc` and `nfkd` are words of every program.
+  - Its `nfc`, `nfd`, `nfkc` and `nfkd` are words of every program, and
+    `grapheme(...)`, `String.fromCodepoints(...)` and `CodepointError`
+    (#526) are names of it.
 - It is a header, `UnicodeData.kh` in `modules/`, whose code libkelvin
   holds (#504), as the prelude's `RegExp` uses it; a program links its
   tables only where it uses them.
@@ -62,6 +64,40 @@ codepoints, after Python's `unicodedata`.
   `ß` and `ﬁ` stays `ﬁ`, since their upper case is longer.
   - `fold` is the case folding: `s.fold() == t.fold()` compares two
     texts whatever their case.
+
+### Codepoints into a String: `grapheme` and `String.fromCodepoints`
+
+<!-- fragment -->
+```swift
+String.fromCodepoints(0x48, 0x69)        // ok("Hi"), every codepoint
+grapheme(0x65, 0x301, 0x41)              // ok("e\u0301"), the first grapheme alone
+grapheme(0x1F1EF, 0x1F1F5)               // ok("🇯🇵"), two regional indicators, one grapheme
+grapheme(0xD800)                         // err(surrogate(55296))
+var cs:$[u32] = $[0x63, 0x327]
+String.fromCodepoints(cs)                // of an Array<u32> too
+```
+
+- **`String.fromCodepoints(c0, c1, ...)`** (#526) is a String of the
+  codepoints, all of them, in a `Result<String, CodepointError>`.
+- **`grapheme(c0, c1, ...)`** is the first grapheme of them alone, a
+  String in the same Result.
+  - The codepoints after it are checked, and then dropped.
+  - Any one codepoint is a grapheme (UAX #29), so only none at all is
+    too few.
+- **Their arguments** are any number of integers, a `u8` or a
+  character too, or one `Array<u32>`.
+  - kelvinc and kc read the integers, as they read `println`'s, into an
+    array of them; a float, a bool and text are errors.
+  - The codepoints are kept as given: `0x65, 0x301` is `e` and a
+    combining acute, not `é` made one; `.normalize(nfc)` composes it.
+- **The error** is an enum with values, `CodepointError`, of the first
+  argument that makes no codepoint:
+
+| Case | When |
+|---|---|
+| `empty` | there are no codepoints at all |
+| `surrogate(u32)` | one is a surrogate, U+D800 to U+DFFF, which UTF-8 never holds |
+| `outOfRange(i64)` | one is past U+10FFFF, or below 0 |
 
 ### A codepoint: `name`, `category` and the rest
 

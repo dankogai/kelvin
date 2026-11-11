@@ -134,8 +134,10 @@ build/prelude/RegExp.o: modules/RegExp.k modules/kRegExp.h modules/UnicodeData.k
 	cp build/prelude/RegExp.kh modules/RegExp.kh
 modules/RegExp.kh: build/prelude/RegExp.o
 
-# BigInt (#507), integers of any size, written in Kelvin alone
-build/prelude/BigInt.o: modules/BigInt.k modules/kelvin_prelude.h kelvinc
+# BigInt (#507), integers of any size, written in Kelvin alone, on the
+# header of UnicodeData, which every build brings in (#520): before it is
+# made, make -j would compile UnicodeData.k into BigInt.o too (#526)
+build/prelude/BigInt.o: modules/BigInt.k modules/UnicodeData.kh modules/kelvin_prelude.h kelvinc
 	./kelvinc --prelude -O -g modules/BigInt.k -o build/prelude
 	cp build/prelude/BigInt.kh modules/BigInt.kh
 modules/BigInt.kh: build/prelude/BigInt.o

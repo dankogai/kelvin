@@ -365,6 +365,9 @@ So far the changes from C are these, by topic.
   `s.normalize(nfc)`, `s.graphemes`, the clusters a reader sees as
   characters, `s.upper()`, `s.fold()`, `uchr("é").name` and
   `.category` (#156)
+  - `String.fromCodepoints(0x48, 0x69)` and `grapheme(0x65, 0x301)`,
+    the first grapheme alone, make a String of codepoints, in a
+    `Result<String, CodepointError>` (#526)
 - `RegExp` is regular expressions, JS's over Strings, with the
   `$/pattern/flags` literal: `re.test(&s)`, `s.match(&re)`,
   `s.replace(&re, "$1")`, `s.split(&re)`, `\p{Script=Greek}` and `\X`

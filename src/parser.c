@@ -1129,6 +1129,7 @@ static Type *pipe_type(Token *at);
 static Type *stat_type(Token *at);
 static Type *temp_type(Token *at);
 static Type *anon_struct(Token *at, const char *spec);
+static int untagged_count(void);
 static const char *struct_spec(const char *gives);
 static Type *parse_dollar_array(Token *at);
 static Type *parse_dollar_dict(Token *at);
@@ -1775,6 +1776,7 @@ static Decl *enum_of(const char *name);
 static Expr *parse_initializer_for(Type *t);
 static void count_items(Type *t, Expr *init);
 static void check_print_args(Expr *call);
+static void codepoints_call(Expr *call);
 static void print_records_as_text(Expr *call);
 static bool is_function_designator(Expr *e);
 
@@ -2365,6 +2367,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 reject_trailing_on_next_line(call_param_type(e, x->items.len));
                 block_after_call = cur;
             }
+            codepoints_call(x);
             check_print_args(x);
             resolve_call(x);
             for (int k = 0; k < x->items.len; k++) /* an overloaded function passed by name (#41) */
@@ -12299,6 +12302,93 @@ static void reject_lazy_text(Expr *x, const char *who) {
                  who);
 }
 
+/* grapheme(c0, c1, ...) and String.fromCodepoints(c0, c1, ...) (#526):
+   the prelude's, which take an Array<u32>, of any number of integers are
+   its kv_codepoints_string of an array of them as i64, their count and
+   whether the first grapheme alone, which checks them all; none is an
+   err(empty) */
+static bool unicodedata_decl(Decl *d) {
+    const char *slash = d->pos.file ? strrchr(d->pos.file, '/') : NULL;
+    const char *base = slash ? slash + 1 : d->pos.file;
+    return base && (!strcmp(base, "UnicodeData.k") || !strcmp(base, "UnicodeData.kh"));
+}
+
+static void codepoints_call(Expr *x) {
+    Expr *f = x->a;
+    if (f->kind != E_IDENT || !f->text)
+        return;
+    bool one = !strcmp(f->text, "grapheme");
+    if (!one && strcmp(f->text, "String.fromCodepoints"))
+        return;
+    List cands = overloads_of(f->text, NULL);
+    if (!cands.len)
+        return;
+    for (int i = 0; i < cands.len; i++)
+        if (!unicodedata_decl(cands.data[i])) /* a program's own grapheme */
+            return;
+    if (x->items.len == 1 && is_array_owner(value_type(x->items.data[0])))
+        return; /* the Array<u32> */
+    Expr *list = new_expr(E_INIT, x->pos);
+    list->bracket = true;
+    for (int i = 0; i < x->items.len; i++) {
+        Expr *v = x->items.data[i];
+        Decl *record;
+        char c = expr_class(v, &record);
+        if (c == 'u' && (int_expr(v) || v->kind == E_SIZEOF_TYPE || v->kind == E_SIZEOF_EXPR))
+            c = 'i';
+        else if (c == 'u' && float_operand(v))
+            c = 'f';
+        bool text = is_text_expr(v) || is_string(value_type(v));
+        bool known = c != 'u' || seen_bool(v) || bool_shape(v) || v->is_bool || text;
+        if (known && c != 'i') {
+            Type *at = arg_type(v);
+            error_at(v->pos, "%s(...) takes codepoints, integers, or one Array<u32>, and this is %s", f->text,
+                     v->is_bool || seen_bool(v) || bool_shape(v) ? "a bool"
+                     : text && one ? "text: $\"...\"[0] is its first grapheme, a String"
+                     : text        ? "text: $\"...\" is a String of it"
+                     : at   ? kelvin_type(at)
+                     : c == 'f' ? "a float"
+                                : "neither");
+        }
+        Expr *e = new_expr(E_CAST, v->pos);
+        e->type = base_type("i64", v->pos);
+        e->paren = true;
+        e->a = v;
+        list_push(&list->items, e);
+        list_push(&list->designators, NULL);
+    }
+    if (!x->items.len) { /* C has no empty array: one 0, of a count of none */
+        Expr *z = new_expr(E_LITERAL, x->pos);
+        z->text = "0";
+        list_push(&list->items, z);
+        list_push(&list->designators, NULL);
+    }
+    Type *fixed = xcalloc(1, sizeof *fixed);
+    fixed->kind = T_ARRAY;
+    fixed->pos = x->pos;
+    fixed->elem = base_type("i64", x->pos);
+    fixed->size = new_expr(E_LITERAL, x->pos);
+    fixed->size->text = strfmt("%d", list->items.len);
+    Expr *arr = new_expr(E_COMPOUND, x->pos);
+    arr->type = fixed;
+    arr->a = list;
+    Expr *n = new_expr(E_LITERAL, x->pos);
+    n->text = strfmt("%d", x->items.len);
+    Expr *b = new_expr(E_LITERAL, x->pos);
+    b->text = one ? "true" : "false";
+    Expr *g = new_expr(E_IDENT, f->pos);
+    g->text = "kv_codepoints_string";
+    List helper = overloads_of(g->text, NULL);
+    if (helper.len != 1)
+        error_at(f->pos, "%s(...) of integers is the prelude's UnicodeData's, which has no kv_codepoints_string", f->text);
+    g->target = helper.data[0];
+    x->a = g;
+    x->items = (List){0};
+    list_push(&x->items, arr);
+    list_push(&x->items, n);
+    list_push(&x->items, b);
+}
+
 static void check_print_args(Expr *call) {
     if (call->a->kind != E_IDENT || (strcmp(call->a->text, "print") && strcmp(call->a->text, "println")))
         return;
@@ -16211,7 +16301,7 @@ static Type *parse_anon_record(DeclKind kind, bool tagged) {
         if (!strcmp(((Decl *)anon_records.data[i])->spelling, b.buf))
             same = anon_records.data[i];
     if (!same) {
-        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
+        d->name = strfmt("_kv_anon%d", untagged_count() + 1);
         d->spelling = b.buf;
         list_push(&anon_records, d);
         list_push(&records, d);
@@ -16219,6 +16309,17 @@ static Type *parse_anon_record(DeclKind kind, bool tagged) {
         same = d;
     }
     return base_type(tag_type_name(same), open->pos);
+}
+
+/* the untagged structs, unions and enums so far, _kv_anon1 on, which
+   the Optionals and Results beside them in anon_records do not count:
+   the prelude's Result<String, CodepointError> (#526) moved every
+   program's own */
+static int untagged_count(void) {
+    int n = 0;
+    for (int i = 0; i < anon_records.len; i++)
+        n += !strncmp(((Decl *)anon_records.data[i])->name, "_kv_anon", 8);
+    return n;
 }
 
 /* {reader: IO, writer: IO}, what IO.pipe() gives (#87): an untagged
@@ -16251,7 +16352,7 @@ static Type *anon_struct(Token *at, const char *spec) {
             m->type = base_type(type, at->pos);
             list_push(&d->members, m);
         }
-        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
+        d->name = strfmt("_kv_anon%d", untagged_count() + 1);
         d->spelling = spelling;
         list_push(&anon_records, d);
         list_push(&records, d);

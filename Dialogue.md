@@ -9909,3 +9909,22 @@ cstr.md and String in strings.md, each with a table of how it differs
 from the other. Details are provisional P537.
 
 There are 1281 tests, and all pass with clang and with gcc 15.
+
+### 573. A String of codepoints
+
+> go on with #526
+
+**Claude** asked what replaces uchr first. The user chose a codepoint's
+properties on `u32`, `.codepoints` an `Array<u32>`, and, since `n.uchr`
+needs a replacement, `grapheme(...)` and `String.fromCodepoints(...)`
+first, so that #526 and #527 swapped. A Kelvin function is not
+variadic, so the user chose both forms, one `Array<u32>` and any number
+of integers, and `CodepointError`, an enum with the offending value.
+Both are UnicodeData's, each a `Result<String, CodepointError>`;
+kelvinc and kc read the integers into one call of
+`kv_codepoints_string`. A clean `make -j8` showed BigInt.o built before
+UnicodeData.kh since #520, which GNUmakefile now orders, and the
+prelude's Result renumbered every program's untagged structs, which are
+now numbered among themselves. Details are provisional P538.
+
+There are 1284 tests, and all pass with clang and with gcc 15.
