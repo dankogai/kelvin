@@ -604,6 +604,10 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`s.codepoints`** (#521), as kelvinc's: UnicodeData's `Array<uchr>`;
+  `for c in s.codepoints` walks the String in place, with no Array made.
+  - kc's own loops over a String's codepoints are written so, ready for
+    #522, where `for c in s` walks graphemes.
 - **UnicodeData in every program** (#520), as kelvinc's: kc reads
   `UnicodeData.kh` before the prelude's others, so `s.normalize(nfc)`
   and `uchr("é").name` need no import.

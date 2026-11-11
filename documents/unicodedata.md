@@ -52,6 +52,9 @@ codepoints, after Python's `unicodedata`.
     counts codepoints; the database's GraphemeBreakTest.txt passes
     whole. An Array an expression gives is held until the expression is
     done, `s.graphemes.count`, `for g in s.graphemes { }` (#187).
+- **`s.codepoints`** (#521) is the String's codepoints, an
+  `Array<uchr>`, which `for c in s.codepoints` walks in place:
+  [strings.md](strings.md).
 - **`s.upper()`, `s.lower()` and `s.fold()`** map each codepoint by the
   simple case mappings, one codepoint to one, a new String: `ß` stays
   `ß` and `ﬁ` stays `ﬁ`, since their upper case is longer.

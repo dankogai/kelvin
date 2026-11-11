@@ -114,7 +114,7 @@ let c_name_char(c:uint32):bool {
 let put_c_word(r:String^, w:const String^, wide:bool) {
     var first = true
     var digit = false
-    for c in w^ {
+    for c in w^.codepoints {
         if first { digit = c.utf32 >= '0' && c.utf32 <= '9' }
         first = false
     }
@@ -123,7 +123,7 @@ let put_c_word(r:String^, w:const String^, wide:bool) {
         return
     }
     r^ += "_kv_u"
-    for c in w^ {
+    for c in w^.codepoints {
         let v:uint32 = c.utf32
         if (v >= 'a' && v <= 'z') || (v >= 'A' && v <= 'Z') || (v >= '0' && v <= '9') {
             r^ += c
@@ -146,7 +146,7 @@ let ascii_names(s:const String^):String {
     var escaped = false
     var prev:uint32 = 10
     var directive = $""
-    for c in s^ {
+    for c in s^.codepoints {
         let v:uint32 = c.utf32
         if mode == 0 && c_name_char(v) {
             w += c
@@ -2687,7 +2687,7 @@ let mangled(y:int64):String {
 let mangled_text(text:const String^):String {
     var s = $""
     var last:uint32 = 0
-    for c in text^ {
+    for c in text^.codepoints {
         let u:uint32 = c.utf32
         if is_alpha(u) || is_digit(u) {
             s += c
@@ -4672,7 +4672,7 @@ let os_member(n:int64):String {
     if os_table.count == 0 {
         let all:String = String(os_spec())
         var entry = $""
-        for c in all {
+        for c in all.codepoints {
             if c.utf32 == ';' {
                 var name = $""
                 var rest = $""
@@ -4712,7 +4712,7 @@ let os_call(n:int64):bool {
 let os_gives(m:const String^):String {
     var g = $""
     var seen = false
-    for c in m^ {
+    for c in m^.codepoints {
         if seen { g += c }
         if c.utf32 == ' ' { seen = true }
     }
@@ -4722,7 +4722,7 @@ let os_gives(m:const String^):String {
 // the arguments' letters of spec m, "-" of a property, "." of none
 let os_args(m:const String^):String {
     var a = $""
-    for c in m^ {
+    for c in m^.codepoints {
         if c.utf32 == ' ' { break }
         a += c
     }
@@ -4847,7 +4847,7 @@ let os_struct(g:const String^):int64 {
     var spaced = $""
     spaced += &spec
     spaced += ","
-    for c in spaced {
+    for c in spaced.codepoints {
         if c.utf32 == ':' {
             name = word.copy()
             word = $""
@@ -10052,7 +10052,7 @@ let gen_typename(n:int64) {
     let w:String = kelvin_type_text(y)
     put("\"")
     var after_q = false
-    for c in w {
+    for c in w.codepoints {
         if c.utf32 == '?' && after_q { put("\\") }
         after_q = c.utf32 == '?'
         out += c
@@ -16179,7 +16179,14 @@ let gen_lines_each(n:int64, depth:int64) {
 }
 
 let gen_each(n:int64, depth:int64) {
-    let src0:int64 = nodes[n].a
+    var src0:int64 = nodes[n].a
+    if nodes[src0].kind == N_FIELD && tok_is(nodes[src0].t, "codepoints") {
+        let sy:int64 = type_of(nodes[src0].a)
+        if sy >= 0 && types[sy].kind == Y_STRING {      // for c in s.codepoints: s walked in place, as kelvinc's (#521)
+            nodes[n].a = nodes[src0].a
+            src0 = nodes[n].a
+        }
+    }
     if nodes[src0].kind == N_FIELD && tok_is(nodes[src0].t, "lines") && nodes[n].b < 0 {
         let iy:int64 = type_of(nodes[src0].a)
         if iy >= 0 && types[iy].kind == Y_IO {           // for r in f.lines (#450)

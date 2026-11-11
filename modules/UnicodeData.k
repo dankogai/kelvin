@@ -54,6 +54,14 @@ extend String {
         return out
     }
 
+    // the codepoints, each a uchr (#521): for c in s.codepoints walks them
+    // in place, with no Array made, which kelvinc and kc see
+    let codepoints:Array<uchr> {
+        var out = Array<uchr>()
+        for c:uchr in self { out += c }
+        return out
+    }
+
     // the simple case mappings, one codepoint to one; fold is the case
     // folding, for comparing text whatever its case
     let upper():String { kv_ucd_upper(&self) }

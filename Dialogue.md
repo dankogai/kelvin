@@ -9835,3 +9835,15 @@ read; a module's header does not write that import. Details are
 provisional P532.
 
 There are 1276 tests, and all pass with clang and with gcc 15.
+
+### 568. s.codepoints
+
+> go on with #521
+
+**Claude** added `s.codepoints`, as the user chose in #520's questions:
+a String's codepoints, an `Array<uchr>`, which `for c in s.codepoints`
+walks in place, with no Array made, in kelvinc and kc. kc's own loops
+over a String's codepoints are written so, ready for #522, where `for c
+in s` walks graphemes. Details are provisional P533.
+
+There are 1277 tests, and all pass with clang and with gcc 15.

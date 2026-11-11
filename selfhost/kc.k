@@ -30,13 +30,13 @@
 let dir_of(path:String^):String {
     var cut = 0
     var i = 0
-    for c in path^ {
+    for c in path^.codepoints {
         i += 1
         if c.utf32 == '/' { cut = i }
     }
     var r = $""
     var j = 0
-    for c in path^ {
+    for c in path^.codepoints {
         if j < cut { r += c }
         j += 1
     }
@@ -49,7 +49,7 @@ let base_of(path:String^):String {
     let dir:String = dir_of(path)
     var cs:$[int64] = $[]
     var j = 0
-    for c in path^ {
+    for c in path^.codepoints {
         if j >= dir.count as int64 { cs += c.utf32 }
         j += 1
     }
@@ -143,7 +143,7 @@ let load(path:String^):Result<int64, String> {
     let file:int64 = fnames.count as int64
     fnames += path^.copy()
     let from:int64 = codes.count as int64
-    for c in text {
+    for c in text.codepoints {
         codes += c.utf32
     }
     codes += '\n'
@@ -238,7 +238,7 @@ let link_flags(path:String^) {
     let text:String = f.string ?? $""
     f.close()
     var w = $""
-    for c in text {
+    for c in text.codepoints {
         let u = c.utf32
         if u == ' ' || u == '\t' || u == '\r' || u == '\n' {
             if w.count > 0 { module_libs += w.copy() }

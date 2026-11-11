@@ -286,6 +286,12 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 - **Walking:** `for c in s` gives each codepoint as a `uchr`, which
   prints as its character; `for x in s.bytes^` each byte.
   - `for n:u32 in s` gives each codepoint's number (#480).
+  - **`s.codepoints`** (#521) is its codepoints, an `Array<uchr>`.
+    - `for c in s.codepoints` walks the String in place, with no Array
+      made: the walk to write where codepoints are meant, as `for c in
+      s` will walk graphemes (#522).
+    - Of a borrow, `s^.codepoints`, and of a String an expression
+      gives, `f().codepoints`, which is held for the loop.
   - A `[uchr](N)` or a `uchr^` is walked up to `uchr(0)` (#480).
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
   and `s[...hi]` are new Strings of those codepoints; a range past the
@@ -337,6 +343,7 @@ to come.
 | | `.escape()` | the text with each codepoint beyond ASCII as `\u{...}`, a NUL as `\u{0}` (#299), and a `\` as `\\`, a new String (#164); with the prelude's `RegExp` (#504), `.escape(&re)` escapes what `re` matches instead |
 | | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with the prelude's `RegExp` (#504), `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each codepoint, a `uchr` |
+| | `.codepoints` | its codepoints, an `Array<uchr>`; `for c in s.codepoints` walks them in place (#521) |
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
 | | `s[r]` | a slice by a Range value, a new String (#377) |
 | | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` codepoints, or of those before the first `f` says false for, `f` of a `uchr` (#372) |

@@ -210,7 +210,7 @@ let total(ps:$[point]^):int64 {
 
 let reversed(s:String^):String {
     var cs:$[uint32] = $[]
-    for c in s^ {
+    for c in s^.codepoints {
         cs += c.utf32
     }
     var r:String = $""

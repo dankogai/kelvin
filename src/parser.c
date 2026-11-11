@@ -14082,6 +14082,12 @@ static Stmt *parse_for_each_hold(Stmt *s, Type *written);
    expression gives that owns is held first, around it, and freed after */
 static Stmt *parse_for_each_held(Stmt *s, Type *written) {
     Expr *seq = s->expr;
+    if (seq->kind == E_METHOD && seq->attr && !strcmp(seq->text, "codepoints") && is_string(value_type(seq->a))) {
+        /* for c in s.codepoints (#521): s walked by codepoint, in place,
+           with no Array made of them */
+        s->expr = seq = seq->a;
+        s->codepoints = true;
+    }
     Type *t = value_type(seq);
     Decl *mk = sequence_maker(t);
     if (!mk)
