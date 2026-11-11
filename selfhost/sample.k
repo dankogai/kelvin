@@ -1372,6 +1372,15 @@ on a new line`
         if gr_c != ' ' { gr_n += 1 }
     }
     println(gr_n, " ", gr_s.count, " ", gr_s.codepoints.count, " ", gr_s[4], " ", gr_s[2..<5], " ", gr_s.find("x"), " ", gr_s.prefix(1), " ", gr_s[0] == "e\u0301")
+    var ty_sum:u64 = 0                                 // for x:T in ..., a type written (#523), as kelvinc's #480
+    for ty_n:u32 in gr_s { ty_sum += ty_n as u64 }
+    var ty_cs:$[i64] = $[72, 105]
+    var ty_t = $""
+    for ty_c:uchr in ty_cs { ty_t += ty_c }
+    for ty_i:u8 in 254...255 { ty_sum += ty_i as u64 }
+    let ty_r = 1..<4
+    for ty_j:i32 in ty_r { ty_sum += ty_j as u64 }
+    println(ty_sum, " ", ty_t)
     return 0
 }
 // a JSON.stringify replacer: numbers doubled, the name left out (#516)

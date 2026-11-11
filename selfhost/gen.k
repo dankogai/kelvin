@@ -536,8 +536,42 @@ let declare_as(t:int64, y:int64, how:int64) {
 let declare(t:int64, y:int64) { declare_as(t, y, 0) }
 
 // a loop's variable: `for _ in` names none, as kelvinc's (#388)
+var each_types:Dictionary<int64, int64>  // the type of each loop variable declare_each declared, by its name (#523)
+
 let declare_each(t:int64, y:int64, how:int64) {
+    each_types[t] = y
     if !tok_is(t, "_") { declare_as(t, y, how) }
+}
+
+// whether the loop n's written type, for x:T in ..., is no integer: an
+// error as kelvinc's for a range (#523)
+let range_type_wrong(n:int64):bool {
+    let w:int64 = nodes[n].ty
+    if w < 0 || is_int_kind(types[w].kind) { return false }
+    var m = $"a range is of integers, not "
+    let t:String = kelvin_type_text(w)
+    m += &t
+    gen_error(n, m.cstr)
+    return true
+}
+
+// for x:T in it of an iterator, f.lines or f.read(n): T is what it gives,
+// else kelvinc's error (#523)
+let each_type_wrong(n:int64, ey:int64, what:cstr, iterator:bool):bool {
+    let w:int64 = nodes[n].ty
+    if w < 0 { return false }
+    let want:String = kelvin_type_text(ey)
+    let got:String = kelvin_type_text(w)
+    if want == got { return false }
+    var m = $"the loop variable of "
+    m += what
+    m += iterator ? " is " : " is a "
+    m += &want
+    if iterator { m += ", what its next() gives" }
+    m += ", not "
+    m += &got
+    gen_error(n, m.cstr)
+    return true
 }
 
 // the locals an owner moves out of in what is being written, dead when
@@ -15979,6 +16013,7 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
     let tn:String = builtin ? $"Iterator" : tok_text(types[y].name)
     let oy:int64 = builtin ? optional_of(types[y].elem) : nodes[f].ty
     let ey:int64 = some_type(oy)
+    if each_type_wrong(n, ey, tn.cstr, true) { return }  // for x:T in it, T what next() gives (#523)
     if !builtin && nodes[f].flag != 2 {
         var m = $"for walks an iterator by its next(), which changes it, and '"
         m += &tn
@@ -16168,6 +16203,7 @@ let gen_read_each(n:int64, depth:int64) {
     put(" = _kv_chunk_buf")
     put_int(s)
     put(";\n")
+    if each_type_wrong(n, by, ".read(n)", false) { return }   // (#523)
     open_scope()
     declare_each(nodes[n].t, by, 3)                     // lent, as an element is
     indent(depth + 2)
@@ -16230,6 +16266,7 @@ let gen_lines_each(n:int64, depth:int64) {
     put("_make_ok(_kv_line")
     put_int(s)
     put(");\n")
+    if each_type_wrong(n, ry, ".lines", false) { return }   // (#523)
     open_scope()
     declare_each(nodes[n].t, ry, 3)                     // lent, as an element is
     indent(depth + 2)
@@ -16277,7 +16314,8 @@ let gen_each(n:int64, depth:int64) {
             gen_error(n, "two loop variables walk a Dictionary's entries, 'for k, v in d': a Range counts with one")
             return
         }
-        let ey:int64 = types[y].elem
+        if range_type_wrong(n) { return }
+        let ey:int64 = nodes[n].ty >= 0 ? nodes[n].ty : types[y].elem   // for i:T in r, the type written (#523)
         serial += 1
         var r = $"_kv_range"
         r += String(serial)
@@ -16367,6 +16405,22 @@ let gen_each(n:int64, depth:int64) {
     if f >= 0 {                                        // an iterator (#320)
         gen_iter_each(n, depth, y, f, nodes[n].a)
         return
+    }
+    // for x:T in s (#523), as kelvinc's #480: the element under a name of
+    // kc's, and x of T, converted as T(v) does; a String walked by
+    // codepoint, but for c:String in s
+    let written:int64 = nodes[n].ty
+    var user:int64 = 0 - 1
+    if written >= 0 && types[y].kind == Y_STRING && types[written].kind != Y_STRING { codepoint_loops[n] = true }
+    if written >= 0 && !(types[y].kind == Y_STRING && types[written].kind == Y_STRING) && !tok_is(nodes[n].t, "_") {
+        user = nodes[n].t
+        var hidden = $"_kv_x"
+        hidden += String(n)
+        let ht:int64 = made_token(&hidden)
+        toks[ht].kind = T_ID
+        toks[ht].line = toks[user].line
+        toks[ht].file = toks[user].file
+        nodes[n].t = ht
     }
     if types[y].kind == Y_FIXED && types[y].name == 0 - 1 {   // q^ of a [T]^, as kelvinc refuses it (#363)
         gen_error(nodes[n].a, "an array of no count has no length to walk: walk 0..<n, and index it, q^[i]")
@@ -16645,6 +16699,41 @@ let gen_each(n:int64, depth:int64) {
         put("];\n")
         open_scope()
         declare_each(nodes[n].t, ey, 3)          // (#271)
+    }
+    if user >= 0 {                                      // x:T of the element (#523)
+        let ey:int64 = each_types.get(nodes[n].t, -1)
+        let wk:ykind = types[written].kind
+        let ek:ykind = types[ey].kind
+        if wk == Y_UCHR && (ek == Y_F64 || ek == Y_F32 || ek == Y_BOOL) {
+            var m = $"for "
+            m += tok_text(user)
+            m += ":uchr in s converts each element as uchr(x) does, which takes an integer, a uchr or text, and these are "
+            let et:String = kelvin_type_text(ey)
+            m += &et
+            gen_error(n, m.cstr)
+            nodes[n].t = user
+            return
+        }
+        indent(depth + 2)
+        put("const ")
+        put_ctype(written)
+        put(" ")
+        put_tok(user)
+        put(" = ")
+        if wk == Y_UCHR && ek != Y_UCHR {
+            put("KV_UCHR_OF(")
+            put_tok(nodes[n].t)
+            put(")")
+        } else if ek == Y_UCHR && wk != Y_UCHR {
+            put("(")
+            put_tok(nodes[n].t)
+            put(").cp")
+        } else {
+            put_tok(nodes[n].t)
+        }
+        put(";\n")
+        declare_each(user, written, 3)
+        nodes[n].t = user
     }
     indent(depth + 2)
     gen_block(nodes[n].c, depth + 2)
@@ -17080,8 +17169,15 @@ let gen_stmt_of(n:int64, depth:int64) {
         indent(depth)
         put("}\n")
     case S_FOR:
+        if range_type_wrong(n) { return }
         serial += 1
-        put("for (int64_t ")
+        put("for (")
+        if nodes[n].ty >= 0 {                            // for i:u8 in a..<b, the type written (#523)
+            put_ctype(nodes[n].ty)
+            put(" ")
+        } else {
+            put("int64_t ")
+        }
         put_tok(nodes[n].t)
         put(" = ")
         if nodes[n].a >= 0 { gen_expr(nodes[n].a) } else { put("0") }      // ..<n, ...n from 0 (#373)
@@ -17091,7 +17187,7 @@ let gen_stmt_of(n:int64, depth:int64) {
         if nodes[n].b >= 0 {
             gen_expr(nodes[n].b)
         } else {                                         // lo... up to its type's largest (#373)
-            put(range_max(nodes[n].a >= 0 ? type_of(nodes[n].a) : 0 - 1))
+            put(range_max(nodes[n].ty >= 0 ? nodes[n].ty : nodes[n].a >= 0 ? type_of(nodes[n].a) : 0 - 1))
         }
         if nodes[n].flag == 0 {
             put("; ")
@@ -17123,7 +17219,7 @@ let gen_stmt_of(n:int64, depth:int64) {
             put(")\n")
         }
         open_scope()
-        declare_each(nodes[n].t, base_type(Y_I64), 4)        // the range's count (#271)
+        declare_each(nodes[n].t, nodes[n].ty >= 0 ? nodes[n].ty : base_type(Y_I64), 4)   // the range's count (#271)
         indent(depth)
         gen_block(nodes[n].c, depth)
         close_scope()

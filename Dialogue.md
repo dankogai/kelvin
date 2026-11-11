@@ -9862,3 +9862,16 @@ loop and `s.codepoints` walk codepoints. Tests, kc's own source and the
 modules that meant codepoints say so. Details are provisional P534.
 
 There are 1281 tests, and all pass with clang and with gcc 15.
+
+### 570. kc's typed loops
+
+> go on with kc typed loops
+
+**Claude** asked: the user chose every loop kelvinc types (#480). kc now
+reads `for x:T in ...`: a range counts in T, an element is converted as
+T(v) is, a String walks its codepoints, but by grapheme where T is a
+String, and an iterator or an IO's lines and chunks take T only of what
+they give, with kelvinc's errors. sample.k walks with types written,
+and kc's build prints what kelvinc's does. Details are provisional P535.
+
+There are 1281 tests, and all pass with clang and with gcc 15.

@@ -2792,6 +2792,18 @@ let parse_statement():int64 {
             advance()
             second = advance()
         }
+        var written:int64 = 0 - 1
+        if at_word(":") {                       // for c:uchr in s, for i:u8 in 0..<n: a type written (#523), as kelvinc's #480
+            advance()
+            written = parse_type()
+        }
+        if !at_word("in") {
+            var m = $"expected 'in', as in 'for "
+            m += tok_text(v)
+            m += " in 0..<n { ... }', or 'for (...)'"
+            parse_error(m.cstr)
+            return make_node(S_BREAK, v)
+        }
         expect("in")
         let from:int64 = parse_cond()
         if !failed && nodes[from].kind == N_RANGE {      // for i in a..<b; a...b, a..., ..<b, ...b, flag as the range's (#373)
@@ -2799,12 +2811,14 @@ let parse_statement():int64 {
             nodes[n].a = nodes[from].a
             nodes[n].b = nodes[from].b
             nodes[n].flag = nodes[from].flag
+            nodes[n].ty = written
             range_values -= 1
             set_c(n, parse_block())
             return n
         }
         let n:int64 = make_node(S_EACH, v)
         nodes[n].a = from
+        nodes[n].ty = written
         if second >= 0 { nodes[n].b = make_node(N_ID, second) }   // for k, v in d (#269)
         set_c(n, parse_block())
         return n

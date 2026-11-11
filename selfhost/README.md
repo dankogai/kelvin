@@ -604,6 +604,18 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A type written in a loop** (#523), as kelvinc's #480: `for x:T in`
+  a range, a Range, a String, an Array, a fixed array, a cstr, a list, a
+  Dictionary, a Set, a Bits, an iterator, `f.lines` and `f.read(n)`.
+  - A range's count is of T, an integer, else kelvinc's error; `lo...`
+    goes up to T's largest.
+  - An element is converted as `T(v)` does: a uchr to its codepoint, an
+    integer to `uchr(v)`, a number to another; a float or a bool to a
+    uchr is kelvinc's error.
+  - A String walks its codepoints, but `for c:String in s` its
+    graphemes.
+  - An iterator, `f.lines` and `f.read(n)` give what they give, and T
+    is that, else kelvinc's error.
 - **Graphemes, a String's elements** (#522), as kelvinc's.
   - `for c in s` walks graphemes, each a String the loop frees;
     `for c in s.codepoints` walks codepoints, in place.
@@ -611,7 +623,6 @@ kc reads what it is written in, and little more.
     the runtime's kv_string_graphemes and its kin; `find` and RegExp's
     offsets are the runtime's.
   - A String compares with text, a uchr or a character, on either side.
-  - Not yet kc's: the typed loop, `for c:uchr in s`.
 - **`s.codepoints`** (#521), as kelvinc's: UnicodeData's `Array<uchr>`;
   `for c in s.codepoints` walks the String in place, with no Array made.
   - kc's own loops over a String's codepoints are written so, ready for

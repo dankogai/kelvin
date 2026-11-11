@@ -571,6 +571,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 520 | UnicodeData is the prelude's, as the user asked, in every program, as the user chose: kelvinc's with_prelude and kc's load_prelude bring UnicodeData.kh in, but into UnicodeData.k's own build; an implied import is not written into a module's header; `#import <UnicodeData>` is still read. The first of three numbers, as the user chose: #521 `s.codepoints`, #522 graphemes a String's elements | src/main.c's prelude_names, source_name; src/kelvin.h's Token.implied; src/parser.c's gen_header_of; selfhost/kc.k's load_prelude, read_already, real_of; documents/unicodedata.md, strings.md, modules.md, versusC.md, README.md; README.md; selfhost/README.md | `uchr("é").name` with no import | 2026-11-11 |
 | 521 | `s.codepoints`, as the user asked: a String's codepoints, an `Array<uchr>`, UnicodeData's, as the user chose; `for c in s.codepoints` walks the String in place, with no Array made, in kelvinc and kc; kc's own loops over a String's codepoints written so. The second of three, #522 graphemes next | modules/UnicodeData.k's codepoints; src/parser.c's parse_for_each_held; src/kelvin.h's Stmt.codepoints; selfhost/gen.k's gen_each; selfhost/gen.k, parse.k, kc.k and sample.k's loops; documents/strings.md, unicodedata.md; selfhost/README.md | `for c in s.codepoints { }` | 2026-11-11 |
 | 522 | A String's elements are its graphemes, as the user asked, each a String, as the user chose: `for c in s`, `s[i]`, new, the slices, `s.count`, `s.find` and `s.prefix` count them, O(n), as the user chose; a typed loop and `s.codepoints` walk codepoints; RegExp's offsets are of graphemes, as the user chose; `find` matches bytes, its index the grapheme's, as the user chose; `.prefix { }` takes each grapheme, as the user chose; a String compares with text, a uchr or a character, as the user chose; in kelvinc and kc. The third of three | runtime/unicode.c's kv_string_span, graphemes, slice, grapheme, prefix, grapheme_floor, grapheme_ceil, grapheme_byte, eq_cp, eq_uchr; modules/kelvin_prelude.h; runtime/string.k's find_bytes; modules/RegExp.k; src/parser.c, codegen.c; selfhost/gen.k; modules/JSON.k, SION.k; documents/strings.md, regexp.md, unicodedata.md, ownership.md, bytes.md, versusC.md; selfhost/README.md, sample.k | `for c in s { if c == ' ' { } }`, `s[i]` | 2026-11-11 |
+| 523 | kc's typed loops, as the user asked, every kind kelvinc types, as the user chose: `for x:T in` a range, of T, a Range, a String by codepoint, an Array, a fixed array, a cstr, a list, a Dictionary, a Set, a Bits, each element converted as T(v), and an iterator, `f.lines` and `f.read(n)`, of what they give; kelvinc's errors | selfhost/parse.k's for; selfhost/gen.k's S_FOR, gen_each, gen_iter_each, gen_read_each, gen_lines_each, range_type_wrong, each_type_wrong, each_types; selfhost/sample.k; selfhost/README.md | `for c:uchr in s` in kc | 2026-11-11 |
 
 Notes:
 
@@ -1155,6 +1156,22 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (523) Agreed details: "go on with kc typed loops"
+  - Asked, the user chose every loop kelvinc types (#480), not Strings
+    and ranges alone.
+  - kc's parser reads `for x:T in` and `for k, v:T in`, the type of x,
+    as kelvinc's; another word than `in` is kelvinc's error.
+  - A range, and a Range, count in T, which is an integer, else "a
+    range is of integers, not T"; `lo...` goes up to T's largest.
+  - The other walks declare the element under a name of kc's, `_kv_x`
+    and the node, then x of T: a uchr to its codepoint, `(v).cp`; an
+    integer to a uchr, KV_UCHR_OF(v); else C's conversion; a float or a
+    bool to a uchr is kelvinc's error.
+  - A String is walked by codepoint where T is no String, by grapheme
+    where it is, `for c:String in s` (#522).
+  - An iterator, a Sequence, `f.lines` and `f.read(n)` take T only of
+    what they give, else kelvinc's errors, word for word.
 
 - (522) Agreed details: "go on with #522"
   - As the user chose in #520's questions: a grapheme is a String; `for
@@ -8322,6 +8339,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P532 | Details of #520 | src/main.c: "UnicodeData" first of prelude_names, always but in its own build (source_name), the import implied, its header's comment; src/kelvin.h: Token.implied, each initializer's; src/parser.c: gen_header_of skips implied imports; selfhost/kc.k: load_prelude's UnicodeData.kh, read_already by real_of; tests/run/unicode_prelude.k; documents/unicodedata.md, strings.md, modules.md, versusC.md, documents/README.md; README.md; selfhost/README.md | provisional |
 | P533 | Details of #521 | modules/UnicodeData.k: String.codepoints; src/parser.c: parse_for_each_held's `.codepoints`; src/kelvin.h: Stmt.codepoints; selfhost/gen.k: gen_each's `.codepoints`; selfhost: 18 loops `for c in s.codepoints`; tests/run/string_codepoints.k; documents/strings.md, unicodedata.md; selfhost/README.md | provisional |
 | P534 | Details of #522 | runtime/unicode.c and modules/kelvin_prelude.h: the graphemes' functions; runtime/string.k: find_bytes by kv_string_grapheme_floor, typed loops; modules/RegExp.k: offsets by grapheme; src/parser.c: the loop's String element, s[i], prefix's element, String == text, uchr and character; src/codegen.c: the grapheme loop, count, slices, prefix, string_grapheme; selfhost/gen.k: the same, is_grapheme_index, gen_grapheme_index, gen_string_eq, codepoint_loops; selfhost: loops to `.codepoints`; sample.k's graphemes; tests/run/string_graphemes.k, string_compare_text.k, string_grapheme_range.k, regexp_graphemes.k; tests changed to `.codepoints`; tests/error/string_index.k | provisional |
+| P535 | Details of #523 | selfhost/parse.k: `:T` after the loop's names; selfhost/gen.k: S_FOR's counter of T, range_type_wrong, each_type_wrong, each_types by declare_each, gen_each's hidden element and x of T, the Range's counter, a String by codepoint, gen_iter_each, gen_read_each and gen_lines_each checked; selfhost/sample.k's typed loops; selfhost/README.md | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
