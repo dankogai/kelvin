@@ -104,7 +104,8 @@ version() {
     case $1 in
         kelvin) "$KELVINC" --version 2>/dev/null | head -1 ;;
         gmp)    echo "GMP $("$out/gmp" --version)" ;;
-        ruby)   "$RUBY" -v | head -1 ;;
+        ruby)   # a Ruby built with GMP multiplies, divides and converts by it (#519)
+                echo "$("$RUBY" -v | head -1), $("$RUBY" -e 'print defined?(Integer::GMP_VERSION) ? "with #{Integer::GMP_VERSION}" : "without GMP"')" ;;
         python) "$PYTHON" -V 2>&1 | head -1 ;;
         node)   echo "Node $("$NODE" -v)" ;;
     esac

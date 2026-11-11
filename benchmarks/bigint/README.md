@@ -35,6 +35,8 @@ sh benchmarks/bigint/run.sh
   - GMP its `mpz_` functions, `mpz_powm`, `mpz_gcd`, `mpz_sqrt`;
   - Python `pow(b, e, m)`, `math.gcd` and `math.isqrt`;
   - Ruby `Integer#pow(e, m)`, `Integer#gcd` and `Integer.sqrt`;
+    - a Ruby built with GMP does its big integers by GMP (#519), which
+      the Ruby row of the table says, `with GMP 6.3.0` or `without GMP`;
   - Kelvin `.pow(e, m)`, `.gcd(b)` and `.isqrt()`;
   - JS, which has none of the three, the textbook's: Euclid's, Newton's
     and square and multiply.
@@ -60,7 +62,7 @@ Bold is the fastest of a row; the others have their ratio to it.
 | C compiler | Apple clang version 21.0.0 (clang-2100.4.1.1) |
 | Kelvin | kelvinc 0.2.0, with #518 |
 | GMP | GMP 6.3.0 (MacPorts) |
-| Ruby | ruby 4.0.8 +PRISM (MacPorts, without GMP) |
+| Ruby | ruby 4.0.8 +PRISM (MacPorts), without GMP |
 | Python | Python 3.14.9 (MacPorts) |
 | Node | Node v24.21.0 (MacPorts) |
 | Date | 2026-11-11 |
@@ -100,9 +102,11 @@ Kelvin's own column, before and after #518:
 - **GMP is the champion,** the fastest in ten rows of eleven, 1.3× to
   6× ahead of Kelvin; gcd alone is Kelvin's, 1.2× ahead of `mpz_gcd`
   on numbers of this size.
-- **Kelvin is second to GMP in five rows,** Node in the other five, and
-  Kelvin beats Ruby and Python in every row, by 1.4× (gcd, against Python's Lehmer's) to 200×
-  (`2 ** 100_000`, against Python's squares).
+- **Kelvin is second to GMP in five rows,** Node in the other five.
+- **Kelvin beats Python in every row,** by 1.4× (gcd, against Python's
+  Lehmer's) to 200× (`2 ** 100_000`, against Python's squares).
+- **It beats Ruby without GMP in every row,** MacPorts' Ruby here; a
+  Ruby built with GMP is another matter (#519), below.
 - **It beats Node in six rows:** sum, fib, factorial, modular power,
   gcd and isqrt.
   - Node's V8 wins multiplication, division and the text both ways by
@@ -128,6 +132,28 @@ Kelvin's own column, before and after #518:
 - **What is left,** where GMP and V8 are ahead: Toom-Cook and FFT
   multiplication past Karatsuba, a division that multiplies
   (Burnikel-Ziegler), and assembly for the limb loops.
+
+## On GitHub's runners
+
+The Benchmark workflow's first run (#519), of #518's commit, on macOS
+(an Apple M1, virtual) and Ubuntu (an Intel Xeon 8370C, gcc 15.2):
+
+- **Their Ruby is built with GMP,** as ruby/setup-ruby's is: its big
+  integers are GMP's, with Ruby's own steps around them.
+  - It beats Kelvin at multiplication, division, modular power, isqrt,
+    and the text both ways, close to GMP itself.
+  - On macOS it is even ahead of GMP at division and modular power, by
+    5% to 9%, and 2.4× at decimal text.
+  - Kelvin beats it at sum, fib, factorial and `2 ** 100_000`, the
+    small steps and the power, where Ruby's own work outweighs GMP's.
+  - gcd is a tie on macOS, Ruby 151 µs, Kelvin 152, GMP 154; on Ubuntu
+    Kelvin is 1.4× behind GMP and 1.3× behind Ruby.
+- **Kelvin still beats Python in every row** on both, and Node in six
+  rows on macOS and ten on Ubuntu, all but `2 ** 100_000`.
+- **GMP, or Ruby with it, is the fastest in every row** but one on
+  Ubuntu, where Kelvin's factorial is ahead of GMP's by 2%, within the
+  noise.
+- Each job's whole table is in the run's summary.
 
 ## In CI
 

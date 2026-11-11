@@ -140,8 +140,10 @@ repeated to the left, kept as short as it can be; zero is no limbs.
   write.
 - **How fast:** `benchmarks/bigint` (#517) races it against GMP, Ruby,
   Python and Node, `sh benchmarks/bigint/run.sh`.
-  - Since #518 it is faster than Ruby and Python in every case, and
-    than Node in about half; GMP is 2× to 8× faster in most cases.
+  - Since #518 it is faster than Python in every case, than a Ruby
+    built without GMP in every case, and than Node in about half.
+  - GMP is 2× to 8× faster in most cases, and so is a Ruby built with
+    GMP in its arithmetic of large values (#519).
   - [Its README](../benchmarks/bigint/README.md) has the table.
 
 ## Properties and methods

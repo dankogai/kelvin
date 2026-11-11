@@ -9796,3 +9796,20 @@ fuzz against Python found `.hex` of a full top limb wrong since #509,
 fixed. Details are provisional P530.
 
 There are 1275 tests, and all pass with clang and with gcc 15.
+
+### 566. A Ruby with GMP
+
+> run the benchmark workflow
+>
+> go ahead with the Ruby GMP note
+
+**Claude** ran the Benchmark workflow, as the user asked, on #518's
+commit: both jobs passed. Their Ruby, ruby/setup-ruby's, does its big
+integers by GMP, and beat Kelvin at multiplication, division, modular
+power, isqrt and the text both ways; Kelvin still beat Python in every
+case. As the user asked, run.sh's Ruby row now says whether the Ruby
+has GMP, and the README and bigint.md say that Kelvin beats a Ruby
+without GMP, with the runners' results beside. Details are provisional
+P531.
+
+There are 1275 tests, and all pass with clang and with gcc 15.
