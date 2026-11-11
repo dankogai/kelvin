@@ -14,6 +14,7 @@ var locals:$[sym]          // the variables in scope, the innermost last
 var marks:$[int64]         // where each block's variables begin
 var serial:int64           // for the names kc makes
 var current:int64          // the function being written
+var param_arrays:Dictionary<int64, int64>    // a parameter's [T](N) as declared, its count with it, by the parameter (#524)
 var uses_io:bool           // #import <IO>, whose kOS.h has kv_sys_init
 var uses_sys:bool          // SYS.name read, or #import <OS>: main gives kv_sys_init its arguments, as kelvinc's (#302, #463)
 var os_imported:bool       // #import <OS> (#463)
@@ -5232,6 +5233,7 @@ let pointer_property(n:int64):int64 {
         gen_error(n, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a 'var p:u8^ := s'")
         return 0 - 1
     }
+    if k == Y_FIXED && step && (types[y].name == 0 - 2 || types[y].name == 0 - 4) { return 3 }   // a parameter's, a pointer, as kelvinc's (#524)
     if k == Y_FIXED {
         var m = $"'."
         m += tok_text(t)
@@ -10672,8 +10674,14 @@ let gen_expr_of(n:int64) {
         put_ctype(nodes[n].ty)
         put(")")
         gen_init(n, struct_of(nodes[n].ty))
+    } else if k == N_INIT && nodes[n].ty >= 0 && (is_number_kind(types[nodes[n].ty].kind) || types[nodes[n].ty].kind == Y_BOOL) && nodes[n].b >= 0 && nodes[nodes[n].b].next < 0 {
+        put("((")                                        // (int64){1}, a number's, as kelvinc's (#524)
+        put_ctype(nodes[n].ty)
+        put("){")
+        gen_expr(nodes[n].b)
+        put("})")
     } else if k == N_INIT && nodes[n].ty >= 0 {
-        gen_error(n, "kc reads (T){...} of a struct; not yet of another type")
+        gen_error(n, "kc reads (T){...} of a struct or a number; not yet of another type")
     } else if k == N_DESIG {                             // .name = v where kc sees no struct (#418)
         put(".")
         put_tok(nodes[n].t)
@@ -10911,7 +10919,7 @@ let type_text(y:int64):String {
 let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     let k:ykind = y >= 0 ? types[y].kind : Y_C
     if k == Y_C || k == Y_ARRAY || k == Y_DICT { return true }   // what only C sees; an Array and a Dictionary, as kelvinc
-    let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_FN   // a function's, a pointer in C (#428)
+    let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_FN || (k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4))   // a function's, a pointer in C (#428); a parameter's array (#524)
     if reference == colon { return true }
     var what = $"'"
     what += tok_text(t)
@@ -12093,7 +12101,8 @@ let gen_assign(n:int64) {
         return
     }
     let case_set = nodes[lhs].kind == N_FIELD && tagged_of(type_of(nodes[lhs].a)) >= 0   // v.c = [a, b], its _set (#360)
-    if types[y].kind == Y_FIXED && !case_set {           // C's, which kelvinc leaves to it (#354)
+    let moved_param = types[y].kind == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) && tok_is(t, ":=")   // xs := xs.next of a var parameter, a pointer (#524)
+    if types[y].kind == Y_FIXED && !case_set && !moved_param {   // C's, which kelvinc leaves to it (#354)
         gen_error(n, "an array is not assigned: assign its elements, a[i]")
         return
     }
@@ -16426,11 +16435,11 @@ let gen_each(n:int64, depth:int64) {
         gen_error(nodes[n].a, "an array of no count has no length to walk: walk 0..<n, and index it, q^[i]")
         return
     }
-    if types[y].kind == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) {   // a parameter's, where kelvinc's link fails (#357)
-        gen_error(nodes[n].a, "a parameter's array is a pointer, of no count: walk 0..<n, and index it, a[i]")
+    if types[y].kind == Y_FIXED && types[types[y].elem].kind == Y_FIXED {   // as kelvinc says it
+        gen_error(nodes[n].a, "for over an array of arrays: index it, as in 'for x in a[0]'")
         return
     }
-    if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR && types[types[y].elem].kind != Y_UCHR {
+    if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR && types[types[y].elem].kind != Y_UCHR && types[types[y].elem].kind != Y_STRUCT && types[types[y].elem].kind != Y_PTR {
         var m = $"kc walks a fixed array of numbers, bools, uchrs or text, to its count or a zero; not yet of "
         let ew:String = type_text(types[y].elem)
         m += &ew
@@ -16504,35 +16513,83 @@ let gen_each(n:int64, depth:int64) {
             put("].value;\n")
             declare_each(nodes[nodes[n].b].t, types[y].elem, 3)
         }
-    } else if types[y].kind == Y_FIXED {               // as kelvinc's #30: each element to its count, a zero the terminator (#354)
+    } else if types[y].kind == Y_FIXED || (types[y].kind == Y_PTR && !list_walked(y) && types[types[y].elem].kind != Y_STRUCT && types[types[y].elem].kind != Y_C) {
+        // as kelvinc's #30 (#354, #524): the array or the pointer read once,
+        // into _kv_a; each element to the count, an array's or a let
+        // parameter's as declared, a zero the terminator but of structs; a
+        // pointer and a var parameter, which may have moved, up to a 0
+        let ey:int64 = types[y].elem
+        let param = types[y].kind == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4)
+        var declared:int64 = 0 - 1                       // a let parameter's [T](N), its count N
+        if param && nodes[nodes[n].a].kind == N_ID {
+            var p:int64 = nodes[current].a
+            while p >= 0 {
+                if same_text(nodes[p].t, nodes[nodes[n].a].t) && nodes[p].flag == 1 { declared = param_arrays.get(p, -1) }
+                p = nodes[p].next
+            }
+        }
+        let counted = types[y].kind == Y_FIXED && !param
+        let records = types[ey].kind == Y_STRUCT
+        put("__auto_type _kv_a")
+        put_int(serial)
+        put(counted ? " = &(" : " = (")
+        gen_expr(nodes[n].a)
+        put(");\n")
+        indent(depth + 1)
         put("for (size_t _kv_i")
         put_int(serial)
-        put(" = 0; _kv_i")
-        put_int(serial)
-        put(" < sizeof(")
-        gen_expr(nodes[n].a)
-        put(") / sizeof((")
-        gen_expr(nodes[n].a)
-        put(")[0]) && (")
-        gen_expr(nodes[n].a)
-        put(")[_kv_i")
-        put_int(serial)
-        put(types[types[y].elem].kind == Y_UCHR ? "].cp != 0; _kv_i" : "] != 0; _kv_i")   // a uchr's zero, U+0000 (#480)
+        put(" = 0; ")
+        var at = $"_kv_a"
+        at += String(serial)
+        if counted {
+            put("_kv_i")
+            put_int(serial)
+            put(" < sizeof(*")
+            put(at.cstr)
+            put(") / sizeof((*")
+            put(at.cstr)
+            put(")[0])")
+            at = $"(*_kv_a"
+            at += String(serial)
+            at += ")"
+        } else if declared >= 0 && types[declared].name >= 0 {   // its count, a number
+            put("_kv_i")
+            put_int(serial)
+            put(" < (size_t)")
+            put_int(types[declared].name)
+        } else if declared >= 0 && types[declared].name <= 0 - 10 {   // its count, an expression (#366)
+            put("_kv_i")
+            put_int(serial)
+            put(" < (size_t)(")
+            gen_expr(0 - 10 - types[declared].name)
+            put(")")
+        } else {
+            put(at.cstr)
+            put(" != 0")
+        }
+        if !records {
+            put(" && ")
+            put(at.cstr)
+            put("[_kv_i")
+            put_int(serial)
+            put(types[ey].kind == Y_UCHR ? "].cp != 0" : "] != 0")   // a uchr's zero, U+0000 (#480)
+        }
+        put("; _kv_i")
         put_int(serial)
         put("++)\n")
         indent(depth + 1)
         put("{\n")
         indent(depth + 2)
-        put_ctype(types[y].elem)
+        put_ctype(ey)
         put(" ")
         put_tok(nodes[n].t)
-        put(" = (")
-        gen_expr(nodes[n].a)
-        put(")[_kv_i")
+        put(" = ")
+        put(at.cstr)
+        put("[_kv_i")
         put_int(serial)
         put("];\n")
         open_scope()
-        declare_each(nodes[n].t, types[y].elem, 3)
+        declare_each(nodes[n].t, ey, 3)
     } else if types[y].kind == Y_STRING {
         put("const uint8_t *_kv_p")
         put_int(serial)
@@ -16715,9 +16772,8 @@ let gen_each(n:int64, depth:int64) {
             return
         }
         indent(depth + 2)
-        put("const ")
         put_ctype(written)
-        put(" ")
+        put(" const ")                                  // a node^'s pointer itself, not what it points to
         put_tok(user)
         put(" = ")
         if wk == Y_UCHR && ek != Y_UCHR {
@@ -17261,6 +17317,19 @@ let is_main(d:int64):bool {
     return tok_is(nodes[d].t, "main") && nodes[d].c < 0
 }
 
+// main's argv written u8^^, which C has char ** (#524), as kelvinc's: its
+// parameter, or -1
+let argv_bytes(d:int64):int64 {
+    if !is_main(d) || nodes[d].a < 0 { return 0 - 1 }
+    let p:int64 = nodes[nodes[d].a].next
+    if p < 0 { return 0 - 1 }
+    let y:int64 = nodes[p].ty
+    if y < 0 || types[y].kind != Y_PTR { return 0 - 1 }
+    let e:int64 = types[y].elem
+    if types[e].kind != Y_PTR || types[types[e].elem].kind != Y_U8 { return 0 - 1 }
+    return p
+}
+
 let gen_signature(d:int64) {
     if is_inline(d) { put("static inline ") }          // (#392)
     if static_decls.contains(d) && !is_inline(d) { put("static ") }   // C's (#459)
@@ -17286,11 +17355,15 @@ let gen_signature(d:int64) {
     if p < 0 && !takes_self { put(is_main(d) && nodes[d].b >= 0 ? "int _kv_argc, char **_kv_argv" : "void") }   // main's, as kelvinc writes it (#463)
     while p >= 0 {
         if p != nodes[d].a || takes_self { put(", ") }
-        put_ctype(nodes[p].ty)
+        if p == argv_bytes(d) { put("char **") } else { put_ctype(nodes[p].ty) }
         if nodes[p].flag == 3 {                         // an Iterator's state itself, by its address (#326)
             put(" *")
             put_tok(nodes[p].t)
             put("_ref")
+        } else if p == argv_bytes(d) {                  // char **, as C's main takes it, a u8^^ by the name (#524)
+            put(" _kv_")
+            put_tok(nodes[p].t)
+            put("_c")
         } else {
             put(" ")
             let taken = is_owner(nodes[p].ty) && !lent_param(d, p)   // an operand lent is its caller's (#501)
@@ -17565,6 +17638,14 @@ let gen_function(d:int64) {
     }
     implicit_return(d)                                   // which sees the parameters, as await t asks t's type (#313)
     if failed { return }
+    let argv_p = argv_bytes(d)
+    if argv_p >= 0 {                                    // main's u8^^ argv, a char ** in C (#524)
+        put("#define ")
+        put_tok(nodes[argv_p].t)
+        put(" ((uint8_t **)_kv_")
+        put_tok(nodes[argv_p].t)
+        put("_c)\n")
+    }
     gen_signature(d)
     put("\n")
     let var_method = nodes[d].c >= 0 && (nodes[d].flag == 2 || nodes[d].flag == 3)
@@ -17625,6 +17706,11 @@ let gen_function(d:int64) {
         gen_block(nodes[d].b, 0)
     }
     if var_method { put("#undef self\n") }
+    if argv_p >= 0 {
+        put("#undef ")
+        put_tok(nodes[argv_p].t)
+        put("\n")
+    }
     rp = nodes[d].a
     while rp >= 0 {
         if nodes[rp].flag == 3 {
@@ -18224,6 +18310,7 @@ let fixed_params() {
             while p >= 0 {
                 let y:int64 = nodes[p].ty
                 if y >= 0 && types[y].kind == Y_FIXED {
+                    param_arrays[p] = y
                     set_ty(p, type_of_kind(Y_FIXED, types[y].elem, types[y].name == 0 - 3 || types[y].konst == 1 ? 0 - 4 : 0 - 2))   // [const T](N) too (#425)
                 }
                 p = nodes[p].next

@@ -572,6 +572,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 521 | `s.codepoints`, as the user asked: a String's codepoints, an `Array<uchr>`, UnicodeData's, as the user chose; `for c in s.codepoints` walks the String in place, with no Array made, in kelvinc and kc; kc's own loops over a String's codepoints written so. The second of three, #522 graphemes next | modules/UnicodeData.k's codepoints; src/parser.c's parse_for_each_held; src/kelvin.h's Stmt.codepoints; selfhost/gen.k's gen_each; selfhost/gen.k, parse.k, kc.k and sample.k's loops; documents/strings.md, unicodedata.md; selfhost/README.md | `for c in s.codepoints { }` | 2026-11-11 |
 | 522 | A String's elements are its graphemes, as the user asked, each a String, as the user chose: `for c in s`, `s[i]`, new, the slices, `s.count`, `s.find` and `s.prefix` count them, O(n), as the user chose; a typed loop and `s.codepoints` walk codepoints; RegExp's offsets are of graphemes, as the user chose; `find` matches bytes, its index the grapheme's, as the user chose; `.prefix { }` takes each grapheme, as the user chose; a String compares with text, a uchr or a character, as the user chose; in kelvinc and kc. The third of three | runtime/unicode.c's kv_string_span, graphemes, slice, grapheme, prefix, grapheme_floor, grapheme_ceil, grapheme_byte, eq_cp, eq_uchr; modules/kelvin_prelude.h; runtime/string.k's find_bytes; modules/RegExp.k; src/parser.c, codegen.c; selfhost/gen.k; modules/JSON.k, SION.k; documents/strings.md, regexp.md, unicodedata.md, ownership.md, bytes.md, versusC.md; selfhost/README.md, sample.k | `for c in s { if c == ' ' { } }`, `s[i]` | 2026-11-11 |
 | 523 | kc's typed loops, as the user asked, every kind kelvinc types, as the user chose: `for x:T in` a range, of T, a Range, a String by codepoint, an Array, a fixed array, a cstr, a list, a Dictionary, a Set, a Bits, each element converted as T(v), and an iterator, `f.lines` and `f.read(n)`, of what they give; kelvinc's errors | selfhost/parse.k's for; selfhost/gen.k's S_FOR, gen_each, gen_iter_each, gen_read_each, gen_lines_each, range_type_wrong, each_type_wrong, each_types; selfhost/sample.k; selfhost/README.md | `for c:uchr in s` in kc | 2026-11-11 |
+| 524 | kc's `for x in s` at the edges for_each_edge.k shows, as the user asked, as kelvinc's #30: a fixed array read once, to its count or a zero, of structs whole; a let parameter's array to its declared count, a var one as a pointer, `xs := xs.next`; a pointer up to a 0 or nowhere, main's `u8^^` argv; `(int64){1}` | selfhost/parse.k's literal_ahead; selfhost/gen.k's gen_each, param_arrays, fixed_params, pointer_property, assigns_as, gen_assign, argv_bytes, gen_signature, gen_function, N_INIT of a number; selfhost/sample.k; selfhost/README.md | `for _ in argv` in kc | 2026-11-11 |
 
 Notes:
 
@@ -1156,6 +1157,24 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (524) Agreed details: "go on with kc for_each_edge gaps"
+  - kc reads tests/run/for_each_edge.k as kelvinc does; with it
+    uchr_walk.k and main_args.k.
+  - A fixed array's walk takes its address once, `__auto_type _kv_a =
+    &(s)`, so that a call in it is made once, and its count by sizeof;
+    a zero ends it, but of structs, which are walked whole, as
+    kelvinc's EACH_RECORDS.
+  - A parameter's array keeps its type as declared, param_arrays: a let
+    one is walked to that count, a number or an expression; a var one,
+    which may have moved, as a pointer; `:=` and `.next` of one, a
+    pointer in C, as kelvinc's.
+  - A pointer to numbers or pointers is walked up to a 0 or nowhere,
+    where kc had refused it; one to a struct is a list, or the error.
+  - main's argv written `u8^^` is C's `char **`, the name defined to
+    it as a `uint8_t **` around main, as kc defines self (#320).
+  - `(int64){1}`: a number's compound literal, also in a for's head,
+    where its `{` had ended the condition.
 
 - (523) Agreed details: "go on with kc typed loops"
   - Asked, the user chose every loop kelvinc types (#480), not Strings
@@ -8340,6 +8359,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P533 | Details of #521 | modules/UnicodeData.k: String.codepoints; src/parser.c: parse_for_each_held's `.codepoints`; src/kelvin.h: Stmt.codepoints; selfhost/gen.k: gen_each's `.codepoints`; selfhost: 18 loops `for c in s.codepoints`; tests/run/string_codepoints.k; documents/strings.md, unicodedata.md; selfhost/README.md | provisional |
 | P534 | Details of #522 | runtime/unicode.c and modules/kelvin_prelude.h: the graphemes' functions; runtime/string.k: find_bytes by kv_string_grapheme_floor, typed loops; modules/RegExp.k: offsets by grapheme; src/parser.c: the loop's String element, s[i], prefix's element, String == text, uchr and character; src/codegen.c: the grapheme loop, count, slices, prefix, string_grapheme; selfhost/gen.k: the same, is_grapheme_index, gen_grapheme_index, gen_string_eq, codepoint_loops; selfhost: loops to `.codepoints`; sample.k's graphemes; tests/run/string_graphemes.k, string_compare_text.k, string_grapheme_range.k, regexp_graphemes.k; tests changed to `.codepoints`; tests/error/string_index.k | provisional |
 | P535 | Details of #523 | selfhost/parse.k: `:T` after the loop's names; selfhost/gen.k: S_FOR's counter of T, range_type_wrong, each_type_wrong, each_types by declare_each, gen_each's hidden element and x of T, the Range's counter, a String by codepoint, gen_iter_each, gen_read_each and gen_lines_each checked; selfhost/sample.k's typed loops; selfhost/README.md | provisional |
+| P536 | Details of #524 | selfhost/parse.k: literal_ahead of a number's type; selfhost/gen.k: gen_each's walk of a fixed array, a parameter's array and a pointer, param_arrays, pointer_property of a parameter's array, assigns_as and gen_assign of `:=`, argv_bytes with gen_signature's and gen_function's `#define`, a number's N_INIT; selfhost/sample.k's fe_ walks; selfhost/README.md | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

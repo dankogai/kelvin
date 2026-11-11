@@ -9875,3 +9875,17 @@ they give, with kelvinc's errors. sample.k walks with types written,
 and kc's build prints what kelvinc's does. Details are provisional P535.
 
 There are 1281 tests, and all pass with clang and with gcc 15.
+
+### 571. kc at the edges of for
+
+> go on with kc for_each_edge gaps
+
+**Claude** made kc read tests/run/for_each_edge.k as kelvinc does: a
+fixed array is read once and walked to its count or a zero, of structs
+whole; a let parameter's array to its declared count, a var one as a
+pointer that `xs := xs.next` moves; a pointer up to a 0 or nowhere,
+main's `u8^^` argv as C's `char **`; and `(int64){1}` in a range's
+head. kc's build passes 260 of the tests, where it passed 257. Details
+are provisional P536.
+
+There are 1281 tests, and all pass with clang and with gcc 15.

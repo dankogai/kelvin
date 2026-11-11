@@ -1381,7 +1381,22 @@ on a new line`
     let ty_r = 1..<4
     for ty_j:i32 in ty_r { ty_sum += ty_j as u64 }
     println(ty_sum, " ", ty_t)
+    var fe_five:[int32](5) = [1, 2, 3, 4, 99]          // a parameter's array to its count, a pointer to a 0 (#524)
+    var fe_n = 0
+    for fe_x in ([int32](3))[5, 6, 0] { fe_n += fe_x }
+    for fe_i in (int64){2}..<4 { fe_n += fe_i as i32 }
+    var fe_ended:[int32](4) = [7, 8, 0, 9]
+    let fe_p:int32^ := &fe_ended[0]
+    for fe_y in fe_p { fe_n += fe_y }
+    println(fe_sum4(fe_five), " ", fe_n)
     return 0
+}
+
+// a let parameter's array, walked up to its count, its fifth left (#524)
+let fe_sum4(xs:[int32](4)):int64 {
+    var t:int64 = 0
+    for x in xs { t += x as int64 }
+    return t
 }
 // a JSON.stringify replacer: numbers doubled, the name left out (#516)
 let js_doubled(key:cstr, v:const JSON^):JSON? {

@@ -604,6 +604,18 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **The edges of `for x in s`** (#524), as kelvinc's #30, tests/run's
+  for_each_edge.k:
+  - A fixed array is read once, by its address, so `for x in m[row()]`
+    calls `row` once, and walked to its count, a zero the terminator but
+    of structs, which are walked whole.
+  - A let parameter's array is walked to its declared count, a number
+    or an expression; a var one, which may have moved, `xs :=
+    xs.next`, as a pointer, up to a 0.
+  - A pointer to numbers or pointers is walked up to a 0 or nowhere:
+    main's `argv`, written `u8^^`, which C has `char **`, as kelvinc
+    writes it.
+  - `(int64){1}`, a number's compound literal, in a range's head too.
 - **A type written in a loop** (#523), as kelvinc's #480: `for x:T in`
   a range, a Range, a String, an Array, a fixed array, a cstr, a list, a
   Dictionary, a Set, a Bits, an iterator, `f.lines` and `f.read(n)`.

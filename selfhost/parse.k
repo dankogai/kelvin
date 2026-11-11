@@ -585,6 +585,7 @@ let literal_ahead():bool {
         return false
     }
     if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
+    if at_word("(") && (number_word(pos + 1) >= 0 || tok_is(pos + 1, "bool") || tok_is(pos + 1, "uchr")) && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") { return true }   // (int64){1}, a number's, as kelvinc's (#524)
     if at_word("(") && tagged_word(pos + 1) && tok_is(pos + 3, ")") && tok_is(pos + 4, "{") { return true }   // (struct T){...} (#453)
     let e:int64 = value_type_end()
     return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || dollar_named(pos + 1) || written_type(pos + 1) != 0 - 2)
