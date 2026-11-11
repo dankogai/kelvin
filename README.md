@@ -363,8 +363,8 @@ So far the changes from C are these, by topic.
 - `UnicodeData`, the prelude's, in every program (#520), is the Unicode
   Character Database:
   `s.normalize(nfc)`, `s.graphemes`, the clusters a reader sees as
-  characters, `s.upper()`, `s.fold()`, `uchr("é").name` and
-  `.category` (#156)
+  characters, `s.upper()`, `s.fold()`, and a codepoint's `.name` and `.category`,
+  of a `u32` (#156, #527): `$"é".codepoints[0].name`
   - `String.fromCodepoints(0x48, 0x69)` and `grapheme(0x65, 0x301)`,
     the first grapheme alone, make a String of codepoints, in a
     `Result<String, CodepointError>` (#526)

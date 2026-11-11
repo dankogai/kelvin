@@ -116,7 +116,7 @@ let put_c_word(r:String^, w:const String^, wide:bool) {
     var first = true
     var digit = false
     for c in w^.codepoints {
-        if first { digit = c.utf32 >= '0' && c.utf32 <= '9' }
+        if first { digit = c >= '0' && c <= '9' }
         first = false
     }
     if !wide || digit {
@@ -125,7 +125,7 @@ let put_c_word(r:String^, w:const String^, wide:bool) {
     }
     r^ += "_kv_u"
     for c in w^.codepoints {
-        let v:uint32 = c.utf32
+        let v:uint32 = c
         if (v >= 'a' && v <= 'z') || (v >= 'A' && v <= 'Z') || (v >= '0' && v <= '9') {
             r^ += c
         } else {
@@ -148,7 +148,7 @@ let ascii_names(s:const String^):String {
     var prev:uint32 = 10
     var directive = $""
     for c in s^.codepoints {
-        let v:uint32 = c.utf32
+        let v:uint32 = c
         if mode == 0 && c_name_char(v) {
             w += c
             wide = wide || v >= 128
@@ -1136,17 +1136,18 @@ let method_of(n:int64):int64 {
 }
 
 var tied_cands:$[int64]                  // the overloads a call fits alike (#471)
-var builtin_recvs:Dictionary<String, int64>   // String, Bytes and uchr as a receiver's name, a token of each (#515)
+var builtin_recvs:Dictionary<String, int64>   // String, Bytes, uchr and u32 as a receiver's name, a token of each (#515, #527)
 
 // the token that names y's type as the receiver of its methods: a
-// struct's name, and String, Bytes or uchr, which a module extends (#515);
+// struct's name, and String, Bytes or uchr, which a module extends (#515),
+// and u32, which UnicodeData extends with a codepoint's properties (#527);
 // else -1
 let recv_tok(y:int64):int64 {
     if y < 0 { return -1 }
     let k = types[y].kind
     if k == Y_STRUCT { return types[y].name }
-    if k != Y_STRING && k != Y_BYTES && k != Y_UCHR { return -1 }
-    var w:String = k == Y_STRING ? $"String" : k == Y_BYTES ? $"Bytes" : $"uchr"
+    if k != Y_STRING && k != Y_BYTES && k != Y_UCHR && k != Y_U32 { return -1 }
+    var w:String = k == Y_STRING ? $"String" : k == Y_BYTES ? $"Bytes" : k == Y_U32 ? $"u32" : $"uchr"
     let had:int64 = builtin_recvs.get(w, 0 - 1)
     if had >= 0 { return had }
     let t:int64 = made_token(&w)
@@ -1165,6 +1166,7 @@ let recv_type(recv:int64):int64 {
     if tok_is(recv, "String") { return base_type(Y_STRING) }
     if tok_is(recv, "Bytes") { return base_type(Y_BYTES) }
     if tok_is(recv, "uchr") { return base_type(Y_UCHR) }
+    if number_word(recv) >= 0 { return number_word(recv) }   // extend u32, a codepoint's (#527)
     return type_of_kind(Y_STRUCT, -1, recv)
 }
 var method_names_of:Dictionary<int64, int64>   // a method of several by its parameters' types: the token of its name as written (#515)
@@ -2735,7 +2737,7 @@ let mangled_text(text:const String^):String {
     var s = $""
     var last:uint32 = 0
     for c in text^.codepoints {
-        let u:uint32 = c.utf32
+        let u:uint32 = c
         if is_alpha(u) || is_digit(u) {
             s += c
         } else if u == '^' {
@@ -4806,12 +4808,12 @@ let os_member(n:int64):String {
         let all:String = String(os_spec())
         var entry = $""
         for c in all.codepoints {
-            if c.utf32 == ';' {
+            if c == ';' {
                 var name = $""
                 var rest = $""
                 var at_rest = false
                 for e in entry.codepoints {
-                    if !at_rest && e.utf32 == ' ' {
+                    if !at_rest && e == ' ' {
                         at_rest = true
                     } else if at_rest {
                         rest += e
@@ -4847,7 +4849,7 @@ let os_gives(m:const String^):String {
     var seen = false
     for c in m^.codepoints {
         if seen { g += c }
-        if c.utf32 == ' ' { seen = true }
+        if c == ' ' { seen = true }
     }
     return g
 }
@@ -4856,7 +4858,7 @@ let os_gives(m:const String^):String {
 let os_args(m:const String^):String {
     var a = $""
     for c in m^.codepoints {
-        if c.utf32 == ' ' { break }
+        if c == ' ' { break }
         a += c
     }
     return a
@@ -4981,10 +4983,10 @@ let os_struct(g:const String^):int64 {
     spaced += &spec
     spaced += ","
     for c in spaced.codepoints {
-        if c.utf32 == ':' {
+        if c == ':' {
             name = word.copy()
             word = $""
-        } else if c.utf32 == ',' {
+        } else if c == ',' {
             let m = make_node(S_VAR, made_token(&name))
             let y:int64 = word == $"i64" ? base_type(Y_I64) : word == $"i32" ? base_type(Y_I32) : word == $"f64" ? base_type(Y_F64) : word == $"bool" ? base_type(Y_BOOL) : word == $"IO" ? base_type(Y_IO) : base_type(Y_STRING)
             set_ty(m, y)
@@ -4995,7 +4997,7 @@ let os_struct(g:const String^):int64 {
             if last < 0 { nodes[d].a = m } else { nodes[last].next = m }
             last = m
             word = $""
-        } else if c.utf32 != ' ' {
+        } else if c != ' ' {
             word += c
         }
     }
@@ -10230,8 +10232,8 @@ let gen_typename(n:int64) {
     put("\"")
     var after_q = false
     for c in w.codepoints {
-        if c.utf32 == '?' && after_q { put("\\") }
-        after_q = c.utf32 == '?'
+        if c == '?' && after_q { put("\\") }
+        after_q = c == '?'
         out += c
     }
     put("\"")
@@ -16702,7 +16704,15 @@ let gen_each(n:int64, depth:int64) {
         indent(depth + 1)
         put("{\n")
         indent(depth + 2)
-        if codepoint_loops.has(n) {
+        if codepoint_loops.has(n) && written < 0 {      // for c in s.codepoints: each a u32, as kelvinc's (#527)
+            put("const uint32_t ")
+            put_tok(nodes[n].t)
+            put(" = kv_utf8_next(&_kv_p")
+            put_int(serial)
+            put(");\n")
+            open_scope()
+            declare_each(nodes[n].t, base_type(Y_U32), 3)
+        } else if codepoint_loops.has(n) {
             put("const kv_uchr ")
             put_tok(nodes[n].t)
             put(" = (kv_uchr){kv_utf8_next(&_kv_p")

@@ -11,8 +11,8 @@ let main():int32 {
     var gs = s.graphemes                     // é, a space, ﬁ, a space, the family
     for g in gs { println(g) }
     var up = s.upper()
-    var name = uchr("é").name
-    println(gs.count, " ", c.count, " ", up, " ", name, " ", uchr("é").category)
+    var e = $"é".codepoints[0]               // 0xE9, a u32
+    println(gs.count, " ", c.count, " ", up, " ", e.name, " ", e.category)
     return 0
 }
 ```
@@ -57,8 +57,10 @@ codepoints, after Python's `unicodedata`.
     whole. An Array an expression gives is held until the expression is
     done, `s.graphemes.count`, `for g in s.graphemes { }` (#187).
 - **`s.codepoints`** (#521) is the String's codepoints, an
-  `Array<uchr>`, which `for c in s.codepoints` walks in place:
-  [strings.md](strings.md).
+  `Array<u32>` (#527), which `for c in s.codepoints` walks in place,
+  each a `u32`: [strings.md](strings.md).
+  - `s.codepoints[0]` is the first codepoint of text, with the
+    properties below.
 - **`s.upper()`, `s.lower()` and `s.fold()`** map each codepoint by the
   simple case mappings, one codepoint to one, a new String: `ß` stays
   `ß` and `ﬁ` stays `ﬁ`, since their upper case is longer.
@@ -101,19 +103,33 @@ String.fromCodepoints(cs)                // of an Array<u32> too
 
 ### A codepoint: `name`, `category` and the rest
 
-| On a `uchr` | Gives |
+A codepoint is a `u32` (#527), as `s.codepoints` gives it, and these are its properties, of `extend u32`:
+
+<!-- fragment -->
+```swift
+let e = $"é".codepoints[0]               // 0xE9
+e.name                                   // LATIN SMALL LETTER E WITH ACUTE
+(0x4E2D as u32).name                     // CJK UNIFIED IDEOGRAPH-4E2D
+var s = $""
+s += e.upper                             // É: a String's += takes a codepoint
+```
+
+| On a `u32` | Gives |
 |---|---|
 | `.name` | its name, a String: `LATIN SMALL LETTER E WITH ACUTE`; Hangul syllables and the CJK, Tangut, Nushu and Khitan ideographs by their rules; `""` where there is none |
 | `.category` | the general category, a `cstr`: `Lu`, `Ll`, `Nd`, `Zs`, `So`, ... |
 | `.isLetter`, `.isMark`, `.isNumber`, `.isPunctuation`, `.isSymbol`, `.isSpace` | the category's first letter, L, M, N, P, S or Z |
 | `.combining` | the canonical combining class, an `int64`: 0 for a starter, 230 for an acute |
-| `.upper`, `.lower`, `.fold` | the simple case mapping, a `uchr`; itself where there is none |
+| `.upper`, `.lower`, `.fold` | the simple case mapping, a `u32`; itself where there is none |
 | `.decomposition` | the canonical decomposition, a String: `é` gives `e` and the acute; `""` where there is none |
 | `.compatibility` | the decomposition with the compatibility mappings: `ﬁ` gives `fi` |
 | `.script` | the Script, a `cstr` by its long name: `Latin`, `Han`, `Common`, `Unknown` (#157) |
 | `.hasProperty("Alphabetic")` | a binary property by its name or its alias, the ones JS's `\p{...}` has: `White_Space`, `Emoji`, `Alpha`; false for a name there is none of (#157) |
 
-- The prelude's `uchr` has `.utf32`, its number, which these look up.
+- Only a `u32` has them: an integer of another type, a literal too, is
+  converted first, `(0xE9 as u32).name`, `(c as u32).isLetter`.
+- A surrogate has no name, `""`, and the category `Cs`; a number past
+  U+10FFFF none, `""` and `Cn`, and its case is itself.
 
 ### Notes
 

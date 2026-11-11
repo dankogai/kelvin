@@ -385,7 +385,7 @@ let make_node(kind:nkind, t:int64):int64 {
 let made_token(s:String^):int64 {
     let at = codes.count as int64
     for c in s^.codepoints {
-        codes += c.utf32
+        codes += c
     }
     let t:tok = {T_ID, at, codes.count as int64 - at, 0, 0}
     toks += t
@@ -3048,7 +3048,7 @@ var attribute_names:Dictionary<String, bool>   // the names any attribute has
 let in_kh(t:int64):bool {
     let name:String = fnames[toks[t].file].copy()
     var cs:$[uint32] = $[]
-    for c in name.codepoints { cs += c.utf32 }
+    for c in name.codepoints { cs += c }
     let n = cs.count as int64
     return n > 3 && cs[n - 3] == '.' && cs[n - 2] == 'k' && cs[n - 1] == 'h'
 }

@@ -68,7 +68,7 @@ let tok_text(t:int64):String {
     var s = $""
     let at:int64 = toks[t].at
     for i in 0..<toks[t].len {
-        s += codes[at + i].uchr
+        s += codes[at + i]
     }
     return s
 }
@@ -99,7 +99,7 @@ let hex4(c:uint32):String {
     while p > 4096 && c / p == 0 { p = p / 16 }
     var s = $""
     while p > 0 {
-        s += digits[(c / p) % 16].uchr
+        s += digits[(c / p) % 16]
         p = p / 16
     }
     return s
@@ -145,7 +145,7 @@ let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
     }
     if base == 10 && e - s > 1 && codes[s] == '0' {
         var m = $"'"
-        for q in s..<e { m += codes[q].uchr }
+        for q in s..<e { m += codes[q] }
         m += "n': a BigInt literal is decimal, 0x hex or 0b binary, with no leading 0: C's octal is none of them"
         lex_error(file, line, m.cstr)
         return true
@@ -451,10 +451,10 @@ let lex_range(from:int64, to:int64, file:int64) {
             let wide8 = i - s == 2 && codes[s] == 'u' && codes[s + 1] == '8'
             if (q == '"' || q == '\'') && (one || wide8) {       // C's prefix, as kelvinc refuses it (#295, #298)
                 var m = $""
-                for k in s..<i { m += codes[k].uchr }
-                m += q.uchr
+                for k in s..<i { m += codes[k] }
+                m += q
                 m += "..."
-                m += q.uchr
+                m += q
                 m += " is C's prefixed literal: a Kelvin source is UTF-8, and a literal's one prefix is $, a String's, $\"...\" (#295)"
                 lex_error(file, line, m.cstr)
             }
@@ -543,7 +543,7 @@ let lex_range(from:int64, to:int64, file:int64) {
             add_tok(T_IMPORT, a, b - a, line, file)
         } else if c >= 128 {                             // as kelvinc says it (#385)
             var m = $"'"
-            m += c.uchr
+            m += c
             m += "' (U+"
             let h:String = hex4(c)
             m += &h

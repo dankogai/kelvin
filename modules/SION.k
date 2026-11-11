@@ -57,7 +57,9 @@ extend SION {
         if r^.i >= r^.count { return Self.error($`${what}: unexpected end of text at ${r^.i}`) }
         let c = r^.at[r^.i]
         if c < 0x20 || c >= 0x7F { return Self.error($`${what}: unexpected byte ${c} at ${r^.i}`) }
-        return Self.error($`${what}: unexpected '${c.uchr}' at ${r^.i}`)
+        var shown = $""                            // the byte as its character (#527)
+        shown += c
+        return Self.error($`${what}: unexpected '${shown}' at ${r^.i}`)
     }
 
     static let word(var r:SIONReader^, word:cstr):bool {
@@ -507,8 +509,7 @@ extend SION {
     static let quote(s:const String^, var out:String^):() {
         let hex := "0123456789abcdef"
         out^ += "\""
-        for c in s^.codepoints {
-            let n = c.codepoint
+        for n in s^.codepoints {                 // each a u32 (#527)
             if n == 0x22 {
                 out^ += "\\\""
             } else if n == 0x5C {
@@ -527,7 +528,7 @@ extend SION {
                 out^ += hex[(n & 15) as i64]
                 out^ += "}"
             } else {
-                out^ += c
+                out^ += n
             }
         }
         out^ += "\""

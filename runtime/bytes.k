@@ -13,22 +13,22 @@ let kv_bytes_base64(b:const Bytes^, url:bool, pad:bool):String {
     var i:int64 = 0
     while i + 2 < n {
         let v:u32 = ((b^[i] as u32) << 16) | ((b^[i + 1] as u32) << 8) | (b^[i + 2] as u32)
-        out += (letters[v >> 18] as u32).uchr
-        out += (letters[(v >> 12) & 63] as u32).uchr
-        out += (letters[(v >> 6) & 63] as u32).uchr
-        out += (letters[v & 63] as u32).uchr
+        out += letters[v >> 18] as u32
+        out += letters[(v >> 12) & 63] as u32
+        out += letters[(v >> 6) & 63] as u32
+        out += letters[v & 63] as u32
         i += 3
     }
     if i + 1 == n {
         let v:u32 = (b^[i] as u32) << 16
-        out += (letters[v >> 18] as u32).uchr
-        out += (letters[(v >> 12) & 63] as u32).uchr
+        out += letters[v >> 18] as u32
+        out += letters[(v >> 12) & 63] as u32
         if pad { out += "==" }
     } else if i + 2 == n {
         let v:u32 = ((b^[i] as u32) << 16) | ((b^[i + 1] as u32) << 8)
-        out += (letters[v >> 18] as u32).uchr
-        out += (letters[(v >> 12) & 63] as u32).uchr
-        out += (letters[(v >> 6) & 63] as u32).uchr
+        out += letters[v >> 18] as u32
+        out += letters[(v >> 12) & 63] as u32
+        out += letters[(v >> 6) & 63] as u32
         if pad { out += "=" }
     }
     return out

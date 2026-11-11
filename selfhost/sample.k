@@ -211,12 +211,12 @@ let total(ps:$[point]^):int64 {
 let reversed(s:String^):String {
     var cs:$[uint32] = $[]
     for c in s^.codepoints {
-        cs += c.utf32
+        cs += c
     }
     var r:String = $""
     var i:int64 = cs.count as int64 - 1
     while i >= 0 {
-        r += cs[i].uchr
+        r += cs[i]
         i -= 1
     }
     return r
@@ -1391,6 +1391,11 @@ on a new line`
     println(fe_sum4(fe_five), " ", fe_n)
     var gc_cs:$[u32] = $[0x48, 0x69]                  // a String of codepoints, the first grapheme alone (#526)
     println(grapheme(0x65, 0x301, 0x41), " ", String.fromCodepoints(gc_cs), " ", grapheme(0xD800), " ", String.fromCodepoints())
+    var cp_s = $"é1"                                    // a codepoint is a u32, with its properties (#527)
+    var cp_t:u32 = 0
+    for cp_c in cp_s.codepoints { cp_t += cp_c }
+    let cp_e = cp_s.codepoints[0]
+    println(cp_t, " ", cp_e.name, " ", (0x31 as u32).isNumber, " ", cp_e.upper.hex, " ", cp_s.codepoints)
     return 0
 }
 

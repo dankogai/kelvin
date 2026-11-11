@@ -9928,3 +9928,19 @@ prelude's Result renumbered every program's untagged structs, which are
 now numbered among themselves. Details are provisional P538.
 
 There are 1284 tests, and all pass with clang and with gcc 15.
+
+### 574. A codepoint is a u32
+
+> push and go on with #527
+
+**Claude** pushed #526, and CI passed. Asked, the user chose to remove
+uchr in two numbers, this the first, and a codepoint's properties on a
+`u32` only. `s.codepoints` is an `Array<u32>`, and `for c in
+s.codepoints` gives each a `u32`; UnicodeData's `extend uchr` is
+`extend u32`, so that `$"é".codepoints[0].name` is its name. kc finds
+an extension of u32 as it finds String's. The runtime, JSON, SION, kc
+and the examples no longer use `.uchr`, as `s += n` already appends a
+codepoint, and the quine walks graphemes. #528 removes uchr itself.
+Details are provisional P539.
+
+There are 1284 tests, and all pass with clang and with gcc 15.

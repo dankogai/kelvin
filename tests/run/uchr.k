@@ -3,10 +3,10 @@
 // number, n.uchr and uchr(x) make one, U+FFFD where x is no codepoint
 let main():int32 {
     var s = String("コガイ ダン")
-    for c in s.codepoints { print(c, "|") }
+    for c:uchr in s { print(c, "|") }
     println()
     var n = 0
-    for c in s.codepoints { if c == ' ' { n += 1 } }
+    for c:uchr in s { if c == ' ' { n += 1 } }
     let e = uchr("é")
     let x = 0x1F600.uchr
     let bad = 0xD800.uchr

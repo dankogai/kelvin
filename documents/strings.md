@@ -63,7 +63,7 @@ s += ", world"                   // append text; also s.append(...)
 s += t.copy()                    // a String's text; s += &t borrows it
 println(s, " ", s.count)         // the text, and its graphemes: 12
 for c in s { print(c, "|") }     // each grapheme, a String
-for c in s.codepoints { print(c.utf32, " ") }   // each codepoint, a uchr
+for c in s.codepoints { print(c, " ") }         // each codepoint, a u32
 let p := s.cstr                  // a borrow of the text, NUL-ended, for C
 var line = $`${s} has ${s.count} graphemes`    // a String built from a template (#67)
 ```
@@ -104,9 +104,9 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
       are an `err`: [unicodedata.md](unicodedata.md#codepoints-into-a-string-grapheme-and-stringfromcodepoints).
   - A `Bytes` is made its own ways, `Bytes("text")`, `Bytes([...])`,
     `Bytes.fromBase64(text)`: [bytes.md](bytes.md).
-- **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
-  or a String an expression gives), `clear`, `reserve`, `compact`,
-  `copy`, `escape` and `unescape`.
+- **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`, a
+  codepoint as an integer, or a String an expression gives), `clear`,
+  `reserve`, `compact`, `copy`, `escape` and `unescape`.
 - **Graphemes** (#522): a String's elements are its grapheme clusters,
   what a reader sees as one character (UAX #29), each a String.
   - `é` written as `e` and a combining acute is one, as are a family
@@ -155,10 +155,14 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
   - A type written walks codepoints: `for c:uchr in s` gives each as a
     `uchr`, which prints as its character, and `for n:u32 in s` each
     one's number (#480).
-  - **`s.codepoints`** (#521) is its codepoints, an `Array<uchr>`.
+  - **`s.codepoints`** (#521) is its codepoints, an `Array<u32>`
+    (#527); `s.codepoints[0]` is the first.
     - `for c in s.codepoints` walks the String in place, with no Array
-      made: the walk to write where codepoints are meant, as `for c in
-      s` walks graphemes (#522).
+      made, each a `u32`: the walk to write where codepoints are meant,
+      as `for c in s` walks graphemes (#522).
+    - A codepoint's name, category and case are a `u32`'s, of
+      UnicodeData: [unicodedata.md](unicodedata.md).
+    - `s += c` appends a codepoint, a `u32` or any integer.
     - Of a borrow, `s^.codepoints`, and of a String an expression
       gives, `f().codepoints`, which is held for the loop.
   - A `[uchr](N)` or a `uchr^` is walked up to `uchr(0)` (#480).
@@ -194,7 +198,7 @@ The prelude's, `libkelvin`, linked without an import: `String` and `uchr` (#55, 
 | | `.isEmpty` | whether it holds no text, `.count == 0`, a `bool` (#434) |
 | | `.bytes` | its Bytes, a read-only borrow ([bytes.md](bytes.md)) |
 | | `.cstr` | a borrow of the text |
-| | `.append(x)`, `+=` | text, a `uchr`, `&other`, or a String an expression gives |
+| | `.append(x)`, `+=` | text, a `uchr`, a codepoint as an integer, `&other`, or a String an expression gives |
 | | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | changes in place; a new String |
 | | `s + t` | a new String of the two, a String, text or a `uchr` on either side (#183) |
 | | `.find(text)`, `.find(&t)` | the grapheme index of the first `text`, or -1 (#177, #522) |
@@ -205,7 +209,7 @@ The prelude's, `libkelvin`, linked without an import: `String` and `uchr` (#55, 
 | | `for c in s` | each grapheme, a String (#522) |
 | | `for c:uchr in s`, `for n:u32 in s` | each codepoint, a `uchr`, or its number (#480) |
 | | `s[i]` | grapheme `i`, a new String, O(n) (#522) |
-| | `.codepoints` | its codepoints, an `Array<uchr>`; `for c in s.codepoints` walks them in place (#521) |
+| | `.codepoints` | its codepoints, an `Array<u32>` (#527); `for c in s.codepoints` walks them in place, each a `u32` (#521) |
 | | `s[lo..<hi]` | a slice by grapheme, a new String (#68, #522) |
 | | `s[r]` | a slice by a Range value, a new String (#377) |
 | | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` graphemes, or of those before the first `f` says false for, `f` of each, a String (#372, #522) |

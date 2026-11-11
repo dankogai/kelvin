@@ -96,7 +96,7 @@ var s = String("héllo, κόσμε")  // text, checked
 s += " 🌍"                      // text, a codepoint, &other, or a String an expression gives
 s.append(0x1F600)
 println(s, " ", s.count, " ", s.bytes^.count)   // héllo, κόσμε 🌍😀 15 27
-for c in s.codepoints { if c > 127 { ... } }     // each codepoint, a uchr (#521)
+for c in s.codepoints { if c > 127 { ... } }     // each codepoint, a u32 (#521, #527)
 let t = s.copy()
 println(s == t, " ", t.cstr)
 let u = String(&b)               // a Bytes, checked; b.string() is a Result (#405)
@@ -129,8 +129,8 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
   - A borrow of the other kind is an error that says so.
 - **`uchr`** is a codepoint on the stack (#56), a value type of four
   bytes.
-  - `for c in s.codepoints` gives one, as does `for c:uchr in s`;
-    `uchr("é")` is the first codepoint of text.
+  - `for c:uchr in s` gives one; `uchr("é")` is the first codepoint of
+    text. `for c in s.codepoints` gives a `u32` (#527).
     - Of a String or a Bytes too, `uchr(s)` or `uchr(&s)` (#494).
     - Of empty text it is U+FFFD.
   - `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the

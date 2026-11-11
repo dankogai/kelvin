@@ -72,7 +72,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | a loop of `printf` to show an array or a struct | `println(xs)`, `println(p)`, `println(d)`: the value whole, `[1, 2]`, `{x: 1}`, `{"k": 1}`; `println(v.pretty)` indented (#123, #124) |
 | a JSON library | `#import <JSON>`; `var j = JSON.parse(text)`, `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113) |
 | a MessagePack library, and a text form of its values | `#import <SION>`, `SION.parse(text)`, `s["key"]`, `SION.stringify(&s, 2)` (#152); `#import <MsgPack>`, `MsgPack.pack(&s)`, `MsgPack.unpack(&b)` (#153) |
-| ICU, for normalization and grapheme clusters | the prelude's `UnicodeData` (#520): `s.normalize(nfc)`, `s.graphemes`, `s.upper()`, `s.fold()`, `uchr("é").name`, `.category` (#156) |
+| ICU, for normalization and grapheme clusters | the prelude's `UnicodeData` (#520): `s.normalize(nfc)`, `s.graphemes`, `s.upper()`, `s.fold()`, `$"é".codepoints[0].name`, `.category`, of a `u32` (#156, #527) |
 | `regcomp`, `regexec`, POSIX's classes | the prelude's `RegExp` (#504): `let re = $/(\d+)-(?<m>\d\d)/g`, `re.test(&s)`, `s.match(&re)`, `s.replace(&re, "$<m>/$1")`, `s.split(&re)`, JS's syntax with `\p{...}` and `\X` (#157) |
 | `int main(int argc, char **argv)` | `let main(argc:i32, argv:u8^^):i32` |
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32 }` |

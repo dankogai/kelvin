@@ -59,8 +59,8 @@ let main():int32 {
     var w = hello.match(&wordsRe)
     var b = hello.match(&boundary)
     println(w.count, " ", w[0].text[0], " ", b.count)
-    var e = uchr("é")
-    println(e.script, " ", e.hasProperty("Alphabetic"), " ", uchr("1").hasProperty("Alpha"), " ", uchr("😀").hasProperty("Emoji"))
+    let e = $"é".codepoints[0]                            // a u32 (#527)
+    println(e.script, " ", e.hasProperty("Alphabetic"), " ", ('1' as u32).hasProperty("Alpha"), " ", (0x1F600 as u32).hasProperty("Emoji"))
     return 0
 }
 // out: αβγ 4 中文 4 😀 11 😀

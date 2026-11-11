@@ -32,7 +32,7 @@ let dir_of(path:String^):String {
     var i = 0
     for c in path^.codepoints {
         i += 1
-        if c.utf32 == '/' { cut = i }
+        if c == '/' { cut = i }
     }
     var r = $""
     var j = 0
@@ -50,14 +50,14 @@ let base_of(path:String^):String {
     var cs:$[int64] = $[]
     var j = 0
     for c in path^.codepoints {
-        if j >= dir.count as int64 { cs += c.utf32 }
+        if j >= dir.count as int64 { cs += c }
         j += 1
     }
     var n = cs.count as int64
     if n > 2 && cs[n - 2] == '.' && cs[n - 1] == 'k' { n -= 2 }
     var r = $""
     for k in 0..<n {
-        r += cs[k].uchr
+        r += cs[k]
     }
     return r
 }
@@ -144,7 +144,7 @@ let load(path:String^):Result<int64, String> {
     fnames += path^.copy()
     let from:int64 = codes.count as int64
     for c in text.codepoints {
-        codes += c.utf32
+        codes += c
     }
     codes += '\n'
     lex_range(from, codes.count as int64, file)
@@ -169,7 +169,7 @@ let load_imports():bool {
             var path:String = dir_of(&fnames[toks[i].file])
             let at:int64 = toks[i].at
             for j in 1..<toks[i].len - 1 {
-                path += codes[at + j].uchr
+                path += codes[at + j]
             }
             var seen = false
             for k in 0..<fnames.count as int64 {
@@ -239,7 +239,7 @@ let link_flags(path:String^) {
     f.close()
     var w = $""
     for c in text.codepoints {
-        let u = c.utf32
+        let u = c
         if u == ' ' || u == '\t' || u == '\r' || u == '\n' {
             if w.count > 0 { module_libs += w.copy() }
             w = $""
@@ -288,7 +288,7 @@ let load_module(mods:String^, t:int64):bool {
     for j in 1..<toks[t].len - 1 {
         let c:uint32 = codes[toks[t].at + j]
         if c == '.' { bare = false }
-        name += c.uchr
+        name += c
     }
     for k in 0..<2 {
         var dir:String = k == 0 ? $"./modules" : mods^.copy()
@@ -313,7 +313,7 @@ let load_module(mods:String^, t:int64):bool {
     var why = $"cannot find "
     let at:int64 = toks[t].at
     for j in 0..<toks[t].len {
-        why += codes[at + j].uchr
+        why += codes[at + j]
     }
     why += " ("
     if bare {

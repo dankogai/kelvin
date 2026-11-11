@@ -61,8 +61,8 @@ let kv_string_trim(s:const String^):String {
     var lo:int64 = -1
     var hi:int64 = 0
     var i:int64 = 0
-    for c:uchr in s^ {
-        if !is_blank_cp(c.utf32) {
+    for c:u32 in s^ {
+        if !is_blank_cp(c) {
             if lo < 0 { lo = i }
             hi = i + 1
         }
@@ -78,7 +78,7 @@ let kv_string_trim(s:const String^):String {
 static let put_hex(out:String^, v:u32) {
     if v >= 16 { put_hex(out, v / 16) }
     let digits:cstr := "0123456789ABCDEF"
-    out^ += (digits[v % 16] as u32).uchr
+    out^ += digits[v % 16] as u32
 }
 
 // s.escape(): the text with each codepoint beyond ASCII as \u{...}, a NUL
@@ -86,14 +86,13 @@ static let put_hex(out:String^, v:u32) {
 // and a literal of it too: a String holds a NUL, which a cstr cannot
 let kv_string_escape(s:const String^):String {
     var out = $""
-    for c:uchr in s^ {
-        let cp:u32 = c.utf32
+    for cp:u32 in s^ {
         if cp == 0 {
             out += "\\u{0}"
         } else if cp == '\\' {
             out += "\\\\"
         } else if cp < 0x80 {
-            out += c
+            out += cp
         } else {
             out += "\\u{"
             put_hex(&out, cp)
@@ -134,15 +133,15 @@ static let hex_run(cps:const $[u32]^, i:int64, n:int64):int64 {
 // escape is ASCII, so the codepoints are read as the bytes were
 let kv_string_unescape(s:const String^):String {
     var cps:$[u32] = $[]
-    for c:uchr in s^ {
-        cps += c.utf32                           // a NUL too (#299)
+    for c:u32 in s^ {
+        cps += c                                 // a NUL too (#299)
     }
     var out = $""
     let n = cps.count as int64
     var i:int64 = 0
     while i < n {
         if cps[i] != '\\' || i + 1 >= n {
-            out += cps[i].uchr
+            out += cps[i]
             i += 1
             continue
         }
@@ -189,11 +188,11 @@ let kv_string_unescape(s:const String^):String {
             cp = e as int64
         }
         if cp < 0 {                              // not an escape: the backslash as it is
-            out += cps[i].uchr
+            out += cps[i]
             i += 1
             continue
         }
-        out += (cp as u32).uchr
+        out += cp as u32
         i = next
     }
     return out

@@ -10,8 +10,8 @@
 //     var c = s.normalize(nfc)                   // é, one codepoint; nfd, nfkc, nfkd too
 //     var gs = s.graphemes                       // é, a space, ﬁ, a space, the family: five
 //     for g in gs { println(g) }
-//     var name = uchr("é").name
-//     println(gs.count, " ", name, " ", uchr("é").category)
+//     var e = $"é".codepoints[0]                 // 0xE9, a u32
+//     println(gs.count, " ", e.name, " ", e.category)
 #import <kUnicodeData.h> as C
 
 // the normalization forms: C's enum, whose enumerators are words
@@ -88,11 +88,11 @@ extend String {
         return out
     }
 
-    // the codepoints, each a uchr (#521): for c in s.codepoints walks them
-    // in place, with no Array made, which kelvinc and kc see
-    let codepoints:Array<uchr> {
-        var out = Array<uchr>()
-        for c:uchr in self { out += c }
+    // the codepoints, each a u32 (#521, #527): for c in s.codepoints walks
+    // them in place, with no Array made, which kelvinc and kc see
+    let codepoints:Array<u32> {
+        var out = Array<u32>()
+        for c:u32 in self { out += c }
         return out
     }
 
@@ -103,22 +103,23 @@ extend String {
     let fold():String { kv_ucd_fold(&self) }
 }
 
-extend uchr {
-    let category:cstr { kv_ucd_category(self.utf32) }            // the general category, "Lu", "Nd", ...
-    let name:String { kv_ucd_name_of(self.utf32) }               // "LATIN SMALL LETTER E WITH ACUTE", "" where none
-    let combining:i64 { kv_ucd_combining(self.utf32) as i64 }     // the canonical combining class, 0 for a starter
-    let upper:uchr { uchr(kv_ucd_to_upper(self.utf32)) }
-    let lower:uchr { uchr(kv_ucd_to_lower(self.utf32)) }
-    let fold:uchr { uchr(kv_ucd_to_fold(self.utf32)) }
-    let decomposition:String { kv_ucd_decomposition(self.utf32, false) }      // the canonical decomposition, "" where none
-    let compatibility:String { kv_ucd_decomposition(self.utf32, true) }       // with the compatibility ones
-    let isLetter:bool { kv_ucd_category_index(self.utf32) >= 1 && kv_ucd_category_index(self.utf32) <= 5 }
-    let isMark:bool { kv_ucd_category_index(self.utf32) >= 6 && kv_ucd_category_index(self.utf32) <= 8 }
-    let isNumber:bool { kv_ucd_category_index(self.utf32) >= 9 && kv_ucd_category_index(self.utf32) <= 11 }
-    let isPunctuation:bool { kv_ucd_category_index(self.utf32) >= 12 && kv_ucd_category_index(self.utf32) <= 18 }
-    let isSymbol:bool { kv_ucd_category_index(self.utf32) >= 19 && kv_ucd_category_index(self.utf32) <= 22 }
-    let isSpace:bool { kv_ucd_category_index(self.utf32) >= 23 && kv_ucd_category_index(self.utf32) <= 25 }
-    let script:cstr { kv_ucd_script_name(kv_ucd_script(self.utf32)) }   // "Latin", "Han", "Common", ... (#157)
+// a codepoint's properties, on a u32 (#527), as s.codepoints gives them
+extend u32 {
+    let category:cstr { kv_ucd_category(self) }            // the general category, "Lu", "Nd", ...
+    let name:String { kv_ucd_name_of(self) }               // "LATIN SMALL LETTER E WITH ACUTE", "" where none
+    let combining:i64 { kv_ucd_combining(self) as i64 }     // the canonical combining class, 0 for a starter
+    let upper:u32 { kv_ucd_to_upper(self) }
+    let lower:u32 { kv_ucd_to_lower(self) }
+    let fold:u32 { kv_ucd_to_fold(self) }
+    let decomposition:String { kv_ucd_decomposition(self, false) }      // the canonical decomposition, "" where none
+    let compatibility:String { kv_ucd_decomposition(self, true) }       // with the compatibility ones
+    let isLetter:bool { kv_ucd_category_index(self) >= 1 && kv_ucd_category_index(self) <= 5 }
+    let isMark:bool { kv_ucd_category_index(self) >= 6 && kv_ucd_category_index(self) <= 8 }
+    let isNumber:bool { kv_ucd_category_index(self) >= 9 && kv_ucd_category_index(self) <= 11 }
+    let isPunctuation:bool { kv_ucd_category_index(self) >= 12 && kv_ucd_category_index(self) <= 18 }
+    let isSymbol:bool { kv_ucd_category_index(self) >= 19 && kv_ucd_category_index(self) <= 22 }
+    let isSpace:bool { kv_ucd_category_index(self) >= 23 && kv_ucd_category_index(self) <= 25 }
+    let script:cstr { kv_ucd_script_name(kv_ucd_script(self)) }   // "Latin", "Han", "Common", ... (#157)
     // a binary property by its name, "Alphabetic", "White_Space", "Emoji", ...; false for a name there is none of
-    let hasProperty(name:cstr):bool { kv_ucd_has_property(self.utf32, kv_ucd_property_id(name)) }
+    let hasProperty(name:cstr):bool { kv_ucd_has_property(self, kv_ucd_property_id(name)) }
 }

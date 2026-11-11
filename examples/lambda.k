@@ -156,7 +156,7 @@ let term(r:reader^):i64 {
 let parse(text:cstr):i64 {
     var s = String(text)
     var r:reader = {$[], 0, $[], false}
-    for c in s.codepoints { r.codes += c.utf32 }
+    for c in s.codepoints { r.codes += c }
     let t = term(&r)
     return r.bad || r.at < r.codes.count as i64 ? -1 : t
 }

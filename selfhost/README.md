@@ -604,6 +604,12 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A codepoint is a `u32`** (#527), as kelvinc's: `for c in
+  s.codepoints` gives each as a `uint32_t`, and UnicodeData's `extend
+  u32` is found on a u32, `c.name`, `c.category`, its C names
+  `u32__name` and its kin.
+  - kc's own `.uchr` of a number is gone: `s += n` appends the
+    codepoint, and `c.utf32` of a codepoint loop is `c`.
 - **`grapheme(c0, c1, ...)` and `String.fromCodepoints(c0, c1, ...)`**
   (#526), as kelvinc's: UnicodeData's, of one `Array<u32>`, or of any
   number of integers, which kc reads into an array of them as i64 and
@@ -640,13 +646,14 @@ kc reads what it is written in, and little more.
     the runtime's kv_string_graphemes and its kin; `find` and RegExp's
     offsets are the runtime's.
   - A String compares with text, a uchr or a character, on either side.
-- **`s.codepoints`** (#521), as kelvinc's: UnicodeData's `Array<uchr>`;
-  `for c in s.codepoints` walks the String in place, with no Array made.
+- **`s.codepoints`** (#521), as kelvinc's: UnicodeData's `Array<u32>`
+  (#527); `for c in s.codepoints` walks the String in place, with no
+  Array made, each a `u32`.
   - kc's own loops over a String's codepoints are written so, ready for
     #522, where `for c in s` walks graphemes.
 - **UnicodeData in every program** (#520), as kelvinc's: kc reads
   `UnicodeData.kh` before the prelude's others, so `s.normalize(nfc)`
-  and `uchr("é").name` need no import.
+  and `$"é".codepoints[0].name` need no import.
   - A file is read once by its real path, so `modules/M.kh` and
     `./modules/M.kh` are one.
 - **A type's own `x op= y`** (#518), as kelvinc's.

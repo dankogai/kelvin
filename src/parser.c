@@ -14231,6 +14231,8 @@ static Stmt *parse_for_each_held(Stmt *s, Type *written) {
            with no Array made of them */
         s->expr = seq = seq->a;
         s->codepoints = true;
+        if (!written) /* each a u32, as the Array's elements are (#527) */
+            written = base_type("u32", seq->pos);
     }
     Type *t = value_type(seq);
     Decl *mk = sequence_maker(t);

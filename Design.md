@@ -575,6 +575,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 524 | kc's `for x in s` at the edges for_each_edge.k shows, as the user asked, as kelvinc's #30: a fixed array read once, to its count or a zero, of structs whole; a let parameter's array to its declared count, a var one as a pointer, `xs := xs.next`; a pointer up to a 0 or nowhere, main's `u8^^` argv; `(int64){1}` | selfhost/parse.k's literal_ahead; selfhost/gen.k's gen_each, param_arrays, fixed_params, pointer_property, assigns_as, gen_assign, argv_bytes, gen_signature, gen_function, N_INIT of a number; selfhost/sample.k; selfhost/README.md | `for _ in argv` in kc | 2026-11-11 |
 | 525 | strings.md split, as the user asked: documents/cstr.md of C's text, `cstr`, literals, byte arrays, reading and walking by byte, and documents/strings.md of `String` and `uchr`; each says, briefly, in a table, how it differs from the other; the links and the lists of documents follow. The first of three, as the user chose: #526 uchr removed, `.codepoints` of u32s, #527 grapheme(...) and String.fromCodepoints(...) | documents/cstr.md, strings.md, README.md, c-interfaces.md, arrays.md, integers.md, grammar.md, pointers.md, printing.md, properties.md, versusC.md; README.md | documents/cstr.md | 2026-11-11 |
 | 526 | A String of codepoints, as the user asked, swapped before uchr's removal as the user chose: `grapheme(c0, c1, ...)`, the first grapheme alone, the codepoints after it checked and dropped, and `String.fromCodepoints(c0, c1, ...)`, all of them, each a `Result<String, CodepointError>`, `enum CodepointError { empty; surrogate: u32; outOfRange: i64 }`; of one `Array<u32>`, or of any number of integers, which kelvinc and kc read into `kv_codepoints_string` of an array of them as i64, their count and whether one grapheme; a float, a bool and text are errors | modules/UnicodeData.k, src/parser.c, selfhost/gen.k, selfhost/sample.k, GNUmakefile, documents/unicodedata.md, strings.md, README.md; README.md, selfhost/README.md | tests/run/grapheme_of_codepoints.k, tests/error/grapheme_text.k, tests/error/codepoints_bool.k | 2026-11-12 |
+| 527 | A codepoint is a `u32`, the first of uchr's removal, split in two as the user chose: `s.codepoints` is an `Array<u32>` and `for c in s.codepoints` gives each a `u32`; UnicodeData's `extend uchr` is `extend u32`, `.name`, `.category`, `.upper` a `u32` and the rest, on a u32 only, as the user chose; the runtime, JSON, SION, kc and the quine no longer use `.uchr`, as `s += n` appends a codepoint | modules/UnicodeData.k, runtime/string.k, runtime/bytes.k, modules/JSON.k, modules/SION.k, src/parser.c, selfhost/gen.k, selfhost/lex.k, selfhost/kc.k, selfhost/parse.k, selfhost/sample.k, examples/quine.k, examples/lambda.k, documents/unicodedata.md, strings.md, ownership.md, versusC.md; README.md, selfhost/README.md | tests/run/string_codepoints.k, unicode_basics.k, unicode_prelude.k, regexp_unicode.k, unicode_graphemes.k, uchr.k | 2026-11-12 |
 
 Notes:
 
@@ -1159,6 +1160,27 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (527) Agreed details: "push and go on with #527"
+  - Asked, the user chose to split uchr's removal in two: #527 makes a
+    codepoint a `u32`, and #528 removes the type, its keyword, `for
+    c:uchr in s`, the walks of `[uchr](N)`, `uchr("x")` and its tests.
+  - `s.codepoints` is an `Array<u32>`, and `for c in s.codepoints`,
+    walked in place, gives each a `u32`, in kelvinc as if `for c:u32`
+    were written, in kc a `uint32_t`.
+  - UnicodeData's `extend uchr` is `extend u32`: `.name`, `.category`,
+    `.isLetter` and the rest, `.upper`, `.lower` and `.fold` a `u32`.
+    Asked, the user chose u32 only: another integer, a literal too, is
+    converted first, `(0xE9 as u32).name`.
+  - kc finds an extension of u32 as of String, Bytes and uchr, by a
+    token of its name, and writes self's C type as the number's.
+  - `s += n` appends the codepoint n, of any integer, as before; the
+    runtime's Kelvin, JSON's and SION's, kc's lexer and driver, and the
+    examples drop `.uchr` for it, and `c.utf32` of a codepoint loop is
+    `c`.
+  - The quine walks graphemes, its mark found by `c != "\u{40}"`, so
+    that its source holds the mark once; its literal is made anew.
+  - Not here: `uchr` itself, which #528 removes.
 
 - (526) Agreed details: "go on with #526"
   - The user asked for `grapheme(c0, c1, ...)`, failable, its error a
@@ -8409,6 +8431,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P536 | Details of #524 | selfhost/parse.k: literal_ahead of a number's type; selfhost/gen.k: gen_each's walk of a fixed array, a parameter's array and a pointer, param_arrays, pointer_property of a parameter's array, assigns_as and gen_assign of `:=`, argv_bytes with gen_signature's and gen_function's `#define`, a number's N_INIT; selfhost/sample.k's fe_ walks; selfhost/README.md | provisional |
 | P537 | Details of #525 | documents/cstr.md, new; documents/strings.md, String's alone; the links of documents/README.md, c-interfaces.md, arrays.md, integers.md, grammar.md, pointers.md, printing.md, properties.md, versusC.md and README.md | provisional |
 | P538 | Details of #526 | `grapheme(...)` and `String.fromCodepoints(...)`: UnicodeData's, of one `Array<u32>` or of integers, read by kelvinc's codepoints_call and kc's resolve_codepoints into `kv_codepoints_string`; `CodepointError`, an enum with values | provisional |
+| P539 | Details of #527 | A codepoint is a `u32`: `s.codepoints` an `Array<u32>`, `for c in s.codepoints` each a `u32`; UnicodeData's properties of `extend u32`, on a u32 only; kc's recv_tok of u32 | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
