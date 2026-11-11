@@ -180,7 +180,7 @@ let main():int32 {
     [functions.md](functions.md) says.
 - `let main(argc:i32, argv:[cstr]):i32` is C's `main`, and `argv` is
   written `char **`.
-- `u8` and C's `char` mix freely; see [strings.md](strings.md).
+- `u8` and C's `char` mix freely; see [cstr.md](cstr.md).
 - A Kelvin function may overload a C function of the same name, which
   still takes the numbers: `let sqrt(v:vec):f64` beside C's `sqrt`
   ([functions.md](functions.md)).

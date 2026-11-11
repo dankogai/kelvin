@@ -37,7 +37,8 @@ let main(argc:i32, argv:[cstr]): i32 {
 ## Documents
 
 - [documents/README.md](documents/README.md) lists the documents, one
-  topic each: [strings.md](documents/strings.md),
+  topic each: [cstr.md](documents/cstr.md),
+  [strings.md](documents/strings.md),
   [bytes.md](documents/bytes.md), [arrays.md](documents/arrays.md),
   [functions.md](documents/functions.md), ...
 - [documents/versusC.md](documents/versusC.md) has all the differences

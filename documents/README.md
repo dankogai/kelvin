@@ -34,9 +34,11 @@ the design decisions, numbered `#N` throughout, are in
   by its place, `bv[n]`, `.flip(n)`, `.append(x)`, `.u64s`, the bitwise
   operators, and `!!n`, a bit's `bool` (#387, #455); C's bit-fields'
   stead.
-- [strings.md](strings.md): `cstr`, literals, byte arrays and text on
-  the stack; `String`, text on the heap, `$"..."` and `` $`...` ``,
-  `find`, `has`, `trim`; `uchr`, a codepoint.
+- [cstr.md](cstr.md): `cstr`, C's text, literals, byte arrays and text
+  on the stack, reading numbers, walking by byte (#525).
+- [strings.md](strings.md): `String`, Kelvin's text on the heap,
+  `$"..."` and `` $`...` ``, graphemes, `find`, `has`, `trim`; `uchr`, a
+  codepoint.
 - [bytes.md](bytes.md): `Bytes`, any bytes on the heap: `Bytes("text")`,
   `Bytes([...])`, `b[i]`, `b += x`, `b.string()`, `b.escape()`, base64.
 - [pointers.md](pointers.md): `T^`, `:=` for references, `any^`,

@@ -9889,3 +9889,23 @@ head. kc's build passes 260 of the tests, where it passed 257. Details
 are provisional P536.
 
 There are 1281 tests, and all pass with clang and with gcc 15.
+
+### 572. cstr.md apart from strings.md
+
+> * split documents for `String` from `cstr`.  Briefly document the difference from one another.  But putting them in the same file is too much.
+> * `ustr` may no longer needed.  let `.codepoints` return just a stream of `u32`.
+> * do we have a function/method to generate a grapheme from a series of integers which represent codepoints?  If not, let's define `grapheeme(c0,c1, ...)` where `c0, c1` are codepoints which returns `Result(String, WhateverError)`.  Yes, it is failable.  Error occurs when:
+> *  arguments include surrogate pair
+> * codepoints are not sufficient form a grapheme.
+> * superfluous codepoints are okay. simply ignored.  As the name suggests, `grapheme()` refers to a single grapheme.
+> * Or should we name this function `String.fromCodepoints()`?
+
+**Claude** said there is no such function yet, and that by UAX #29 any
+one codepoint is a grapheme, so too few is none at all. Asked, the user
+chose that uchr go altogether, both `grapheme(...)` and
+`String.fromCodepoints(...)`, an enum of reasons for their error, and
+three numbers, this one of documents/cstr.md. C's text is now in
+cstr.md and String in strings.md, each with a table of how it differs
+from the other. Details are provisional P537.
+
+There are 1281 tests, and all pass with clang and with gcc 15.

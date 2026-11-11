@@ -171,7 +171,8 @@ Each document says so in its "Where it lives" section. In short:
 | [iterators.md](iterators.md) | `Iterator<T>`, a state and a function; `var T.next():E?`, Sequences' `makeIterator()`, `for x in it`, and `map`, `filter`, `reduce` and `flatMap` of one |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |
-| [strings.md](strings.md) | strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing; `String`, text on the heap, `$"..."` and `` $`...` `` |
+| [cstr.md](cstr.md) | C's text: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing (#525) |
+| [strings.md](strings.md) | `String`, text on the heap, `$"..."` and `` $`...` ``, graphemes, `uchr` |
 | [bytes.md](bytes.md) | `Bytes`, any bytes on the heap: `Bytes("text")`, `Bytes([...])`, `Bytes.fromBase64`, `b[i]`, `b += x`, `b.string()`, `b.escape()`, with a RegExp (#54, #172) |
 | [ownership.md](ownership.md) | `Bytes`, `String`, `Array<T>` and `Dictionary<K, V>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, a struct with no tag `{x:f64, y:f64}`, methods, operators |

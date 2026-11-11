@@ -22,8 +22,8 @@ println(`Hello, ${name}! ${n} / 4.0 = ${n / 4.0}`)   // Hello, Kelvin! -42 / 4.0
 `print` and `println` come from the prelude, with no import, and show a
 value by its type; a template literal joins text and values the same
 way. This document has both. The text of a single value, `n.cstr`, is in
-[properties.md](properties.md), and C strings in
-[strings.md](strings.md).
+[properties.md](properties.md), C strings in [cstr.md](cstr.md), and
+Strings in [strings.md](strings.md).
 
 ### The prelude: `print` and `println`
 

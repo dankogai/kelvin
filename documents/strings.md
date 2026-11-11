@@ -1,216 +1,56 @@
-# Strings: `cstr` and `String`
+# String: Kelvin's text on the heap
 
-Text: C's `cstr`, bytes up to a NUL, or Kelvin's `String`, UTF-8 on the heap.
+`String` is Kelvin's own text: UTF-8 on the heap, checked, growing, freed when its block ends, its elements its graphemes.
 
 ## Synopsis
 
 ```swift
-let c:cstr := "hello"                 // a pointer to static text: const char * in C
-let n:int64 = 42
-let d:cstr := n.cstr                  // "42", in a buffer on this block's stack
 var s = $"héllo"                      // String("héllo"); String() is empty
 s += ", world"                        // append text; also s.append(...)
-println(c, " ", c.count, " ", d, " ", s, " ", s.count)   // hello 5 42 héllo, world 12
+println(s, " ", s.count, " ", s[1], " ", s[0..<5])   // héllo, world 12 é héllo
 ```
 
 ## Description
 
-Text in Kelvin is C's, or Kelvin's own. C's is a pointer to bytes that
-end at a NUL, and it is more than a zero-terminated `[u8]`: a string
-literal, a byte array, a `cstr` and the text a property or a template
-makes are four different things in C, which Kelvin keeps apart.
+`String` (#55) is text that is well-formed UTF-8, on the heap, growing,
+and freed when its block ends. Its elements are its graphemes (#522),
+what a reader sees as one character, each a String: it is counted,
+walked, indexed and sliced by them. `uchr` (#56) is a single codepoint,
+and `s.codepoints` (#521) the codepoints of a String. `Bytes` (#54),
+any bytes on the heap, looks the same and is another thing, indexed by
+byte and not text: [bytes.md](bytes.md).
 
-Kelvin's own is `String` (#55), text that is well-formed UTF-8, on the
-heap, growing, and freed when its block ends. Its elements are its
-graphemes (#522), what a reader sees as one character, each a String:
-it is counted, walked, indexed and sliced by them. `uchr` (#56) is a
-single codepoint, and `s.codepoints` (#521) the codepoints of a String. `Bytes` (#54), any bytes on
-the heap, looks the same and is another thing, indexed by byte and not
-text: [bytes.md](bytes.md).
+This document says how a String is made, read, walked, compared and
+printed; the ownership rules of `String` and `Bytes` are in
+[ownership.md](ownership.md). `toString()` and `fmt()` stay shelved
+(#22): `.cstr`, a template literal and `` $`...` `` do their work.
 
-This document says how Kelvin spells each kind, makes it, reads it,
-walks it, compares it and prints it, and where it lives; the ownership
-rules of `String` and `Bytes` are in [ownership.md](ownership.md).
-`toString()` and `fmt()` stay shelved (#22): `.cstr`, a template literal
-and `` $`...` `` do their work. What the Unicode Character Database
-adds, `s.normalize(nfc)`, `s.graphemes`, the case mappings and a
-codepoint's name and category, is the prelude's `UnicodeData` (#156,
-#520), in every program: [unicodedata.md](unicodedata.md); regular expressions, JS's,
-with the `$/.../` literal, are the prelude's `RegExp` (#157, #504):
-[regexp.md](regexp.md).
+- What the Unicode Character Database adds, `s.normalize(nfc)`,
+  `s.graphemes`, the case mappings and a codepoint's name and category,
+  is the prelude's `UnicodeData` (#156, #520), in every program:
+  [unicodedata.md](unicodedata.md).
+- Regular expressions, JS's, with the `$/.../` literal, are the
+  prelude's `RegExp` (#157, #504): [regexp.md](regexp.md).
 
-### Four kinds of text
+### How it differs from `cstr`
 
-```swift
-let s:cstr := "hello"        // a pointer to static text: const char * in C
-let t:[uint8] = "hello"         // a copy in an array of six bytes, NUL included
-var buf = [uint8](64)           // 64 zero bytes to write into
-let n:int64 = 42
-let d:cstr := n.cstr         // "42", in a buffer on this block's stack
-let card:cstr := `${n} items` // a template's text, on the stack too
-```
+| | `String` | `cstr` ([cstr.md](cstr.md)) |
+|---|---|---|
+| What | UTF-8 on the heap, checked (#55) | a pointer to C's bytes, up to a NUL |
+| Owned | yes: freed when its block ends, moved, copied by `.copy()` | no: it points at text that lives elsewhere |
+| Changes | grows: `s += t`, `s.append(x)` | never through it (#52) |
+| A NUL | is a character it may hold (#299) | ends it |
+| Elements | graphemes, each a String (#522) | bytes, `u8`, by `for c in s` and `s[i]` |
+| `.count` | its graphemes, O(n) | its bytes, `strlen`, kept per scope |
+| `==` | the text, by its bytes | the pointers, as in C |
+| Assigned | with `=`, a value | with `:=`, a reference |
 
-- **`cstr`** is immutable text (#52): in C a `const uint8_t *`, a
-  pointer to bytes that never change through it, which Kelvin treats as
-  text rather than as a pointer.
-  - It is a reference: assign it with `:=`, compare it with `nowhere`
-    or `.isNull`, and its `.size` is a pointer's size, 8 on a 64-bit
-    target.
-  - `s.count` is its length, the bytes before the NUL: `strlen(s)`.
-    - It is measured at the first use and kept for the rest of the
-      scope in a `_kv_` variable, declared only where `.count` is used;
-      after `s := t`, the next use measures again.
-  - `cstr const` is a constant pointer.
-  - It has no `+` or `-`, a literal too (#282).
-    - Only a `String` has `+`: `"a" + "b"` and `x + y` are errors;
-      `$"a" + "b"` is the String `"ab"`, and so is `"a" + $"b"`.
-    - It is text, not a cursor (#52): `"a" + 1`, `s + 2` and `x - y`
-      are errors; take a `var p:u8^ := s` to step.
-    - Adjacent literals are one, as in C: `"a" "b"` is `"ab"`.
-  - **It cannot be written through**: `s[0] = 'U'` and `s^ = 0` are
-    errors.
-    - To change text, copy it into a byte array, `var t:[u8](n)` and
-      `strcpy(t, s)`, or write through a `u8^`.
-  - **It does not step**: `s++`, `s.next`, `s + 1` and `s += 1` are
-    errors.
-    - Walk it with `for c in s`, index it with `s[i]`, or take the rest
-      of it with `&s[i]`, which is a `cstr` too.
-  - **A `u8^` may still take it**, `var p:u8^ := s`, in a declaration,
-    a `:=`, an initializer list or a call of a Kelvin function with a
-    `u8^` parameter: kelvinc writes the cast.
-    - This is allowed, not encouraged, and writing through `p` into a
-      literal is C's undefined behavior.
-    - A C function that takes `char *` needs `s as u8^`, since kelvinc
-      cannot see its parameters.
-    - The other way, a `u8^` or `const u8^` into a `cstr`, needs
-      nothing.
-  - **Prefer `cstr`** to `u8^` for text: a parameter `s:cstr` says the
-    function reads it, a `u8^` that it may write; `argv` is `[cstr]`.
-  - A string literal, the text of a property (`n.cstr`, `n.hex`) and a
-    template are `cstr`, so `let s := "hi"` infers it.
-- **A string literal** is C's: a `char` array that lives for the whole
-  program, which decays to a pointer.
-  - `let s:cstr := "hi"` points at it; writing through `s` is
-    undefined, as in C.
-  - Adjacent literals join, and the escapes are C's.
-  - `"""` on its own lines (#115, #118) is the same over any number of
-    lines, with the text exactly as written, no escapes and no
-    `${...}`.
-  - Every way of quoting text, these, the template and the `$` forms
-    that make a `String`, is in
-    [grammar.md](grammar.md#quoting-text).
-- **A byte array**, `[u8](N)` or `[u8]` filled from a literal, is a
-  value with a count.
-  - `let t:[u8] = "hi"` has `t.count` 3, the NUL included, and its
-    bytes may change if it is a `var`.
-  - It is an array, so `t.size` is its bytes, `for c in t` stops at the
-    first NUL or at its end, and passing it to a function makes a
-    pointer, as C does. See [arrays.md](arrays.md).
-- **The text of a property or a template** (`n.cstr`, `n.hex`, a
-  template literal) is written into a buffer on the stack of the
-  enclosing block, with nothing on the heap and nothing to free, and
-  lives until the block ends.
-  - Keeping it longer, by returning it or assigning it to a variable
-    of an outer block, is an error that says to copy it, as with
-    `strdup`.
-  - See [properties.md](properties.md) and [printing.md](printing.md).
+- A literal is a `cstr`, and becomes a String where one is expected
+  (#70): `var s:String = "x"`; `$"text"` is one always.
+- `s.cstr` lends a String's text to C, NUL-ended; `String(c)` copies a
+  `cstr` into a String.
 
-#### `u8` and C's `char` mix freely *(provisional P13)*
-
-C string literals are `char` arrays, and libc takes `char *`. Kelvin's `u8`
-is `unsigned char`, which has the same size, representation and ABI.
-
-So `let s:u8^ := "hi"` and passing a `u8^` to `strlen` just work. kelvinc
-silences C's pointer-sign warnings about the mix, and emits `main`'s `argv`
-as `char **`, because C requires that.
-
-`argv` is `[cstr]` or `u8^^` in `main`, and kelvinc writes C's
-`char **` for it. A C function with `char` parameters does not match a
-Kelvin function type with `u8^` ones, since C's `char` and `unsigned
-char` make incompatible function types: wrap it, as
-[functions.md](functions.md) shows.
-
-### Making text
-
-- **`x.cstr`** is any value's text: `42`, `-7`, `true`,
-  `0.10000000000000001` (as `print` shows it, #259), a struct's
-  `{x: 3, y: 4}`, its text members quoted, `{tag: "edge"}`.
-  - Of a string it is the string itself.
-  - `n.dec`, `n.hex`, `n.oct` and `n.bin` are an integer's text with a
-    prefix and, for a signed one, a sign; `p.hex` an address's.
-  - Each lives on the stack of the block.
-- **`String(n)`** of a number or a bool is its text as `print` shows
-  it, a String on the heap: `String(42)`, `String(2.5 * 2.0)` (#158).
-- **A template literal**, `` `n = ${n}` ``, joins text and values as
-  `print` shows them, on the stack too, with room for each value's
-  longest text.
-  - A string value longer than 256 bytes is cut with `...` (#44).
-  - Its escapes, and the other ways to quote text, are in
-    [grammar.md](grammar.md#quoting-text).
-- **A buffer you own**, `var line = [u8](256)`, takes C's own writers:
-  `fgets(line, line.size, stdin)`, `snprintf(line, line.size, ...)`,
-  `strcpy`. `line.size` is its bytes, as `sizeof line` is.
-- **To keep text** past its block, copy it: `let kept:cstr := strdup(d)`,
-  and `free` it as in C. Kelvin adds no heap use of its own.
-
-### Reading numbers from text
-
-A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
-`i32("755", 8)` with a base from 2 to 36, and the same as a property,
-`"42".i64`, `s.f64`.
-
-- **The text** may be a literal, a `cstr`, a `u8^` or `i8^`, a byte
-  array, the text of a property, or C's `char *`.
-  - A `String` or a `Bytes` in a variable too, read through its text
-    (#88): `i64(line)` of a line an IO gives.
-  - One by reference too, `i64(&s)` or `i64(r)` of a `String^`, as
-    `i64(s)` (#495).
-- **They read** as `strtol` and `strtod` do: leading spaces and a sign,
-  the longest number, 0 for none, and the type's limits with `errno`
-  set.
-- **Of a struct**, a converter is its attribute of that name (#512):
-  `i64(b)` of a BigInt is `b.i64`, as `i64(s)` and `s.i64` of text are
-  one; a struct without the attribute is an error in words.
-- See [integers.md](integers.md) for the table.
-
-### Walking and indexing
-
-<!-- fragment -->
-```swift
-for c in s { ... }            // each byte of s, up to the NUL (#30)
-for arg in argv { ... }       // each string, up to nowhere
-s[0], s^                      // the first byte, a u8
-var p := s; p := p.next       // a pointer stepped by one byte (#26)
-```
-
-- `for c in s` gives each `u8` up to the first 0, and `for arg in argv`
-  each pointer up to `nowhere`.
-- `c` is a `u8`, so `c == 'a'` compares bytes and `c.cstr` is its
-  number's text, not the character.
-- A string is evaluated once and does not move. See
-  [flow-controls.md](flow-controls.md).
-
-### Comparing
-
-`==` between two `cstr` compares the pointers, as in C. Compare text
-with `strcmp(a, b) == 0`, and a string with `nowhere` by `s.isNull` or
-`s == nowhere`; a literal is never null.
-
-### Printing
-
-- `print` and `println` show a `u8^`, a `cstr` and a string literal as
-  their text, and `nowhere` for a null pointer (#260).
-- A single `u8` prints as a number, as every integer does:
-  `println(s[0])` prints `104` for `h`, and `println(s.hex)` its
-  address.
-- In a template, `${s}` is the text and `${s.addr}` the address. See
-  [printing.md](printing.md).
-
-### `String`: text on the heap
-
-A `cstr` is C's text, where it is. `String` (#55) is text on the heap,
-that grows: a `Bytes` ([bytes.md](bytes.md)) that holds well-formed
-UTF-8, counted and walked by grapheme (#522).
+### A String
 
 It is an owner: freed when its block ends, moved by `return` and by
 passing, copied only by `.copy()`, borrowed as a pointer. The rules are
@@ -238,6 +78,8 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
 - **Making one:** `$"text"` or `String("text")`, `String(s)` of a
   `cstr` or a byte array, `String(&b)` of a `Bytes`, all checked for
   UTF-8: text that is not ends the program.
+  - `String(n)` of a number or a bool is its text as `print` shows it:
+    `String(42)`, `String(2.5 * 2.0)` (#158).
   - `String(x)` of an owner, a variable or what an expression gives
     alike, is an error in Kelvin's words, not C's (#412).
     - Of a String, `String(f())` is one already; a variable's copy is
@@ -269,15 +111,17 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
   the end ends the program: `kelvin: index 5 is out of range: the String
   has 5 graphemes`.
 - **`s + t`** (#183) is a new String of the two, either side a String,
-  text or a `uchr`, one a String: `s + "!"`, `"x" + s`, `s + t + u`. A
-  String in a variable is copied and stays; one an expression gives is
-  taken, so that a chain frees what it made. `s += t` still appends in
-  place, and a number is shown with a template, `` $`${n}` ``.
+  text or a `uchr`, one a String: `s + "!"`, `"x" + s`, `s + t + u`.
+  - A String in a variable is copied and stays; one an expression gives
+    is taken, so that a chain frees what it made.
+  - `s += t` still appends in place, and a number is shown with a
+    template, `` $`${n}` ``.
 - **Searching** (#177): `s.find(text)` is the grapheme index of the
   first `text` in `s` (#522), or -1, found by its bytes: the index of
-  the grapheme it starts in, `é`'s of its acute; `s.has(text)`, `s.starts(text)` and
-  `s.ends(text)` are whether it is there, at the start, at the end;
-  the text a `cstr` or a String borrowed, `s.find(&t)`.
+  the grapheme it starts in, `é`'s of its acute.
+  - `s.has(text)`, `s.starts(text)` and `s.ends(text)` are whether it
+    is there, at the start, at the end.
+  - The text is a `cstr` or a String borrowed, `s.find(&t)`.
 - **`s.trim()`** is a new String without the blanks at either end,
   the spaces, tabs and line ends JS's `\s` lists, U+3000 among them.
 - **`s.prefix(n)`** and **`s.prefix { ... }`** (#372) are a new String
@@ -314,42 +158,30 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
   and `s[...hi]` are new Strings of those graphemes (#522); a range past
   the count ends the program.
   - `s[r]` slices by a Range value as well (#377).
-- **Comparing:** `==` and `!=` compare two Strings by their bytes, and
-  a String with text, a `cstr` or a literal, a `uchr` or a character, on
-  either side (#522): `c == " "`, `c != ' '`, `s == u` where `s` is that
-  one codepoint; and
-  `<`, `<=`, `>` and `>=` order them by their bytes, codepoint order
-  for UTF-8, `"Zed" < "ann"` (#185); two Strings in variables, as for
-  `==`. A Bytes compares the same way.
-- **Not yet:** `insert` and `remove` on a String, encodings other than
-  UTF-8.
+- **Comparing:** `==` and `!=` compare two Strings by their bytes.
+  - A String compares with text, a `cstr` or a literal, a `uchr` or a
+    character, on either side (#522): `c == " "`, `c != ' '`, `s == u`
+    where `s` is that one codepoint.
+  - `<`, `<=`, `>` and `>=` order two Strings by their bytes, codepoint
+    order for UTF-8, `"Zed" < "ann"` (#185).
+  - A Bytes compares the same way.
+- **Printing:** `print` shows a String's text; inside a value, an
+  Array's element or a member, it is quoted, `"x"`, so that it pastes
+  back ([printing.md](printing.md)).
 
 ### What is not here yet
 
 `insert` and `remove` on a String, and encodings other than UTF-8, are
 to come.
 
-- A `cstr` is C's bytes, with C's rules: a NUL ends it, nothing checks
-  a bound, and one that points at freed or ended storage is as wrong as
-  in C.
-- A `String` is checked, and freed when its block ends.
-
 ## Where it lives
 
-`cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
+The prelude's, `libkelvin`, linked without an import: `String` and `uchr` (#55, #56), with the graphemes' functions of runtime/unicode.c and UnicodeData's (#520, #522).
 
 ## Properties and methods
 
 | On | Property or method | Gives |
 |---|---|---|
-| `cstr`, a literal | `.count` | `strlen`, measured once per scope (#52) |
-| | `.isEmpty` | whether its first byte is its NUL, `.count == 0` without measuring, a `bool` (#434) |
-| `"""text"""` | | a literal over lines, as written, no escapes (#115); the spellings of text are in [grammar.md](grammar.md#quoting-text) |
-| | `.cstr` | the text itself |
-| | `.i64`, `.f64`, ... | a number read from the text; `i64(s, 16)` in a base |
-| | `i64(s)`, `i64(&s)`, `f64(s)`, ... | the same, of a String by value or by reference (#88, #495) |
-| | `.size`, `.typename`, `.addr`, `.hex`, `.isNull` | as a pointer's |
-| | `for c in s`, `s[i]` | each byte; a byte, unchecked, as C has it |
 | `String` | `.count` | the graphemes, found by walking it, O(n) (#522) |
 | | `.isEmpty` | whether it holds no text, `.count == 0`, a `bool` (#434) |
 | | `.bytes` | its Bytes, a read-only borrow ([bytes.md](bytes.md)) |
@@ -372,6 +204,8 @@ to come.
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | the prelude's `UnicodeData` (#156, #520): [unicodedata.md](unicodedata.md) |
 | | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with the prelude's `RegExp` (#157, #504), `re` a `$/.../`: [regexp.md](regexp.md) |
 | | `==`, `!=` | by the bytes, with a String, text, a `uchr` or a character (#522) |
+| | `<`, `<=`, `>`, `>=` | by the bytes, codepoint order (#185) |
+| | `i64(s)`, `f64(s)`, ... | a number read from its text (#88): [cstr.md](cstr.md#reading-numbers-from-text) |
 | `uchr` | `uchr(x)` | of an integer, or the first codepoint of text, a String or a Bytes, `uchr(s)` or `uchr(&s)`; U+FFFD where none (#56, #494) |
 | | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
 | | `.cstr` | the character as UTF-8 text |

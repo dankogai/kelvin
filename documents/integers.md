@@ -42,7 +42,7 @@ that suggest the Kelvin name, as `float`, `double` and `_Bool` are (see
 [floatingpoint.md](floatingpoint.md) and [bool.md](bool.md)). As a result:
 
 - There is no plain `char`. Use `u8`, or `i8` for signed bytes; see
-  [strings.md](strings.md) for text.
+  [cstr.md](cstr.md) and [strings.md](strings.md) for text.
 - Each type has a full name too (#151): `int64` is `i64`, `uint8` is
   `u8`, the same type by another name, wherever the short one goes,
   `var n:int64`, `uint8(c)`, `x as int32`; its `.typename` is the short

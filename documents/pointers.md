@@ -186,5 +186,5 @@ The core. Pointers, `:=`, `any^` and `nowhere` are kelvinc's own, written as C's
 | another pointer | `.cstr` | its address as text, `0x16ee86888` |
 | any pointer | `.i64` and the other converters | fields, if a C struct has them; otherwise `x as uintptr_t` |
 
-`cstr`, immutable text, is in [strings.md](strings.md); the details
+`cstr`, immutable text, is in [cstr.md](cstr.md); the details
 of each property are in [properties.md](properties.md).

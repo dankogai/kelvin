@@ -237,7 +237,7 @@ An integer's digits and an `n`, `123n`, `0xffn` or `0b101n`, is a
       quoted text, a `.typename` and a `#line`'s file name.
   - The text lives for the whole program and cannot be written through.
   - A `cstr` is a reference, so `let s := "hi"`; see
-    [strings.md](strings.md).
+    [cstr.md](cstr.md).
 - **`'c'`** is C's character constant, a `u8` in Kelvin, with C's
   escapes: `'\n'`, `'\0'`, `'\''`.
   - A codepoint is a `uchr`, made from a number, `0x1F600.uchr`; see

@@ -25,7 +25,7 @@ is `Array<T>`, on the heap, in [ownership.md](ownership.md).
 This document has the types, the `[...]` initializers, `[T](n)` for a
 zero-filled array, `.count` and `.size`, and what stays C's: an array
 passed to a function is a pointer. Byte arrays that hold text are in
-[strings.md](strings.md).
+[cstr.md](cstr.md).
 
 ### The types
 
