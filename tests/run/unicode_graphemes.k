@@ -17,7 +17,7 @@ let main():int32 {
             var cp:i64 = 0
             var digits:i64 = 0
             var started = false
-            for c in line {
+            for c in line.codepoints {
                 let n = c.utf32 as i64
                 if n == '#' as i64 { break }
                 if n == 0xF7 || n == 0xD7 {                     // ÷ or ×

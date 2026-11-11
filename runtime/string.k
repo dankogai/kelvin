@@ -6,21 +6,18 @@
 // static, C's, so that no name of theirs meets a program's.
 #import <string.h> as C
 
-// the codepoint index of the n bytes at p in s, or -1: by the bytes,
-// the index counted as the codepoints before it
+// the grapheme that holds byte b of s, its index (#522), runtime/unicode.c's
+let kv_string_grapheme_floor(s:const String^, b:size_t):size_t
+
+// the grapheme index of the n bytes at p in s, or -1: by the bytes, the
+// index that of the grapheme where they begin (#522)
 static let find_bytes(s:const String^, p:const u8^, n:size_t):int64 {
     let at:cstr := s^.cstr
     let count:size_t = s^.bytes^.count
     if n > count { return -1 }
     var i:size_t = 0
     while i + n <= count {
-        if memcmp(&at[i], p, n) == 0 {
-            var k:int64 = 0
-            for j in 0..<i {
-                if (at[j] & 0xC0) != 0x80 { k += 1 }
-            }
-            return k
-        }
+        if memcmp(&at[i], p, n) == 0 { return kv_string_grapheme_floor(s, i) as int64 }
         i += 1
     }
     return -1
@@ -64,7 +61,7 @@ let kv_string_trim(s:const String^):String {
     var lo:int64 = -1
     var hi:int64 = 0
     var i:int64 = 0
-    for c in s^ {
+    for c:uchr in s^ {
         if !is_blank_cp(c.utf32) {
             if lo < 0 { lo = i }
             hi = i + 1
@@ -89,7 +86,7 @@ static let put_hex(out:String^, v:u32) {
 // and a literal of it too: a String holds a NUL, which a cstr cannot
 let kv_string_escape(s:const String^):String {
     var out = $""
-    for c in s^ {
+    for c:uchr in s^ {
         let cp:u32 = c.utf32
         if cp == 0 {
             out += "\\u{0}"
@@ -137,7 +134,7 @@ static let hex_run(cps:const $[u32]^, i:int64, n:int64):int64 {
 // escape is ASCII, so the codepoints are read as the bytes were
 let kv_string_unescape(s:const String^):String {
     var cps:$[u32] = $[]
-    for c in s^ {
+    for c:uchr in s^ {
         cps += c.utf32                           // a NUL too (#299)
     }
     var out = $""

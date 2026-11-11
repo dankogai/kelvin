@@ -9847,3 +9847,18 @@ over a String's codepoints are written so, ready for #522, where `for c
 in s` walks graphemes. Details are provisional P533.
 
 There are 1277 tests, and all pass with clang and with gcc 15.
+
+### 569. Graphemes, a String's elements
+
+> go on with #522
+
+**Claude** asked: the user chose that RegExp's offsets be of graphemes,
+that `find` match bytes and give a grapheme's index, and that `.prefix {
+}` give its function each grapheme; asked again, that a String compare
+with text, a uchr or a character. A String's elements are now its
+graphemes, each a String: `for c in s`, `s[i]`, the slices, `s.count`,
+`s.find` and `s.prefix` count them, O(n), in kelvinc and kc; a typed
+loop and `s.codepoints` walk codepoints. Tests, kc's own source and the
+modules that meant codepoints say so. Details are provisional P534.
+
+There are 1281 tests, and all pass with clang and with gcc 15.

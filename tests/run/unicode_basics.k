@@ -8,10 +8,10 @@ let main():int32 {
     var d = s.normalize(nfd)
     var kc = s.normalize(nfkc)
     var kd = s.normalize(nfkd)
-    println(s.count, " ", c.count, " ", d.count, " ", kc.count, " ", kd.count, " ", kc)
+    println(s.codepoints.count, " ", c.codepoints.count, " ", d.codepoints.count, " ", kc.codepoints.count, " ", kd.codepoints.count, " ", kc)
     var gs = s.graphemes
     println(gs.count, " [", gs[0], "] [", gs[6], "] [", gs[8], "] [", gs[10], "] [", gs[11], "]")
-    for g in gs { print(g.count, " ") }
+    for g in gs { print(g.codepoints.count, " ") }
     println()
     var up = s.upper()
     var low = up.lower()
@@ -26,7 +26,7 @@ let main():int32 {
     var plain = uchr("a").decomposition
     println(up, " ", low == s, " ", fold, " ", name, " ", uchr("é").category, " ", uchr("\u0301").combining, " ", uchr("é").combining)
     println('A'.uchr.lower, " ", uchr("ß").upper, " ", uchr("ß").fold, " ", 'Z'.uchr.fold, " ", uchr("Ω").lower)
-    println(dec.count, " ", compat, " ", han, " ", cjk, " [", none, "] ", plain.count)
+    println(dec.codepoints.count, " ", compat, " ", han, " ", cjk, " [", none, "] ", plain.count)
     println('a'.uchr.isLetter, " ", '1'.uchr.isNumber, " ", ' '.uchr.isSpace, " ", ','.uchr.isPunctuation, " ", '+'.uchr.isSymbol, " ", uchr("\u0301").isMark, " ", '1'.uchr.category, " ", uchr("😀").category)
     return 0
 }

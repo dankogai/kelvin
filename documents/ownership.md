@@ -84,9 +84,9 @@ for x in b { print(x, " ") } // each byte, count of them, NULs included
 
 ### `String`
 
-A `String` is a sequence of Unicode codepoints, kept as UTF-8 in a
-`Bytes` with its count of codepoints, and an owner under the same rules
-(#55). Malformed text is refused: where a `String` is made or appended
+A `String` is Unicode text, kept as UTF-8 in a `Bytes` with its count
+of codepoints, and an owner under the same rules (#55); its elements
+are its graphemes (#522), each a String. Malformed text is refused: where a `String` is made or appended
 from bytes that are not well-formed UTF-8 (overlong forms, surrogates,
 anything past U+10FFFF), the program ends with a message.
 
@@ -96,7 +96,7 @@ var s = String("héllo, κόσμε")  // text, checked
 s += " 🌍"                      // text, a codepoint, &other, or a String an expression gives
 s.append(0x1F600)
 println(s, " ", s.count, " ", s.bytes^.count)   // héllo, κόσμε 🌍😀 15 27
-for c in s { if c > 127 { ... } }                // each codepoint, a uchr
+for c in s.codepoints { if c > 127 { ... } }     // each codepoint, a uchr (#521)
 let t = s.copy()
 println(s == t, " ", t.cstr)
 let u = String(&b)               // a Bytes, checked; b.string() is a Result (#405)
@@ -109,8 +109,8 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
   - `b.string()` (#405) is a `Result<String, i64>` instead, the
     String or the offset where the UTF-8 breaks; `b.isUTF8` says
     whether it would pass.
-- **Properties:** `s.count` the codepoints, kept with the text, so it
-  costs nothing.
+- **Properties:** `s.count` the graphemes (#522), found by walking the
+  text; `s.codepoints.count` the codepoints.
   - `s.bytes` a read-only borrow of the bytes, a `const Bytes^`, with
     `s.bytes^.count` the bytes and `s.bytes^[i]` a byte.
   - `s.cstr` the text; `s.size` 32.
@@ -119,8 +119,9 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
   ends the program), a borrow `&other`, or a `String` an expression
   gives.
   - `clear()`, `reserve(n)`, `compact()`, `copy()`.
-  - There is no `insert` or `remove` yet, and no `s[i]`: a position in
-    a `String` is a walk, so write `for c in s`, or index the bytes.
+  - There is no `insert` or `remove` yet. `s[i]` is grapheme `i`
+    (#522), found by a walk from the start, O(n); `for c in s` walks
+    them once.
 - **`==` and `!=`** compare two `String`s in variables, by their bytes.
 - A `Bytes` takes a `String` through `s.bytes`; a `String` takes a
   `Bytes` through `String(&b)`, `b.string()` (a Result) or, up to a
@@ -128,7 +129,8 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
   - A borrow of the other kind is an error that says so.
 - **`uchr`** is a codepoint on the stack (#56), a value type of four
   bytes.
-  - `for c in s` gives one; `uchr("é")` is the first codepoint of text.
+  - `for c in s.codepoints` gives one, as does `for c:uchr in s`;
+    `uchr("é")` is the first codepoint of text.
     - Of a String or a Bytes too, `uchr(s)` or `uchr(&s)` (#494).
     - Of empty text it is U+FFFD.
   - `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the

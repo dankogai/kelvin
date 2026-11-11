@@ -117,9 +117,9 @@ name: `s.match(&re)` is `re.match(&s)`.
 | On a `RegExp` `re`, a `String` `s` | Gives |
 |---|---|
 | `re.test(&s)`, `s.test(&re)` | is there a match, a `bool` |
-| `re.search(&s)`, `s.search(&re)` | the codepoint offset of the first match, or -1 |
+| `re.search(&s)`, `s.search(&re)` | the grapheme offset of the first match, or -1 (#522) |
 | `re.exec(&s)` | the first match, a `Match?`: `if let m = re.exec(&s) { }` |
-| `re.execFrom(&s, from)` | the first match at or after codepoint `from` |
+| `re.execFrom(&s, from)` | the first match at or after grapheme `from` (#522) |
 | `re.match(&s)`, `s.match(&re)` | an `Array<Match>` of every match with `g`, else of the first alone, empty where there is none |
 | `re.match(&s) { ... }`, `s.match(&re) { ... }` | the same matches, each given to the function as its `Match`: `s.match(&re) { println($0.text[1]) }` (#159) |
 | `re.replace(&s, with)`, `s.replace(&re, with)` | `s` with each match (the first alone without `g`) replaced, a new String; `with` a `cstr`, or a String borrowed, `&with` (#161) |
@@ -192,14 +192,20 @@ println(c)                                                   // water boils at 1
 ### A match
 
 A `Match` holds the text of the whole match and of each group, their
-codepoint offsets and the groups' names, and stands on its own: the
-String it came from may change or go.
+offsets and the groups' names, and stands on its own: the String it
+came from may change or go.
+
+- **Offsets are of graphemes** (#522), as `s[i]` and `s[lo..<hi]` are:
+  a match's start is the grapheme it starts in, its end past the one it
+  ends in, so that `s[m.start..<m.end]` holds the match.
+- The engine still matches codepoint by codepoint: a `.` or `\u0301` is
+  one codepoint, `\X` a grapheme.
 
 | On a `Match` `m` | Gives |
 |---|---|
 | `m.text[i]` | the text of group `i`, a String in place: `m.text[0]` the whole; `""` where the group took no part |
 | `m[i]`, `m["name"]` | a copy of the text of group `i`, or of the named group: bind it, `var month = m["month"]` |
-| `m.start`, `m.end` | the codepoint offsets of the match in the String, `s[m.start..<m.end]` |
+| `m.start`, `m.end` | the grapheme offsets of the match in the String, `s[m.start..<m.end]` (#522): the grapheme it starts in, and past the one it ends in |
 | `m.startOf(i)`, `m.endOf(i)` | the same for group `i`, -1 where it took no part |
 | `m.has(i)` | did group `i` take part? |
 | `m.count` | the groups and the whole: `re.groups + 1` |

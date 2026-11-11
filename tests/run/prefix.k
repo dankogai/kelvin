@@ -51,7 +51,7 @@ let main():int32 {
     let ss = $[$"a", $"bb", $"c"]
     println(ss.prefix(2), " ", ss.prefix { $0.count == 1 }, " ", ss.map { $0 + $"." }.prefix(2))
     let s = $"héllo"
-    println(s.prefix(2), " ", s.prefix { $0.utf32 != 'l' }, " ", s.prefix(99), " ", ($"ab" + $"cd").prefix { $0.utf32 != 'c' })
+    println(s.prefix(2), " ", s.prefix { $0 != 'l' }, " ", s.prefix(99), " ", ($"ab" + $"cd").prefix { $0 != 'c' })
     let d = ${"a": $"1", "b": $"22", "c": $"3"}
     println(d.prefix(2), " ", d.prefix { $0.count == 1 })
     let st = ${3, 1, 2}

@@ -1995,6 +1995,16 @@ let type_of(n:int64):int64 {
             }
             return y
         }
+        if yk == Y_STRING {                                          // s[i], grapheme i, a String (#522)
+            if iy >= 0 && !is_int_kind(types[iy].kind) {
+                var m = $"s[i] is grapheme i of a String, i an integer, and this is "
+                let w:String = kelvin_type_text(iy)
+                m += &w
+                gen_error(n, m.cstr)
+                return -1
+            }
+            return y
+        }
         if yk == Y_DICT && nodes[n].flag == 1 { return optional_of(types[y].elem) }    // d[k] read whole (#219)
         if yk == Y_ARRAY || yk == Y_DICT || yk == Y_FIXED { return types[y].elem }   // a fixed array's (#354)
         if yk == Y_ARGV { return base_type(Y_CSTR) }
@@ -4677,7 +4687,7 @@ let os_member(n:int64):String {
                 var name = $""
                 var rest = $""
                 var at_rest = false
-                for e in entry {
+                for e in entry.codepoints {
                     if !at_rest && e.utf32 == ' ' {
                         at_rest = true
                     } else if at_rest {
@@ -6697,6 +6707,10 @@ let gen_member(n:int64) {
         put("((int64_t)sizeof(")
         gen_expr(a)
         put("))")
+    } else if tok_is(t, "count") && yk == Y_STRING {     // its graphemes, as kelvinc's (#522)
+        put("((int64_t)({ const kv_string _kv_gs = (")
+        gen_expr(a)
+        put("); kv_string_graphemes(&_kv_gs); }))")
     } else if (tok_is(t, "count") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET)) || (yk == Y_BYTES && tok_is(t, "capacity")) {
         put("((int64_t)(")
         gen_expr(a)
@@ -7503,6 +7517,7 @@ let is_place(n:int64):bool {
     if k == N_FIELD && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_IO { return false }   // f.abspath and the rest, values (#464)
     if is_made_array(n) { return false }                     // s.elements, d.keys, a new Array (#278, #285)
     if is_slice(n) { return false }                          // xs[r], a new one (#377)
+    if is_grapheme_index(n) { return false }                 // s[i], a new String (#522)
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
     if k == N_COND { return is_place(nodes[n].b) && is_place(nodes[n].c) }   // two places are one (#232)
     return k == N_ID || k == N_DEREF || k == N_SELF
@@ -7511,14 +7526,23 @@ let is_place(n:int64):bool {
 // a == b of Strings; one an expression gives is held in a temporary,
 // freed once compared, as kelvinc holds it (#187)
 let gen_string_eq(a:int64, b:int64) {
+    let by:int64 = type_of(b)
+    let bk:ykind = by >= 0 ? types[by].kind : Y_VOID
     let ha = needs_hold(a)                           // each side an expression gives (#227)
-    let hb = needs_hold(b)
+    let hb = bk == Y_STRING && needs_hold(b)
     if ha { hold_open(a) }
     if hb { hold_open(b) }
-    put("kv_string_eq(")
-    gen_place(a)
-    put(", ")
-    gen_place(b)
+    if bk == Y_STRING {
+        put("kv_string_eq(")
+        gen_place(a)
+        put(", ")
+        gen_place(b)
+    } else {                                         // with text, a uchr or a character, as kelvinc's (#522)
+        put(nodes[b].kind == N_STR || bk == Y_CSTR ? "kv_string_eq_text(" : bk == Y_UCHR ? "kv_string_eq_uchr(" : "kv_string_eq_cp(")
+        gen_place(a)
+        put(", ")
+        gen_expr(b)
+    }
     put(")")
     if hb { hold_close(b) }
     if ha { hold_close(a) }
@@ -8968,6 +8992,27 @@ let is_slice(n:int64):bool {
     return iy >= 0 && types[iy].kind == Y_RANGE
 }
 
+// whether n is s[i] of a String, grapheme i, a new String, as kelvinc's (#522)
+let is_grapheme_index(n:int64):bool {
+    if nodes[n].kind != N_INDEX || nodes[n].b < 0 || is_slice(n) { return false }
+    let y:int64 = type_of(nodes[n].a)
+    return y >= 0 && types[y].kind == Y_STRING
+}
+
+// s[i] (#522): grapheme i of s, found by walking it; what an expression
+// gives held while it is walked
+let gen_grapheme_index(n:int64) {
+    let a:int64 = nodes[n].a
+    let hold = needs_hold(a)
+    if hold { hold_open(a) }
+    put("kv_string_grapheme(")
+    gen_place(a)
+    put(", (int64_t)(")
+    gen_expr(nodes[n].b)
+    put("))")
+    if hold { hold_close(a) }
+}
+
 // xs[r] (#377), as kelvinc's: a copy of the elements, or the codepoints,
 // from lo up to hi, past it where closed, to the count without one; one
 // out of range ends the program, as kelvinc's slice does; what an
@@ -8987,9 +9032,17 @@ let gen_slice(n:int64) {
         put("_slice(")
     }
     gen_place(a)
-    put(", _kv_sr.lo, _kv_sr.kind == 2 ? (")
-    gen_place(a)
-    put(")->count : _kv_sr.kind ? (uint64_t)_kv_sr.hi + 1 : (uint64_t)_kv_sr.hi); })")
+    put(", _kv_sr.lo, _kv_sr.kind == 2 ? ")
+    if types[y].kind == Y_STRING {                       // its graphemes (#522)
+        put("kv_string_graphemes(")
+        gen_place(a)
+        put(")")
+    } else {
+        put("(")
+        gen_place(a)
+        put(")->count")
+    }
+    put(" : _kv_sr.kind ? (uint64_t)_kv_sr.hi + 1 : (uint64_t)_kv_sr.hi); })")
     if hold { hold_close(a) }
 }
 
@@ -10506,6 +10559,8 @@ let gen_expr_of(n:int64) {
         gen_method(n)
     } else if k == N_INDEX && is_slice(n) {
         gen_slice(n)                                 // xs[r], xs[lo..<hi] (#377)
+    } else if is_grapheme_index(n) {
+        gen_grapheme_index(n)                        // s[i] (#522)
     } else if k == N_INDEX && needs_hold(nodes[n].a) {
         gen_index(n)                                 // of what an expression gives (#227)
     } else if k == N_INDEX {
@@ -10524,7 +10579,7 @@ let gen_expr_of(n:int64) {
         gen_bytes_bin(n)                                 // b == c, b < c, and kelvinc's errors (#439)
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
-    } else if k == N_BIN && (uchr_typed(nodes[n].a) || uchr_typed(nodes[n].b)) {
+    } else if k == N_BIN && (uchr_typed(nodes[n].a) || uchr_typed(nodes[n].b)) && !((tok_is(t, "==") || tok_is(t, "!=")) && (builtin_kind(type_of(nodes[n].a)) == Y_STRING || builtin_kind(type_of(nodes[n].b)) == Y_STRING)) {   // s == u is the String's (#522)
         gen_uchr_compare(n)                              // c == ' ', c < d, by the codepoint (#478)
     } else if k == N_BIN && !widen_ints && widened.get(n, false) {
         widen_ints = true                                // arithmetic of integer literals, inferred an i64 (#385)
@@ -10540,9 +10595,13 @@ let gen_expr_of(n:int64) {
             gen_set_op(n, y)                             // s | t, s & t, s ~ t (#276)
         } else if (builtin_kind(y) == Y_ARRAY || builtin_kind(y) == Y_DICT || builtin_kind(type_of(nodes[n].b)) == Y_ARRAY || builtin_kind(type_of(nodes[n].b)) == Y_DICT) && (tok_is(t, "==") || tok_is(t, "!=")) {
             gen_container_eq(n)                          // xs == ys, d != d2 (#288)
-        } else if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {
+        } else if (builtin_kind(y) == Y_STRING || builtin_kind(type_of(nodes[n].b)) == Y_STRING) && (tok_is(t, "==") || tok_is(t, "!=")) {
             if tok_is(t, "!=") { put("(bool)!") }
-            gen_string_eq(nodes[n].a, nodes[n].b)
+            if builtin_kind(y) == Y_STRING {             // a String on either side, with text or a character (#522)
+                gen_string_eq(nodes[n].a, nodes[n].b)
+            } else {
+                gen_string_eq(nodes[n].b, nodes[n].a)
+            }
         } else if y >= 0 && types[y].kind == Y_STRING && is_comparison(t) {
             gen_string_order(n)                          // a < b, by codepoints (#470)
         } else if builtin_kind(type_of(nodes[n].b)) == Y_STRING && is_comparison(t) && !tok_is(t, "==") && !tok_is(t, "!=") {
@@ -15024,7 +15083,7 @@ let prefix_of(n:int64):int64 {
     if y < 0 { return 0 - 1 }
     let yk:ykind = types[y].kind
     if yk != Y_ARRAY && yk != Y_STRING && yk != Y_DICT && yk != Y_SET && yk != Y_RANGE { return 0 - 1 }   // r.prefix(n), a Range (#373)
-    let ey:int64 = yk == Y_STRING ? base_type(Y_UCHR) : types[y].elem
+    let ey:int64 = yk == Y_STRING ? base_type(Y_STRING) : types[y].elem   // a String's graphemes, each a String (#522)
     let fn:int64 = prefix_arg(n, ey)
     if fn == 0 - 1 { return 0 - 1 }
     let r:prefix_rec = {n, y, ey, fn < 0 ? 0 - 1 : fn}
@@ -15097,6 +15156,10 @@ let gen_prefix(n:int64) {
         gen_expr(nodes[n].b)
         put("); ")
     }
+    if yk == Y_STRING && r.fn < 0 {                      // the first n graphemes (#522)
+        put("kv_string_prefix(_kv_ms, _kv_pn); })")
+        return
+    }
     if (yk == Y_ARRAY || yk == Y_STRING) && r.fn < 0 {      // the first n, a slice
         put("size_t _kv_pc = _kv_pn <= 0 ? 0 : (uint64_t)_kv_pn < _kv_ms->count ? (size_t)_kv_pn : _kv_ms->count; ")
         if yk == Y_STRING {
@@ -15108,10 +15171,10 @@ let gen_prefix(n:int64) {
         put("(_kv_ms, 0, _kv_pc); })")
         return
     }
-    if yk == Y_STRING {                                  // the codepoints before the first f says false for
-        put("const uint8_t *_kv_pp = _kv_ms->b.at, *_kv_pe = _kv_pp ? _kv_pp + _kv_ms->b.count : _kv_pp; size_t _kv_pc = 0; while (_kv_pp < _kv_pe) { kv_uchr _kv_pu = {kv_utf8_next(&_kv_pp)}; if (!")
+    if yk == Y_STRING {                                  // the graphemes before the first f says false for (#522), each a String f takes, as an element's copy (#329)
+        put("const uint8_t *_kv_pp = _kv_ms->b.at, *_kv_pe = _kv_pp ? _kv_pp + _kv_ms->b.count : _kv_pp; while (_kv_pp < _kv_pe) { size_t _kv_pg = kv_ucd_grapheme_len(_kv_pp, (size_t)(_kv_pe - _kv_pp)); kv_string _kv_pu = kv_string_span(_kv_pp, _kv_pg); if (!")
         put_fn_name(r.fn)
-        put("(_kv_pu)) break; _kv_pc++; } kv_string_slice(_kv_ms, 0, _kv_pc); })")
+        put("(_kv_pu)) break; _kv_pp += _kv_pg; } kv_string_span(_kv_ms->b.at, (size_t)(_kv_pp - _kv_ms->b.at)); })")
         return
     }
     put_ctype(y)
@@ -16178,6 +16241,8 @@ let gen_lines_each(n:int64, depth:int64) {
     put("}\n")
 }
 
+var codepoint_loops:Dictionary<int64, bool>     // for c in s.codepoints, by codepoint (#521)
+
 let gen_each(n:int64, depth:int64) {
     var src0:int64 = nodes[n].a
     if nodes[src0].kind == N_FIELD && tok_is(nodes[src0].t, "codepoints") {
@@ -16185,6 +16250,7 @@ let gen_each(n:int64, depth:int64) {
         if sy >= 0 && types[sy].kind == Y_STRING {      // for c in s.codepoints: s walked in place, as kelvinc's (#521)
             nodes[n].a = nodes[src0].a
             src0 = nodes[n].a
+            codepoint_loops[n] = true
         }
     }
     if nodes[src0].kind == N_FIELD && tok_is(nodes[src0].t, "lines") && nodes[n].b < 0 {
@@ -16436,13 +16502,41 @@ let gen_each(n:int64, depth:int64) {
         indent(depth + 1)
         put("{\n")
         indent(depth + 2)
-        put("const kv_uchr ")
-        put_tok(nodes[n].t)
-        put(" = (kv_uchr){kv_utf8_next(&_kv_p")
-        put_int(serial)
-        put(")};\n")
-        open_scope()
-        declare_each(nodes[n].t, base_type(Y_UCHR), 3)      // (#271)
+        if codepoint_loops.has(n) {
+            put("const kv_uchr ")
+            put_tok(nodes[n].t)
+            put(" = (kv_uchr){kv_utf8_next(&_kv_p")
+            put_int(serial)
+            put(")};\n")
+            open_scope()
+            declare_each(nodes[n].t, base_type(Y_UCHR), 3)      // (#271)
+        } else {                                        // its graphemes, each a String the loop frees, as kelvinc's (#522)
+            put("const size_t _kv_g")
+            put_int(serial)
+            put(" = kv_ucd_grapheme_len(_kv_p")
+            put_int(serial)
+            put(", (size_t)(_kv_e")
+            put_int(serial)
+            put(" - _kv_p")
+            put_int(serial)
+            put("));\n")
+            indent(depth + 2)
+            put("__attribute__((cleanup(kv_string_free))) kv_string ")
+            put_tok(nodes[n].t)
+            put(" = kv_string_span(_kv_p")
+            put_int(serial)
+            put(", _kv_g")
+            put_int(serial)
+            put(");\n")
+            indent(depth + 2)
+            put("_kv_p")
+            put_int(serial)
+            put(" += _kv_g")
+            put_int(serial)
+            put(";\n")
+            open_scope()
+            declare_each(nodes[n].t, base_type(Y_STRING), 3)
+        }
     } else if types[y].kind == Y_CSTR {                // a cstr's bytes, up to its NUL, as kelvinc's #30
         let literal = nodes[src].kind == N_STR          // "hi" is C's char[], which only C sees: c is a char
         put("for (")

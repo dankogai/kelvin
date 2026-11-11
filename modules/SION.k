@@ -507,7 +507,7 @@ extend SION {
     static let quote(s:const String^, var out:String^):() {
         let hex := "0123456789abcdef"
         out^ += "\""
-        for c in s^ {
+        for c in s^.codepoints {
             let n = c.codepoint
             if n == 0x22 {
                 out^ += "\\\""

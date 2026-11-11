@@ -1306,7 +1306,7 @@ on a new line`
     let uc_e = uchr("é")                                  // uchr(x), compared by its codepoint (#478)
     let uc_s = $"日本"
     var uc_n = 0
-    for uc_c in uc_s { if uc_c >= 0x65E5 && uc_c != uc_e { uc_n += 1 } }
+    for uc_c in uc_s.codepoints { if uc_c >= 0x65E5 && uc_c != uc_e { uc_n += 1 } }
     println(uc_e, uchr(0x41), uchr(uc_s.cstr), " ", uc_e > 'a', " ", uc_e == uchr(233), " ", uc_e.codepoint, " ", int64(uc_e) + 1, " ", uc_n)
     let uc_a = $[uc_e, uchr(0), uchr("\"")]               // a uchr inside a value, uchr("x") (#479)
     let uc_f:[uchr](2) = [uchr("p"), uchr(0x41)]
@@ -1366,6 +1366,12 @@ on a new line`
     js_j["tags"][0] = JSON.string($"C")
     println(js_j["name"].string, " ", js_j["tags"][1].number, " ", JSON.stringify(&js_j), " ", JSON.stringify(&js_j, js_doubled))
     println(JSON.stringify(&js_j.object["tags"], 1))
+    var gr_s = $"e\u0301 ﬁ 👨‍👩‍👧 x"                   // a String's graphemes, each a String (#522)
+    var gr_n = 0
+    for gr_c in gr_s {
+        if gr_c != ' ' { gr_n += 1 }
+    }
+    println(gr_n, " ", gr_s.count, " ", gr_s.codepoints.count, " ", gr_s[4], " ", gr_s[2..<5], " ", gr_s.find("x"), " ", gr_s.prefix(1), " ", gr_s[0] == "e\u0301")
     return 0
 }
 // a JSON.stringify replacer: numbers doubled, the name left out (#516)

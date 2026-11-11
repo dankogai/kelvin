@@ -840,6 +840,8 @@ static char *expr_bare(Expr *e) {
                           "else _kv_r = _kv_%s_make_none(); _kv_r; })",
                           decl(e->type, ""), expr(src), bind, value, r->name);
         }
+        if (e->op && !strcmp(e->op, "string_grapheme")) /* s[i] (#522): grapheme i, a new String */
+            return strfmt("kv_string_grapheme(&(%s), (int64_t)(%s))", expr(e->a), expr(e->items.data[0]));
         if (e->op && !strcmp(e->op, "element_copy")) { /* xs += &x of one element: a copy of x (#206) */
             const char *f = owner_copy(e->type);
             return f ? strfmt("%s(%s)", f, expr(e->items.data[0])) : strfmt("(*(%s))", expr(e->items.data[0]));
@@ -1053,13 +1055,14 @@ static char *expr_bare(Expr *e) {
         if (e->a && e->op && !strcmp(e->op, "slice") && e->type) { /* xs[lo..<hi] (#68): a copy */
             char *seq = expr(e->a);
             const char *lo = e->b ? expr(e->b) : "0";
-            const char *hi = e->c ? (!strcmp(e->text, "closed") ? strfmt("(%s) + 1", expr(e->c)) : expr(e->c))
-                                  : strfmt("(%s).count", seq);
+            bool str = !strcmp(e->type->name, "String");
+            const char *count = str ? strfmt("kv_string_graphemes(&(%s))", seq) : strfmt("(%s).count", seq); /* (#522) */
+            const char *hi = e->c ? (!strcmp(e->text, "closed") ? strfmt("(%s) + 1", expr(e->c)) : expr(e->c)) : count;
             const char *head = "";
             if (!strcmp(e->text, "range")) { /* xs[r] of a Range value (#377): lo up to hi, past it closed, the count without one */
                 head = strfmt("({ __auto_type _kv_sr = (%s); ", expr(e->b));
                 lo = "_kv_sr.lo";
-                hi = strfmt("_kv_sr.kind == 2 ? (%s).count : _kv_sr.kind ? (uint64_t)_kv_sr.hi + 1 : (uint64_t)_kv_sr.hi", seq);
+                hi = strfmt("_kv_sr.kind == 2 ? %s : _kv_sr.kind ? (uint64_t)_kv_sr.hi + 1 : (uint64_t)_kv_sr.hi", count);
             }
             const char *tail = *head ? "; })" : "";
             if (!strcmp(e->type->name, "String"))
@@ -1202,7 +1205,8 @@ static char *expr_bare(Expr *e) {
                 return strfmt("kv_bytes_cstr(&(%s).b)", recv);
             if (!strcmp(e->text, "bytes"))
                 return strfmt("((const kv_bytes *)&(%s).b)", recv);
-            return strfmt("(%s).count", recv);
+            return c_lvalue(e->a) ? strfmt("kv_string_graphemes(&(%s))", recv) /* its graphemes (#522) */
+                                  : strfmt("({ const kv_string _kv_gs = (%s); kv_string_graphemes(&_kv_gs); })", recv);
         }
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
@@ -1673,12 +1677,16 @@ static char *expr_bare(Expr *e) {
             const char *clamp = "int64_t _kv_pn = (%s); size_t _kv_pc = _kv_pn <= 0 ? 0 : (uint64_t)_kv_pn < _kv_ms->count "
                                 "? (size_t)_kv_pn : _kv_ms->count;";
             if (!strncmp(e->op, "string", 6)) {
+                /* by grapheme (#522): f given each one, a String, lent, or
+                   a copy it takes */
                 if (!whilef)
-                    return strfmt("({ %s %s kv_string_slice(_kv_ms, 0, _kv_pc); })", head, strfmt(clamp, arg0));
+                    return strfmt("({ %s kv_string_prefix(_kv_ms, (%s)); })", head, arg0);
                 return strfmt("({ %s const uint8_t *_kv_pp = _kv_ms->b.at, *_kv_pe = _kv_pp ? _kv_pp + _kv_ms->b.count : "
-                              "_kv_pp; size_t _kv_pc = 0; while (_kv_pp < _kv_pe) { kv_uchr _kv_pu = {kv_utf8_next(&_kv_pp)}; "
-                              "if (!(%s(_kv_pu))) break; _kv_pc++; } kv_string_slice(_kv_ms, 0, _kv_pc); })",
-                              head, arg0);
+                              "_kv_pp; while (_kv_pp < _kv_pe) { size_t _kv_pg = kv_ucd_grapheme_len(_kv_pp, "
+                              "(size_t)(_kv_pe - _kv_pp)); %skv_string _kv_pu = kv_string_span(_kv_pp, _kv_pg); "
+                              "if (!(%s(_kv_pu))) break; _kv_pp += _kv_pg; } "
+                              "kv_string_span(_kv_ms->b.at, (size_t)(_kv_pp - _kv_ms->b.at)); })",
+                              head, lent ? "__attribute__((cleanup(kv_string_free))) " : "", arg0);
             }
             if (!strncmp(e->op, "array", 5)) {
                 if (!whilef)
@@ -2867,6 +2875,7 @@ static bool element_first(Stmt *s) {
 }
 
 static bool is_uchr_type(Type *t) { return t && t->kind == T_BASE && !strcmp(t->name, "uchr"); }
+static bool is_string_type(Type *t) { return t && t->kind == T_BASE && !strcmp(t->name, "String"); }
 
 /* for x:T in s: x of the element v, converted as T(v) is; a uchr to a
    number is its codepoint, and a number to a uchr is uchr(v) (#480) */
@@ -3359,7 +3368,13 @@ static void stmt(Stmt *s) {
         line("{");
         indent++;
         sync(s->pos);
-        if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55, #56) */
+        if (s->each == EACH_STRING && is_string_type(s->type)) { /* a grapheme, a String the loop frees (#522) */
+            char *g = hidden(v, "g");
+            line("const size_t %s = kv_ucd_grapheme_len(%s, (size_t)(%s - %s));", g, p, end, p);
+            if (strcmp(s->name, "_"))
+                line("__attribute__((cleanup(kv_string_free))) kv_string %s = kv_string_span(%s, %s);", s->name, p, g);
+            line("%s += %s;", p, g);
+        } else if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55, #56) */
             line(!strcmp(s->name, "_")      ? "kv_utf8_next(&%s);"
                  : is_uchr_type(s->type) ? "%s = (kv_uchr){kv_utf8_next(&%s)};"
                                          : "%s = kv_utf8_next(&%s);", /* for b:u32 in s (#480) */

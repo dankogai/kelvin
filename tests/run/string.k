@@ -5,7 +5,7 @@
 struct person { name: String; age: int64 }
 let shout(s:String^):String {
     var r = String()
-    for c in s^ {
+    for c in s^.codepoints {
         r += c == 'a' ? 'A' : c
     }
     r += "!"
@@ -17,7 +17,7 @@ let main():int32 {
     s.append(0x1F600)
     println(s, " ", s.count, " ", s.bytes^.count, " ", s.typename, " ", s.size)
     var n = 0
-    for c in s { if c > 127 { n += 1 } }
+    for c in s.codepoints { if c > 127 { n += 1 } }
     let t = s.copy()
     println(n, " ", s == t, " ", t.cstr, " ", s.bytes^.isUTF8, " ", s.bytes^[0])
     var b = Bytes("plain")

@@ -111,20 +111,140 @@ int64_t kv_string_try_bytes(const kv_bytes *b, kv_string *out) {
 
 kv_string kv_string_copy(const kv_string *s) { return (kv_string){kv_bytes_copy(&s->b), s->count}; }
 
-/* the codepoints lo..<hi (#68), a new String */
-kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi) {
-    if (lo > hi || hi > s->count)
-        kv_slice_range(lo, hi, s->count, "String");
-    const uint8_t *p = s->b.at, *from = p, *to = p;
-    for (size_t i = 0; p && i < hi; i++) {
-        if (i == lo)
-            from = p;
-        kv_utf8_next(&p);
-    }
-    if (lo == hi)
+/* ---------- graphemes (#522): a String's elements ---------- */
+
+/* a String of the n bytes at p, well-formed UTF-8 already, its codepoints
+   counted */
+kv_string kv_string_span(const uint8_t *p, size_t n) {
+    if (!n)
         return (kv_string){0};
-    to = p;
-    return (kv_string){kv_bytes_from(from, (size_t)(to - from)), hi - lo};
+    size_t count = 0;
+    for (size_t i = 0; i < n; i++)
+        count += (p[i] & 0xC0) != 0x80;
+    return (kv_string){kv_bytes_from(p, n), count};
+}
+
+/* the graphemes of s, what a reader sees as characters (UAX #29); of
+   ASCII alone each byte but the LF of a CR LF */
+size_t kv_string_graphemes(const kv_string *s) {
+    const uint8_t *p = s->b.at;
+    size_t n = s->b.count, k = 0;
+    if (s->count == n) {
+        for (size_t i = 0; i < n; i++)
+            k += !(p[i] == '\n' && i > 0 && p[i - 1] == '\r');
+        return k;
+    }
+    while (n) {
+        size_t g = kv_ucd_grapheme_len(p, n);
+        p += g;
+        n -= g;
+        k++;
+    }
+    return k;
+}
+
+/* the byte offset of grapheme i of s, the bytes' count at the end;
+   SIZE_MAX past it */
+static size_t grapheme_byte(const kv_string *s, size_t i) {
+    const uint8_t *p = s->b.at;
+    size_t n = s->b.count, at = 0;
+    for (size_t k = 0; k < i; k++) {
+        if (at >= n)
+            return SIZE_MAX;
+        at += kv_ucd_grapheme_len(p + at, n - at);
+    }
+    return at;
+}
+
+/* the graphemes lo..<hi (#68, #522), a new String */
+kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi) {
+    size_t from = lo <= hi ? grapheme_byte(s, lo) : SIZE_MAX;
+    size_t to = from != SIZE_MAX ? grapheme_byte(s, hi) : SIZE_MAX;
+    if (lo > hi || to == SIZE_MAX) {
+        char msg[128];
+        snprintf(msg, sizeof msg, "range %zu..<%zu is out of range: the String has %zu graphemes", lo, hi,
+                 kv_string_graphemes(s));
+        kv_array_fail(msg);
+    }
+    return kv_string_span(s->b.at + from, to - from);
+}
+
+/* s[i] (#522): grapheme i, a new String; past the end ends the program */
+kv_string kv_string_grapheme(const kv_string *s, int64_t i) {
+    size_t from = i < 0 ? SIZE_MAX : grapheme_byte(s, (size_t)i);
+    if (from == SIZE_MAX || from >= s->b.count) {
+        char msg[128];
+        snprintf(msg, sizeof msg, "index %lld is out of range: the String has %zu graphemes", (long long)i,
+                 kv_string_graphemes(s));
+        kv_array_fail(msg);
+    }
+    return kv_string_span(s->b.at + from, kv_ucd_grapheme_len(s->b.at + from, s->b.count - from));
+}
+
+/* s.prefix(n) (#372, #522): the first n graphemes, all where there are
+   fewer, none of n 0 or less */
+kv_string kv_string_prefix(const kv_string *s, int64_t n) {
+    const uint8_t *p = s->b.at;
+    size_t len = s->b.count, at = 0;
+    for (int64_t k = 0; k < n && at < len; k++)
+        at += kv_ucd_grapheme_len(p + at, len - at);
+    return kv_string_span(p, at);
+}
+
+/* the index of the grapheme of s that holds byte b, the graphemes' count
+   at the end: a byte offset as a grapheme index, rounded down */
+size_t kv_string_grapheme_floor(const kv_string *s, size_t b) {
+    const uint8_t *p = s->b.at;
+    size_t n = s->b.count, at = 0, k = 0;
+    while (at < n) {
+        size_t g = kv_ucd_grapheme_len(p + at, n - at);
+        if (at + g > b)
+            return k;
+        at += g;
+        k++;
+    }
+    return k;
+}
+
+/* the graphemes of s that begin before byte b: a byte offset as a
+   grapheme index, rounded up */
+size_t kv_string_grapheme_ceil(const kv_string *s, size_t b) {
+    const uint8_t *p = s->b.at;
+    size_t n = s->b.count, at = 0, k = 0;
+    while (at < n && at < b) {
+        at += kv_ucd_grapheme_len(p + at, n - at);
+        k++;
+    }
+    return k;
+}
+
+/* the byte offset of grapheme i of s, the bytes' count past the end, 0
+   before the start */
+size_t kv_string_grapheme_byte(const kv_string *s, int64_t i) {
+    if (i <= 0)
+        return 0;
+    size_t at = grapheme_byte(s, (size_t)i);
+    return at == SIZE_MAX ? s->b.count : at;
+}
+
+/* s == u, s == 'x' (#522): whether s is the one codepoint */
+bool kv_string_eq_cp(const kv_string *s, uint32_t cp) {
+    const uint8_t *p = s->b.at;
+    return s->count == 1 && kv_utf8_next(&p) == cp;
+}
+
+bool kv_string_eq_uchr(const kv_string *s, kv_uchr u) { return kv_string_eq_cp(s, u.cp); }
+
+/* the byte offset of codepoint i of s, the bytes' count past the end */
+size_t kv_string_codepoint_byte(const kv_string *s, size_t i) {
+    const uint8_t *p = s->b.at;
+    size_t n = s->b.count, at = 0;
+    for (size_t k = 0; k < i && at < n; k++) {
+        at++;
+        while (at < n && (p[at] & 0xC0) == 0x80)
+            at++;
+    }
+    return at;
 }
 
 kv_string kv_string_take(kv_string *s) {

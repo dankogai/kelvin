@@ -19,12 +19,12 @@ let main():int32 {
     var mixed = $"aBcD"
     var dots = s.match(&anyRe)
     var lu = mixed.match(&upperRe)
-    println(dots.count, " ", s.count, " ", lu.count, " ", lu[1].text[0])
+    println(dots.count, " ", s.codepoints.count, " ", lu.count, " ", lu[1].text[0])
     var fam = $"👨‍👩‍👧🇯🇵é!"
     let clusterRe = $/\X/g
     let threeRe = $/^\X\X\X!$/
     var clusters = fam.match(&clusterRe)
-    println(clusters.count, " ", clusters[2].text[0].count, " ", threeRe.test(&fam))
+    println(clusters.count, " ", clusters[2].text[0].codepoints.count, " ", threeRe.test(&fam))
     let ci = $/straße|ΣΊΣΥΦΟΣ/i
     let cig = $/straße|σίσυφος/gi
     var up = $"STRASSE STRAßE σίσυφος"

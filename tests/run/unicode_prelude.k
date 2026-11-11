@@ -4,7 +4,7 @@
 let main():int32 {
     var s = $"é ﬁ 👨‍👩‍👧"
     let c = s.normalize(nfc)
-    println(s.count, " ", c.count, " ", s.graphemes.count, " ", $"Straße".upper(), " ", $"ΣΑΣ".lower())
+    println(s.codepoints.count, " ", c.codepoints.count, " ", s.graphemes.count, " ", $"Straße".upper(), " ", $"ΣΑΣ".lower())
     println(uchr("é").name, " ", uchr("é").category, " ", uchr("7").isNumber, " ", uchr("ア").script)
     return 0
 }

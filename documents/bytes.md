@@ -28,7 +28,7 @@ if let err(at) = r { println("not UTF-8 at byte ", at) }   // not UTF-8 at byte 
 text, a file's content, a packet, a hash. It is an owner: freed when
 its block ends, moved by `return` and by passing, copied only by
 `.copy()`, borrowed as a pointer, `&b`. A `String` is a `Bytes` that
-holds well-formed UTF-8, counted by codepoint: text is in
+holds well-formed UTF-8, counted by grapheme (#522): text is in
 [strings.md](strings.md), and the ownership rules in
 [ownership.md](ownership.md). The two look alike and are kept apart:
 a Bytes is indexed by byte, unchecked for text, and a String walked

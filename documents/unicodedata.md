@@ -42,7 +42,9 @@ codepoints, after Python's `unicodedata`.
   - Hangul is composed and decomposed arithmetically, and marks are
     put in canonical order; the database's own NormalizationTest.txt
     passes whole.
-- **`s.graphemes`** is an `Array<String>` of the grapheme clusters,
+- **`s.graphemes`** is an `Array<String>` of the grapheme clusters, the
+  elements of a String since #522, which `for c in s` walks with no
+  Array made; it stays, as an Array of them,
   what a reader sees as one character (UAX #29): `é` written as two
   codepoints is one, as are a Hangul syllable written as jamo, a
   family emoji with its joiners, a flag of two regional indicators and

@@ -2180,9 +2180,23 @@ static Expr *parse_postfix_steps(Expr *e) {
             }
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
-            if (string_index && !slice)
-                error_at(string_at, "a String is not indexed by codepoint, which would walk it: walk it with 'for c in "
-                                    "s', or index its bytes, 's.bytes^[i]'; a slice, 's[lo..<hi]', copies codepoints");
+            if (string_index && !slice) { /* s[i] (#522): grapheme i, a new String, found by walking s */
+                expect_p("]");
+                Decl *r;
+                char ic = expr_class(x->b, &r);
+                if ((ic != 'i' && ic != 'u') || x->b->is_bool || bool_shape(x->b))
+                    error_at(string_at, "s[i] is grapheme i of a String, i an integer, and this is %s",
+                             value_type(x->b) ? kelvin_type(value_type(x->b)) : "no integer");
+                if (!owner_place(e)) /* held (#187) */
+                    e = make_temp(e, "indexing a String that an expression gives: bind it to a variable first");
+                Expr *c = new_expr(E_CALL, t->pos);
+                c->op = "string_grapheme";
+                c->a = e;
+                list_push(&c->items, x->b);
+                c->type = base_type("String", t->pos);
+                e = c;
+                continue;
+            }
             expect_p("]");
             {
                 /* v[i], v[r, c] of a type with a subscript (#136): its getter,
@@ -5510,7 +5524,9 @@ static Expr *parse_binary_ops(int min_prec) {
             continue;
         }
         if ((is_uchr(value_type(e->a)) || is_uchr(value_type(e->b))) &&
-            !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b))))) { /* s + c (#183) */
+            !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b)))) && /* s + c (#183) */
+            !((!strcmp(e->op, "==") || !strcmp(e->op, "!=")) &&
+              (is_string(value_type(e->a)) || is_string(value_type(e->b))))) { /* s == u, the String's (#522) */
             /* a uchr compares by its codepoint, with a uchr or a number
                (#56); it has no arithmetic */
             if (!is_comparison(e->op))
@@ -5780,8 +5796,41 @@ static Expr *parse_binary_ops(int min_prec) {
             if (strcmp(e->op, "==") && strcmp(e->op, "!="))
                 error_at(t->pos, "a %s has no operator '%s': compare with == and !=, append with .append or +=%s", tn,
                          e->op, kl == 's' ? ", join with +" : "");
+            if (kl == 's' && (!ka || !kb)) {
+                /* s == "x", c != ' ', s == u (#522): a String and text, a
+                   cstr or a literal, a uchr or a character, by the bytes, a
+                   grapheme of for c in s among them */
+                Expr *sx = ka ? e->a : e->b, *ox = ka ? e->b : e->a;
+                Type *ot = value_type(ox);
+                bool text = (ot && is_cstr(ot)) || ox->kind == E_STRING;
+                bool cp = (ot && is_uchr(ot)) || (ox->kind == E_LITERAL && ox->text[0] == '\'');
+                if (text || cp) {
+                    List held = {0};
+                    if (!owner_place(sx))
+                        sx = hold_operand(sx, &held);
+                    Expr *eq = new_expr(E_CALL, t->pos);
+                    eq->a = new_expr(E_IDENT, t->pos);
+                    eq->a->text = text ? "kv_string_eq_text" : is_uchr(ot) ? "kv_string_eq_uchr" : "kv_string_eq_cp";
+                    eq->op = "c";
+                    Expr *ps = new_expr(E_PREFIX, t->pos);
+                    ps->op = "&";
+                    ps->a = sx;
+                    list_push(&eq->items, ps);
+                    list_push(&eq->items, ox);
+                    eq->is_bool = true;
+                    if (!strcmp(e->op, "!=")) {
+                        Expr *not = new_expr(E_PREFIX, t->pos);
+                        not->op = "!";
+                        not->a = eq;
+                        not->is_bool = true;
+                        eq = not;
+                    }
+                    lhs = wrap_temps(eq, &held);
+                    continue;
+                }
+            }
             if (!ka || !kb || strcmp(ka, kb))
-                error_at(t->pos, "a %s compares with another %s", tn, tn);
+                error_at(t->pos, "a %s compares with another %s, text or a character", tn, tn);
             List held = {0}; /* an operand an expression gives, held (#187) */
             if (!owner_place(e->a))
                 e->a = hold_operand(e->a, &held);
@@ -6414,7 +6463,7 @@ static Type *value_type_of(Expr *e) {
         if (e->op && (!strcmp(e->op, "string") || !strcmp(e->op, "string_concat"))) /* String(...) (#55), s + t (#183) */
             return base_type("String", e->pos);
         if (e->op && (!strcmp(e->op, "case_make") || !strcmp(e->op, "element_copy") || !strcmp(e->op, "dict_lookup") ||
-                      !strncmp(e->op, "chain", 5))) /* T.n(x) (#61); a copy of &x (#206); d[k], x?.m (#218) */
+                      !strncmp(e->op, "chain", 5) || !strcmp(e->op, "string_grapheme"))) /* T.n(x) (#61); a copy of &x (#206); d[k], x?.m (#218); s[i] (#522) */
             return e->type;
         if (e->op && (!strcmp(e->op, "async") || !strcmp(e->op, "await"))) /* its Task, and the Task's value (#312) */
             return e->type;
@@ -13782,7 +13831,7 @@ static Expr *parse_prefix(Expr *e, Token *name, bool call) {
         next = iter_builtin_next(vt);
         elem = vt->elem;
     } else if (is_string(vt)) {
-        elem = base_type("uchr", name->pos);
+        elem = base_type("String", name->pos); /* each grapheme (#522) */
     } else if (is_range(vt)) {
         elem = vt->elem; /* a Range's (#373): of n a Range, of f an Iterator of it, below */
     } else {
@@ -13992,6 +14041,11 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
                      is_bytes(t) ? "Bytes" : is_string(t) ? "String" : "Array");
         s->each = is_string(t) ? EACH_STRING : EACH_BYTES;
         elem = is_array_owner(t) ? t->elem : base_type(is_bytes(t) ? "u8" : "uchr", seq->pos);
+        /* a String's graphemes (#522), each a String the loop holds; by
+           codepoint of s.codepoints (#521) and of a type written, for
+           c:uchr in s, for n:u32 in s (#480) */
+        if (is_string(t) && !s->codepoints && (!written || is_string(written)))
+            elem = base_type("String", seq->pos);
     } else if (!t) {
         s->each = EACH_UNSEEN;
     } else if (t->kind == T_ARRAY) {

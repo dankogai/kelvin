@@ -184,7 +184,19 @@ void kv_string_reserve(kv_string *s, size_t n);
 void kv_string_compact(kv_string *s);
 bool kv_string_eq(const kv_string *a, const kv_string *b);
 int kv_string_cmp(const kv_string *a, const kv_string *b); /* (#185): codepoint order, as UTF-8 bytes are */
-kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* codepoints lo..<hi (#68) */
+kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* graphemes lo..<hi (#68, #522) */
+/* graphemes (#522), a String's elements, UAX #29's clusters, which
+   UnicodeData's kv_ucd_grapheme_len finds */
+size_t kv_ucd_grapheme_len(const uint8_t *p, size_t n);
+kv_string kv_string_span(const uint8_t *p, size_t n);     /* a String of n bytes of UTF-8 */
+size_t kv_string_graphemes(const kv_string *s);           /* s.count */
+kv_string kv_string_grapheme(const kv_string *s, int64_t i); /* s[i] */
+kv_string kv_string_prefix(const kv_string *s, int64_t n); /* s.prefix(n) */
+size_t kv_string_grapheme_floor(const kv_string *s, size_t b); /* the grapheme that holds byte b */
+size_t kv_string_grapheme_ceil(const kv_string *s, size_t b);  /* the graphemes that begin before byte b */
+size_t kv_string_grapheme_byte(const kv_string *s, int64_t i); /* the byte offset of grapheme i */
+bool kv_string_eq_cp(const kv_string *s, uint32_t cp);       /* s == 'x' */
+size_t kv_string_codepoint_byte(const kv_string *s, size_t i); /* the byte offset of codepoint i */
 bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);
 void kv_fprint_string(void *fp, kv_string s);
@@ -192,6 +204,7 @@ uint8_t *kv_cstr_string(kv_string s, uint8_t *buf);
 char *kv_template_string(char *p, size_t max, kv_string s);
 /* uchr (#56): a codepoint on the stack, shown as its UTF-8 */
 typedef struct kv_uchr { uint32_t cp; } kv_uchr;
+bool kv_string_eq_uchr(const kv_string *s, kv_uchr u); /* s == u (#522): whether s is that one codepoint */
 kv_uchr kv_uchr_of(uint64_t n);
 kv_uchr kv_uchr_first(const void *text);
 uint8_t *kv_cstr_uchr(kv_uchr c, uint8_t *buf);

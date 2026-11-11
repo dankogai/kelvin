@@ -604,6 +604,14 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **Graphemes, a String's elements** (#522), as kelvinc's.
+  - `for c in s` walks graphemes, each a String the loop frees;
+    `for c in s.codepoints` walks codepoints, in place.
+  - `s.count`, `s[i]`, the slices and `s.prefix` count graphemes, by
+    the runtime's kv_string_graphemes and its kin; `find` and RegExp's
+    offsets are the runtime's.
+  - A String compares with text, a uchr or a character, on either side.
+  - Not yet kc's: the typed loop, `for c:uchr in s`.
 - **`s.codepoints`** (#521), as kelvinc's: UnicodeData's `Array<uchr>`;
   `for c in s.codepoints` walks the String in place, with no Array made.
   - kc's own loops over a String's codepoints are written so, ready for

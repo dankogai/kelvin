@@ -36,6 +36,11 @@ let kv_rx_slice(s:const String^, lo:i64, hi:i64):String
 let kv_rx_cp_index(s:const String^, byte:i64):i64
 let kv_rx_byte_index(s:const String^, cp:i64):i64
 let kv_rx_next(s:const String^, byte:i64):i64
+// a String's graphemes (#522), runtime/unicode.c's: offsets in a String
+// are of graphemes, a match's start rounded down, its end up
+let kv_string_grapheme_floor(s:const String^, b:size_t):size_t
+let kv_string_grapheme_ceil(s:const String^, b:size_t):size_t
+let kv_string_grapheme_byte(s:const String^, i:i64):size_t
 
 // a compiled pattern: its program, an owner, with the text it came from
 struct RegExp {
@@ -45,7 +50,7 @@ struct RegExp {
 }
 
 // one match: the text of the whole and of each group, "" where a group took
-// no part, their codepoint offsets, -1 where none, and the groups' names
+// no part, their grapheme offsets (#522), -1 where none, and the groups' names
 struct Match {
     text: Array<String>
     at: Array<i64>
@@ -94,8 +99,8 @@ extend RegExp {
                 m.at += -1
             } else {
                 m.text += kv_rx_slice(s, lo, hi)
-                m.at += kv_rx_cp_index(s, lo)
-                m.at += kv_rx_cp_index(s, hi)
+                m.at += kv_string_grapheme_floor(s, lo as size_t) as i64   // the grapheme it starts in (#522)
+                m.at += kv_string_grapheme_ceil(s, hi as size_t) as i64    // past the grapheme it ends in
             }
             m.names += String(kv_rx_group_name(&re^.program, g))
         }
@@ -259,21 +264,21 @@ extend RegExp {
         return kv_rx_search(&self.program, s, 0, self.sticky, caps)
     }
 
-    // the first match at or after codepoint from, or none
+    // the first match at or after grapheme from (#522), or none
     let execFrom(s:const String^, from:i64):Match? {
         var caps:[i64](256)
-        if !kv_rx_search(&self.program, s, kv_rx_byte_index(s, from), self.sticky, caps) { return none }
+        if !kv_rx_search(&self.program, s, kv_string_grapheme_byte(s, from) as i64, self.sticky, caps) { return none }
         return Self.matchAt(&self, s, caps)
     }
 
     // the first match, or none
     let exec(s:const String^):Match? { self.execFrom(s, 0) }
 
-    // the codepoint offset of the first match, or -1
+    // the grapheme offset of the first match (#522), or -1
     let search(s:const String^):i64 {
         var caps:[i64](256)
         if !kv_rx_search(&self.program, s, 0, self.sticky, caps) { return -1 }
-        return kv_rx_cp_index(s, caps[0])
+        return kv_string_grapheme_floor(s, caps[0] as size_t) as i64
     }
 
     // every match with the g flag, else the first alone: an Array of them
@@ -410,7 +415,7 @@ extend RegExp {
 
 extend Match {
     let count:i64 { self.text.count as i64 }                   // the groups and the whole
-    let start:i64 { self.at[0] }                               // the codepoint offset of the match
+    let start:i64 { self.at[0] }                               // the grapheme offset of the match (#522)
     let end:i64 { self.at[1] }
     let [](i:i64):String { self.text[i].copy() }               // the text of group i, 0 the whole
     let [](name:cstr):String {                                 // the text of a named group, "" where there is none

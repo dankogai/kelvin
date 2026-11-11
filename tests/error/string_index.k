@@ -1,7 +1,9 @@
-// a String is not indexed by codepoint (#55)
+// s[i] is grapheme i of a String (#522), i an integer: a String was not
+// indexed before (#55); a double is no index
 let main():int32 {
     var s = String("héllo")
-    println(s[1])
+    let x:f64 = 1.5
+    println(s[x])
     return 0
 }
-// error: a String is not indexed by codepoint, which would walk it: walk it with 'for c in s', or index its bytes, 's.bytes^[i]'
+// error: s[i] is grapheme i of a String, i an integer, and this is f64
