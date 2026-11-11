@@ -99,7 +99,8 @@ let main():int32 {
   - `UnicodeData` ([unicodedata.md](unicodedata.md), #156) is written in
     Kelvin, modules/UnicodeData.k over its C tables; `make` builds it
     with `kelvinc --prelude` (#504) into `UnicodeData.kh` and an object
-    that libkelvin holds, so `#import <UnicodeData>` links nothing more.
+    that libkelvin holds; it is the prelude's (#520), in every program
+    with no import, as String is.
   - `RegExp` ([regexp.md](regexp.md), #157) is the same over its engine,
     runtime/regexp.c, on `UnicodeData`; it is the prelude's (#504): a
     program that names `RegExp`, or writes a `$/.../` literal, has it
@@ -211,7 +212,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     libkIO.a|.dylib|.so   its library, linked by the import
     OS.kh, kOS.h          #import <OS> (#145, os.md); SYS is the prelude's (sys.md)
     libkOS.a|.dylib|.so   its library
-    UnicodeData.kh        #import <UnicodeData> (#156, unicodedata.md), built by make from UnicodeData.k
+    UnicodeData.kh        the prelude's, in every program (#156, #520, unicodedata.md), built by make from UnicodeData.k
     kUnicodeData.h        its C header; the Unicode tables are libkelvin's (#504)
     RegExp.kh             the prelude's RegExp (#157, #504, regexp.md), built by make from RegExp.k; $/.../ literals
     BigInt.kh             the prelude's BigInt (#507, bigint.md), built by make from BigInt.k
@@ -248,7 +249,8 @@ aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
 
 ### UnicodeData: `modules/UnicodeData.k`
 
-`#import <UnicodeData>` (#156) brings in the Unicode Character Database:
+The prelude's `UnicodeData` (#156, #520), in every program with no
+import, is the Unicode Character Database:
 `s.normalize(nfc)`, `nfd`, `nfkc` and `nfkd`, `s.graphemes`, the
 grapheme clusters as an `Array<String>`, bound before it is walked, the case mappings `s.upper()`,
 `s.lower()` and `s.fold()`, and a `uchr`'s `.name`, `.category`,

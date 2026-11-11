@@ -9813,3 +9813,25 @@ without GMP, with the runners' results beside. Details are provisional
 P531.
 
 There are 1275 tests, and all pass with clang and with gcc 15.
+
+### 567. UnicodeData in the prelude
+
+> Now that `RegExp` in the prelude and the `$/\X/` is supported, the prelude is now capable of handling graphemes without external modules.  If so:
+>
+> * Integrate `UnicodeData` into the prelude.
+> * make graphemes defaults elements of String.
+> * so `s.graphemes` practically a no-op since `for c in s {...}` does the same. Don't remove yet.
+> * Add `s.codepoints`which iterates codepoints in the string
+> * Add `s[i]` and `s[r]` where `i` is integer and `r` is Range.  Grapheme by grapheme.  Note it is an `O(n)` operation, not `O(1)`.
+
+**Claude** asked: the user chose that a grapheme be a String, that
+everything count by grapheme as Swift's String does, that
+`s.codepoints` be an `Array<uchr>` which a `for` walks in place, typed
+loops walking codepoints still, and three numbers: this one, then
+`s.codepoints`, then graphemes. Asked again, the user chose that
+UnicodeData be in every program, as String is. kelvinc and kc now bring
+`UnicodeData.kh` into every program, `#import <UnicodeData>` still
+read; a module's header does not write that import. Details are
+provisional P532.
+
+There are 1276 tests, and all pass with clang and with gcc 15.

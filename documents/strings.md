@@ -32,8 +32,8 @@ rules of `String` and `Bytes` are in [ownership.md](ownership.md).
 `toString()` and `fmt()` stay shelved (#22): `.cstr`, a template literal
 and `` $`...` `` do their work. What the Unicode Character Database
 adds, `s.normalize(nfc)`, `s.graphemes`, the case mappings and a
-codepoint's name and category, is a module, `#import <UnicodeData>`
-(#156): [unicodedata.md](unicodedata.md); regular expressions, JS's,
+codepoint's name and category, is the prelude's `UnicodeData` (#156,
+#520), in every program: [unicodedata.md](unicodedata.md); regular expressions, JS's,
 with the `$/.../` literal, are the prelude's `RegExp` (#157, #504):
 [regexp.md](regexp.md).
 
@@ -340,7 +340,7 @@ to come.
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
 | | `s[r]` | a slice by a Range value, a new String (#377) |
 | | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` codepoints, or of those before the first `f` says false for, `f` of a `uchr` (#372) |
-| | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | with `#import <UnicodeData>` (#156): [unicodedata.md](unicodedata.md) |
+| | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | the prelude's `UnicodeData` (#156, #520): [unicodedata.md](unicodedata.md) |
 | | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with the prelude's `RegExp` (#157, #504), `re` a `$/.../`: [regexp.md](regexp.md) |
 | | `==`, `!=` | by the bytes |
 | `uchr` | `uchr(x)` | of an integer, or the first codepoint of text, a String or a Bytes, `uchr(s)` or `uchr(&s)`; U+FFFD where none (#56, #494) |

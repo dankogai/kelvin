@@ -604,6 +604,11 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **UnicodeData in every program** (#520), as kelvinc's: kc reads
+  `UnicodeData.kh` before the prelude's others, so `s.normalize(nfc)`
+  and `uchr("é").name` need no import.
+  - A file is read once by its real path, so `modules/M.kh` and
+    `./modules/M.kh` are one.
 - **A type's own `x op= y`** (#518), as kelvinc's.
   - `static let +=(a:Self^, b:U)`, and `let +=(a:T^, b:U)` at the top
     level, are read, with kelvinc's errors of another shape.

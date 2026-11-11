@@ -308,7 +308,7 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
             list_push(&out, u);
         }
         Token *end = xmalloc(sizeof *end);
-        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true, false, false};
+        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true, false, false, false};
         list_push(&out, end);
     }
     Token *all = xmalloc(sizeof(Token) * (size_t)(out.len + 1));
@@ -321,8 +321,11 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
 /* The modules of the prelude (#504), which libkelvin holds: a program
    that names one, RegExp, a $/.../ literal's too, imports it as if it
    began with #import <RegExp>, unless it defines a type of that name or
-   imports it already; one that does not name it compiles as before */
-static const char *prelude_names[] = {"RegExp", "BigInt", NULL};
+   imports it already; one that does not name it compiles as before.
+   UnicodeData is in every program (#520), as String is, but in the
+   build of UnicodeData.k itself */
+static const char *prelude_names[] = {"UnicodeData", "RegExp", "BigInt", NULL};
+static const char *source_name; /* the source's name without its directory and .k, which no prelude imports into itself */
 
 static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
     const char **names = prelude_names;
@@ -331,7 +334,10 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
         bool named = false, own = false;
         for (int i = 0; i < n && !named; i++)
             named = toks[i].kind == TK_IDENT && !strcmp(toks[i].text, names[k]);
-        Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false, false};
+        if (!strcmp(names[k], "UnicodeData")) /* (#520) */
+            named = !source_name || strcmp(source_name, "UnicodeData");
+        Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false, false,
+                     true}; /* implied: the prelude's, which a module's header does not write (#520) */
         if (!named || imported_has(import_path(&imp, argv0))) /* none, or #import <RegExp> written */
             continue;
         for (int i = 0; i < n; i++) {
@@ -658,8 +664,11 @@ int main(int argc, char **argv) {
             toks[i].imported = true;
     imported_already(src_path); /* the main file is brought in already */
     toks = with_imports(toks, ntoks, &ntoks, argv[0]);
-    if (!runtime_mode)
-        toks = with_prelude(toks, ntoks, &ntoks, argv[0]); /* RegExp, if named (#504) */
+    if (!runtime_mode) {
+        const char *base = strrchr(src_path, '/');
+        source_name = default_output(base ? base + 1 : src_path);
+        toks = with_prelude(toks, ntoks, &ntoks, argv[0]); /* RegExp, if named (#504); UnicodeData (#520) */
+    }
     Program *prog = parse(toks, ntoks);
     char *c_code = gen_program(prog, line_directives);
     if (link_objects.len) /* the objects may call modules the source does not import (#281) */
@@ -681,9 +690,10 @@ int main(int argc, char **argv) {
                        ? strfmt("// %s.kh - the module %s of the prelude (#504), made by kelvinc --prelude from %s: its\n"
                                 "// declarations, the bodies dropped, which libkelvin defines; %s\n%s",
                                 lib_name, lib_name, src_path,
-                                named ? strfmt("a program that names %s brings it in, as #import <%s> does", lib_name,
-                                               lib_name)
-                                      : strfmt("#import <%s> brings it in", lib_name),
+                                !strcmp(lib_name, "UnicodeData") ? "every program has it, as it has String (#520)"
+                                : named ? strfmt("a program that names %s brings it in, as #import <%s> does", lib_name,
+                                                 lib_name)
+                                        : strfmt("#import <%s> brings it in", lib_name),
                                 gen_header(prog))
                        : strfmt("// %s.kh - the module %s (#146), made by kelvinc --lib from %s: its declarations,\n"
                                 "// the bodies dropped, which libk%s.a beside it defines; #import <%s> brings it in\n%s",

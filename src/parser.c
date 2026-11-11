@@ -16886,9 +16886,9 @@ static void forward_prototypes(void) {
             Token *first = &toks[a->start];
             if (a->recv) {
                 Token *ext = xmalloc(sizeof *ext * 3);
-                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false, false};
-                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false, false};
-                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false, false};
+                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false, false, false};
+                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false, false, false};
+                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false, false, false};
                 for (int e = 0; e < 3; e++)
                     list_push(&out, &ext[e]);
             }
@@ -16904,13 +16904,13 @@ static void forward_prototypes(void) {
                 }
                 Token *semi = xmalloc(sizeof *semi);
                 *semi = (Token){TK_PUNCT, toks[b->body - 1].pos, ";", toks[b->body - 1].pos.line, false,
-                                toks[b->body - 1].imported, false, false};
+                                toks[b->body - 1].imported, false, false, false};
                 list_push(&out, semi);
                 at.data[m + 1] = NULL;
             }
             if (a->recv) {
                 Token *close = xmalloc(sizeof *close);
-                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, first->imported, false, false};
+                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, first->imported, false, false, false};
                 list_push(&out, close);
             }
         }
@@ -17676,7 +17676,8 @@ static char *gen_header_of(Program *prog) {
             continue;
         }
         if (t->kind == TK_IMPORT_K) {
-            buf_printf(&b, "#import %s\n", t->text);
+            if (!t->implied) /* the prelude's own, which every program has (#520) */
+                buf_printf(&b, "#import %s\n", t->text);
             i++;
             continue;
         }

@@ -126,7 +126,7 @@ static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char
         lx->cap = lx->cap ? lx->cap * 2 : 256;
         lx->toks = xrealloc(lx->toks, (size_t)lx->cap * sizeof(Token));
     }
-    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false, false, false};
+    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false, false, false, false};
 }
 
 /* s[0..n) with a backslash before each '?' that follows a '?': Kelvin has

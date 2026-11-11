@@ -568,6 +568,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 517 | benchmarks/bigint, as the user asked: Kelvin's `BigInt` against GMP, Ruby, Python and Node, swift-bigint-gmp's 11 cases and inputs, as the user chose, best of 3, each language's own gcd, isqrt and modular power where it has one, as the user chose; run.sh builds and runs them, checks they agree, and prints a Markdown table; `.github/workflows/benchmark.yml` runs it by hand only, made and not run, as the user asked | benchmarks/bigint/bench.k, bench.c, bench.rb, bench.py, bench.mjs, run.sh, README.md; .github/workflows/benchmark.yml; .gitignore's `/benchmarks/*/out/`; documents/bigint.md | `sh benchmarks/bigint/run.sh` | 2026-11-11 |
 | 518 | BigInt faster, as the user asked, than Ruby and Python in each of benchmarks/bigint's cases: the prelude's and `--lib`'s modules built with `-O -g`, as the user chose; limb loops by `a.at`, unchecked, into results made once, non-negative operands read in place; squares by half the products; powers with their factors of 2 shifted in; Lehmer's gcd; isqrt by doubled precision, Python's; text divided and conquered; and `x op= y` that a type defines, `static let +=(a:Self^, b:U)`, as the user chose, which BigInt's `+=`, `-=` and `*=` are, in place; kc the same. `.hex`, `.oct` and `.bin` of a full top limb read back again | GNUmakefile; modules/BigInt.k; src/parser.c's compound_text, compound_op, compound_target, resolve_compound, check_overload; src/codegen.c; selfhost/parse.k's compound_tok; selfhost/gen.k's compound_fits, compound_assign_call, operator_word; documents/operators.md, structs.md, properties.md, bigint.md; benchmarks/bigint/README.md; selfhost/README.md | `s += i` of a BigInt `s`, in place | 2026-11-11 |
 | 519 | benchmarks/bigint's Ruby row says whether that Ruby is built with GMP, `with GMP 6.3.0` or `without GMP`, as the user asked after the Benchmark workflow's first run, whose Ruby, ruby/setup-ruby's, is GMP's in its big integers; the README and bigint.md say that Kelvin beats Python and a Ruby without GMP, and give that run's results | benchmarks/bigint/run.sh, README.md; documents/bigint.md | `sh benchmarks/bigint/run.sh` | 2026-11-11 |
+| 520 | UnicodeData is the prelude's, as the user asked, in every program, as the user chose: kelvinc's with_prelude and kc's load_prelude bring UnicodeData.kh in, but into UnicodeData.k's own build; an implied import is not written into a module's header; `#import <UnicodeData>` is still read. The first of three numbers, as the user chose: #521 `s.codepoints`, #522 graphemes a String's elements | src/main.c's prelude_names, source_name; src/kelvin.h's Token.implied; src/parser.c's gen_header_of; selfhost/kc.k's load_prelude, read_already, real_of; documents/unicodedata.md, strings.md, modules.md, versusC.md, README.md; README.md; selfhost/README.md | `uchr("é").name` with no import | 2026-11-11 |
 
 Notes:
 
@@ -1152,6 +1153,25 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (520) Agreed details: "Integrate UnicodeData into the prelude"
+  - The user asked, as RegExp and its `$/\X/` are the prelude's, that
+    UnicodeData be the prelude's, graphemes a String's elements,
+    `s.codepoints`, and `s[i]` and `s[r]` by grapheme, O(n).
+  - Asked, the user chose: a grapheme is a String; everything counts by
+    grapheme, `s.count`, `.find`, `.prefix(n)` and the slices, as Swift
+    does; `s.codepoints` an `Array<uchr>`, which `for c in
+    s.codepoints` walks in place, and a typed loop, `for c:uchr in s`,
+    `for n:u32 in s`, walks codepoints still; three numbers, #520
+    UnicodeData, #521 `s.codepoints`, #522 graphemes.
+  - Asked, the user chose that UnicodeData be in every program, as
+    String is, not brought in where a program names its words.
+  - kelvinc: with_prelude imports `<UnicodeData>` first, as if written,
+    but into the build of UnicodeData.k itself; the import is a token
+    marked implied, which gen_header does not write into a module's
+    header. UnicodeData.kh's comment says every program has it.
+  - kc: load_prelude reads UnicodeData.kh first; read_already compares
+    real paths, as `modules/M.kh` and `./modules/M.kh` are one file.
 
 - (519) Agreed details: "go ahead with the Ruby GMP note"
   - The user asked for the Benchmark workflow's run, of #518's commit,
@@ -8253,6 +8273,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P529 | Details of #517 | benchmarks/bigint: bench.k, bench.c, bench.rb, bench.py, bench.mjs, run.sh (KELVINC, CC, RUBY, PYTHON, NODE, GMP_CFLAGS, GMP_LIBS; out/<name>.tsv and out/results.md; the results checked mod 1000000007), README.md with the Apple M1 table; .github/workflows/benchmark.yml (workflow_dispatch; ubuntu-latest and macos-latest; GMP, Ruby 4.0, Python 3.14, Node 24; the table to the summary, out/ an artifact); .gitignore; documents/bigint.md | provisional |
 | P530 | Details of #518 | GNUmakefile's `-O -g` of `--prelude` and `--lib`; modules/BigInt.k: kv_bi_ext, kv_bi_addp, kv_bi_add_i64, kv_bi_i64_sub, kv_bi_norm_in, kv_bi_addto, kv_bi_add_to, kv_bi_add_to_i64, kv_bi_mul_to_i64, kv_bi_ucount, kv_bi_mul_into, kv_bi_sqr_into, kv_bi_mul_i64, kv_bi_chunk, kv_bi_text_small, kv_bi_text_dc, kv_bi_gcd1, kv_bi_top62, kv_bi_bitlen, Lehmer's kv_bi_gcd, kv_bi_isqrt, kv_bi_upow's shift, kv_bi_prefixed's value; src/parser.c: compound_text, compound_op, compound_target, resolve_compound, check_overload, the `op=` C names; src/codegen.c: no warn_unused_result without a result; selfhost: compound_tok, compound_fits, compound_assign_call; tests/run/compound_operator.k, bigint_in_place.k, bigint_hex_full_limb.k, bigint_large.k; tests/error/compound_operator_shape.k, compound_operator_result.k, operator_cannot.k's words | provisional |
 | P531 | Details of #519 | benchmarks/bigint/run.sh: the Ruby row's GMP; README.md: Ruby's GMP in its description, the Ruby claims, "On GitHub's runners" of run 42932988602; documents/bigint.md's How fast | provisional |
+| P532 | Details of #520 | src/main.c: "UnicodeData" first of prelude_names, always but in its own build (source_name), the import implied, its header's comment; src/kelvin.h: Token.implied, each initializer's; src/parser.c: gen_header_of skips implied imports; selfhost/kc.k: load_prelude's UnicodeData.kh, read_already by real_of; tests/run/unicode_prelude.k; documents/unicodedata.md, strings.md, modules.md, versusC.md, documents/README.md; README.md; selfhost/README.md | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

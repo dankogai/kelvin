@@ -212,10 +212,22 @@ let exists(path:String^):bool {
 
 // the files already read, by path
 let read_already(path:String^):bool {
+    let want = real_of(path)
     for k in 0..<fnames.count as int64 {
         if fnames[k] == path^ { return true }
+        let had = real_of(&fnames[k])                    // modules/M.kh and ./modules/M.kh are one (#520)
+        if had == want { return true }
     }
     return false
+}
+
+// path with its links and dots resolved, realpath's, else as it is written
+let real_of(path:String^):String {
+    let r:u8^ := realpath(path^.cstr, nowhere)
+    if r == nowhere { return path^.copy() }
+    let s = String(r as cstr)
+    free(r)
+    return s
 }
 
 // the flags of dir/libkM.link (#482), split on whitespace, as kelvinc's
@@ -328,6 +340,9 @@ let module_import(t:int64):bool {
 // too, which RegExp.kh imports (#515)
 let load_prelude(mods:String^):bool {
     let first:int64 = toks.count as int64
+    var ucd:String = mods^.copy()                        // UnicodeData, in every program, as kelvinc's (#520)
+    ucd += "/UnicodeData.kh"
+    if !read_already(&ucd) && !loads(&ucd) { return false }
     for k in 0..<2 {
         let w:cstr := k == 0 ? "RegExp" : "BigInt"
         if !names_word(w) { continue }

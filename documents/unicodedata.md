@@ -1,12 +1,10 @@
-# UnicodeData: `#import <UnicodeData>`
+# UnicodeData: the Unicode Character Database, of the prelude
 
 The Unicode Character Database for Strings and codepoints: normalization, graphemes, the case, names and categories.
 
 ## Synopsis
 
 ```swift
-#import <UnicodeData>
-
 let main():int32 {
     var s = $"e\u0301 ﬁ 👨‍👩‍👧"
     var c = s.normalize(nfc)                 // é as one codepoint: one fewer
@@ -21,11 +19,17 @@ let main():int32 {
 
 ## Description
 
-`#import <UnicodeData>` (#156) brings in the Unicode Character Database
-for Strings and codepoints, after Python's `unicodedata`: what the
-prelude's `String`, which walks codepoints, leaves out. It is a header,
-`UnicodeData.kh` in `modules/`, whose code libkelvin holds (#504), as
-the prelude's `RegExp` uses it.
+`UnicodeData` (#156) is the Unicode Character Database for Strings and
+codepoints, after Python's `unicodedata`.
+
+- **It is the prelude's** (#520): every program has it, as it has
+  `String`, with no import.
+  - `#import <UnicodeData>`, as programs before #520 write it, is still
+    read, and adds nothing.
+  - Its `nfc`, `nfd`, `nfkc` and `nfkd` are words of every program.
+- It is a header, `UnicodeData.kh` in `modules/`, whose code libkelvin
+  holds (#504), as the prelude's `RegExp` uses it; a program links its
+  tables only where it uses them.
 
 ### A String: `normalize`, `graphemes`, the case
 
@@ -94,5 +98,8 @@ in tools/ucd/, Unicode 18.0.0.
 - `make` builds the tables, and `kelvinc --prelude` (#504) the header
   and the object, which libkelvin holds with the tables' and
   runtime/unicode_data.c's; libkUnicodeData is no more.
+- kelvinc and kc bring the header into every program (#520), but into
+  UnicodeData.k's own build; a module's header made by `--lib` or
+  `--prelude` does not write that import.
 - A program links the tables only where it uses them, from the static
   libkelvin.a.

@@ -76,6 +76,7 @@ typedef struct {
     bool imported; /* from a Kelvin file that #import brought in (#40) */
     bool regexp;   /* the RegExp of a $/.../ literal (#157), which needs #import <RegExp> */
     bool bigint;   /* the BigInt of a 123n literal (#508) */
+    bool implied;  /* an #import the prelude adds (#520), which a module's header does not write */
 } Token;
 
 Token *lex(const char *file, const char *src, int *ntoks);
