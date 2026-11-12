@@ -1,6 +1,7 @@
 # Rational numbers: `#import <Rational>`
 
-A numerator over a denominator, each an integer: `1.over(3)` is `(1/3)`.
+A numerator over a denominator, each a signed integer: `1.over(3)` is
+`(1/3)`.
 
 ## Synopsis
 
@@ -15,6 +16,8 @@ let main():int32 {
     let inf = 1.over(0)                       // no division by zero: an infinity
     let nan = 0.over(0)                       // and a NaN
     println(inf, " ", -inf, " ", nan, " ", nan == nan, " ", inf.isInfinite)   // (1/0) (-1/0) (0/0) false true
+    let small = rat8(1, 3)                    // of two i8s; rat16 and rat32 too
+    println(small + rat8(1, 6), " ", rat8(1, 15) + rat8(1, 14), " ", rat64(small) + a)   // (1/2) (0/0) (2/3)
     return 0
 }
 ```
@@ -28,23 +31,36 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 | Kelvin | C |
 |--------|---|
 | `rat64` | `struct rat64 { int64_t num, den; }` |
+| `rat32`, `rat16`, `rat8` | the same of `int32_t`, `int16_t` and `int8_t` |
 | `1.over(3)` | `(struct rat64){1, 3}`, in lowest terms |
 
 - **`rat64`** is a struct of two `i64`s, `num` and `den`.
   - It is kept in lowest terms, its denominator 0 or more: `2.over(4)`
     is `(1/2)`, and `3.over(-6)` is `(-1/2)`.
   - 0 is `(0/1)`, and a whole number `n` is `(n/1)`.
-- **Making one:** `n.over(d)` of two `i64`s is `(n/d)`, a method of an
-  integer.
-  - `rat64(n, d)` is the same, and `rat64(n)` is `(n/1)`.
+- **`rat32`, `rat16` and `rat8`** (#539) are the same of two `i32`s,
+  `i16`s and `i8`s, with the same arithmetic, comparisons and text.
+  - They are small: a `rat8` holds no denominator past 127, so
+    `rat8(1, 15) + rat8(1, 14)`, 29/210, is a NaN. `rat64` is the one
+    of use.
+  - **Only signed integers** are a rational's parts, a bit of the
+    denominator unused: an unsigned integer has no `.over`.
+- **Making one:** `n.over(d)` is `(n/d)`, a method of a signed integer:
+  of two `i64`s a `rat64`, of two `i32`s a `rat32`, and so on.
+  - `rat64(n, d)` is the same, and `rat64(n)` is `(n/1)`; so are
+    `rat8(n, d)` and its kin.
   - A literal is an `i64`, so `1.over(3)` is a `rat64`.
 - **Arithmetic:** `+`, `-`, `*`, `/` and the prefix `-`, of two
-  rationals, and of a rational and an integer on either side:
-  `a + 1`, `2 * a`, `1 / a`.
+  rationals of one width, and of a rational and an integer on either
+  side: `a + 1`, `2 * a`, `1 / a`.
   - `+=` and its kin follow: `acc += 1.over(i)`.
   - The result is exact, reckoned in 128 bits and brought to lowest
     terms.
 - **Comparing:** `==`, `!=`, `<`, `<=`, `>` and `>=`, by value.
+- **Two widths do not mix:** `rat8(1, 3) + rat32(1, 6)` is an error.
+  - `rat64(r)`, `rat32(r)`, `rat16(r)` and `rat8(r)` of a rational of
+    another width convert it: the same value where it fits, and a NaN
+    where the narrower does not hold it.
 - **Like a floating-point number,** which a rational can also stand
   for, it has infinities and a NaN, and never divides by zero.
   - A denominator of 0 is an infinity: `1.over(0)` is `(1/0)`, and
@@ -57,7 +73,7 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - `r.isNaN`, `r.isInfinite` and `r.isFinite` tell them, as a
     float's do; see [floatingpoint.md](floatingpoint.md).
 - **What does not fit is a NaN:** a result whose numerator or
-  denominator is past an `i64` is `(0/0)`.
+  denominator is past its integer, an `i64` of a `rat64`, is `(0/0)`.
   - `9223372036854775807.over(1) + 1` is a NaN, and so is
     `1.over(3) + 1.over(5000000000000000000)`, small as it is.
   - It is no error and does not round: `r.isNaN` tells.
@@ -77,7 +93,8 @@ A module, modules/Rational.k, a Kelvin source compiled with the program
 that imports it, as [math](math.md) is; see [modules.md](modules.md).
 
 - **In C:** `a + b` is the module's `+` of two `rat64`s, a function that
-  multiplies in `__int128` and divides by the greatest common divisor.
+  multiplies in `__int128` and divides by the greatest common divisor;
+  each width has its own.
 - **kc** does not read the module yet: a method of an integer and a
   module's source are past its subset.
 
@@ -85,10 +102,11 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 
 | On | Property or method | Gives |
 |---|---|---|
-| integer | `n.over(d)` | `(n/d)`, a `rat64` of two `i64`s, in lowest terms |
-| `rat64` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
+| `i64`, `i32`, `i16`, `i8` | `n.over(d)` | `(n/d)`, a `rat64`, `rat32`, `rat16` or `rat8`, in lowest terms (#539) |
+| `rat64`, `rat32`, `rat16`, `rat8` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
+| | `rat64(r)`, `rat8(r)` | `r`, a rational of another width, converted; a NaN where it does not fit (#539) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
-| | `+`, `-`, `*`, `/`, prefix `-` | exact, of two or with an integer; what does not fit is a NaN |
+| | `+`, `-`, `*`, `/`, prefix `-` | exact, of two of one width or with an integer; what does not fit is a NaN |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is `(0/0)`; `(1/0)` or `(-1/0)`; neither |
 | | `.f64` | the nearest `f64`; `inf`, `-inf` or `nan` |

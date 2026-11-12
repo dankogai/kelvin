@@ -3651,6 +3651,30 @@ static Expr *parse_postfix_steps(Expr *e) {
                         x->a = e;
                     }
                 }
+                Decl *mrec;
+                Type *mrt = value_type(e) ? unqualified(value_type(e)) : NULL;
+                char mcls = mrt && mrt->kind == T_BASE && strncmp(mrt->name, "enum ", 5) ? type_class(mrt, &mrec) : 'u';
+                if (!m && (mcls == 'i' || mcls == 'f' || (mcls == 's' && !record_has_field(mrec, member))) &&
+                    !method_candidates(e, member).len) {
+                    /* n.over(3) of a u8 (#539): a type kelvinc sees, which has no method of the name
+                       that another has, is Kelvin's error, where C's _Generic refused it */
+                    Buf has = {0};
+                    buf_puts(&has, "");
+                    int owners = 0;
+                    for (int i = 0; i < functions.len; i++) {
+                        Decl *d = functions.data[i];
+                        if (!d->recv || d->setter || d->attribute || d->type_fn || strcmp(d->name, member))
+                            continue;
+                        const char *rn = d->recv_name ? d->recv_name : d->recv->name;
+                        if (strstr(has.buf, strfmt("'%s'", rn)))
+                            continue;
+                        buf_printf(&has, "%s'%s'", owners++ ? ", " : "", rn);
+                    }
+                    bare_tags = true;
+                    char *tn = kelvin_type(mrt);
+                    bare_tags = false;
+                    error_at(name->pos, "%s has no method '%s': it is a method of %s", tn, member, has.buf);
+                }
                 if (m && is_owner(value_type(e)) && !owner_place(e) && !is_io_std(e)) { /* the receiver, held (#156, #187) */
                     e = make_temp(e, "a method of an owner that an expression gives: bind it to a variable first");
                     x->a = e;

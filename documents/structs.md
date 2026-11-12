@@ -317,6 +317,10 @@ let main():int32 {
   - C typedef names cannot be receivers, and neither can `cstr` or `any`.
   - `x.name(...)` is a method call only if some type in the file has a
     method `name`. Otherwise it calls through a field, as in C.
+  - A number or a struct kelvinc sees, which has no method `name` where
+    another type has one, is an error that names those types (#539):
+    `u8 has no method 'over': it is a method of 'i64', 'i32', 'i16',
+    'i8'`. What only C sees is C's to refuse.
 
 ### Operators: `let +(a:T, b:T):T`
 

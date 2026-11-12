@@ -10146,3 +10146,21 @@ literal as the i64 it is. kc does not read the module. Details are
 provisional P550.
 
 There are 1307 tests, and all pass with clang and with gcc 15.
+
+### 586. The narrower rationals
+
+> push and go on with #539
+
+**Claude** pushed #538, and CI passed. Asked of the unsigned integers,
+the user answered "only signed integers for both numerator and
+denominator, even though it ls one bit less efficient", which Claude
+read as `.over` of the signed types alone; asked of two widths, the user
+chose that they do not mix. `rat32`, `rat16` and `rat8` are `rat64`'s
+text written out for two `i32`s, `i16`s and `i8`s: the same arithmetic,
+comparisons, text and NaN, what does not fit the width's integers a NaN,
+and `rat64(r)` and its kin to convert. `n.over(3)` of a `u8` was C's
+error; kelvinc now says of a number or a struct it sees that it has no
+method of the name, and which types have. #540 is `bigrat`. Details are
+provisional P551.
+
+There are 1310 tests, and all pass with clang and with gcc 15.

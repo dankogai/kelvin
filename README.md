@@ -429,3 +429,6 @@ So far the changes from C are these, by topic.
   `rat64` of two `i64`s in lowest terms, with exact `+ - * /` and
   comparisons; a denominator of 0 is an infinity and `(0/0)` a NaN, as
   a float has them, and a result that does not fit is a NaN (#538)
+  - `rat32`, `rat16` and `rat8` are the same of `i32`s, `i16`s and
+    `i8`s; only signed integers have `.over`, and two widths do not
+    mix: `rat64(r)` converts (#539)

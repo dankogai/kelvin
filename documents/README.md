@@ -99,7 +99,8 @@ the design decisions, numbered `#N` throughout, are in
   `c64` and `c32`.
 - [rational.md](rational.md): `#import <Rational>`, `rat64`, a
   numerator over a denominator, `1.over(3)`, exact arithmetic, with
-  infinities and a NaN as a float has (#538).
+  infinities and a NaN as a float has (#538); `rat32`, `rat16` and
+  `rat8` (#539).
 - [json.md](json.md): `#import <JSON>`, `JSON.parse` and
   `JSON.stringify` as JS has them.
 - [sion.md](sion.md): `#import <SION>`, SION values, JSON with more.
