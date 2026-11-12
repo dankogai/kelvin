@@ -74,7 +74,7 @@ codepoints, after Python's `unicodedata`.
 String.fromCodepoints(0x48, 0x69)        // ok("Hi"), every codepoint
 grapheme(0x65, 0x301, 0x41)              // ok("e\u0301"), the first grapheme alone
 grapheme(0x1F1EF, 0x1F1F5)               // ok("🇯🇵"), two regional indicators, one grapheme
-grapheme(0xD800)                         // err(surrogate(55296))
+grapheme(0xD800)                         // err(CodepointError.surrogate(55296))
 var cs:$[u32] = $[0x63, 0x327]
 String.fromCodepoints(cs)                // of an Array<u32> too
 ```

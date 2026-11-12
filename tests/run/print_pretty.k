@@ -51,11 +51,11 @@ let main():int32 {
 // out:     3
 // out:   ]
 // out: ]
-// out: object({
-// out:   "name": string("kelvin"),
-// out:   "tags": array([
-// out:     string("c"),
-// out:     number(11.0)
+// out: JSON.object({
+// out:   "name": JSON.string("kelvin"),
+// out:   "tags": JSON.array([
+// out:     JSON.string("c"),
+// out:     JSON.number(11.0)
 // out:   ])
 // out: })
 // out: 39 String

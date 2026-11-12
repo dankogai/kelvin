@@ -36,7 +36,7 @@ let main():int32 {
     println(m1.cstr, " ", m2.cstr, " ", r1.cstr, " ", r2.cstr, " ", w.ok)
     return 0
 }
-// out: {x: 0, y: 0} {x: 0, y: 7} 9 n(0.5) 1 2
+// out: {x: 0, y: 0} {x: 0, y: 7} 9 json.n(0.5) 1 2
 // out: some({x: 3, y: 4}) none ok({x: 5, y: 6}) err("no") 1
 // c: return (struct point){0, 0};
 // c: return _kv__kv_res_point_cstr_make_ok((struct point){5, 6});

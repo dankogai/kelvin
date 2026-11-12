@@ -4206,11 +4206,18 @@ let gen_show(y:int64) {
         return
     }
     put("    switch (self->tag)\n    {\n")
+    var qual = $""                                      // num.n(1.5), as the value is written, so that it pastes back, as kelvinc's (#529)
+    if !anon_decls.has(tok_text(types[y].name)) && !tok_text(types[y].name).starts("_kv_") {   // ok(v) and some(v), kc's own, bare
+        let w:String = kelvin_name(types[y].name)
+        qual += &w
+        qual += "."
+    }
     var m = nodes[d].a
     while m >= 0 {
         put("    case ")
         put_int(case_tag(d, m))
         put(":\n        kv_out_put(o, \"")
+        put(qual.cstr)
         put_tok(nodes[m].t)
         if nodes[m].ty < 0 {
             put("\");\n        break;\n")

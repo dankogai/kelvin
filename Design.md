@@ -577,6 +577,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 526 | A String of codepoints, as the user asked, swapped before uchr's removal as the user chose: `grapheme(c0, c1, ...)`, the first grapheme alone, the codepoints after it checked and dropped, and `String.fromCodepoints(c0, c1, ...)`, all of them, each a `Result<String, CodepointError>`, `enum CodepointError { empty; surrogate: u32; outOfRange: i64 }`; of one `Array<u32>`, or of any number of integers, which kelvinc and kc read into `kv_codepoints_string` of an array of them as i64, their count and whether one grapheme; a float, a bool and text are errors | modules/UnicodeData.k, src/parser.c, selfhost/gen.k, selfhost/sample.k, GNUmakefile, documents/unicodedata.md, strings.md, README.md; README.md, selfhost/README.md | tests/run/grapheme_of_codepoints.k, tests/error/grapheme_text.k, tests/error/codepoints_bool.k | 2026-11-12 |
 | 527 | A codepoint is a `u32`, the first of uchr's removal, split in two as the user chose: `s.codepoints` is an `Array<u32>` and `for c in s.codepoints` gives each a `u32`; UnicodeData's `extend uchr` is `extend u32`, `.name`, `.category`, `.upper` a `u32` and the rest, on a u32 only, as the user chose; the runtime, JSON, SION, kc and the quine no longer use `.uchr`, as `s += n` appends a codepoint | modules/UnicodeData.k, runtime/string.k, runtime/bytes.k, modules/JSON.k, modules/SION.k, src/parser.c, selfhost/gen.k, selfhost/lex.k, selfhost/kc.k, selfhost/parse.k, selfhost/sample.k, examples/quine.k, examples/lambda.k, documents/unicodedata.md, strings.md, ownership.md, versusC.md; README.md, selfhost/README.md | tests/run/string_codepoints.k, unicode_basics.k, unicode_prelude.k, regexp_unicode.k, unicode_graphemes.k, uchr.k | 2026-11-12 |
 | 528 | uchr is no more, the second of its removal: the word is an error in kelvinc's and kc's lexers, as the user chose, that names a `u32`, `s.codepoints[0]`, `s += n` and `grapheme(n)`; `.utf32` and `.codepoint` of a number say a codepoint is the number; kelvinc's and kc's uchr code goes, and, as the user chose, the runtime's `kv_uchr`, `KV_UCHR_OF` and their functions; a String walked by codepoint gives each a u32 | src/lexer.c, src/parser.c, src/codegen.c, modules/kelvin_prelude.h, runtime/unicode.c, runtime/string.c, selfhost/lex.k, selfhost/parse.k, selfhost/gen.k, selfhost/sample.k, examples/lambda.k, examples/ski.k, editors/vscode, documents/strings.md, ownership.md, arrays.md, properties.md, printing.md, c-contract.md, and others; README.md, selfhost/README.md | tests/error/uchr_gone.k, tests/error/uchr_loop_gone.k, tests/error/utf32_of_number.k; 13 tests of uchr removed, 16 changed | 2026-11-12 |
+| 529 | An enum with values prints as its value is written, as the user chose, so that the text pastes back: the case after the enum's name, `num.n(1.5)`, `err(CodepointError.surrogate(55296))`, a nested one's by its path, `shape.kind.round`; by print, `.cstr`, templates and `.pretty`, in kelvinc and kc; an untagged one and Optionals and Results stay bare | src/codegen.c, selfhost/gen.k, documents/printing.md, enums.md, json.md, unicodedata.md; README.md, selfhost/README.md | tests/run/enum_paste_back.k; 18 tests' expected output | 2026-11-12 |
 
 Notes:
 
@@ -1161,6 +1162,24 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (529) Agreed details: "go on with the enum paste-back fix"
+  - #526 found that an enum with values printed its case bare,
+    `err(surrogate(55296))`, `n(1.5)`, which pastes back as no value:
+    Kelvin writes one `CodepointError.surrogate(55296)`.
+  - Asked, the user chose to print it qualified, as the value is
+    written, over accepting the bare case or Swift's leading dot.
+  - kelvinc's `.cstr` text, which templates use, and its printer, which
+    print and `.pretty` use, write the enum's name before the case, its
+    path if it is inside a struct, `shape.kind.round`; the text's bound
+    grows by the name.
+  - An enum with values with no name of its own stays bare; so do an
+    Optional's `some(v)` and a Result's `ok(v)` and `err(e)`, which are
+    values as printed; kc's own, `_kv_` names, are skipped.
+  - 18 tests' expected output changed, each by the names alone, which a
+    script checked; `enum_paste_back.k` pastes the text back.
+  - Not here: a struct prints `{x: 1, y: 2}`, which pastes back only
+    where a struct's literal is written `{.x = 1, .y = 2}` or in order.
 
 - (528) Agreed details: "push and go on with #528"
   - The second of uchr's removal, as the user chose at #527: the type,
@@ -8456,6 +8475,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P538 | Details of #526 | `grapheme(...)` and `String.fromCodepoints(...)`: UnicodeData's, of one `Array<u32>` or of integers, read by kelvinc's codepoints_call and kc's resolve_codepoints into `kv_codepoints_string`; `CodepointError`, an enum with values | provisional |
 | P539 | Details of #527 | A codepoint is a `u32`: `s.codepoints` an `Array<u32>`, `for c in s.codepoints` each a `u32`; UnicodeData's properties of `extend u32`, on a u32 only; kc's recv_tok of u32 | provisional |
 | P540 | Details of #528 | uchr removed: the lexers' error naming the `u32` form; `.utf32`/`.codepoint` of a number an error; `kv_uchr` and its functions gone from the runtime; a codepoint walk's element a u32 | provisional |
+| P541 | Details of #529 | An enum with values printed qualified, `T.case(v)`, a nested one by its path; untagged ones, Optionals and Results bare; kelvinc's tagged_prefix, kc's qual in its printer | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

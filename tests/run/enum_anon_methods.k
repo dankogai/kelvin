@@ -35,6 +35,6 @@ let main():int32 {
 }
 // out: 3 0 -1 6
 // out: <7> <0> true false <3>
-// out: some(6) none true true
+// out: maybe.some(6) maybe.none true true
 // out: 25.0
 // c: _kv_anon1__orZero(

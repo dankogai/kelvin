@@ -45,5 +45,5 @@ let main():int32 {
 // out: [8] [14] [6] true [48] [3]
 // out: [11] [26] [12]
 // out: 13 2 9
-// out: bits(5) none
+// out: flags.bits(5) flags.none
 // c: _kv_shl_op__W__i64(

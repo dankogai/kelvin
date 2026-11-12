@@ -14,5 +14,5 @@ let main():int32 {
     return 0
 }
 // out: {grid: [["w", "x"], ["Y", "z"]]} Y
-// out: grid([["e", "f"], ["g", "h"]]) grid([["a", "b"], ["c", "d"]])
+// out: slot.grid([["e", "f"], ["g", "h"]]) slot.grid([["a", "b"], ["c", "d"]])
 // c: kv_string_free(&((kv_string *)self->grid)[_kv_i]);

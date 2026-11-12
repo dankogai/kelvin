@@ -43,8 +43,8 @@ let main():int32 {
 // out: {"ann": 31, "bob": 42} {7: "seven", 1: "one"} {} {3, 1, 4}
 // out: {name: "say \"hi\"\n", at: {x: 1, y: 2}, tags: ["x", "y"], label: "c\\d", raw: "a\tb\xff"}
 // out: {name: "say \"hi\"\n", at: {x: 1, y: 2}, tags: [...], label: "c\\d", raw: "a\tb\xff"}
-// out: path([{x: 0, y: 0}, {x: 1, y: 1}]) dot({x: 5, y: 6}) none
+// out: shape.path([{x: 0, y: 0}, {x: 1, y: 1}]) shape.dot({x: 5, y: 6}) shape.none
 // out: ok([1, 2]) some("x") none
-// out: object({"name": string("kelvin"), "tags": array([string("c"), number(11.0)]), "ok": boolean(true)})
+// out: JSON.object({"name": JSON.string("kelvin"), "tags": JSON.array([JSON.string("c"), JSON.number(11.0)]), "ok": JSON.boolean(true)})
 // out: to a stream: [1, 2, 3] {"ann": 31, "bob": 42}
 // c: _kv_show__kv_array_i64(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, -1)

@@ -44,7 +44,7 @@ let main():i32 {
     println(top, " ", red, " ", sizeof(pair), " ", twice(21))
     return 0
 }
-// out: {a: 3, k: sides(4), next: nowhere} pair pair.kind Array<pair> <union bits> 5 6 4
+// out: {a: 3, k: pair.kind.sides(4), next: nowhere} pair pair.kind Array<pair> <union bits> 5 6 4
 // out: green
 // out: {s: "inner"} pair 1
 // out: {x: 7} 0 32 42

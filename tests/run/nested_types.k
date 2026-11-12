@@ -30,10 +30,10 @@ let main():i32 {
     println(c, " ", c.typename, " ", c == shape.kind.round)
     return 0
 }
-// out: {k: sides(4), s: {w: 2.0, h: 3.0}, b: <union shape.bits>, z: 1} {w: 1.0, h: 1.5} {z: {n: 7}}
+// out: {k: shape.kind.sides(4), s: {w: 2.0, h: 3.0}, b: <union shape.bits>, z: 1} {w: 1.0, h: 1.5} {z: {n: 7}}
 // out: shape.size shape.kind other.size shape.bits
 // out: shape.size.unit [{n: 5}] Array<shape.size.unit> some({n: 5}) 16
-// out: round shape.kind true
+// out: shape.kind.round shape.kind true
 // c: struct shape__size
 // c: union shape__bits
 // c: struct shape__size__unit

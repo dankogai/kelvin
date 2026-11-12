@@ -604,6 +604,11 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An enum with values prints as it is written** (#529), as kelvinc's:
+  its printer writes the enum's name before the case, `num.n(1.5)`,
+  `CodepointError.empty`, a nested one's path, `shape.kind.round`, so
+  that the text pastes back; an untagged one, and kc's own Optionals
+  and Results, `_kv_` names, stay bare.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

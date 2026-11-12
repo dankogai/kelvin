@@ -26,11 +26,11 @@ let main():int32 {
 // out: ok("é") ok("éA")
 // out: ok("👨‍👩‍👧")
 // out: ok("h") ok("a") ok("Hi")
-// out: err(empty) err(empty)
-// out: err(surrogate(56320)) err(outOfRange(1114112)) err(outOfRange(-1))
+// out: err(CodepointError.empty) err(CodepointError.empty)
+// out: err(CodepointError.surrogate(56320)) err(CodepointError.outOfRange(1114112)) err(CodepointError.outOfRange(-1))
 // out: 🇯🇵 1
-// out: surrogate(55296)
+// out: CodepointError.surrogate(55296)
 // out: true none
 // out: ok("ç") ok("ça") 3
-// out: err(empty)
+// out: err(CodepointError.empty)
 // out: true

@@ -96,8 +96,10 @@ var text = ages.pretty                   // a String, where print does not show 
   - A struct is `{x: 1, y: 2}`, the derived text, or the type's own
     `T.cstr()` where it defines one (#53), or its `T.string`, a String,
     shown whole (#506).
-  - An enum with values is `n(v)` or `none`; an Optional `some(v)` or
-    `none`; a Result `ok(v)` or `err(e)`.
+  - An enum with values is its case after its name, `json.n(1.5)` or
+    `json.none`, as the value is written, so that it pastes back (#529);
+    one inside a struct by its path, `shape.kind.round`.
+  - An Optional is `some(v)` or `none`; a Result `ok(v)` or `err(e)`.
   - An `Array` is `[a, b]`, a `Dictionary` `{"k": v}` and a `Set`
     `{a, b}`, in the order added; an empty one `[]` or `{}`.
   - A fixed array is `[a, b]`, its every element, as inside a struct, so

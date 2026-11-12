@@ -52,9 +52,9 @@ let main():int32 {
     println(b)
     return 0
 }
-// out: some(-7) maybe
-// out: none
-// out: s("abcd")
-// out: s("abcdef!")
+// out: maybe.some(-7) maybe
+// out: maybe.none
+// out: txt.s("abcd")
+// out: txt.s("abcdef!")
 // out: {name: "xy", n: 3}
 // c: _kv_add_op__txt__txt(t, _kv_tmp

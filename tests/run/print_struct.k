@@ -34,7 +34,7 @@ let main():int32 {
 // out: {x: 1, y: 2}
 // out: p = {x: 1, y: 2}, v = (1.5, -2.0), n = 3
 // out: <0> <7>
-// out: dot circle(0.5)
+// out: shape.dot shape.circle(0.5)
 // out: bits 0x3ff0000000000000
 // out: {x: 0, y: 0} {x: 1, y: 2}
 // out: {x: 1, y: 2}

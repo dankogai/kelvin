@@ -125,7 +125,7 @@ JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: int6
 | | `j["key"]`, `j[i]` | the member, the element, through the object or the array case, checked; a place (#117) |
 | | `.is(array)`, `.case`, `switch j { case array: ... }` | which case it is; `case array(xs):` binds the value (#119) |
 | | `.copy()` | a copy, deep |
-| | `.cstr`, `${j}` | the case and its value, `number(1.5)`, as any enum's; `JSON.stringify(&j)` for JSON text |
-| | `println(j)`, `j.pretty` | the whole tree as Kelvin's text, `object({"k": number(1)})`, indented by `.pretty` (#123, #124) |
+| | `.cstr`, `${j}` | the case and its value, `JSON.number(1.5)`, as any enum's (#529); `JSON.stringify(&j)` for JSON text |
+| | `println(j)`, `j.pretty` | the whole tree as Kelvin's text, `JSON.object({"k": JSON.number(1.0)})`, indented by `.pretty` (#123, #124) |
 | | `==`, `!=` | the same case and value: an array's elements in order, an object's members in any order, each by its `==` (#247) |
 | | `.size`, `.typename` | `sizeof`; `JSON` |

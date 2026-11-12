@@ -28,10 +28,10 @@ let main():int32 {
     return 0
 }
 // out: 12 2 2 21 0
-// out: tri([3, 4, 5]) pair([1.5, 2.5]) names(["x", "y"])
+// out: shape.tri([3, 4, 5]) shape.pair([1.5, 2.5]) shape.names(["x", "y"])
 // out: true false false
 // out: 8 3
 // out: 4 3 5
-// out: pair([9.5, 0.5])
+// out: shape.pair([9.5, 0.5])
 // c: typedef int64_t _kv_shape_tri_t[3];
 // c: memcpy(_kv_v.u.tri, v, sizeof _kv_v.u.tri);

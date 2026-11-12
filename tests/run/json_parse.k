@@ -34,7 +34,7 @@ let main():int32 {
 }
 // out: true 4 kelvin 5
 // out: 11.0 -2500.0 true true
-// out: 0 0 boolean(false)
+// out: 0 0 JSON.boolean(false)
 // out: q"b\s/n
 // out: é😀	 11
 // out: 3 3.0 JSON

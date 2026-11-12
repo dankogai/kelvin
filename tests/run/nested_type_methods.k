@@ -29,6 +29,6 @@ let main():i32 {
     println(shape.size.unit(), " ", shape.kind.round.corners())
     return 0
 }
-// out: {k: sides(3), s: {w: 1.0, h: 1.0}} 1.0 {w: 2.0, h: 2.0} false 3
+// out: {k: shape.kind.sides(3), s: {w: 1.0, h: 1.0}} 1.0 {w: 2.0, h: 2.0} false 3
 // out: {w: 1.0, h: 1.0} 0
 // c: double shape__size__area(const struct shape__size self)

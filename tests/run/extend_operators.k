@@ -28,5 +28,5 @@ let main():int32 {
     return 0
 }
 // out: 1000 -150 true false 4.25
-// out: some(3)
+// out: maybe.some(3)
 // c: _kv_add_op__money__money(

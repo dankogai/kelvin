@@ -3907,6 +3907,15 @@ static void find_cstr_stmt(Stmt *s) {
     find_cstr_stmt(s->els);
 }
 
+/* "num." before a case of the enum with values d, as a value of it is
+   written, num.n(1.5), its path if it is inside a struct, point.kind.;
+   "" for one with no name of its own (#529) */
+static const char *tagged_prefix(Decl *d) {
+    if (d->spelling)
+        return "";
+    return strfmt("%s.", d->kelvin_name ? d->kelvin_name : d->name);
+}
+
 /* The derived text of a struct, {x: 1, y: 2}, and its size: a union,
    whose active member is unknown, is <union name>. */
 static void emit_derived_cstr(Decl *d, Type *recv) {
@@ -3914,12 +3923,15 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
     char *ctype = decl(recv, "");
     Buf size = {0};
     if (d->tagged) {
-        /* an enum with values (#61): the case's name, and its value in
-           parentheses: n(1.5), none; room for the longest */
+        /* an enum with values (#61): the case's name after the enum's,
+           as the value is written, so that it pastes back (#529), and its
+           value in parentheses: num.n(1.5), num.none; room for the
+           longest */
+        const char *qual = tagged_prefix(d);
         buf_printf(&size, "1");
         for (int i = 0; i < d->members.len; i++) {
             Var *m = d->members.data[i];
-            buf_printf(&size, " + %d", (int)strlen(m->name) + 2);
+            buf_printf(&size, " + %d", (int)(strlen(qual) + strlen(m->name)) + 2);
             if (m->type)
                 buf_printf(&size, " + %s", text_bound(m->type, strfmt("((%s *)0)->u.%s", ctype, m->name)));
         }
@@ -3934,7 +3946,7 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
             Var *m = d->members.data[i];
             line("case %d:", i);
             indent++;
-            line("_kv_p = kv_cstr_put(_kv_p, \"%s%s\");", m->name, m->type ? "(" : "");
+            line("_kv_p = kv_cstr_put(_kv_p, \"%s%s%s\");", qual, m->name, m->type ? "(" : "");
             if (m->type) {
                 write_text(m->type, strfmt("self.u.%s", m->name), 0);
                 line("_kv_p = kv_cstr_put(_kv_p, \")\");");
@@ -5238,14 +5250,14 @@ static void emit_show(Type *t) {
     } else if (r->kind == D_UNION) {
         line("(void)self;");
         line("kv_out_put(o, \"<%s>\");", r->spelling ? r->spelling : strfmt("union %s", r->kelvin_name ? r->kelvin_name : r->name));
-    } else if (r->tagged) { /* n(v), none */
+    } else if (r->tagged) { /* num.n(v), num.none, as it is written (#529) */
         line("switch (self->tag)");
         line("{");
         for (int i = 0; i < r->members.len; i++) {
             Var *m = r->members.data[i];
             line("case %d:", i);
             indent++;
-            line("kv_out_put(o, \"%s%s\");", m->name, m->type ? "(" : "");
+            line("kv_out_put(o, \"%s%s%s\");", tagged_prefix(r), m->name, m->type ? "(" : "");
             if (m->type) {
                 line("_kv_nl = level;"); /* a case's () holds one value, which breaks if it is a [] or {} */
                 show_value(m->type, strfmt("self->u.%s", m->name), 0);

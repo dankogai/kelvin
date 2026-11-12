@@ -210,7 +210,8 @@ So far the changes from C are these, by topic.
 - an `enum` whose cases carry values is a union that knows its case,
   with a byte for the tag: `enum json { null; n: f64; s: String; a:
   Array<json> }`, made as `json.n(1.5)`, read as `j.n` (checked), tested
-  with `j.is(n)` and `switch j { case n: ... }`
+  with `j.is(n)` and `switch j { case n: ... }`, and printed as it is
+  made, `json.n(1.5)`, so that the text pastes back (#529)
 - there is no `void`: `any^` is C's `void *` and `nowhere` its null, and a
   reference declared without a value is `nowhere`
 - numeric types always say their size (`u8`…`u64`, `i8`…`i64`,

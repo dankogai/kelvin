@@ -9959,3 +9959,17 @@ and its functions, and 13 tests of uchr went; 16 tests that used it in
 passing use a u32 or text. Details are provisional P540.
 
 There are 1273 tests, and all pass with clang and with gcc 15.
+
+### 576. An enum with values pastes back
+
+> go on with the enum paste-back fix
+
+**Claude** asked how, and the user chose to print an enum with values
+as its value is written: the case after the enum's name,
+`num.n(1.5)`, `err(CodepointError.surrogate(55296))`, and one inside a
+struct by its path, `shape.kind.round`. kelvinc's text and printer and
+kc's printer write the name; an Optional and a Result stay `some(v)`,
+`ok(v)` and `err(e)`, which paste back as they are. 18 tests' expected
+output changed by the names alone. Details are provisional P541.
+
+There are 1274 tests, and all pass with clang and with gcc 15.

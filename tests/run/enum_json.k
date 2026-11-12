@@ -33,10 +33,10 @@ let main():int32 {
     }
     return 0
 }
-// out: n(1.0) s("x") null 3 4
-// out: s("set") s("moved") 5 b(true) 8
-// out: s("xyz") null
-// out: n(3.0) 4.0
+// out: json.n(1.0) json.s("x") json.null 3 4
+// out: json.s("set") json.s("moved") 5 json.b(true) 8
+// out: json.s("xyz") json.null
+// out: json.n(3.0) 4.0
 // out: number 1.0
 // c: KV_ARRAY_TYPE(struct json, _kv_array_json)
 // c: __attribute__((unused)) static inline void _kv_json_free(struct json *self);

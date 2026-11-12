@@ -100,9 +100,10 @@ union in C, with one byte for the tag.
   - `switch v { case n: ... case none: ... }` branches on the case by
     its bare name, each case ending at the next, and lists every case
     or has `default:` (#63, [flow-controls.md](flow-controls.md)).
-- **Text:** `v.cstr` and `${v}` are the case's name and its value in
-  parentheses, `n(1.5)`, `rect({w: 3.0, h: 4.0})`, or the name alone,
-  `none`; `T.cstr()` (#53) replaces it.
+- **Text:** `v.cstr` and `${v}` are the case after the enum's name and
+  its value in parentheses, `json.n(1.5)`, `shape.rect({w: 3.0, h:
+  4.0})`, or the case alone, `json.none`, as the value is written, so
+  that it pastes back (#529); `T.cstr()` (#53) replaces it.
 - **Owners:** a case that owns makes the enum an owner under the rules
   of #54: freed by its block, moved by `return` and by passing, copied by
   `.copy()`, borrowed as a pointer, and an element of an `Array<T>`,
@@ -181,7 +182,7 @@ The core. A plain enum is C's, with nothing linked. An enum with values is kelvi
 | | `n(x)`, `none` | the same of a top-level enum with no tag, whose cases are words (#120) |
 | | `switch v { case n: ... }` | by the case, exhaustive (#63) |
 | | `switch v { case n(x): ... }` | the same, with `x` the case's value in that body (#119) |
-| | `.cstr` | `n(1.5)`, `none`, or `T.cstr()`'s text |
+| | `.cstr` | `json.n(1.5)`, `json.none`, as it is written (#529), or `T.cstr()`'s text |
 | | `.copy()` | a copy, when a case owns |
 | | `let T.name()`, `let enum{...}.name()`, `let +(a:T, b:T)` | methods and operators, by the name or the spelling (#121) |
 | | `.size`, `.typename` | `sizeof`; the name or spelling |
