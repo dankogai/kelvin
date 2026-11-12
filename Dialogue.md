@@ -10180,3 +10180,17 @@ With it the Rational module the user asked for is whole: `rat8` to
 `rat64` and `bigrat`. Details are provisional P552.
 
 There are 1311 tests, and all pass with clang and with gcc 15.
+
+### 588. The script of Rational
+
+> check the script in under tools/ as #541
+
+**Claude** pushed #540, and CI passed. modules/Rational.k has four widths
+of one text, since Kelvin has no generic struct, and a script wrote them
+out; it was kept in a scratch directory, and Claude offered to keep it in
+the repository. It is tools/gen_rational.py now, beside the scripts of the
+Unicode tables: it writes the module as #540 left it, byte for byte, with
+a note that names the script, and `make` reruns it when it is the newer.
+The module is changed there from now on. Details are provisional P553.
+
+There are 1311 tests, and all pass with clang and with gcc 15.

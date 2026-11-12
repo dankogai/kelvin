@@ -68,7 +68,7 @@ endif
 SHLIB := libkelvin.$(SO)
 MOD_SHLIBS := modules/libkIO.$(SO) modules/libkOS.$(SO)
 
-all: kelvinc modules/libkelvin.a modules/$(SHLIB) $(MOD_LIBS) $(MOD_SHLIBS) $(KELVIN_LIBS)
+all: kelvinc modules/libkelvin.a modules/$(SHLIB) $(MOD_LIBS) $(MOD_SHLIBS) $(KELVIN_LIBS) modules/Rational.k
 
 # kelvinc checks a $/.../ literal (#163) with the pattern parser of RegExp and the Unicode tables;
 # it works out a power of two literals with libm's pow (#380)
@@ -120,6 +120,10 @@ runtime/unicode_tables.c runtime/unicode_names.c: tools/gen_unicode.py $(wildcar
 # the codepoints of a name past ASCII (#385), kelvinc's and kc's
 src/ident.c selfhost/ident.k: tools/gen_ident.py tools/ucd/DerivedCoreProperties.txt tools/ucd/emoji-data.txt
 	python3 -I tools/gen_ident.py
+
+# the module of #import <Rational>, its four widths written out from one text (#541)
+modules/Rational.k: tools/gen_rational.py
+	python3 -I tools/gen_rational.py
 
 # a module of the prelude (#504): its M.kh into modules/, its object for libkelvin
 build/prelude/UnicodeData.o: modules/UnicodeData.k modules/kUnicodeData.h modules/kelvin_prelude.h kelvinc

@@ -19,6 +19,9 @@
 //
 // bigrat is of two BigInts, a fraction of any precision, which every
 // result fits: 1n.over(3n) makes one, and it shows as (1n/3n).
+//
+// Written by tools/gen_rational.py, which writes the four widths out from
+// one text; do not edit: change the script and rerun it.
 
 
 struct rat64 {

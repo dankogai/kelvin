@@ -89,7 +89,7 @@ Requires:
 - a C11 compiler, as `cc`, clang or gcc;
 - GNU make, which reads `GNUmakefile`;
 - Python 3, which makes the Unicode tables of the runtime from
-  `tools/ucd/` (#156);
+  `tools/ucd/` (#156), and writes `modules/Rational.k` (#541);
 - optional: `node` for `tests/grammar.js`, and `zip` and `unzip` for
   `make vsix` (#190, #191).
 

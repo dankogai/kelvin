@@ -116,6 +116,11 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
   multiplies in `__int128` and divides by the greatest common divisor;
   each width has its own. A `bigrat`'s are of `BigInt`s, the prelude's
   ([bigint.md](bigint.md)).
+- **Written by a script:** tools/gen_rational.py writes the module.
+  - Kelvin has no generic struct, so the four widths are one text, written
+    out for each; `bigrat` is written once beside them.
+  - Change the script and rerun it, not the file it writes; `make` reruns
+    it when the script is the newer.
 - **kc** does not read the module yet: a method of an integer and a
   module's source are past its subset.
 
