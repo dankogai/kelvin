@@ -10067,3 +10067,19 @@ be a place. `&x.i64`, the address of a value, is still C's error.
 Details are provisional P546.
 
 There are 1294 tests, and all pass with clang and with gcc 15.
+
+### 582. `&` takes a place
+
+> push and fix &x.i64 as #535
+
+**Claude** pushed #534, and CI passed. `&x.i64` was C's error, "cannot
+take the address of an rvalue", as `&` of any value was. kelvinc and kc
+now say what the value is, by #534's rule, and that it "is a value, and
+has no address": a conversion, what a function or an operator gives, a
+literal, a property. What `&` took before it still takes: a variable, a
+member, an element, `p^`, a compound literal, a function's name, and an
+owner an expression gives, which is held where it is borrowed. kc's
+`g()` of `let g := &f` is an error of its own that kelvinc has not, and
+is left. Details are provisional P547.
+
+There are 1301 tests, and all pass with clang and with gcc 15.

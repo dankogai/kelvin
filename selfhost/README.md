@@ -604,6 +604,12 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`&` takes a place** (#535), as kelvinc's: `&x.i64`, `&f()`, `&5`
+  and `&(x + 1)` are `no_place`'s values (#534), which have no address,
+  and kc says so where C's "cannot take the address of an rvalue" was
+  the error.
+  - A name, text, and an owner an expression gives, which kc holds, are
+    as they were.
 - **An assignment's left is a place** (#534), as kelvinc's: gen.k's
   `no_place` names a left side kc sees is a value, a conversion, what a
   function, a method or an operator gives, a literal, a property, a

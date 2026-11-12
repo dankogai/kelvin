@@ -428,6 +428,7 @@ let put_fixed_counts(y:int64)
 let put_zero_count(y:int64):bool    // a fixed array's count where its elements have no size (#499)
 let put_record_word(y:int64)    // and C's word of a struct, union of a union (#453)
 let gen_bit_method(n:int64):bool    // and a bool's flip (#457), an integer's bit's (#530)
+let no_place(n:int64):String    // and what a value is, which has no address (#534, #535)
 let int_bits_field(n:int64):bool    // x.bits of an integer, and x.bits[k], its bit (#530)
 let int_bit_index(n:int64):bool
 let gen_int_bit_set(n:int64)
@@ -10474,6 +10475,24 @@ let gen_expr_of(n:int64) {
         gen_expr(nodes[n].a)
         put("))")
     } else if k == N_ADDR {
+        let av:int64 = nodes[n].a                        // &x.i64, &f(), &5 (#535): a value has no address, as kelvinc says it
+        if nodes[av].kind != N_ID && nodes[av].kind != N_STR && nodes[av].kind != N_DSTR {
+            resolve_op(av)
+            resolve_attr(av)
+            resolve_convert(av)
+            let ay:int64 = failed ? 0 - 1 : type_of(av)
+            if failed { return }
+            if !is_owner(ay) {                           // an owner an expression gives is held
+                let value:String = no_place(av)
+                if failed { return }
+                if value.count > 0 {
+                    var m = value.copy()
+                    m += " is a value, and has no address: '&' takes a variable, a member, an element or 'p^'; bind the value to a variable first"
+                    gen_error(av, m.cstr)
+                    return
+                }
+            }
+        }
         gen_place(nodes[n].a)
     } else if k == N_DEREF {
         put("(*")

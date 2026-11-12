@@ -391,6 +391,8 @@ statements too, for pointers only (#26, #51):
     `x.size = 2` of a property, and `f = 1` of a function's name.
   - The compound assignments and `:=` are the same.
   - What only C sees, a C macro's call, is left to C.
+  - `&` takes a place by the same rule (#535); see
+    [pointers.md](pointers.md#prefix-).
 
 ### C habits kelvinc catches
 

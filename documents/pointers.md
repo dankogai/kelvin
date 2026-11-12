@@ -70,6 +70,16 @@ let m := &a[2]            // the rest of an array, or of a cstr (#52)
 let f := &twice           // a function's address is the function itself
 ```
 
+- **`&` takes a place** (#535): a variable, a member, an element or
+  `p^`, a compound literal `(T){...}`, or a function's name.
+  - A value has no address, and `&` of one is an error that names it:
+    `&x.i64` and `&i64(x)` of a conversion, `&f()` of what a function
+    gives, `&5` of a literal, `&(x + 1)` of what an operator gives,
+    `&xs.count` of a property; bind the value to a variable first.
+  - An owner an expression gives, `&name()` of a String or `&$"text"`,
+    is held where it is borrowed, and has one.
+  - An assignment's left is a place by the same rule (#534); see
+    [grammar.md](grammar.md#assignment-is-a-statement).
 - `&x` of a `let`, or of a let's field or element, points to `const`,
   as a let is `const` in C (#27); `&x` of a `var` points to its type.
   - So does `&s` of a let that owns, a String, an Array, a Dictionary

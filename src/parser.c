@@ -1769,6 +1769,7 @@ static int number_rank(const char *n);
 static Expr *int_bit_at(Expr *e, Type *t, Expr *n, Pos pos);
 static void check_bit_place(Expr *n, const char *what);
 static bool bigint_bits_attr(Expr *e);
+static const char *no_place(Expr *e);
 static bool bigint_callee(Expr *f);
 static void bigint_bools_call(Expr *x);
 static Expr *bools_literal(const char *who);
@@ -5186,6 +5187,13 @@ static Expr *parse_unary(void) {
             e->a = make_temp(e->a, strfmt("a borrow of a %s that an expression gives, which nothing would free: bind it "
                                           "to a variable first",
                                           kelvin_type(value_type(e->a))));
+        /* &x.i64, &f(), &5 (#535): a value has no address, Kelvin's error
+           where it was C's; a function's name has one, and text C's */
+        const char *value = !strcmp(e->op, "&") && e->a->kind != E_IDENT && e->a->kind != E_STRING ? no_place(e->a) : NULL;
+        if (value)
+            error_at(e->a->pos, "%s is a value, and has no address: '&' takes a variable, a member, an element or "
+                                "'p^'; bind the value to a variable first",
+                     value);
         return !strcmp(e->op, "-") || !strcmp(e->op, "~") ? resolve_operator(e, e->op, e->a, NULL) : e; /* -z (#42), ~z (#502) */
     }
     if (is_p(t, "*") || is_p(t, "**"))
