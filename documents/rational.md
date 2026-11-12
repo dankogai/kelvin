@@ -121,8 +121,8 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
     out for each; `bigrat` is written once beside them.
   - Change the script and rerun it, not the file it writes; `make` reruns
     it when the script is the newer.
-- **kc** does not read the module yet: a method of an integer and a
-  module's source are past its subset.
+- **kc** builds a program that imports the module too (#542), and it
+  prints what kelvinc's build prints.
 
 ## Properties and methods
 

@@ -339,19 +339,24 @@ let module_import(t:int64):bool {
 // literal's is then an error; and each #import <M> of one, UnicodeData's
 // too, which RegExp.kh imports (#515)
 let load_prelude(mods:String^):bool {
-    let first:int64 = toks.count as int64
     var ucd:String = mods^.copy()                        // UnicodeData, in every program, as kelvinc's (#520)
     ucd += "/UnicodeData.kh"
     if !read_already(&ucd) && !loads(&ucd) { return false }
+    var i = 0
+    while i < toks.count as int64 {                      // each #import <M> first, as kelvinc's with_imports: a module
+        if module_import(i) && !load_module(mods, i) { return false }   // may name BigInt, as Rational's bigrat does (#542)
+        i += 1
+    }
+    let first:int64 = toks.count as int64
     for k in 0..<2 {
         let w:cstr := k == 0 ? "RegExp" : "BigInt"
         if !names_word(w) { continue }
         var imported = false
-        for i in 0..<first {
-            if toks[i].kind == T_IMPORT && codes[toks[i].at] == '<' && toks[i].len == strlen(w) as int64 + 2 {
+        for t in 0..<first {
+            if toks[t].kind == T_IMPORT && codes[toks[t].at] == '<' && toks[t].len == strlen(w) as int64 + 2 {
                 var same = true
                 for j in 0..<strlen(w) as int64 {
-                    if codes[toks[i].at + 1 + j] != w[j] as uint32 { same = false }
+                    if codes[toks[t].at + 1 + j] != w[j] as uint32 { same = false }
                 }
                 if same { imported = true }
             }
@@ -375,8 +380,7 @@ let load_prelude(mods:String^):bool {
         path += ".kh"
         if !loads(&path) { return false }
     }
-    var i = 0
-    while i < toks.count as int64 {
+    while i < toks.count as int64 {                      // and what the prelude's own import
         if module_import(i) && !load_module(mods, i) { return false }
         i += 1
     }

@@ -7,6 +7,7 @@
 #import <time.h> as C
 #import <IO>                                          // f.lines, f.write (#450)
 #import <JSON>                                        // modules/JSON.kh, and libkJSON.a beside it (#516)
+#import <Rational>                                    // modules/Rational.k, a module's source, which names BigInt (#542)
 
 struct point {
     x: int64
@@ -512,6 +513,27 @@ let st_nines.string:String {
     for i in 0..<.n { s += "9" }
     return s
 }
+// a type's own text, one template (#53, #542): of a struct, of a union,
+// and in extend, of text alone
+struct tm_v2 { x: f64; y: f64 }
+let tm_v2.cstr():cstr { `(${.x}, ${.y})` }
+struct tm_line { a: tm_v2; b: tm_v2 }
+union tm_bits { u: u64; f: f64 }
+let tm_bits.cstr():cstr { `bits ${.u.hex}` }
+struct tm_tag { n: i64 }
+extend tm_tag {
+    let cstr():cstr { "a tag" }
+}
+// a number's methods (#542): int32 is i32, and Self the number; written
+// before main, as kelvinc reads a number's method before its call
+extend i64 {
+    let nm_twice():i64 { self * 2 }
+}
+extend int32 {
+    let nm_twice():Self { self * 3 }
+}
+let f64.nm_half():f64 { self / 2.0 }
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1419,6 +1441,23 @@ on a new line`
     for cp_c in cp_s.codepoints { cp_t += cp_c }
     let cp_e = cp_s.codepoints[0]
     println(cp_t, " ", cp_e.name, " ", (0x31 as u32).isNumber, " ", cp_e.upper.hex, " ", cp_s.codepoints)
+    let tm_v:tm_v2 = {1.5, -2.0}                        // a type's own text, T.cstr() (#53, #542)
+    let tm_l:tm_line = {{0.0, 0.0}, tm_v}
+    var tm_b:tm_bits = {.f = 1.0}
+    let tm_o:tm_v2? = tm_v
+    let tm_t:tm_tag = {7}
+    println(tm_v, " ", tm_v.cstr, " ", `<${tm_v}>`, " ", tm_l, " ", tm_b)
+    println($[tm_v], " ", tm_o, " ", tm_t, " ", tm_v.cstr.count)
+    let nm_n:i64 = 4                                    // a number's methods, of a literal too (#538, #542)
+    let nm_m:i32 = 5
+    let nm_s = 1 << 40
+    println(nm_n.nm_twice(), " ", nm_m.nm_twice(), " ", 3.nm_twice(), " ", (1 << 40).nm_twice(), " ", (65536 * 65536).nm_twice(), " ", (-4).nm_twice())
+    println(9.0.nm_half(), " ", nm_m.nm_twice().typename, " ", nm_s, " ", nm_n.nm_twice().nm_twice())
+    let rt_a = 1.over(3)                                // #import <Rational>: rat64 to rat8, and bigrat of BigInts (#542)
+    let rt_b = 1n.over(3n)
+    println(rt_a + 1.over(6), " ", rt_a * 3, " ", rt_a.f64, " ", rt_a.hex, " ", (-4).over(-8), " ", 1.over(0), " ", rt_a < 1.over(2))
+    println(rat32(rt_a), " ", rat8(1, 3) + 1, " ", rat16(100, 3) * rat16(100, 3) * rat16(100, 3), " ", $[rt_a, -rt_a])
+    println(rt_b + rt_b, " ", rt_b * 3 - 1, " ", bigrat(rt_a) == rt_b, " ", rat64(rt_b), " ", rt_b.f64, " ", rt_b.hex, " ", 2n.over(4))
     return 0
 }
 

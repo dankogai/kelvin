@@ -10194,3 +10194,21 @@ a note that names the script, and `make` reruns it when it is the newer.
 The module is changed there from now on. Details are provisional P553.
 
 There are 1311 tests, and all pass with clang and with gcc 15.
+
+### 589. kc and Rational
+
+> make kc build programs that import Rational as #542
+
+**Claude** pushed #541, and CI passed. kc lacked three things for the
+module. A type's own text, `let T.cstr():cstr { `...` }`: kc's text of a
+value is its printer's, so to kc the method gives a String, shown whole,
+and what prints is kelvinc's. A number's methods: kc read a `u32`'s alone,
+and now `1.over(3)`, `n.over(d)` of any integer, and kelvinc's error of a
+type that has no such method. And the prelude's BigInt where only a
+module names it. With them tests/run's rational programs print the same
+of both compilers, and selfhost/sample.k imports the module. Found on the
+way, kelvinc's: a number's method called before it is written is an
+error that names no type, and an attribute of an i64 is not read on a
+literal. Details are provisional P554.
+
+There are 1311 tests, and all pass with clang and with gcc 15.

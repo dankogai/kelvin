@@ -1331,6 +1331,10 @@ let parse_bare_type():int64 {
             y = parse_type()
         }
         expect(")")
+    } else if tok_is(t, "Self") && self_name >= 0 && number_word(self_name) >= 0 {   // of a number's method (#542)
+        y = number_word(self_name)
+    } else if tok_is(t, "Self") && self_name >= 0 && (tok_is(self_name, "String") || tok_is(self_name, "Bytes")) {
+        y = base_type(tok_is(self_name, "String") ? Y_STRING : Y_BYTES)
     } else if tok_is(t, "Self") && self_name >= 0 {   // the type of the method (#213)
         y = type_of_kind(Y_STRUCT, -1, self_name)
     } else if tok_is(t, "Optional") {            // Optional<T>, T? (#217)

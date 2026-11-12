@@ -590,6 +590,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 539 | `rat32`, `rat16` and `rat8`, the second of #538's three: a numerator over a denominator of two `i32`s, `i16`s and `i8`s, with `rat64`'s arithmetic, comparisons, text, `.hex`, `.f64` and its infinities and NaN; `n.over(d)` of `i32`, `i16` and `i8` makes one, and `rat8(n, d)`; only signed integers, an unsigned one has no `.over`; what does not fit the width's integers a NaN; two widths do not mix, `rat64(r)`, `rat32(r)`, `rat16(r)` and `rat8(r)` convert, a NaN where the narrower does not hold it. kelvinc: a number or a struct it sees that has no method of a name another type has is its error, `u8 has no method 'over': ...`, where it was C's of `kv_no_such_method` | modules/Rational.k; src/parser.c's method call; documents/rational.md, structs.md, modules.md, README.md; README.md; editors/vscode | `rat8(1, 3) + rat8(1, 6)` is `(1/2)`; tests/run/rational_widths.k; tests/error/rational_unsigned.k, rational_mixed.k; tests/error/method_missing.k's error now Kelvin's | 2026-11-12 |
 | 540 | `bigrat`, the third of #538's three: a rational of two `BigInt`s, `{num: BigInt; den: BigInt}`, a fraction of any precision, which every result fits; `1n.over(3n)` and `1n.over(3)` of a BigInt make one, and `bigrat(n, d)` of BigInts or integers; `rat64`'s arithmetic, with a BigInt or an integer on either side, its comparisons, its infinities and NaN; text `(1n/3n)`, its parts as a BigInt shows, and `.hex` `(+0x1n/+0x3n)`; `.f64` of any size, `inf` past an f64's range and 0 below it; `bigrat(r)` of a rational of integers, and `rat64(r)` to `rat8(r)` of a bigrat, a NaN where it does not fit; an owner, as a struct of owners is | modules/Rational.k; documents/rational.md, bigint.md, modules.md, README.md; README.md; editors/vscode | the sum of `1n.over(i)` for 1 to 30 is `(9304682830147n/2329089562800n)`; tests/run/rational_big.k; tests/error/rational_unsigned.k names BigInt too | 2026-11-12 |
 | 541 | The script that writes modules/Rational.k is in the repository, tools/gen_rational.py: Kelvin has no generic struct, so `rat8` to `rat64` are one text written out for each width, and `bigrat` once beside them; the module says so and is changed by the script; `make` reruns the script when it is the newer, as it does the Unicode tables' | tools/gen_rational.py; GNUmakefile; modules/Rational.k's note; documents/rational.md, README.md | `python3 -I tools/gen_rational.py` | 2026-11-12 |
+| 542 | kc builds programs that import Rational, which print what kelvinc's builds print; three things it lacked: a type's own text, `let T.cstr():cstr { `...` }` of #53, of a struct, a union or an enum with values, with kelvinc's errors in its words; a number's methods, `extend i64 { }` and `let f64.m()`, of any number where it read a u32's alone, `int64` and `i64` one receiver, `Self` the number, `1.over(3)` of a literal and `(1 << 40).over(3)` reckoned in an i64, and kelvinc's error of #539 of a type that has no method another has; and the prelude's BigInt where only a module names it, each `#import <M>` read before the prelude's names are asked | selfhost/gen.k: text_method, text_methods_of, method_elsewhere, recv_tok, literal_arith; selfhost/parse.k: Self; selfhost/kc.k: load_prelude; selfhost/sample.k; selfhost/README.md, documents/rational.md | `println(1.over(3) + 1.over(6))` is `(1/2)` of kc's build | 2026-11-13 |
 
 Notes:
 
@@ -1174,6 +1175,38 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (542) Agreed details: "make kc build programs that import Rational
+  as #542"
+  - kc lacked three things, found by building the module's tests with
+    it; all three are this one number, as the user named it.
+  - A type's own text, `T.cstr()` (#53).
+    - kelvinc writes the template into a buffer of the caller's, sized
+      from the template; kc has no such buffers, and its text of a
+      value is its printer's.
+    - So to kc the method gives a String, as `T.string` does (#506):
+      the template is made a `$`...``, and the printer shows it whole.
+      Claude's choice of how; what prints is the same.
+    - Its errors are kelvinc's, in its words, the one of `.string` and
+      `.cstr()` both among them.
+  - A number's methods.
+    - kc read a method of a `u32` alone (#527); now of any number.
+    - `int64` and `i64` are one receiver; `Self` is the number.
+    - A literal's, and arithmetic of literals reckoned in an i64, as
+      kelvinc's #538; kelvinc's error of #539 in its words.
+    - kc's arithmetic of literals gained `<<` and `>>`, which
+      kelvinc's has: `let x = 1 << 40` was kc's error.
+  - A module that names BigInt: kc asked whether the files name it
+    before it read the modules.
+  - Checked by selfhost/sample.k, which both compilers build, and by
+    building tests/run's rational*.k and literal_method.k with kc by
+    hand; the battery runs no test of kc's but the sample.
+  - Found, kelvinc's, and left for a number of their own:
+    - a number's method called before it is written is its error of
+      #539 with no type named, "it is a method of" and nothing after;
+      before #539 it was C's error. A struct's may come after (#505).
+    - an attribute of an i64 read on a literal, `7.half`, is C's
+      error, where a method, `7.twice()`, is read since #538.
 
 - (541) Agreed details: "check the script in under tools/ as #541"
   - Claude had offered it with #540's report: the script that writes
@@ -8811,6 +8844,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P551 | Details of #539 | `.over` of the signed integers alone, Claude's reading of the user's "only signed integers"; no mixing of widths, `ratN(r)` converting with a NaN where it does not fit; an integer of another width converted as C's; kelvinc's error of a method a seen type has not, `method_missing.k` following it | provisional |
 | P552 | Details of #540 | bigrat's text `(1n/3n)`, a BigInt's `n` kept, Claude's reading; `.over` of a BigInt taking a BigInt or an i64; operators with a BigInt or an i64; `.f64` by 66 bits of the quotient; conversions both ways with the rationals of integers | provisional |
 | P553 | Details of #541 | tools/gen_rational.py, the script of #539 and #540 with a docstring and its paths from its own place; GNUmakefile: modules/Rational.k among `all`'s, its rule the script; the module's three lines that name the script, the rest as #540 left it, byte for byte; no test of the two being in step | provisional |
+| P554 | Details of #542 | selfhost/gen.k: text_methods; names_text, names_string_text, record_text, text_method, which makes the method a String's and its template a $`...`, or its text String("..."), and text_methods_of, called first by gen_program; string_text_fn finds it, so the printer of #506 shows it; method_of gives none for v.cstr(); recv_tok names any number's type by mangled, and index_names makes a number's receiver that token; gen_method_of widens a literal receiver of an i64's method; literal_arith has << and >>; method_elsewhere, asked where a method's type and its C are not found; selfhost/parse.k: Self of a number's, a String's and a Bytes's method; selfhost/kc.k: load_prelude reads the modules, then the prelude's, then what those import; selfhost/sample.k: tm_, nm_ and rt_ lines, `#import <Rational>`; one number, not three, Claude's choice; no test of kc's errors, as before | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

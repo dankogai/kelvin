@@ -813,6 +813,7 @@ var struct_names:Dictionary<String, int64>
 var enum_names:Dictionary<String, int64>
 var enumerators:Dictionary<String, int64>  // an enumerator's enum
 var method_names:Dictionary<String, int64> // a method or a function of a type, by "T.m" (#213)
+var text_methods:Dictionary<int64, bool>   // the functions that are a type's T.cstr(), its own text (#542)
 
 // "T.m", a method's name among the methods (#213)
 let method_key(recv:int64, t:int64):String {
@@ -845,6 +846,7 @@ let index_names() {
         let d:int64 = decls[i]
         switch nodes[d].kind {
         case D_FN:
+            if nodes[d].c >= 0 && number_word(nodes[d].c) >= 0 { nodes[d].c = recv_tok(number_word(nodes[d].c)) }   // extend int64 is extend i64 (#542)
             if nodes[d].c >= 0 {                           // T.m (#213)
                 var name:String = method_key(nodes[d].c, nodes[d].t)
                 if !method_names.has(name) { method_names[name] = d }
@@ -951,7 +953,7 @@ let literal_arith(v:int64):int64 {
     if k == N_UNARY && tok_is(nodes[v].t, "-") { return literal_arith(nodes[v].a) }
     if k != N_BIN { return 0 }
     let t:int64 = nodes[v].t
-    if !(tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "&") || tok_is(t, "|") || tok_is(t, "~")) { return 0 }
+    if !(tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "<<") || tok_is(t, ">>") || tok_is(t, "&") || tok_is(t, "|") || tok_is(t, "~")) { return 0 }   // << and >> too, as kelvinc's (#542)
     let a:int64 = literal_arith(nodes[v].a)
     let b:int64 = literal_arith(nodes[v].b)
     if a == 0 || b == 0 { return 0 }
@@ -1133,6 +1135,7 @@ let method_of(n:int64):int64 {
     if r < 0 { return -1 }
     let f:int64 = method_named(r, nodes[n].t)
     if f >= 0 && (attributes.get(f, 0) == 3 || subscripts.get(f, 0) != 0) { return -1 }   // called by assigning, or by v[i] (#132, #136)
+    if f >= 0 && text_methods.has(f) { return -1 }      // v.cstr, its text, a property with no call (#53, #542)
     return method_chosen(n, f)
 }
 
@@ -1147,8 +1150,8 @@ let recv_tok(y:int64):int64 {
     if y < 0 { return -1 }
     let k = types[y].kind
     if k == Y_STRUCT { return types[y].name }
-    if k != Y_STRING && k != Y_BYTES && k != Y_U32 { return -1 }
-    var w:String = k == Y_STRING ? $"String" : k == Y_BYTES ? $"Bytes" : $"u32"
+    if k != Y_STRING && k != Y_BYTES && !is_number_kind(k) { return -1 }
+    var w:String = k == Y_STRING ? $"String" : k == Y_BYTES ? $"Bytes" : mangled(y)   // i64 of int64 too, one name to a number (#542)
     let had:int64 = builtin_recvs.get(w, 0 - 1)
     if had >= 0 { return had }
     let t:int64 = made_token(&w)
@@ -1171,6 +1174,47 @@ let recv_type(recv:int64):int64 {
 }
 var method_names_of:Dictionary<int64, int64>   // a method of several by its parameters' types: the token of its name as written (#515)
 var method_targets:Dictionary<int64, int64>    // the method each call of such a name chose
+
+// x.m(...) of a number, or of a struct or a union of the program with no
+// member m, which has no method m that another type has: kelvinc's error
+// of #539, in its words, naming each type that has it; whether it was said
+let method_elsewhere(n:int64):bool {
+    let y:int64 = type_of(nodes[n].a)
+    if failed || y < 0 { return false }
+    var who = $""
+    if is_number_kind(types[y].kind) {
+        who = mangled(y)
+    } else if types[y].kind == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 {
+        var m:int64 = nodes[decl_named(types[y].name, D_STRUCT)].a
+        while m >= 0 {
+            if same_text(nodes[m].t, nodes[n].t) { return false }
+            m = nodes[m].next
+        }
+        who = tok_text(types[y].name)
+    } else {
+        return false
+    }
+    var seen:$[String] = $[]
+    var has = $""
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c < 0 || nodes[d].flag == 1 || !same_text(method_names_of.get(d, nodes[d].t), nodes[n].t) { continue }   // as written, of several by their types
+        if attributes.get(d, 0) != 0 || subscripts.get(d, 0) != 0 { continue }
+        let rn:String = tok_text(nodes[d].c)
+        if seen.contains(rn) { continue }
+        if seen.count > 0 { has += ", " }
+        has += "'"
+        has += &rn
+        has += "'"
+        seen += rn.copy()
+    }
+    if seen.count == 0 { return false }
+    who += " has no method '"
+    who += tok_text(nodes[n].t)
+    who += "': it is a method of "
+    who += &has
+    gen_error(n, who.cstr)
+    return true
+}
 
 // of the methods named as f is, of f's type, the one call n's arguments
 // fit best, as kelvinc's #158; f where it is the one; -1 where none fits,
@@ -1992,6 +2036,7 @@ let type_of(n:int64):int64 {
         if types[y].kind == Y_STRING && (tok_is(t, "has") || tok_is(t, "starts") || tok_is(t, "ends")) { return base_type(Y_BOOL) }
         if types[y].kind == Y_STRING && tok_is(t, "trim") { return y }                 // a new String
         if types[y].kind == Y_IO { return io_method_type(n) }                          // f.glob(p), f.chmod(m)... (#464)
+        if (is_number_kind(types[y].kind) || types[y].kind == Y_STRUCT) && method_elsewhere(n) { return -1 }   // another type's method, as kelvinc says it (#539, #542)
         return base_type(Y_VOID)
     }
     if k == N_INDEX && int_bit_index(n) { return base_type(Y_BOOL) }   // x.bits[k], a bit of an integer (#530)
@@ -3710,11 +3755,140 @@ let shown_by_type(y:int64):bool {
     return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET || types[y].kind == Y_RANGE)
 }
 
+// ---------- a type's own text, T.cstr() (#53, #542) ----------
+
+// whether d is 'let T.cstr()', the method of that name, which gives a
+// type's own text, as kelvinc's #53
+let names_text(d:int64):bool {
+    return nodes[d].kind == D_FN && nodes[d].c >= 0 && tok_is(nodes[d].t, "cstr") && attributes.get(d, 0) == 0 && subscripts.get(d, 0) == 0
+}
+
+// whether d is 'let T.string:String', a type's own text as a String (#506)
+let names_string_text(d:int64):bool {
+    let what:int64 = attributes.get(d, 0)
+    return nodes[d].kind == D_FN && nodes[d].c >= 0 && tok_is(nodes[d].t, "string") && (what == 1 || what == 2) && nodes[d].ty >= 0 && types[nodes[d].ty].kind == Y_STRING
+}
+
+// "struct T" or "union T" of the type named as token recv, as kelvinc
+// names a struct, a union and an enum with values in these errors
+let record_text(recv:int64):String {
+    let sd:int64 = decl_named(recv, D_STRUCT)
+    var m:String = sd >= 0 && nodes[sd].flag == 1 ? $"union " : $"struct "
+    m += tok_text(recv)
+    return m
+}
+
+// T.cstr(), a struct's, a union's or an enum with values' own text, as
+// kelvinc's #53: no parameters, a cstr, a body of one template, and one
+// to a type, its errors in kelvinc's words. kelvinc writes the template
+// into the caller's buffer, which it sizes; kc's text of a value is its
+// printer's, so here the method gives a String, the template a $`...`,
+// which the printer shows whole, as T.string's (#506): v.cstr, `${v}`,
+// print and what holds a T all show it
+let text_method(d:int64) {
+    let recv:int64 = nodes[d].c
+    let w:String = tok_text(recv)
+    let y:int64 = type_of_kind(Y_STRUCT, -1, recv)
+    if decl_named(recv, D_STRUCT) < 0 && tagged_of(y) < 0 {
+        if decl_named(recv, D_ENUM) >= 0 { return }      // an enum of names has no methods
+        gen_error(d, "a built-in type's text is fixed: '.cstr' may be defined for a struct or a union (#53)")
+        return
+    }
+    if nodes[d].flag == 2 {
+        var m = $"'.cstr' reads a value and never changes it: write 'let "
+        m += &w
+        m += ".cstr()'"
+        gen_error(d, m.cstr)
+        return
+    }
+    if nodes[d].flag != 0 { return }                     // static let cstr(), a function of the type
+    for e in decls {                                     // its text once, by .string or by .cstr() (#506)
+        if e == d { break }
+        if names_string_text(e) && same_text(nodes[e].c, recv) {
+            var m:String = record_text(recv)
+            m += " has its own text already, '.string': a type gives its text once, by '.string' or by '.cstr()'"
+            gen_error(d, m.cstr)
+            return
+        }
+    }
+    if nodes[d].a >= 0 || variadic_fns.contains(d) {
+        gen_error(d, "'.cstr' takes no parameters: it is a property, read as 'v.cstr'")
+        return
+    }
+    if nodes[d].ty < 0 || types[nodes[d].ty].kind != Y_CSTR {
+        var m = $"'.cstr' gives a cstr: write '"
+        m += &w
+        m += ".cstr():cstr'"
+        gen_error(d, m.cstr)
+        return
+    }
+    if nodes[d].b < 0 {
+        if in_kh(nodes[d].t) { return }
+        var m = $"'.cstr' of "
+        m += &w
+        m += " needs its body here: a prototype is not needed"
+        gen_error(d, m.cstr)
+        return
+    }
+    let only:int64 = nodes[nodes[d].b].a
+    var v:int64 = 0 - 1
+    if only >= 0 && nodes[only].next < 0 && (nodes[only].kind == S_RETURN || nodes[only].kind == S_EXPR) { v = nodes[only].a }
+    if v < 0 || !((nodes[v].kind == N_TPL && nodes[v].flag == 0) || nodes[v].kind == N_STR) {
+        gen_error(d, "the body of '.cstr' is one template literal, as in '{ `(${self.x}, ${self.y})` }': its text goes into the caller's buffer, which kelvinc sizes from the template (#53)")
+        return
+    }
+    for e in decls {
+        if e == d { break }
+        if text_methods.has(e) && same_text(nodes[e].c, recv) {
+            var m = $"'.cstr' of "
+            m += &w
+            m += " is defined already"
+            gen_error(d, m.cstr)
+            return
+        }
+    }
+    if nodes[v].kind == N_TPL {
+        nodes[v].flag = 1                                // $`...`, a String
+    } else {                                             // "text", as String("text")
+        var word = $"String"
+        let st:int64 = made_token(&word)
+        toks[st].line = toks[nodes[v].t].line
+        toks[st].file = toks[nodes[v].t].file
+        let call:int64 = make_node(N_CALL, st)
+        nodes[call].a = make_node(N_TYPE, st)
+        nodes[call].b = v
+        nodes[only].a = call
+    }
+    nodes[d].ty = base_type(Y_STRING)
+    text_methods[d] = true
+}
+
+// each T.cstr() of the program, before anything asks a type its text; a
+// T.string after its type's T.cstr() is kelvinc's error of both (#506)
+let text_methods_of() {
+    for d in decls {
+        if failed { return }
+        if names_text(d) { text_method(d) }
+        if !names_string_text(d) { continue }
+        for e in decls {
+            if e == d { break }
+            if text_methods.has(e) && same_text(nodes[e].c, nodes[d].c) {
+                var m:String = record_text(nodes[d].c)
+                m += " has its own text already, '.cstr()': a type gives its text once, by '.string' or by '.cstr()'"
+                gen_error(d, m.cstr)
+                return
+            }
+        }
+    }
+}
+
 // the attribute T.string of the struct, union or enum with values y, its
-// own text as a String, which print shows whole, as kelvinc's (#506); or -1
+// own text as a String, which print shows whole, as kelvinc's (#506), or
+// its T.cstr() (#542); or -1
 let string_text_fn(y:int64):int64 {
     if y < 0 || types[y].kind != Y_STRUCT { return 0 - 1 }
     for d in decls {
+        if text_methods.has(d) && same_text(nodes[d].c, types[y].name) { return d }   // its T.cstr(), a String to kc (#542)
         if nodes[d].kind != D_FN || nodes[d].c < 0 || !tok_is(nodes[d].t, "string") { continue }
         let what:int64 = attributes.get(d, 0)
         if (what == 1 || what == 2) && same_text(nodes[d].c, types[y].name) && nodes[d].ty >= 0 && types[nodes[d].ty].kind == Y_STRING {
@@ -7427,7 +7601,10 @@ let gen_method_of(n:int64) {
             }
             if nodes[n].b >= 0 { put(", ") }
         } else if nodes[f].flag != 1 {
+            let lit = !widen_ints && number_word(nodes[f].c) == base_type(Y_I64) && literal_arith(a) == 1   // (65536 * 65536).m(), reckoned
+            if lit { widen_ints = true }                              // in the i64 it is, as kelvinc's (#538, #542)
             gen_expr(a)
+            if lit { widen_ints = false }
             if nodes[n].b >= 0 { put(", ") }
         }
         gen_args_to(nodes[n].b, f)                                    // by the parameters' types (#226)
@@ -7696,7 +7873,7 @@ let gen_method_of(n:int64) {
         gen_string_method(n, a, y)                      // (#464)
     } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
         gen_error(n, "'.isEmpty' is a property: read it with no parentheses, as 'x.isEmpty'")   // as kelvinc's (#434)
-    } else {
+    } else if !method_elsewhere(n) {
         gen_error(n, "this method is not known")
     }
 }
@@ -18361,6 +18538,8 @@ let gen_assert(n:int64) {
 }
 
 let gen_program() {
+    text_methods_of()                                    // (#542)
+    if failed { return }
     index_names()
     count_overloads()
     fixed_params()

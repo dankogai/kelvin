@@ -604,6 +604,42 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **Programs that import Rational** (#542): kc builds what
+  `#import <Rational>` needs, and the module's programs print what
+  kelvinc's builds print.
+  - **A type's own text, `T.cstr()`**, as kelvinc's #53: `let
+    T.cstr():cstr { `...` }` of a struct, a union or an enum with
+    values, one template or one text.
+    - `print`, `v.cstr`, `` `${v}` ``, and what holds a `T`, a struct, an
+      Array or an Optional, show it.
+    - kelvinc writes the template into the caller's buffer, which it
+      sizes; kc's text of a value is its printer's, so to kc the method
+      gives a String, shown whole, as `T.string`'s (#506).
+    - kelvinc's errors, in its words: a built-in type's, `var`,
+      parameters, a result that is no `cstr`, a body that is not one
+      template, one written twice, one with no body, and one beside
+      `T.string`.
+    - `v.cstr()`, with parentheses, is no method, as in kelvinc.
+  - **A number's methods**: `extend i64 { let over(d:i64):rat64 }` and
+    `let f64.half():f64`, of any number's type, where kc read a `u32`'s
+    alone (#527).
+    - `int64` and `i64` are one receiver, and `Self` there is the
+      number's type.
+    - `1.over(3)` of a literal is an `i64`'s, and arithmetic of
+      literals, `(1 << 40).over(3)`, is reckoned in an `i64`, as
+      kelvinc's #538.
+    - A number or a struct with no method of a name another type has is
+      kelvinc's error of #539, in its words: `u8 has no method 'over':
+      it is a method of 'i64', 'i32', 'i16', 'i8', 'BigInt'`.
+    - `let x = 1 << 40` infers an `i64`, as kelvinc's #385; kc's
+      arithmetic of literals had no `<<` and `>>`.
+  - **A module that names BigInt**: kc.k reads each `#import <M>` before
+    it asks whether the files name `BigInt` or `RegExp`, as kelvinc's
+    with_imports, so Rational's `bigrat` has its BigInt where the
+    program names none.
+  - Found, and not kc's: kelvinc reads a number's method only after it
+    is written, so sample.k writes its own before `main`; a struct's
+    may come after (#505).
 - **An overload picked by its type** (#537), as kelvinc's #41: an
   overloaded function's name, where a function type is written, is the
   overload of that type: `let h:(i64):i64 := over`, a global's,
@@ -822,7 +858,7 @@ kc reads what it is written in, and little more.
   struct or an enum with values has `let T.string:String`, its printer
   shows that String, whole, by `T__string`; `$`...``, `` `...` `` and
   `.pretty` with it.
-  - kc has no `T.cstr()` (#53) yet, so neither its error of both.
+  - `T.cstr()` (#53) and the error of both came with #542.
 - **Called before written** (#505): kc reads every declaration first, so
   a function, a method or a function of a type called before it is
   written was kc's already; kelvinc is now the same, by the prototypes
