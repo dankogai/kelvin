@@ -3710,6 +3710,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 Type *grt = value_type(e); /* an attribute of another type is not this value's (#168): p.count of a cstr */
                 if (g && g->attribute && grt && (grt->kind != T_BASE || strcmp(grt->name, g->recv->name)))
                     g = NULL;
+                if (g && g->attribute && !grt && is_converter(name) && (number_expr(e) || is_text_expr(e)))
+                    g = NULL; /* "2.5".f64 is f64("2.5") (#36), no struct's attribute of that name, a BigInt's (#512, #533) */
                 if (g && g->attribute && !(expr_class(e, &record) == 's' && record_has_field(record, member))) {
                     if (call)
                         error_at(name->pos, "'%s' is an attribute of %s: read it as '.%s', with no parentheses", member,

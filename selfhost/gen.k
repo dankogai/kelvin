@@ -985,6 +985,7 @@ let type_of(n:int64):int64
 let resolve_op(n:int64)           // and a + b, a struct's operator, as the call of it (#471)
 let resolve_codepoints(n:int64)   // and grapheme(c0, c1, ...) as the call it is (#526)
 let resolve_bigbits(n:int64)      // and b.bits[k] of a BigInt, and BigInt([b, ...]), as the calls they are (#531)
+let resolve_convert(n:int64)      // and v.i64, a converter's name after a value, as i64(v) (#533)
 let is_operator(d:int64):bool     // and whether a function is such an operator
 let gen_generic_call(n:int64)     // and a call only C's _Generic chooses for (#41)
 let lazy_of(n:int64):int64    // prototypes: a lazy Sequence's (#324)
@@ -1650,6 +1651,7 @@ let type_of(n:int64):int64 {
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
     resolve_bigbits(n)                                   // b.bits[k] of a BigInt, BigInt([b, ...]) (#531)
     resolve_attr(n)                                      // x.y, an attribute, of its getter (#131)
+    resolve_convert(n)                                   // v.i64, i64(v) (#533)
     resolve_codepoints(n)                                // grapheme(c0, c1, ...) (#526)
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
@@ -3435,6 +3437,29 @@ let big_bit_call(name:cstr, recv:int64, idx:int64, at:int64):int64 {
     nodes[amp].next = idx
     nodes[idx].next = 0 - 1
     return call
+}
+
+// v.i64, a converter's name after a value, is i64(v), as kelvinc's (#36,
+// #533): of a number, a bool, an enum's value, text, and of a pointer or
+// a fixed array, which the converter refuses; a struct's member of that
+// name is its own, and so is one of what only C sees
+let resolve_convert(n:int64) {
+    if nodes[n].kind != N_FIELD { return }
+    let t:int64 = nodes[n].t
+    if number_word(t) < 0 && !tok_is(t, "bool") { return }
+    let a:int64 = nodes[n].a
+    if a < 0 || names_type(a) || tagged_named(a) >= 0 { return }
+    let y:int64 = type_of(a)
+    if failed || y < 0 { return }
+    let k:ykind = types[y].kind
+    let text = k == Y_CSTR || k == Y_STRING || (k == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind == Y_STRING)
+    if !is_number_kind(k) && k != Y_BOOL && !enum_int(y) && !text && k != Y_PTR && k != Y_FIXED { return }
+    nodes[n].kind = N_CALL
+    nodes[n].a = make_node(N_ID, t)
+    nodes[n].b = a
+    nodes[n].c = 0 - 1
+    nodes[n].flag = 0
+    nodes[a].next = 0 - 1
 }
 
 // b.bits[k] of a BigInt: its bit k where it is, kv_bi_bit_of(b, k), with
@@ -10090,6 +10115,7 @@ let gen_expr(n:int64) {
     resolve_op(n)
     resolve_bigbits(n)
     resolve_attr(n)
+    resolve_convert(n)
     resolve_codepoints(n)
     gen_expr_of(n)
     if nodes[n].kind == N_CALL || nodes[n].kind == N_METHOD { moves_done() }

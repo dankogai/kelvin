@@ -10033,3 +10033,19 @@ it has no like-for-like form. kc's own C is 33640 lines, 754 fewer.
 Details are provisional P544.
 
 There are 1281 tests, and all pass with clang and with gcc 15.
+
+### 580. kc reads `b.i64`
+
+> push and fix kc's b.i64 of a bool as #533
+
+**Claude** pushed #532. kc had no `v.T` at all: `x.i64` of a number was
+an unknown member as `b.i64` of a bool was. kc now reads a converter's
+name after a value as the converter's call, `T(v)`, as kelvinc does: of
+a bool 0 or 1, of a number the number converted and clamped, of an
+enum's value its number, of text the number read; a struct's member of
+that name stays the struct's. On the way kelvinc's `"2.5".f64` turned
+out to fail in a program with a BigInt, taken for BigInt's `.f64`
+attribute; it is the converter now. `b.i64 = 1` is C's error in both
+compilers, and is left. Details are provisional P545.
+
+There are 1283 tests, and all pass with clang and with gcc 15.

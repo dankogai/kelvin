@@ -986,6 +986,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     var bit_ones = 0
     for bit in bit_word.bits { if bit { bit_ones += 1 } }
     println(bit_bools, " ", bit_ones, " ", u8(bit_bools), " ", i16(bit_word.bits), " ", u8([false, true, true]), " ", (bit_word + 1).bits.count)
+    let cvp_text := "17"                              // v.i64 is i64(v) (#36, #533): of a bool, a number, an enum's value, text
+    println(bit_flag.i64, " ", bit_flag.u8.typename, " ", bit_word.bits[7].f64, " ", (bit_ones > 1).i32, " ", bit_word.i64, " ", bit_word.i8, " ", 2.5.i32, " ", bit_word.bool)
+    println(cvp_text.u8, " ", "2.5".f64, " ", dark.i64, " ", 300.u8, " ", bit_flag.bool, " ", bit_word.int64.hex, " ", bit_flag.i64 + 1)
     var cf_lo:int32 = 1, cf_hi:int32 = 9               // several declarators, C's for and comma (#458)
     var cf_sum:int64 = 0
     for (var i = 0, j = 4; i < j; i += 1, j -= 1) cf_sum += (i * j) as int64

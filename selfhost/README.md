@@ -604,6 +604,13 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`v.T` is `T(v)`** (#533), as kelvinc's #36: `b.i64` of a bool,
+  `x.f64` of a number, `c.i64` of an enum's value and `"42".i64` of
+  text are the converters' calls, which kc makes of the field read.
+  - kc had none of them: `x.i64` was an unknown member.
+  - A struct's field or attribute of that name stays its own, and so
+    does a member of what only C sees.
+  - Of a pointer or a fixed array it is the converter's error.
 - **`Bits` is no more** (#532), as kelvinc's: kc's lexer says so at the
   word, `Bits(n)`, `Bits()` or a member's type, naming `x.bits` of an
   integer, `b.bits` of a BigInt and an `Array<bool>`.
