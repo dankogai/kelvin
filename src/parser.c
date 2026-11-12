@@ -1770,6 +1770,8 @@ static Expr *int_bit_at(Expr *e, Type *t, Expr *n, Pos pos);
 static void check_bit_place(Expr *n, const char *what);
 static bool bigint_bits_attr(Expr *e);
 static const char *no_place(Expr *e);
+static const char *literal_arithmetic(Expr *e);
+static void widen_literals(Expr *e);
 static bool bigint_callee(Expr *f);
 static void bigint_bools_call(Expr *x);
 static Expr *bools_literal(const char *who);
@@ -3632,6 +3634,23 @@ static Expr *parse_postfix_steps(Expr *e) {
                 x->a = e;
                 x->text = member;
                 Decl *m = method_named(e, member);
+                if (literal_arithmetic(e) && !strcmp(literal_arithmetic(e), "i64")) {
+                    /* 1.over(3), (-7).over(2), (1 << 40).over(3) (#538): a literal, or arithmetic of
+                       literals, is an i64, as its type is; bare, C takes it for an int or a long,
+                       which no method of an i64 is of, and reckons 1 << 40 in an int. So where an
+                       i64 has the method, the receiver is made one */
+                    Expr *c = new_expr(E_CAST, e->pos);
+                    c->op = "converter";
+                    c->type = base_type("i64", e->pos);
+                    c->a = e;
+                    Decl *mi = method_named(c, member);
+                    if (mi && mi->recv && !strcmp(mi->recv->name, "i64")) {
+                        widen_literals(e);
+                        m = mi;
+                        e = c;
+                        x->a = e;
+                    }
+                }
                 if (m && is_owner(value_type(e)) && !owner_place(e) && !is_io_std(e)) { /* the receiver, held (#156, #187) */
                     e = make_temp(e, "a method of an owner that an expression gives: bind it to a variable first");
                     x->a = e;

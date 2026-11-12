@@ -425,3 +425,7 @@ So far the changes from C are these, by topic.
   `c32` with their arithmetic and elementary functions, `x.i` a
   quarter turn; a Kelvin file's source, from `./modules` or Kelvin's
   own `modules/`
+- `#import <Rational>` is rational numbers: `1.over(3)` is `(1/3)`, a
+  `rat64` of two `i64`s in lowest terms, with exact `+ - * /` and
+  comparisons; a denominator of 0 is an infinity and `(0/0)` a NaN, as
+  a float has them, and a result that does not fit is a NaN (#538)

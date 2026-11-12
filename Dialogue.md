@@ -10119,3 +10119,30 @@ refused in its own source; renamed, the second battery was the one that
 counted. Details are provisional P549.
 
 There are 1304 tests, and all pass with clang and with gcc 15.
+
+### 585. Rational numbers, `rat64`
+
+> Add `Rational` type as a module, rathonal numbers:
+>
+> * available as you `#import Rational`
+>
+> * `rat8` for `{num:i8; den:i8}`, `rat16` for `{num:i16; den:i16}` and so forth even though rational numbers with small integers are too impractical.  `rat64`, however is quite useful and `bigrat` with `{num:BigInt; den:BigInt}` is versatile.
+> * stringification: `([-]?num/den)`.`den`is always positive.  `.hex` is `(num.hex/den.hex)`. same deal for `.oct` and `.bin`
+> *  `.over()`method is added for each integer type which makes `n.over(d)` `(n/d)`.
+> * `den == 0` is NOT division by zero but it is infinity.  If `num == 0` as well, it is a NaN.
+> * Yes, it is treated a little like floating point numbers because they can also be used to represent them.  `bigrat`can be used an arbitorary precision fraction number
+
+**Claude** pushed #537 on the user's word, and CI passed. Asked, the
+user kept the text `(1/3)` as specified, though it does not paste back,
+and chose a NaN for a result that does not fit. Claude split the work in
+three: #538 the module with `rat64`, #539 the narrower ones, #540
+`bigrat`. Here `#import <Rational>` gives `rat64`, two `i64`s in lowest
+terms with the denominator 0 or more; `1.over(3)` makes one; `+ - * /`
+are exact, reckoned in 128 bits; a denominator of 0 is an infinity and
+`(0/0)` a NaN that equals nothing, as a float's; and what does not fit
+an `i64` is a NaN. On the way kelvinc's `1.over(3)` turned out to be C's
+error, a literal being an `int` to C: a method of an i64 now takes a
+literal as the i64 it is. kc does not read the module. Details are
+provisional P550.
+
+There are 1307 tests, and all pass with clang and with gcc 15.

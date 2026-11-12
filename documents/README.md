@@ -97,6 +97,9 @@ the design decisions, numbered `#N` throughout, are in
   module as `M.kh` and `libkM`, `kelvinc --lib`.
 - [math.md](math.md): `#import <math>`, math.h for `f64` and `f32`,
   `c64` and `c32`.
+- [rational.md](rational.md): `#import <Rational>`, `rat64`, a
+  numerator over a denominator, `1.over(3)`, exact arithmetic, with
+  infinities and a NaN as a float has (#538).
 - [json.md](json.md): `#import <JSON>`, `JSON.parse` and
   `JSON.stringify` as JS has them.
 - [sion.md](sion.md): `#import <SION>`, SION values, JSON with more.

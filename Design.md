@@ -586,6 +586,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 535 | `&` takes a place: a variable, a member, an element or `p^`, a compound literal, or a function's name. A value kelvinc and kc see has no address is an error that names it, by #534's `no_place`, where it was C's "cannot take the address of an rvalue": `&x.i64` and `&i64(x)` of a conversion, `&f()` of what a function gives, a struct that owns nothing too, `&5`, `&(x + 1)`, `&xs.count`. An owner an expression gives is held, as before, and has an address | src/parser.c's parse_unary; selfhost/gen.k's gen_expr of N_ADDR; documents/pointers.md, grammar.md; selfhost/README.md | `&x.i64` is "a conversion to i64 is a value, and has no address: '&' takes a variable, a member, an element or 'p^'; bind the value to a variable first"; tests/error/no_address_conversion.k, no_address_call.k, no_address_struct.k, no_address_literal.k, no_address_operator.k, no_address_property.k; tests/run/address_of_places.k | 2026-11-12 |
 | 536 | kc reads `&f` of a function's name as the function itself, a value of its type, as kelvinc does: `let g := &f` calls as `g(x)`, and `&f` goes where a function goes, an argument, a typed variable, a member, an Array's element, a function's result; kc typed it a pointer to the function, `(i64):i64^`, so that `g(x)` was "this calls a variable, which hides the function of its name here" and `apply(&f, 5)` "this is (i64):i64^, where (i64):i64 goes" | selfhost/gen.k's type_of of N_ADDR; selfhost/sample.k; selfhost/README.md | `let g := &twice`, `g(4)`; tests/run/function_address.k | 2026-11-12 |
 | 537 | kc picks an overloaded function by the function type written where its name goes, as kelvinc does (#41): a declaration's, `let h:(i64):i64 := over`, a global's, an assignment's target, `v := over`, a parameter's, `apply(over, 2)`, also of a call through a function value, and a result's, `return over`; with no overload of that type kelvinc's error, "no function 'over' is (u8):u8: ..."; kc said "'over' names 2 functions: say which by its type" of the very form that message names. A global that holds a function's name has the function declared before it in kc's C, which was C's error of any function | selfhost/gen.k's pick_overload, pick_call_args, fn_picked, overloads_of, fn_of_type, named_fn_type, gen_fn_value, gen_var, gen_assign, gen_return, the globals; selfhost/sample.k; selfhost/README.md | `let h:(f64):f64 := over`; tests/run/overload_by_type.k; tests/error/overload_no_type.k | 2026-11-12 |
+| 538 | `#import <Rational>`, rational numbers, the first of three: `rat64`, `{num: i64; den: i64}`, in lowest terms, the denominator 0 or more; `n.over(d)` of two `i64`s makes one, and `rat64(n, d)`; `+ - * /` and prefix `-`, of two and with an integer, exact in 128 bits; `== != < <= > >=`; text `(num/den)`, `(-1/3)`, and `.hex`, `.oct`, `.bin` `(num.hex/den.hex)`; a denominator of 0 an infinity, `(1/0)` and `(-1/0)`, `(0/0)` a NaN that equals nothing, `.isNaN`, `.isInfinite`, `.isFinite`, as a float's; a result that does not fit an `i64` a NaN; `.f64`. kelvinc: a method of an `i64` called on a literal or on arithmetic of literals, `1.over(3)`, `(1 << 40).twice()`, takes it as the `i64` it is, where C read an `int` and it was C's error | modules/Rational.k; src/parser.c's method call of a literal receiver; documents/rational.md, modules.md, README.md; README.md; editors/vscode | `1.over(3) + 1.over(6)` is `(1/2)`; tests/run/rational.k, rational_special.k, literal_method.k | 2026-11-12 |
 
 Notes:
 
@@ -1170,6 +1171,43 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (538) Agreed details: "Add `Rational` type as a module, rathonal numbers":
+  `#import Rational`; `rat8` of `{num:i8; den:i8}`, `rat16` and so forth,
+  `rat64` "quite useful", and `bigrat` of two BigInts; text
+  `([-]?num/den)`, `den` always positive, `.hex` `(num.hex/den.hex)`,
+  the same of `.oct` and `.bin`; `.over()` of each integer type,
+  `n.over(d)` `(n/d)`; `den == 0` "NOT division by zero but it is
+  infinity", a NaN where `num == 0` too; "treated a little like floating
+  point numbers because they can also be used to represent them".
+  - Asked of its text, which does not paste back, `(1/3)` written in a
+    program being the integer division, the user chose `(1/3)`, as
+    specified, over `1.over(3)`: Rational is the stated exception to
+    the rule that printed text pastes back. The document says so, and
+    that `1.over(3)` writes the value.
+  - Asked what a result that does not fit becomes, the user chose a
+    NaN, over rounding as a float does and over ending the program:
+    `1.over(3) + 1.over(5000000000000000000)` is `(0/0)`.
+  - Split in three, as #530 was: #538 the module with `rat64`, #539
+    `rat8`, `rat16` and `rat32`, #540 `bigrat`.
+  - The import is `#import <Rational>`, a module's spelling; the module
+    is a Kelvin source, as math's is.
+  - Lowest terms always, the sign with the numerator: 0 is `(0/1)`, a
+    whole number `(n/1)`, an infinity `(1/0)` or `(-1/0)`, the NaN
+    `(0/0)`.
+  - A NaN equals nothing, itself included, and has no order, as a
+    float's; `inf - inf` and `inf * 0` are NaN, `1 / inf` is 0.
+  - `.f64` is added, the nearest f64, the way to a float; a rational
+    of a float is not yet.
+  - Found on the way, kelvinc's: a method of an i64 called on a
+    literal, `1.over(3)`, was C's error, the literal an `int` to C's
+    `_Generic`, and arithmetic of literals an `int` or a `long`. The
+    receiver is made the i64 it is where an i64 has the method.
+  - Seen and left: kc reads neither a method of an integer nor a
+    module's source such as math's, so a program that imports Rational
+    is kelvinc's alone; `r.over(d)` of a rational, which has no such
+    method, is C's error, as any unknown method of a struct is where
+    another type has one of the name.
 
 - (537) Agreed details: "push and fix kc's overload pick by a written type as #537"
   - kelvinc picks an overload of a name used as a value by the function
@@ -8703,6 +8741,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P547 | Details of #535 | `&` of a value an error by #534's no_place, its words "is a value, and has no address"; a function's name, a compound literal, text and a held owner as before; a struct that owns nothing, given by a function, the error; kc's `g()` of `let g := &f` left | provisional |
 | P548 | Details of #536 | kc's `&f` of a function's name of the function's type, in its typing alone, the C unchanged; `&g` of a variable a pointer to it; an overload picked by a written type left, kc's of `over` and both compilers' of `&over` | provisional |
 | P549 | Details of #537 | kc's pick of an overload by a written function type in kelvinc's places and no others; kelvinc's error of no overload of the type; `let h := over` kc's own words; a global's function declared before it; an argument of an overloaded function's call not picked | provisional |
+| P550 | Details of #538 | Rational's text `(num/den)`, the stated exception to pasting back; what does not fit a NaN; lowest terms, `(0/1)`, `(n/1)`, `(1/0)`, `(-1/0)`, `(0/0)`; a NaN unequal to itself; `.f64`; the split #538 rat64, #539 rat8 to rat32, #540 bigrat; kelvinc's literal receiver an i64; kc not reading the module | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

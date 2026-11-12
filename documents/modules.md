@@ -22,8 +22,8 @@ A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
-search, the layout, and the modules so far: `math.k`, `JSON.k`, `SION.k`
-and `MsgPack.k`, and `IO`, `OS`, `UnicodeData` and `RegExp`, each a
+search, the layout, and the modules so far: `math.k`, `Rational.k`,
+`JSON.k`, `SION.k` and `MsgPack.k`, and `IO`, `OS`, `UnicodeData` and `RegExp`, each a
 header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
@@ -218,6 +218,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     BigInt.kh             the prelude's BigInt (#507, bigint.md), built by make from BigInt.k
     kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
+    Rational.k            #import <Rational> (#538, rational.md): rat64, n.over(d)
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -270,6 +271,12 @@ grapheme cluster: see [regexp.md](regexp.md).
 `BigInt` (#507) is integers of any size, the prelude's, with no import:
 `BigInt(1) << 100`, `BigInt("12345678901234567890") * 3`, `b / 7` and
 `b % 7` truncated, `b.text(16)`, `b & 0xff`: see [bigint.md](bigint.md).
+
+### Rational: `modules/Rational.k`
+
+`#import <Rational>` brings in rational numbers (#538): `rat64`, two
+`i64`s in lowest terms, made by `n.over(d)`, with exact arithmetic and
+a float's infinities and NaN: see [rational.md](rational.md).
 
 ### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
 
