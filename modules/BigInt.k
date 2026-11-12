@@ -1121,6 +1121,66 @@ let kv_bi_isqrt(a:const $[u64]^):$[u64] {
     return x
 }
 
+// ---------- bits (#531) ----------
+
+let kv_bi_bad_place(n:i64):() {
+    fprintf(stderr, "kelvin: a BigInt's bit is at place 0 or more, and this is %lld\n", n)
+    kv_exit_failure()
+}
+
+// bit n of l, as a bool: past its top the sign, as a two's complement
+// number of any width has it
+let kv_bi_bit(l:const $[u64]^, n:i64):bool {
+    if n < 0 { kv_bi_bad_place(n) }
+    return ((kv_bi_limb(l, n / 64) >> (n % 64)) & 1) == 1
+}
+
+// bit n of l set to v, in place: past its top l grows by its sign, which
+// stays as it was, as l | 1 << n and l & ~(1 << n) leave it
+let kv_bi_bit_set(l:$[u64]^, n:i64, v:bool):() {
+    if kv_bi_bit(l, n) == v { return }
+    let ext:u64 = kv_bi_ext(l)
+    while l^.count as i64 < n / 64 + 2 { l^ += ext }
+    let p:u64^ := l^.at
+    p[n / 64] = p[n / 64] ~ ((1 as u64) << (n % 64))
+    kv_bi_norm_in(l)
+}
+
+let kv_bi_bit_flip(l:$[u64]^, n:i64):() { kv_bi_bit_set(l, n, !kv_bi_bit(l, n)) }
+
+// b.bits[n] = v, |= v, &= v and ~= v, how 0 to 3
+let kv_bi_bit_put(l:$[u64]^, n:i64, v:bool, how:i64):() {
+    let was:bool = kv_bi_bit(l, n)
+    kv_bi_bit_set(l, n, how == 0 ? v : how == 1 ? (was || v) : how == 2 ? (was && v) : was != v)
+}
+
+// the bools of l, place 0 first, in the shortest two's complement form:
+// the last one is its sign, so 5 is [true, false, true, false], -6
+// [false, true, false, true], 0 [false] and -1 [true]
+let kv_bi_bools(l:const $[u64]^):$[bool] {
+    let sign:bool = kv_bi_negative(l)
+    var c:i64 = l^.count as i64 * 64
+    if c == 0 { c = 1 }
+    while c > 1 && kv_bi_bit(l, c - 2) == sign { c -= 1 }
+    var r = Array<bool>(c)
+    let rp:bool^ := r.at
+    for i in 0..<c { rp[i] = kv_bi_bit(l, i) }
+    return r
+}
+
+// the limbs of count bools at at, place 0 first, the last one the sign;
+// of no bools, 0
+let kv_bi_of_bools(at:const bool^, count:i64):$[u64] {
+    if count == 0 { return Array<u64>() }
+    let n:i64 = (count + 63) / 64
+    var r = Array<u64>(n)
+    let rp:u64^ := r.at
+    for i in 0..<n * 64 {
+        if at[i < count ? i : count - 1] { rp[i / 64] = rp[i / 64] | ((1 as u64) << (i % 64)) }
+    }
+    return kv_bi_norm(r)
+}
+
 // ---------- the type ----------
 
 // of any integer, an i64's and a u64's alike, as an i128 holds both
@@ -1135,6 +1195,12 @@ let BigInt(text:cstr):BigInt { (BigInt){kv_bi_parse(text, 10)} }
 let BigInt(text:cstr, base:i64):BigInt { (BigInt){kv_bi_parse(text, base)} }
 let BigInt(text:const String^):BigInt { (BigInt){kv_bi_parse(text^.cstr, 10)} }
 let BigInt(text:const String^, base:i64):BigInt { (BigInt){kv_bi_parse(text^.cstr, base)} }
+// of bools, place 0 first, the last one the sign (#531): BigInt(b.bits) is b
+let BigInt(bools:lent $[bool]):BigInt { (BigInt){kv_bi_of_bools(bools.at, bools.count as i64)} }
+// b.bits[n] of a BigInt lent, which one an expression gives is too
+let kv_bi_bit_of(b:lent BigInt, n:i64):bool { kv_bi_bit(&b.limbs, n) }
+// of a [bool] of a fixed count, which BigInt([true, false]) and BigInt(bs) of one are
+let kv_bi_from_bools(at:const bool^, count:i64):BigInt { (BigInt){kv_bi_of_bools(at, count)} }
 
 extend BigInt {
     let string:String {                                   // 123n, its literal, which reads back as it (#509)
@@ -1146,6 +1212,7 @@ extend BigInt {
     let oct:String { kv_bi_prefixed(&self.limbs, 8, "0o") }
     let bin:String { kv_bi_prefixed(&self.limbs, 2, "0b") }
     let text(base:i64):String { kv_bi_text(&self.limbs, base) }
+    let bits:$[bool] { kv_bi_bools(&self.limbs) }         // its bits, each a bool, the last its sign (#531)
     let isZero:bool { self.limbs.count == 0 }
     let isNegative:bool { kv_bi_negative(&self.limbs) }
     let sign:i64 { self.limbs.count == 0 ? 0 : kv_bi_negative(&self.limbs) ? 0 - 1 : 1 }

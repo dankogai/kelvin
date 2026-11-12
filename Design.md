@@ -579,6 +579,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 528 | uchr is no more, the second of its removal: the word is an error in kelvinc's and kc's lexers, as the user chose, that names a `u32`, `s.codepoints[0]`, `s += n` and `grapheme(n)`; `.utf32` and `.codepoint` of a number say a codepoint is the number; kelvinc's and kc's uchr code goes, and, as the user chose, the runtime's `kv_uchr`, `KV_UCHR_OF` and their functions; a String walked by codepoint gives each a u32 | src/lexer.c, src/parser.c, src/codegen.c, modules/kelvin_prelude.h, runtime/unicode.c, runtime/string.c, selfhost/lex.k, selfhost/parse.k, selfhost/gen.k, selfhost/sample.k, examples/lambda.k, examples/ski.k, editors/vscode, documents/strings.md, ownership.md, arrays.md, properties.md, printing.md, c-contract.md, and others; README.md, selfhost/README.md | tests/error/uchr_gone.k, tests/error/uchr_loop_gone.k, tests/error/utf32_of_number.k; 13 tests of uchr removed, 16 changed | 2026-11-12 |
 | 529 | An enum with values prints as its value is written, as the user chose, so that the text pastes back: the case after the enum's name, `num.n(1.5)`, `err(CodepointError.surrogate(55296))`, a nested one's by its path, `shape.kind.round`; by print, `.cstr`, templates and `.pretty`, in kelvinc and kc; an untagged one and Optionals and Results stay bare | src/codegen.c, selfhost/gen.k, documents/printing.md, enums.md, json.md, unicodedata.md; README.md, selfhost/README.md | tests/run/enum_paste_back.k; 18 tests' expected output | 2026-11-12 |
 | 530 | An integer's `x.bits`, as the user asked: its width of bools, an `Array<bool>`, place 0 first, a copy; `x.bits[n]` its bit `n`, a bool, read and set with `=`, `\|=`, `&=` and `~=` where it is; `x.bits[n].flip()`; `T(bools)` of an integer type the way back, of a `[bool]` written, a fixed array or an `Array<bool>`, more bools than its width ending the program; `x.bit(n)` and `x.flip(n)`, #454's, errors that name them, as the user chose; an enum's value an `i32`'s; `(x + 1).bits` of C's width; kelvinc and kc | src/parser.c's int_bits, int_bit_at, bits_number_type, bit_method, convert; src/codegen.c's bit_int_bits, bit_int_of_bools; the prelude's kv_int_of_bools; selfhost/gen.k's int_bits_field, int_bit_index, gen_int_bits, gen_int_bit_at, gen_int_of_bools, gen_bit_method; selfhost/sample.k; documents/integers.md, bits.md, bool.md, enums.md, README.md; README.md, selfhost/README.md | `x.bits[7] = true`, `u8(x.bits)`; tests/run/int_bits_array.k, int_of_bools_failure.k; tests/error/int_bit_gone.k, int_flip_gone.k, bool_bits.k, float_bits.k, int_bits_set.k, int_of_bools_base.k, int_of_bools_item.k | 2026-11-12 |
+| 531 | A BigInt's `b.bits`, the second of #530's three: its bits in the shortest two's complement form, an `Array<bool>`, place 0 first, the last bool its sign, a copy; `b.bits[n]` its bit `n` where it is, past its top the sign; set with `=`, `\|=`, `&=` and `~=` of a bool, and `b.bits[n].flip()`, in the var that holds it, which grows past its top and keeps its sign; `BigInt(bools)` the way back, of an `Array<bool>` lent, a `[bool]` written or a fixed array, the last bool the sign; a negative place a literal's error, a value's end of the program; kelvinc and kc, which reads `b:lent $[T]` | modules/BigInt.k's kv_bi_bit, kv_bi_bit_set, kv_bi_bit_flip, kv_bi_bit_put, kv_bi_bit_of, kv_bi_bools, kv_bi_of_bools, kv_bi_from_bools, `bits`, `BigInt(bools:lent $[bool])`; src/parser.c's bigint_helper, bigint_bits_attr, bigint_bit_at, bigint_bit_call, bigint_bools_call, bools_literal, bit_method; selfhost/gen.k's resolve_bigbits, big_bits_field, big_bit_call, gen_big_bit_set, gen_big_bit_flip; selfhost/parse.k's parse_params; selfhost/sample.k; documents/bigint.md, integers.md, bits.md, README.md; README.md, selfhost/README.md | `b.bits[100] = true`, `BigInt(b.bits)`; tests/run/bigint_bits.k, bigint_bits_failure.k; tests/error/bigint_bit_let.k, bigint_bit_flip_let.k, bigint_bit_set_int.k, bigint_bit_op.k, bigint_bits_set.k, bigint_bit_place.k, bigint_bit_temp.k, bigint_of_bools_item.k | 2026-11-12 |
 
 Notes:
 
@@ -1163,6 +1164,37 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (531) Agreed details: "push and go on with #531"
+  - The second of #530's three, by the choices made there: a BigInt's
+    `.bits` in two's complement to its sign bit, and `BigInt(bools)` the
+    way back.
+  - `b.bits` is BigInt.k's attribute, an `Array<bool>`, a copy: the
+    shortest form, its last bool the sign, 5n `[true, false, true,
+    false]`, -6n `[false, true, false, true]`, 0n `[false]`, -1n
+    `[true]`.
+  - `b.bits[n]` is the bit where it is, no Array made: the compilers
+    make of it a call of BigInt.k's helper, as they do of
+    `grapheme(c0, c1)` (#526). Past its top it is the sign, as `&`, `|`
+    and `~` have a BigInt's bits, two's complement of any width.
+  - `b.bits[n] = v`, `|=`, `&=`, `~=` and `.flip()` change the BigInt
+    in place, as `b | 1n << n` and `b & ~(1n << n)` would: past its top
+    it grows, and its sign stays, so no bit makes -1n positive.
+  - `n` is 0 or more: a negative literal is an error, a negative value
+    ends the program; there is no width to be past.
+  - `b.bits = bs` is an error that names `b.bits[n] = v` and
+    `b = BigInt(bs)`, as an integer's is.
+  - `BigInt(bools)` takes an `Array<bool>`, lent, so `BigInt(b.bits)`
+    holds and frees the copy; a `[bool]` written,
+    `BigInt([true, false])`, and a fixed array go by their count to a
+    helper. No bools are 0n.
+  - An integer's bools have no sign of their own, so
+    `BigInt(u8(200).bits)` is -56n: the document says so, and that a
+    `false` appended makes it 200n.
+  - Found on the way: kc took `b:lent $[T]` for an error, its `$[` one
+    token where kc looked for `$`; it reads it now.
+  - `b.bit(n)` and `b.flip(n)` were never a BigInt's, and are its
+    unknown members.
 
 - (530) Agreed details: "Now that we have BigInt in the prelude, we can
   and should refactor `Bits`": `.bits` of every integer type and of
@@ -8518,6 +8550,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P540 | Details of #528 | uchr removed: the lexers' error naming the `u32` form; `.utf32`/`.codepoint` of a number an error; `kv_uchr` and its functions gone from the runtime; a codepoint walk's element a u32 | provisional |
 | P541 | Details of #529 | An enum with values printed qualified, `T.case(v)`, a nested one by its path; untagged ones, Optionals and Results bare; kelvinc's tagged_prefix, kc's qual in its printer | provisional |
 | P542 | Details of #530 | An integer's `.bits` an `Array<bool>` of its width, a copy; `x.bits[n]` and its `.flip()` in place; `T(bools)` ending the program past T's width; `x.bits = bs` an error; `x.bit(n)` and `x.flip(n)` errors; arithmetic with a literal of C's width; kelvinc's int_bits and bits_number_type, kc's int_bits_field | provisional |
+| P543 | Details of #531 | A BigInt's `.bits` in the shortest two's complement form, the last bool the sign, a copy; `b.bits[n]` past its top the sign, and setting there growing it with its sign kept; a negative place an error or the program's end; `BigInt(bools)` reading the last bool as the sign, so `BigInt(u8(200).bits)` is -56n; the compilers' calls of BigInt.k's kv_bi_bit, kv_bi_bit_put, kv_bi_bit_flip, kv_bi_bit_of and kv_bi_from_bools | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

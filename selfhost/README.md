@@ -604,6 +604,16 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A BigInt's `.bits`** (#531), as kelvinc's: `b.bits` is BigInt.k's
+  attribute, an `Array<bool>`; `b.bits[n]` is its bit where it is, the
+  call of BigInt.k's `kv_bi_bit_of(b, n)`, with no Array made;
+  `b.bits[n] = v`, `|=`, `&=` and `~=` its `kv_bi_bit_put` of
+  `&b.limbs`, and `b.bits[n].flip()` its `kv_bi_bit_flip`.
+  - `BigInt([b, ...])` and `BigInt(bs)` of a fixed array of bools are
+    its `kv_bi_from_bools` of them and their count; of an `Array<bool>`
+    it is the `BigInt(bools:lent $[bool])` BigInt.k has.
+  - kc reads `b:lent $[T]`, a lent Array parameter, which it took for
+    an error where the type began with `$[`.
 - **An integer's `.bits`** (#530), as kelvinc's: `x.bits`, its width of
   bools, a new `Array<bool>`, place 0 first, held and freed as `s.elements`
   is; `x.bits[n]`, its bit, read and set with `=`, `|=`, `&=` and `~=`

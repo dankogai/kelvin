@@ -317,6 +317,9 @@ let main():int32 {
   - A signed T's highest bit is its sign: `i8(n.bits)` is `n`.
 - An enum's value has `.bits`, as an `i32`'s, C's int (#469):
   `LIMIT.bits[2]`; see [enums.md](enums.md).
+- **A `BigInt`** has them too (#531), of any width: `b.bits[n]` past its
+  top is its sign, setting one there grows it, and `BigInt(bools)` reads
+  its last bool as the sign; see [bigint.md](bigint.md#bits-bits).
 - A floating-point number has none, and its fields are `.sign`,
   `.exponent` and `.significand`; a `bool` flips with `b.flip()`, see
   [bool.md](bool.md).

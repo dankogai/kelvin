@@ -1769,6 +1769,11 @@ static int number_rank(const char *n);
 static Expr *int_bit_at(Expr *e, Type *t, Expr *n, Pos pos);
 static Expr *bits_held(Expr *e);
 static void check_bits_place(Expr *n, const char *what);
+static bool bigint_bits_attr(Expr *e);
+static bool bigint_callee(Expr *f);
+static void bigint_bools_call(Expr *x);
+static Expr *bools_literal(const char *who);
+static Expr *bigint_bit_at(Expr *recv, Expr *n, Pos pos);
 static Expr *bits_part(Expr *v, const char *what);
 static List bits_args(Token *name);
 static int int_width(Type *t);
@@ -2266,6 +2271,11 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = f;
                 x->a = f;
             }
+            if (bigint_bits_attr(e) && !slice) {
+                /* b.bits[n] of a BigInt (#531): bit n where it is */
+                e = bigint_bit_at(e->a, x->b, t->pos);
+                continue;
+            }
             if (e->kind == E_METHOD && e->op && !strcmp(e->op, "bit_int_bits") && !slice) {
                 /* x.bits[n] (#530): bit n of the integer, a bool, with no Array made */
                 e = int_bit_at(e->a, e->from, x->b, t->pos);
@@ -2344,7 +2354,9 @@ static Expr *parse_postfix_steps(Expr *e) {
             while (!is_p(peek(), ")")) {
                 list_push(&x->items, is_p(peek(), "{") ? anon_arg(call_param_type(e, x->items.len), call_arity(e),
                                                                   x->items.len, e, false)
-                                                       : parse_assign());
+                                     : is_p(peek(), "[") && !x->items.len && bigint_callee(e)
+                                         ? bools_literal("BigInt") /* BigInt([true, false]) (#531) */
+                                         : parse_assign());
                 if (!accept_p(","))
                     break;
             }
@@ -2375,6 +2387,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 block_after_call = cur;
             }
             codepoints_call(x);
+            bigint_bools_call(x);
             check_print_args(x);
             resolve_call(x);
             for (int k = 0; k < x->items.len; k++) /* an overloaded function passed by name (#41) */
@@ -5064,20 +5077,7 @@ static Expr *parse_primary(void) {
         brace_ends_condition = brace_in_for = false;
         Expr *v, *base = NULL;
         if (is_p(peek(), "[") && int_width(base_type(t->text, t->pos))) { /* u8([true, false]), of a [bool] (#530) */
-            Type *at = xcalloc(1, sizeof *at);
-            at->kind = T_ARRAY;
-            at->pos = peek()->pos;
-            at->elem = base_type("bool", peek()->pos);
-            v = new_expr(E_COMPOUND, peek()->pos);
-            v->type = at;
-            v->a = parse_initializer_for(at);
-            count_items(at, v->a);
-            for (int i = 0; v->a->kind == E_INIT && i < v->a->items.len; i++) {
-                Expr *b = v->a->items.data[i];
-                if (!(b->is_bool || seen_bool(b) || bool_shape(b)))
-                    error_at(b->pos, "%s([b, ...]) is of bools, place 0 first, and this is %s", t->text,
-                             value_type(b) ? kelvin_type(value_type(b)) : literal_type(b) ? literal_type(b) : "none");
-            }
+            v = bools_literal(t->text);
         } else {
             v = parse_assign();
         }
@@ -8294,6 +8294,123 @@ static Expr *int_bits(Expr *e, Token *name) {
     return x;
 }
 
+/* [b, ...] where who([b, ...]) reads a [bool] (#530, #531): the bools as
+   a [bool] of their count, a compound literal */
+static Expr *bools_literal(const char *who) {
+    Type *at = xcalloc(1, sizeof *at);
+    at->kind = T_ARRAY;
+    at->pos = peek()->pos;
+    at->elem = base_type("bool", peek()->pos);
+    Expr *v = new_expr(E_COMPOUND, peek()->pos);
+    v->type = at;
+    v->a = parse_initializer_for(at);
+    count_items(at, v->a);
+    for (int i = 0; v->a->kind == E_INIT && i < v->a->items.len; i++) {
+        Expr *b = v->a->items.data[i];
+        if (!(b->is_bool || seen_bool(b) || bool_shape(b)))
+            error_at(b->pos, "%s([b, ...]) is of bools, place 0 first, and this is %s", who,
+                     value_type(b) ? kelvin_type(value_type(b)) : literal_type(b) ? literal_type(b) : "none");
+    }
+    return v;
+}
+
+/* the prelude's BigInt's function of the name (#531), kv_bi_bit and its
+   kin, which read and set a bit where the BigInt is; NULL where the
+   program has no BigInt of the prelude's */
+static Decl *bigint_helper(const char *name) {
+    List c = overloads_of(name, NULL);
+    if (c.len != 1)
+        return NULL;
+    Decl *d = c.data[0];
+    const char *slash = d->pos.file ? strrchr(d->pos.file, '/') : NULL;
+    const char *base = slash ? slash + 1 : d->pos.file;
+    return base && (!strcmp(base, "BigInt.k") || !strcmp(base, "BigInt.kh")) ? d : NULL;
+}
+
+/* is e b.bits of the prelude's BigInt (#531), its attribute, an
+   Array<bool> made of its bits? */
+static bool bigint_bits_attr(Expr *e) {
+    if (e->kind != E_METHOD || !e->attr || !e->text || strcmp(e->text, "bits"))
+        return false;
+    Type *t = value_type(e->a);
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    Decl *r = NULL;
+    return t && type_class(unqualified(t), &r) == 's' && r && r->name && !strcmp(r->name, "BigInt") &&
+           bigint_helper("kv_bi_bit");
+}
+
+/* b.bits[n] of a BigInt (#531), each read kept with its BigInt and its
+   place, of which '=' and '.flip()' make their own call */
+typedef struct {
+    Expr *call, *recv, *n;
+} bigbit_t;
+static List bigint_bit_reads;
+
+static bigbit_t *bigint_bit_read(Expr *e) {
+    for (int i = bigint_bit_reads.len - 1; e->kind == E_CALL && i >= 0; i--)
+        if (((bigbit_t *)bigint_bit_reads.data[i])->call == e)
+            return bigint_bit_reads.data[i];
+    return NULL;
+}
+
+/* fn(&b.limbs, n) of BigInt's fn, to which the caller adds what else it
+   takes; resolve_call then sees it as a call written */
+static Expr *bigint_bit_call(const char *fn, Expr *recv, Expr *n, Pos pos) {
+    Expr *f = new_expr(E_FIELD, pos);
+    f->a = recv;
+    f->text = "limbs";
+    Expr *at = new_expr(E_PREFIX, pos);
+    at->op = "&";
+    at->a = f;
+    Expr *g = new_expr(E_IDENT, pos);
+    g->text = (char *)fn;
+    g->target = bigint_helper(fn);
+    Expr *x = new_expr(E_CALL, pos);
+    x->a = g;
+    list_push(&x->items, at);
+    list_push(&x->items, n);
+    return x;
+}
+
+/* b.bits[n] of a BigInt (#531): its bit n, a bool, 0 the lowest, with no
+   Array made; past its top the sign, as a two's complement number of any
+   width has it. n is 0 or more, a literal checked, a value below ending
+   the program */
+static Expr *bigint_bit_at(Expr *recv, Expr *n, Pos pos) {
+    check_bits_place(n, "a bit's place in a BigInt");
+    Expr *x = bigint_bit_call("kv_bi_bit", recv, n, pos);
+    resolve_call(x);
+    x->is_bool = true;
+    bigbit_t *r = xcalloc(1, sizeof *r);
+    *r = (bigbit_t){x, recv, n};
+    list_push(&bigint_bit_reads, r);
+    return x;
+}
+
+/* is f the BigInt of BigInt(...), the prelude's (#531)? Its '[' then
+   starts a [bool], as an integer type's does */
+static bool bigint_callee(Expr *f) {
+    return f->kind == E_IDENT && f->text && !strcmp(f->text, "BigInt") && bigint_helper("kv_bi_from_bools");
+}
+
+/* BigInt(bools) of a [bool] of a fixed count (#531), written or a
+   variable's: BigInt's kv_bi_from_bools of it and its count, as an
+   Array<bool>'s is the BigInt(bools) BigInt.k has */
+static void bigint_bools_call(Expr *x) {
+    if (!bigint_callee(x->a) || x->items.len != 1)
+        return;
+    Type *bt = value_type(x->items.data[0]);
+    if (!(bt && bt->kind == T_ARRAY && bt->size && bt->elem && bt->elem->kind == T_BASE &&
+          !strcmp(unqualified(bt->elem)->name, "bool")))
+        return;
+    Expr *g = new_expr(E_IDENT, x->a->pos);
+    g->text = "kv_bi_from_bools";
+    g->target = bigint_helper(g->text);
+    x->a = g;
+    list_push(&x->items, bt->size);
+}
+
 /* b.flip() of a bool, b = !b (#454); of a bit, x.bits[n].flip() (#530)
    and bv[n].flip(), that bit flipped in the var that holds the value.
    x.bit(n) and x.flip(n) of an integer, #454's, are x.bits[n] and
@@ -8344,6 +8461,15 @@ static Expr *bit_method(Expr *e, Token *name, const char *member) {
         x->op = "bits_flip";
         list_push(&x->items, e->items.data[0]);
         return x;
+    }
+    if (bigint_bit_read(e)) { /* b.bits[n].flip() of a BigInt (#531) */
+        bigbit_t *r = bigint_bit_read(e);
+        if (r->recv->kind == E_IDENT && !strncmp(r->recv->text, "_kv_tmp", 7))
+            error_at(name->pos, "flipping a bit of a BigInt changes it, so that BigInt is a variable");
+        reject_var_method_receiver(r->recv, member, name->pos);
+        Expr *c = bigint_bit_call("kv_bi_bit_flip", r->recv, r->n, name->pos);
+        resolve_call(c);
+        return c;
     }
     if (e->kind == E_METHOD && e->op && !strcmp(e->op, "bit_int_at")) { /* x.bits[n].flip() (#530) */
         reject_var_method_receiver(e->a, member, name->pos);
@@ -9658,6 +9784,43 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 for (int k = 0; k < lhs->items.len; k++)
                     list_push(&c->items, lhs->items.data[k]);
                 list_push(&c->items, v);
+                return c;
+            }
+            if (bigint_bits_attr(lhs))
+                error_at(t->pos, "a BigInt's '.bits' is a copy of its bits, an Array<bool>: a bit is set with "
+                                 "'b.bits[n] = v', and all of them with 'b = BigInt(bools)'");
+            if (bigint_bit_read(lhs)) {
+                /* b.bits[n] = v, |=, &= and ~= of a bool (#531), as an
+                   integer's: in the var that holds b, which grows where
+                   n is past its top */
+                bigbit_t *r = bigint_bit_read(lhs);
+                if (!strcmp(t->text, ":="))
+                    error_at(t->pos, "':=' sets a reference: a bit of a BigInt is set with '='");
+                int op = !strcmp(t->text, "=") ? 0 : !strcmp(t->text, "|=") ? 1 : !strcmp(t->text, "&=") ? 2
+                         : !strcmp(t->text, "~=") ? 3 : -1;
+                if (op < 0)
+                    error_at(t->pos, "a bit of a BigInt is set with '=', '|=', '&=' or '~=', and a bool, and has no "
+                                     "'%s'",
+                             t->text);
+                if ((r->recv->kind != E_IDENT && r->recv->kind != E_FIELD && r->recv->kind != E_INDEX &&
+                     r->recv->kind != E_DEREF) ||
+                    (r->recv->kind == E_IDENT && !strncmp(r->recv->text, "_kv_tmp", 7)))
+                    error_at(t->pos, "setting a bit of a BigInt changes it, so that BigInt is a variable");
+                if (let_target(r->recv))
+                    error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(r->recv));
+                reject_const_change(r->recv, t->pos);
+                Expr *v = parse_assign();
+                assign_ok = ok;
+                if (!(v->is_bool || seen_bool(v) || bool_shape(v)))
+                    error_at(v->pos, "a bit of a BigInt is set with a bool, and this is %s: '!!n' makes one of an "
+                                     "integer 0 or 1",
+                             value_type(v) ? kelvin_type(value_type(v)) : literal_type(v) ? literal_type(v) : "none");
+                Expr *c = bigint_bit_call("kv_bi_bit_put", r->recv, r->n, t->pos);
+                Expr *how = new_expr(E_LITERAL, t->pos);
+                how->text = strfmt("%d", op);
+                list_push(&c->items, v);
+                list_push(&c->items, how);
+                resolve_call(c);
                 return c;
             }
             if (lhs->kind == E_METHOD && lhs->op && !strcmp(lhs->op, "bit_int_bits"))

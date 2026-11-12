@@ -3000,7 +3000,7 @@ let parse_params(n:int64) {
             advance()
             is_let = 0
         }
-        let lent = tok_is(pos + 1, ":") && tok_is(pos + 2, "lent") && (toks[pos + 3].kind == T_ID || tok_is(pos + 3, "$"))   // b:lent T (#510)
+        let lent = tok_is(pos + 1, ":") && tok_is(pos + 2, "lent") && (toks[pos + 3].kind == T_ID || tok_is(pos + 3, "$") || tok_is(pos + 3, "$[") || tok_is(pos + 3, "${"))   // b:lent T (#510), b:lent $[T] (#531)
         if lent { lent_at = pos + 2 }
         let p:int64 = parse_typed(is_let)
         if lent { lent_params[p] = true }

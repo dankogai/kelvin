@@ -9996,3 +9996,22 @@ the same, and kelvinc's `(x + 1).bits` takes C's width, as kc's did.
 Details are provisional P542.
 
 There are 1283 tests, and all pass with clang and with gcc 15.
+
+### 578. A BigInt's bits are `b.bits`
+
+> push and go on with #531
+
+**Claude** pushed #530, and CI passed. A BigInt's `b.bits` is its bits
+in the shortest two's complement form, an `Array<bool>`, place 0 first,
+the last bool its sign: 5n is `[true, false, true, false]` and -1n
+`[true]`. `b.bits[n]` is its bit where it is, with no Array made, and
+past its top the sign; it is set with `=`, `|=`, `&=` and `~=` of a
+bool, and flipped with `.flip()`, in the var that holds the BigInt,
+which grows past its top and keeps its sign. `BigInt(bools)` is the way
+back, of an `Array<bool>`, a `[bool]` written or a fixed array, its
+last bool the sign. kelvinc and kc make of `b.bits[n]` calls of
+BigInt.k's helpers, as they do of `grapheme(c0, c1)`; kc now reads a
+`b:lent $[T]` parameter. #532 removes `Bits`. Details are provisional
+P543.
+
+There are 1293 tests, and all pass with clang and with gcc 15.

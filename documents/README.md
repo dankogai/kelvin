@@ -107,7 +107,8 @@ the design decisions, numbered `#N` throughout, are in
 - [regexp.md](regexp.md): the prelude's `RegExp` (#504), `$/pattern/flags`, JS's
   regular expressions over Strings and Bytes.
 - [bigint.md](bigint.md): the prelude's `BigInt` (#507), integers of any
-  size, with Kelvin's operators.
+  size, with Kelvin's operators, and its bits, `b.bits` and `b.bits[n]`
+  (#531).
 - [fetch.md](fetch.md): `#import <fetch>`, JS's `fetch(url)` as a GET
   over HTTP and HTTPS, a `Result<Response, Error>`.
 - [localstorage.md](localstorage.md): `#import <localStorage>`, JS's

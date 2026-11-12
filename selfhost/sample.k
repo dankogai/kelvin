@@ -1359,6 +1359,13 @@ on a new line`
     let bg_a = 2n ** 100 + 1                               // the prelude's BigInt, of BigInt.kh (#515)
     let bg_b = BigInt(0 - 12345)
     println(bg_a, " ", bg_a.hex, " ", bg_b * bg_b, " ", pow(bg_a, 3, 1000003n), " ", bg_a.gcd(6), " ", i64(bg_a), " ", bg_b < bg_a)
+    var bg_bits = 5n                                       // a BigInt's bits (#531): b.bits, b.bits[n] where it is, BigInt(bools)
+    bg_bits.bits[1] = true
+    bg_bits.bits[70] |= true
+    bg_bits.bits[0].flip()
+    let bg_bools = bg_b.bits
+    println(bg_bits, " ", bg_bits.bits[70], " ", bg_bits.bits[500], " ", bg_b.bits[500], " ", bg_bools.count, " ", BigInt(bg_bools) == bg_b)
+    println(BigInt([true, false, true, false]), " ", (bg_bits + 1n).bits[0], " ", 5n.bits)
     let rx_e = $/(\d+)-(?<m>\d+)/g                         // and its RegExp, of RegExp.kh (#515)
     var rx_s = $"10-20 and 3-4"
     var rx_ms = rx_s.match(&rx_e)

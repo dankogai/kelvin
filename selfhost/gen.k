@@ -987,6 +987,7 @@ let is_comparison(t:int64):bool {
 let type_of(n:int64):int64
 let resolve_op(n:int64)           // and a + b, a struct's operator, as the call of it (#471)
 let resolve_codepoints(n:int64)   // and grapheme(c0, c1, ...) as the call it is (#526)
+let resolve_bigbits(n:int64)      // and b.bits[k] of a BigInt, and BigInt([b, ...]), as the calls they are (#531)
 let is_operator(d:int64):bool     // and whether a function is such an operator
 let gen_generic_call(n:int64)     // and a call only C's _Generic chooses for (#41)
 let lazy_of(n:int64):int64    // prototypes: a lazy Sequence's (#324)
@@ -1650,6 +1651,7 @@ let arith_type(n:int64):int64 {
 
 let type_of(n:int64):int64 {
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
+    resolve_bigbits(n)                                   // b.bits[k] of a BigInt, BigInt([b, ...]) (#531)
     resolve_attr(n)                                      // x.y, an attribute, of its getter (#131)
     resolve_codepoints(n)                                // grapheme(c0, c1, ...) (#526)
     let k:nkind = nodes[n].kind
@@ -3396,6 +3398,188 @@ let resolve_codepoints(n:int64) {
     nodes[n].kind = N_CALL
     nodes[n].a = g
     nodes[n].b = list
+}
+
+// ---------- a BigInt's bits (#531) ----------
+
+var big_bit_reads:Dictionary<int64, bool>     // the b.bits[k] of a BigInt: now calls, kv_bi_bit_of(b, k)
+var big_prelude_is:int64 = 0 - 1              // whether the program has the prelude's BigInt: 1, 0, or not asked
+
+// a token kc makes of word, where the token at is
+let big_word(word:cstr, at:int64):int64 {
+    var w = $""
+    w += word
+    let t:int64 = made_token(&w)
+    toks[t].line = toks[at].line
+    toks[t].file = toks[at].file
+    return t
+}
+
+// whether BigInt is the prelude's, whose kv_bi_bit_of BigInt.kh declares
+let big_prelude(at:int64):bool {
+    if big_prelude_is < 0 {
+        let d:int64 = decl_named(big_word("kv_bi_bit_of", at), D_FN)
+        big_prelude_is = d >= 0 && fnames[toks[nodes[d].t].file].ends("BigInt.kh") ? 1 : 0
+    }
+    return big_prelude_is == 1
+}
+
+// whether f is b.bits of the prelude's BigInt, its attribute, read or
+// not yet: an Array<bool> made of its bits
+let big_bits_field(f:int64):bool {
+    if f < 0 || !tok_is(nodes[f].t, "bits") { return false }
+    let k:nkind = nodes[f].kind
+    if k != N_FIELD && !(k == N_METHOD && attr_reads.has(f)) { return false }
+    if !big_prelude(nodes[f].t) { return false }
+    let y:int64 = type_of(nodes[f].a)
+    return y >= 0 && types[y].kind == Y_STRUCT && tok_is(types[y].name, "BigInt")
+}
+
+// a bit's place in a BigInt: an integer, a literal 0 or more, as kelvinc's
+let big_place_ok(x:int64):bool {
+    if !bit_number(x, "a bit's place in a BigInt", false) { return false }
+    if nodes[x].kind == N_UNARY && tok_is(nodes[x].t, "-") && nodes[nodes[x].a].kind == N_NUM && tok_count(nodes[nodes[x].a].t) > 0 {
+        var m = $"a bit's place in a BigInt is 0 or more, and this is -"
+        m += tok_text(nodes[nodes[x].a].t)
+        gen_error(x, m.cstr)
+        return false
+    }
+    return true
+}
+
+// name(&recv.limbs, idx) of BigInt's function name, to which the caller
+// adds what else it takes
+let big_bit_call(name:cstr, recv:int64, idx:int64, at:int64):int64 {
+    let f:int64 = make_node(N_FIELD, big_word("limbs", at))
+    nodes[f].a = recv
+    nodes[recv].next = 0 - 1
+    let amp_tok:int64 = big_word("&", at)
+    toks[amp_tok].kind = T_PUNCT
+    let amp:int64 = make_node(N_ADDR, amp_tok)
+    nodes[amp].a = f
+    let call:int64 = make_node(N_CALL, at)
+    nodes[call].a = make_node(N_ID, big_word(name, at))
+    nodes[call].b = amp
+    nodes[amp].next = idx
+    nodes[idx].next = 0 - 1
+    return call
+}
+
+// b.bits[k] of a BigInt: its bit k where it is, kv_bi_bit_of(b, k), with
+// no Array made; BigInt([b, ...]) and BigInt(bs) of a [bool] of a fixed
+// count: kv_bi_from_bools of it and its count; as kelvinc's, from here
+// on those calls
+let resolve_bigbits(n:int64) {
+    let k:nkind = nodes[n].kind
+    if k == N_INDEX && nodes[n].b >= 0 && big_bits_field(nodes[n].a) && !is_slice(n) {
+        let recv:int64 = nodes[nodes[n].a].a
+        let idx:int64 = nodes[n].b
+        if !big_place_ok(idx) { return }
+        nodes[n].kind = N_CALL
+        nodes[n].a = make_node(N_ID, big_word("kv_bi_bit_of", nodes[n].t))
+        nodes[n].b = recv
+        nodes[n].c = 0 - 1
+        nodes[n].flag = 0
+        nodes[recv].next = idx
+        nodes[idx].next = 0 - 1
+        big_bit_reads[n] = true
+        return
+    }
+    if k != N_CALL || nodes[nodes[n].a].kind != N_ID || !tok_is(nodes[nodes[n].a].t, "BigInt") { return }
+    let v:int64 = nodes[n].b
+    if v < 0 || nodes[v].next >= 0 || !big_prelude(nodes[n].t) { return }
+    var count:int64 = 0 - 1
+    if nodes[v].kind == N_LIST && nodes[v].flag == 0 && nodes[v].ty < 0 {
+        count = 0
+        var e:int64 = nodes[v].b
+        while e >= 0 {
+            let ey:int64 = type_of(e)
+            if failed { return }
+            if ey < 0 || types[ey].kind != Y_BOOL {
+                var m = $"BigInt([b, ...]) is of bools, place 0 first, and this is "
+                if ey < 0 { m += "none" } else {
+                    let tx:String = kelvin_type_text(ey)
+                    m += &tx
+                }
+                gen_error(e, m.cstr)
+                return
+            }
+            count += 1
+            e = nodes[e].next
+        }
+        if count == 0 {                                  // C has no empty array: one false, of a count of none
+            var word = $"false"
+            nodes[v].b = make_node(N_BOOL, made_token(&word))
+        }
+        set_ty(v, type_of_kind(Y_FIXED, base_type(Y_BOOL), 0 - 1))
+    } else {
+        let y:int64 = type_of(v)
+        if y < 0 || types[y].kind != Y_FIXED || types[y].elem < 0 || types[types[y].elem].kind != Y_BOOL || types[y].name < 0 { return }
+        count = types[y].name
+    }
+    var digits = String(count)
+    let num:int64 = make_node(N_NUM, made_token(&digits))
+    toks[nodes[num].t].kind = T_NUM
+    nodes[n].a = make_node(N_ID, big_word("kv_bi_from_bools", nodes[n].t))
+    nodes[v].next = num
+}
+
+// b.bits[k].flip() of a BigInt, n, whose bit read is a: kv_bi_bit_flip
+// of the BigInt where it is
+let gen_big_bit_flip(n:int64, a:int64) {
+    let recv:int64 = nodes[a].b
+    let idx:int64 = nodes[recv].next
+    if !is_place(recv) {
+        gen_error(n, "flipping a bit of a BigInt changes it, so that BigInt is a variable")
+        return
+    }
+    let lead = $"'.flip' is a var method, which changes "
+    if !changes_var(recv, &lead) { return }
+    gen_expr(big_bit_call("kv_bi_bit_flip", recv, idx, nodes[n].t))
+}
+
+// b.bits[k] = v, |=, &= and ~= of a bool, n, in the var that holds the
+// BigInt, which grows where k is past its top: kv_bi_bit_put, how 0 to 3
+let gen_big_bit_set(n:int64) {
+    let lhs:int64 = nodes[n].a
+    let t:int64 = nodes[n].t
+    let v:int64 = nodes[n].b
+    let recv:int64 = nodes[lhs].b
+    let idx:int64 = nodes[recv].next
+    if tok_is(t, ":=") {
+        gen_error(n, "':=' sets a reference: a bit of a BigInt is set with '='")
+        return
+    }
+    let how:int64 = tok_is(t, "=") ? 0 : tok_is(t, "|=") ? 1 : tok_is(t, "&=") ? 2 : tok_is(t, "~=") ? 3 : 0 - 1
+    if how < 0 {
+        var m = $"a bit of a BigInt is set with '=', '|=', '&=' or '~=', and a bool, and has no '"
+        m += tok_text(t)
+        m += "'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if !is_place(recv) {
+        gen_error(n, "setting a bit of a BigInt changes it, so that BigInt is a variable")
+        return
+    }
+    if !may_change(recv) { return }
+    let vy:int64 = type_of(v)
+    if vy >= 0 && types[vy].kind != Y_BOOL {
+        var m = $"a bit of a BigInt is set with a bool, and this is "
+        let w:String = kelvin_type_text(vy)
+        m += &w
+        m += ": '!!n' makes one of an integer 0 or 1"
+        gen_error(v, m.cstr)
+        return
+    }
+    let call:int64 = big_bit_call("kv_bi_bit_put", recv, idx, t)
+    var digits = String(how)
+    let num:int64 = make_node(N_NUM, made_token(&digits))
+    toks[nodes[num].t].kind = T_NUM
+    nodes[idx].next = v
+    nodes[v].next = num
+    gen_expr(call)
+    put(";\n")
 }
 
 // x op= y with the op= x's type defines (#518), as a statement: the call
@@ -9554,6 +9738,10 @@ let gen_bit_method(n:int64):bool {
         gen_error(n, "'.flip()' of a bool takes nothing: it is b = !b")
         return true
     }
+    if big_bit_reads.has(a) {                           // b.bits[k].flip() of a BigInt (#531)
+        gen_big_bit_flip(n, a)
+        return true
+    }
     let bit = int_bit_index(a)                          // x.bits[k].flip(): the integer is what changes
     let x:int64 = bit ? nodes[nodes[a].a].a : a
     let lead = $"'.flip' is a var method, which changes "
@@ -10406,6 +10594,7 @@ let gen_expr_of(n:int64)    // a prototype: gen_expr writes n by it
 // them where the call's arguments end (#441)
 let gen_expr(n:int64) {
     resolve_op(n)
+    resolve_bigbits(n)
     resolve_attr(n)
     resolve_codepoints(n)
     gen_expr_of(n)
@@ -12136,6 +12325,15 @@ let sub_assign(n:int64):bool {
 }
 
 let gen_assign(n:int64) {
+    resolve_bigbits(nodes[n].a)
+    if big_bit_reads.has(nodes[n].a) {                  // b.bits[k] = v and its kin, of a BigInt (#531)
+        gen_big_bit_set(n)
+        return
+    }
+    if big_bits_field(nodes[n].a) {                     // as kelvinc says it
+        gen_error(n, "a BigInt's '.bits' is a copy of its bits, an Array<bool>: a bit is set with 'b.bits[n] = v', and all of them with 'b = BigInt(bools)'")
+        return
+    }
     if int_bit_index(nodes[n].a) {                      // x.bits[k] = b and its kin (#530)
         gen_int_bit_set(n)
         return

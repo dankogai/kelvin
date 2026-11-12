@@ -104,6 +104,8 @@ bit's `bool` of an integer 0 or 1.
   `Bits` and names its flags with an enum; see [versusC.md](versusC.md).
 - **An integer's bits** are `x.bits`, an `Array<bool>`, `x.bits[n]` and
   `x.bits[n].flip()` (#530); see [integers.md](integers.md).
+- **A `BigInt`'s** are the same, of any width (#531): `b.bits[n] = true`
+  past its top grows it; see [bigint.md](bigint.md#bits-bits).
 
 ## Where it lives
 

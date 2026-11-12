@@ -380,6 +380,10 @@ So far the changes from C are these, by topic.
   `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()` (#511); `i64(b)` and `f64(b)`
   are `b.i64` and `b.f64`, as a converter of a struct is its attribute
   (#512)
+  - its bits are an integer's, of any width: `b.bits`, an
+    `Array<bool>` whose last bool is its sign, `b.bits[n]`, read and
+    set where it is, past its top too, `b.bits[n].flip()`, and
+    `BigInt(bools)` the way back (#531)
 - `T(v)` is a converter, never C's cast: the nearest value `T` holds,
   `u8(300)` is 255, `i64(1e30)` i64's largest, NaN 0; `v as T` is C's,
   which wraps (#513)

@@ -18,6 +18,8 @@ let main():int32 {
     var n = BigInt("123456789012345678901234567890")
     println(big, " ", n % 97, " ", -n / 7, " ", n > big)   // 1267650600228229401496703205376n 52n -17636684144620811271604938270n false
     println(BigInt(-7) / 2, " ", BigInt(-7) % 2, " ", BigInt(-6) & 0xff, " ", ~BigInt(0))   // -3n -1n 250n -1n
+    n.bits[200] = true                             // its bit 200, set where it is (#531)
+    println(n.bits[200], " ", 5n.bits, " ", BigInt(5n.bits))   // true [true, false, true, false] 5n
     return 0
 }
 ```
@@ -47,6 +49,8 @@ names it has it, with no import.
     spaces, a sign, a `0x` before base 16's digits, `0o` before 8's and
     `0b` before 2's, then the longest run of digits; `0` where there are
     none, `BigInt("12x")` is 12, and `BigInt("123n")` 123n.
+  - `BigInt(bools)` of a `[bool]`, its bits (#531); see
+    [Bits](#bits-bits) below.
 - **Operators,** with C's precedence:
   - `+ - * / %`, with `/` truncated toward zero and `%` of the
     dividend's sign, as Kelvin's integers are: `BigInt(-7) / 2` is -3,
@@ -64,6 +68,8 @@ names it has it, with no import.
     `b & 0xff`.
 - **Division by zero** ends the program, as a failed check does (#174):
   `kelvin: division of a BigInt by zero`, status 1.
+- **Bits** (#531) are `b.bits`, `b.bits[n]` and `BigInt(bools)`, as an
+  integer's are; see [Bits](#bits-bits) below.
 - **Text** is the literal, `123n`, `-5n`, `0n` (#509), so that it reads
   back as the value: `BigInt($`${b}`)` is `b`, the reader stopping at
   the `n`.
@@ -102,7 +108,59 @@ names it has it, with no import.
   - `b.exactI64` and `b.exactU64` (#511) are an `i64?` and a `u64?`:
     `some` where `b` fits, else `none`, as Swift's `Int(exactly:)`.
 - **kc** builds a program that uses it, as kelvinc does (#515), its
-  `+=` in place too (#518).
+  `+=` in place too (#518), and its bits (#531).
+
+### Bits: `.bits`
+
+```swift
+let main():int32 {
+    var b = 5n
+    b.bits[1] = true                          // 7n
+    b.bits[0].flip()                          // 6n
+    b.bits[100] |= true                       // past its top: b grows
+    println(b, " ", b.bits[100], " ", b.bits[500])   // 1267650600228229401496703205382n true false
+    let m = -6n
+    println(5n.bits, " ", m.bits, " ", m.bits[500])  // [true, false, true, false] [false, true, false, true] true
+    println(BigInt(m.bits), " ", BigInt([true, false, true, false]))   // -6n 5n
+    return 0
+}
+```
+
+- **`b.bits[n]`** of a BigInt is its bit `n`, a `bool`, 0 the lowest
+  (#531), as an integer's `x.bits[n]` is (#530); see
+  [integers.md](integers.md#bits-bits).
+  - The bits are two's complement's, of any width, as `&`, `|` and `~`
+    have them: past its top, every bit is its sign, `false` of 5n and
+    `true` of -6n.
+  - It reads the bit where it is: no Array is made.
+  - `n` is 0 or more, an integer of 64 bits or fewer, or an enum's
+    value: a negative literal is an error, and a negative value ends
+    the program.
+- **`b.bits[n] = v`** sets it, with `=`, `|=`, `&=` and `~=` (xor), and
+  a `bool`, in the var that holds `b`.
+  - It is `b | 1n << n` or `b & ~(1n << n)`, in place: past its top `b`
+    grows, and its sign stays, so no bit makes -1n positive.
+  - A `let`, and a BigInt an expression gives, are errors.
+- **`b.bits[n].flip()`** flips bit `n`, as an integer's does.
+- **`b.bits`** alone is its bits as bools, an `Array<bool>`, place 0
+  first, in the shortest two's complement form: its last bool is its
+  sign.
+  - 5n is `[true, false, true, false]`, -6n `[false, true, false,
+    true]`, 0n `[false]` and -1n `[true]`.
+  - It is a copy, a new Array each time: `var bs = b.bits` owns it, and
+    changing `bs` leaves `b`.
+  - It is walked, counted and printed as any Array is:
+    `for bit in b.bits`, `b.bits.count`.
+  - It is not set whole: `b.bits = bs` is an error that names
+    `b.bits[n] = v` and `b = BigInt(bs)`.
+- **`BigInt(bools)`** is the way back: the bools are its bits, place 0
+  first, and the last one its sign, so `BigInt(b.bits)` is `b`.
+  - It takes an `Array<bool>`, lent, a `[bool]` written,
+    `BigInt([true, false, true, false])`, or a fixed array of bools.
+  - No bools are 0n.
+  - An integer's bools have no sign of their own: `BigInt(u8(200).bits)`
+    is -56n, its highest bit read as the sign. A `false` appended makes
+    it 200n, and so does `BigInt(u8(200))`.
 
 ## Where it lives
 
@@ -138,6 +196,9 @@ repeated to the left, kept as short as it can be; zero is no limbs.
   program with a type of its own named `BigInt` keeps it.
 - Its helpers are `kv_bi_`, the runtime's names, which a program may not
   write.
+- **A bit** (#531) is read and set by them, where the limbs are:
+  `b.bits[n]` is `kv_bi_bit`'s, past the top limb the sign's limb, and
+  setting one grows the limbs by the sign, then shortens them again.
 - **How fast:** `benchmarks/bigint` (#517) races it against GMP, Ruby,
   Python and Node, `sh benchmarks/bigint/run.sh`.
   - Since #518 it is faster than Python in every case, than a Ruby
@@ -153,10 +214,14 @@ repeated to the left, kept as short as it can be; zero is no limbs.
 | a literal | `123n`, `0xffn`, `0b101n` | a `BigInt` (#508) |
 | the type | `BigInt(n)` | of an integer, an `i64` or a `u64` |
 | | `BigInt(text)`, `BigInt(text, base)` | of a `cstr` or a `String` by reference, read as `i64(s)` reads it |
+| | `BigInt(bools)` | of a `[bool]`, its bits, place 0 first, the last its sign (#531) |
 | a `BigInt` | `.string` | its literal, `123n`, a String, which print shows (#506, #509) |
 | | `.hex`, `.oct`, `.bin` | its literal in base 16, 8 or 2, `+0xffn`, `-0o17n`, `+0b101n` (#509) |
 | | `.text(base)` | its bare digits in a base from 2 to 36, a String |
 | | `.isZero`, `.isNegative` | bools |
+| | `.bits` | its bits, an `Array<bool>`, place 0 first, the last its sign (#531) |
+| | `.bits[n]` | bit `n`, a `bool`, past its top the sign; set with `=`, `\|=`, `&=`, `~=` (#531) |
+| | `.bits[n].flip()` | flips bit `n`, in place (#531) |
 | | `.sign` | -1, 0 or 1, an `i64`, as integers' `.sign` (#511) |
 | | `.exactI64`, `.exactU64` | an `i64?`, a `u64?`: `none` where it does not fit (#511) |
 | | `b ** e`, `.pow(e)` | `b` to the `e`, an `i64` or a `BigInt`, 0 or more (#511) |
