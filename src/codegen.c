@@ -1451,15 +1451,34 @@ static char *expr_bare(Expr *e) {
                           "(__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == "
                           "(__int128)_kv_eb.hi))); })",
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
-        if (e->op && (!strcmp(e->op, "bit_flip") || !strncmp(e->op, "bit_int_", 8))) {
-            /* b.flip(), x.flip(n), x.bit(n) and its setting (#454): an
-               integer's bits through its unsigned type of its width, the
-               place checked by the prelude's kv_int_place */
+        if (e->op && (!strcmp(e->op, "bit_flip") || !strncmp(e->op, "bit_int_", 8) || !strcmp(e->op, "bit_int_bits") ||
+                      !strcmp(e->op, "bit_int_of_bools"))) {
+            /* b.flip() (#454); x.bits, x.bits[n], its setting and its
+               .flip() (#530): an integer's bits through its unsigned type
+               of its width, the place checked by the prelude's
+               kv_int_place; and T(bools), the way back */
             if (!strcmp(e->op, "bit_flip"))
                 return strfmt("({ bool *_kv_fp = &(%s); *_kv_fp = !*_kv_fp; (void)0; })", expr(e->a));
             const char *w = e->from->name + 1;
             const char *u = !strcmp(w, "8") ? "uint8_t" : !strcmp(w, "16") ? "uint16_t" : !strcmp(w, "32") ? "uint32_t"
                             : !strcmp(w, "64") ? "uint64_t" : "unsigned __int128";
+            if (!strcmp(e->op, "bit_int_bits")) /* x.bits: its width of bools, an Array<bool>, place 0 first */
+                return strfmt("({ %s _kv_bv = (%s)(%s); bool _kv_bb[%s]; for (unsigned _kv_bi = 0; _kv_bi < %s; _kv_bi++) "
+                              "_kv_bb[_kv_bi] = (bool)(_kv_bv >> _kv_bi & 1); %s_from(_kv_bb, %s); })",
+                              u, u, expr(e->a), w, w, e->type->cname, w);
+            if (!strcmp(e->op, "bit_int_of_bools")) {
+                /* T(bools): the bools T's bits, place 0 first; more than
+                   its width end the program. An Array an expression gives
+                   is freed */
+                const char *v = expr(e->a), *ct = decl(e->type, "");
+                if (!strcmp(e->text, "bools"))
+                    return strfmt("((%s)kv_int_of_bools(%s, sizeof(%s) / sizeof((%s)[0]), %s))", ct, v, v, v, w);
+                if (c_lvalue(e->a))
+                    return strfmt("((%s)kv_int_of_bools((%s).at, (%s).count, %s))", ct, v, v, w);
+                return strfmt("({ __auto_type _kv_ba = %s; %s _kv_bn = (%s)kv_int_of_bools(_kv_ba.at, _kv_ba.count, %s); "
+                              "free(_kv_ba.at); _kv_bn; })",
+                              v, ct, ct, w);
+            }
             const char *n = expr(e->items.data[0]);
             if (!strcmp(e->op, "bit_int_at"))
                 return strfmt("((bool)((%s)(%s) >> kv_int_place((uint64_t)(%s), %s) & 1))", u, expr(e->a), n, w);

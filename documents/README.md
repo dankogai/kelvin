@@ -25,7 +25,7 @@ the design decisions, numbered `#N` throughout, are in
 
 - [integers.md](integers.md): `int8` to `uint128`, their literals,
   conversions of any number, numbers from text, powers, `**`, `b.pow(e)`
-  and `b.pow(e, m)` (#380), and bits, `x.bit(n)` and `x.flip(n)` (#454).
+  and `b.pow(e, m)` (#380), and bits, `x.bits` and `x.bits[n]` (#530).
 - [floatingpoint.md](floatingpoint.md): `float32` and `float64`, their
   literals, reading, printing and text, `x ** y`.
 - [bool.md](bool.md): `bool`, `true` and `false`, where a `bool` comes

@@ -273,8 +273,8 @@ kv_string kv_string_lit(const void *p, size_t n);
    copy(), and its block frees it, elements included. */
 void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
-/* x.bit(n) and x.flip(n) of an integer of w bits (#454): n is 0 to w - 1,
-   else the program ends */
+/* x.bits[n] of an integer of w bits (#530, #454's x.bit(n)): n is 0 to
+   w - 1, else the program ends */
 static inline unsigned kv_int_place(uint64_t n, unsigned w) {
     if (n >= w)
         kv_array_fail(w == 8    ? "an integer of 8 bits has bits 0 to 7, and this place is past them"
@@ -283,6 +283,21 @@ static inline unsigned kv_int_place(uint64_t n, unsigned w) {
                       : w == 64 ? "an integer of 64 bits has bits 0 to 63, and this place is past them"
                                 : "an integer of 128 bits has bits 0 to 127, and this place is past them");
     return (unsigned)n;
+}
+/* T(bools) of an integer type of w bits (#530): the bools its bits, place
+   0 first, the bits past them 0; more bools than w end the program */
+static inline unsigned __int128 kv_int_of_bools(const bool *at, size_t count, unsigned w) {
+    if (count > w)
+        kv_array_fail(w == 8    ? "an integer of 8 bits is of 8 bools or fewer, and this [bool] has more"
+                      : w == 16 ? "an integer of 16 bits is of 16 bools or fewer, and this [bool] has more"
+                      : w == 32 ? "an integer of 32 bits is of 32 bools or fewer, and this [bool] has more"
+                      : w == 64 ? "an integer of 64 bits is of 64 bools or fewer, and this [bool] has more"
+                                : "an integer of 128 bits is of 128 bools or fewer, and this [bool] has more");
+    unsigned __int128 v = 0;
+    for (size_t i = 0; i < count; i++)
+        if (at[i])
+            v |= (unsigned __int128)1 << i;
+    return v;
 }
 /* !!n (#387) is the bool of an integer 0 or 1, any other ending the
    program */

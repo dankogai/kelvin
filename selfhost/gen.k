@@ -429,7 +429,9 @@ let put_fixed_counts(y:int64)
 let put_zero_count(y:int64):bool    // a fixed array's count where its elements have no size (#499)
 let put_record_word(y:int64)    // and C's word of a struct, union of a union (#453)
 let bit_of_bits(n:int64):bool    // and whether n is a Bits's bit, whose .flip() is the Bits's (#456)
-let gen_bit_method(n:int64):bool    // and a bool's flip, an integer's bit and flip (#457)
+let gen_bit_method(n:int64):bool    // and a bool's flip (#457), an integer's bit's (#530)
+let int_bits_field(n:int64):bool    // x.bits of an integer, and x.bits[k], its bit (#530)
+let int_bit_index(n:int64):bool
 let gen_int_bit_set(n:int64)
 
 let put_ctype(y:int64) {
@@ -1844,6 +1846,16 @@ let type_of(n:int64):int64 {
             gen_error(n, m.cstr)
             return -1
         }
+        if tok_is(t, "bits") && (is_int_kind(yk) || enum_int(y)) { return type_of_kind(Y_ARRAY, base_type(Y_BOOL), -1) }   // x.bits, its width of bools (#530), an enum's value's an i32's (#469)
+        if tok_is(t, "bits") && (yk == Y_BOOL || yk == Y_F64 || yk == Y_F32) {   // as kelvinc says it
+            var m = $"'.bits' is an integer's bits, each a bool, and this is "
+            if yk == Y_BOOL { m += "a bool" } else {
+                let w:String = kelvin_type_text(y)
+                m += &w
+            }
+            gen_error(n, m.cstr)
+            return -1
+        }
         if tok_is(t, "sign") && (yk == Y_F64 || yk == Y_F32) { return optional_of(base_type(Y_BOOL)) }   // a floating-point x.sign, a bool? (#383)
         if (tok_is(t, "exponent") || tok_is(t, "significand")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_I64) }   // its fields (#383)
         if (tok_is(t, "abs") || tok_is(t, "sign")) && (is_signed_kind(yk) || yk == Y_F64 || yk == Y_F32 || enum_int(y)) { return int_view(y) }   // x.abs, x.sign, of its type (#381, #382), an enum's an i32 (#469)
@@ -2000,6 +2012,7 @@ let type_of(n:int64):int64 {
         if types[y].kind == Y_IO { return io_method_type(n) }                          // f.glob(p), f.chmod(m)... (#464)
         return base_type(Y_VOID)
     }
+    if k == N_INDEX && int_bit_index(n) { return base_type(Y_BOOL) }   // x.bits[k], a bit of an integer (#530)
     if k == N_INDEX {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
@@ -6060,6 +6073,19 @@ let gen_converter(n:int64) {
         gen_error(n, m.cstr)
         return
     }
+    if is_int_kind(k) && bools_value(v) {                // u8(bools), of a [bool] (#530)
+        if base >= 0 {
+            var m = $"a base is for reading text, as in "
+            m += &name
+            m += "(\"755\", 8); "
+            m += &name
+            m += " of a [bool] is of its bools, place 0 first"
+            gen_error(base, m.cstr)
+            return
+        }
+        gen_int_of_bools(y, v, &name)
+        return
+    }
     let vy:int64 = type_of(v)
     if failed { return }
     if vy >= 0 && types[vy].kind == Y_STRUCT && (struct_of(vy) >= 0 || tagged_of(vy) >= 0) {   // i64(b) is b.i64, as kelvinc's (#512)
@@ -6541,6 +6567,7 @@ let is_made_array(n:int64):bool {
     if y < 0 { return false }
     let t = nodes[n].t
     if pretty_value(n) { return true }                  // a new String too (#336, #452)
+    if power_int(y) && tok_is(t, "bits") { return true }   // x.bits, a new Array<bool> (#530)
     if types[y].kind == Y_SET { return tok_is(t, "elements") }
     if types[y].kind == Y_BITS { return tok_is(t, "bin") || tok_is(t, "u64s") }   // a new Array<String> (#456), Array<u64> (#472)
     return types[y].kind == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values") || tok_is(t, "pretty"))   // (#337)
@@ -9351,9 +9378,153 @@ let int_place_ok(x:int64, y:int64):bool {
     return true
 }
 
-// b.flip() of a bool, b = !b; x.flip(n) and x.bit(n) of an integer, as
-// kelvinc's #454 writes them, through the unsigned type of its width;
-// false where n is none of them (#457)
+// whether n is x.bits of an integer (#530), as kelvinc's int_bits: its
+// width of bools, a new Array<bool>, place 0 first
+let int_bits_field(n:int64):bool {
+    if n < 0 || nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "bits") { return false }
+    if tagged_named(nodes[n].a) >= 0 { return false }
+    return power_int(type_of(nodes[n].a))
+}
+
+// whether n is x.bits[k] of an integer (#530): its bit k, a bool, read
+// and set with no Array made
+let int_bit_index(n:int64):bool {
+    return nodes[n].kind == N_INDEX && nodes[n].b >= 0 && int_bits_field(nodes[n].a) && !is_slice(n)
+}
+
+// x.bits of an integer (#530): an Array<bool> of its width, place 0 first
+let gen_int_bits(n:int64) {
+    let a:int64 = nodes[n].a
+    let w:int64 = int_width(type_of(a))
+    let ay:int64 = type_of(n)
+    put("({ ")
+    put_uint_of(w)
+    put(" _kv_bv = (")
+    put_uint_of(w)
+    put(")(")
+    gen_expr(a)
+    put("); bool _kv_bb[")
+    put_int(w)
+    put("]; for (unsigned _kv_bi = 0; _kv_bi < ")
+    put_int(w)
+    put("; _kv_bi++) _kv_bb[_kv_bi] = (bool)(_kv_bv >> _kv_bi & 1); ")
+    put_array_name(ay)
+    put("_from(_kv_bb, ")
+    put_int(w)
+    put("); })")
+}
+
+// x.bits[k] of an integer (#530): its bit k, through the unsigned type
+// of its width, the place checked by the prelude's kv_int_place
+let gen_int_bit_at(n:int64) {
+    let x:int64 = nodes[nodes[n].a].a
+    let y:int64 = type_of(x)
+    if !int_place_ok(nodes[n].b, y) { return }
+    let w:int64 = int_width(y)
+    put("((bool)((")
+    put_uint_of(w)
+    put(")(")
+    gen_expr(x)
+    put(") >> kv_int_place((uint64_t)(")
+    gen_expr(nodes[n].b)
+    put("), ")
+    put_int(w)
+    put(") & 1))")
+}
+
+// whether v is what T(bools) of an integer type reads (#530): a [bool]
+// written [true, false], a fixed array of bools or an Array<bool>
+let bools_value(v:int64):bool {
+    if nodes[v].kind == N_LIST && nodes[v].flag == 0 && nodes[v].ty < 0 { return true }
+    let y:int64 = type_of(v)
+    if y < 0 { return false }
+    let k:ykind = types[y].kind
+    return (k == Y_FIXED || k == Y_ARRAY) && types[y].elem >= 0 && types[types[y].elem].kind == Y_BOOL
+}
+
+// T(bools) of the integer type y (#530), as kelvinc's: the bools its
+// bits, place 0 first, more than its width ending the program; an Array
+// an expression gives is freed
+let gen_int_of_bools(y:int64, v:int64, name:const String^) {
+    let w:int64 = int_width(y)
+    if nodes[v].kind == N_LIST {
+        var e:int64 = nodes[v].b
+        while e >= 0 {
+            let ey:int64 = type_of(e)
+            if failed { return }
+            if ey < 0 || types[ey].kind != Y_BOOL {
+                var m = name^.copy()
+                m += "([b, ...]) is of bools, place 0 first, and this is "
+                if ey < 0 { m += "none" } else {
+                    let tx:String = kelvin_type_text(ey)
+                    m += &tx
+                }
+                gen_error(e, m.cstr)
+                return
+            }
+            e = nodes[e].next
+        }
+        var count:int64 = 0
+        put("((")
+        put_ctype(y)
+        put(")kv_int_of_bools((bool[]){")
+        e = nodes[v].b
+        while e >= 0 {
+            if count > 0 { put(", ") }
+            gen_expr(e)
+            count += 1
+            e = nodes[e].next
+        }
+        if count == 0 { put("0") }
+        put("}, ")
+        put_int(count)
+        put(", ")
+        put_int(w)
+        put("))")
+        return
+    }
+    let vy:int64 = type_of(v)
+    if types[vy].kind == Y_FIXED {
+        put("((")
+        put_ctype(y)
+        put(")kv_int_of_bools(")
+        gen_expr(v)
+        put(", sizeof(")
+        gen_expr(v)
+        put(") / sizeof((")
+        gen_expr(v)
+        put(")[0]), ")
+        put_int(w)
+        put("))")
+        return
+    }
+    if is_place(v) {
+        put("((")
+        put_ctype(y)
+        put(")kv_int_of_bools((")
+        gen_expr(v)
+        put(").at, (")
+        gen_expr(v)
+        put(").count, ")
+        put_int(w)
+        put("))")
+        return
+    }
+    put("({ __auto_type _kv_ba = ")
+    gen_expr(v)
+    put("; ")
+    put_ctype(y)
+    put(" _kv_bn = (")
+    put_ctype(y)
+    put(")kv_int_of_bools(_kv_ba.at, _kv_ba.count, ")
+    put_int(w)
+    put("); free(_kv_ba.at); _kv_bn; })")
+}
+
+// b.flip() of a bool, b = !b, as kelvinc's #454 (#457); of a bit,
+// x.bits[k].flip(), that bit of the integer flipped (#530). x.bit(n) and
+// x.flip(n) of an integer are x.bits[n] and x.bits[n].flip(), and
+// kelvinc's errors that say so; false where n is none of them
 let gen_bit_method(n:int64):bool {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
@@ -9363,7 +9534,7 @@ let gen_bit_method(n:int64):bool {
     if !flag && (types[y].kind == Y_F64 || types[y].kind == Y_F32) {
         var m = $"'."
         m += tok_text(t)
-        m += tok_is(t, "bit") ? "' is an integer's bit, '.bit(n)', and this is " : "' is a bool's, '.flip()', or an integer's, '.flip(n)', and this is "
+        m += tok_is(t, "bit") ? "' is no more (#530): an integer's bit is 'x.bits[n]', and this is " : "' is a bool's, '.flip()', as an integer's bit is, 'x.bits[n].flip()', and this is "
         let w:String = kelvin_type_text(y)
         m += &w
         gen_error(n, m.cstr)
@@ -9371,57 +9542,39 @@ let gen_bit_method(n:int64):bool {
     }
     if !flag && !power_int(y) { return false }
     let v:int64 = nodes[n].b
-    if flag {
-        if tok_is(t, "bit") {
-            gen_error(n, "'.bit(n)' is an integer's bit, and this is a bool: a bool flips with '.flip()'")
-            return true
-        }
-        if v >= 0 {
-            gen_error(n, "'.flip()' of a bool takes nothing: it is b = !b")
-            return true
-        }
-    } else {
-        if v < 0 || nodes[v].next >= 0 {
-            var m = $"'."
-            m += tok_text(t)
-            m += "(n)' takes one bit's place, 0 to "
-            m += String(int_width(y) - 1)
-            gen_error(n, m.cstr)
-            return true
-        }
-        if !int_place_ok(v, y) { return true }
+    if !flag {
+        gen_error(n, tok_is(t, "bit") ? "'.bit(n)' is no more (#530): an integer's bit is 'x.bits[n]', a bool, set with '=', '|=', '&=' and '~='" : "'.flip(n)' of an integer is no more (#530): 'x.bits[n].flip()' flips its bit n")
+        return true
     }
-    if tok_is(t, "flip") {
-        let lead = $"'.flip' is a var method, which changes "
-        if !changes_var(a, &lead) { return true }
-        if !changeable_place(a) {
-            gen_error(n, "'.flip' is a var method, which changes the value it is called on, so that value is a variable")
-            return true
-        }
+    if tok_is(t, "bit") {
+        gen_error(n, "'.bit(n)' is no more (#530), and this is a bool: a bool flips with '.flip()'")
+        return true
     }
-    if flag {
+    if v >= 0 {
+        gen_error(n, "'.flip()' of a bool takes nothing: it is b = !b")
+        return true
+    }
+    let bit = int_bit_index(a)                          // x.bits[k].flip(): the integer is what changes
+    let x:int64 = bit ? nodes[nodes[a].a].a : a
+    let lead = $"'.flip' is a var method, which changes "
+    if !changes_var(x, &lead) { return true }
+    if !changeable_place(x) {
+        gen_error(n, "'.flip' is a var method, which changes the value it is called on, so that value is a variable")
+        return true
+    }
+    if !bit {
         put("({ bool *_kv_fp = &(")
         gen_expr(a)
         put("); *_kv_fp = !*_kv_fp; (void)0; })")
         return true
     }
-    let w:int64 = int_width(y)
-    if tok_is(t, "bit") {
-        put("((bool)((")
-        put_uint_of(w)
-        put(")(")
-        gen_expr(a)
-        put(") >> kv_int_place((uint64_t)(")
-        gen_expr(v)
-        put("), ")
-        put_int(w)
-        put(") & 1))")
-        return true
-    }
+    let xy:int64 = type_of(x)
+    if !int_place_ok(nodes[a].b, xy) { return true }
+    let w:int64 = int_width(xy)
     put("({ __auto_type _kv_ip = &(")
-    gen_expr(a)
+    gen_expr(x)
     put("); unsigned _kv_p = kv_int_place((uint64_t)(")
-    gen_expr(v)
+    gen_expr(nodes[a].b)
     put("), ")
     put_int(w)
     put("); *_kv_ip = (__typeof__(*_kv_ip))((")
@@ -9434,13 +9587,13 @@ let gen_bit_method(n:int64):bool {
     return true
 }
 
-// x.bit(n) = b, |=, &= and ~= of a bool, in the var that holds x, as
-// kelvinc's #454 (#457)
+// x.bits[k] = b, |=, &= and ~= of a bool, in the var that holds x, as
+// kelvinc's #530, #454's x.bit(n) (#457)
 let gen_int_bit_set(n:int64) {
     let lhs:int64 = nodes[n].a
     let t:int64 = nodes[n].t
     let v:int64 = nodes[n].b
-    let x:int64 = nodes[lhs].a
+    let x:int64 = nodes[nodes[lhs].a].a
     let y:int64 = type_of(x)
     if tok_is(t, ":=") {
         gen_error(n, "':=' sets a reference: a bit of an integer is set with '='")
@@ -9454,12 +9607,6 @@ let gen_int_bit_set(n:int64) {
         return
     }
     let p:int64 = nodes[lhs].b
-    if p < 0 || nodes[p].next >= 0 {
-        var m = $"'.bit(n)' takes one bit's place, 0 to "
-        m += String(int_width(y) - 1)
-        gen_error(lhs, m.cstr)
-        return
-    }
     if !int_place_ok(p, y) { return }
     if !is_place(x) {
         gen_error(n, "setting a bit of an integer changes it, so that integer is a variable")
@@ -9686,6 +9833,14 @@ let gen_bits(n:int64):bool {
             x = nodes[x].next
         }
         put(" _kv_bm; })")
+        return true
+    }
+    if k == N_FIELD && int_bits_field(n) {              // x.bits of an integer (#530)
+        gen_int_bits(n)
+        return true
+    }
+    if k == N_INDEX && int_bit_index(n) {               // x.bits[k], its bit
+        gen_int_bit_at(n)
         return true
     }
     if k == N_METHOD && (tok_is(t, "flip") || tok_is(t, "bit")) && !bit_of_bits(a) && gen_bit_method(n) { return true }   // (#457)
@@ -11981,16 +12136,24 @@ let sub_assign(n:int64):bool {
 }
 
 let gen_assign(n:int64) {
+    if int_bit_index(nodes[n].a) {                      // x.bits[k] = b and its kin (#530)
+        gen_int_bit_set(n)
+        return
+    }
+    if int_bits_field(nodes[n].a) {                     // as kelvinc says it
+        var m = $"an integer's '.bits' is a copy of its bits, an Array<bool>: a bit is set with 'x.bits[n] = b', and all of them with 'x = "
+        let w:String = kelvin_type_text(int_view(type_of(nodes[nodes[n].a].a)))
+        m += &w
+        m += "(bools)'"
+        gen_error(n, m.cstr)
+        return
+    }
     if attr_assign(n) || sub_assign(n) { return }
     let lhs:int64 = nodes[n].a
     var t:int64 = nodes[n].t
     if nodes[lhs].kind == N_FIELD && (tok_is(nodes[lhs].t, "sign") || tok_is(nodes[lhs].t, "exponent") || tok_is(nodes[lhs].t, "significand") || tok_is(nodes[lhs].t, "abs") || tok_is(nodes[lhs].t, "isNaN") || tok_is(nodes[lhs].t, "isInfinite") || tok_is(nodes[lhs].t, "isFinite")) && type_of(nodes[lhs].a) >= 0 && (power_float(type_of(nodes[lhs].a)) || power_int(type_of(nodes[lhs].a))) {
         if !may_change(lhs) { return }                  // a number's own (#381, #382, #383)
         gen_float_set(n)
-        return
-    }
-    if nodes[lhs].kind == N_METHOD && tok_is(nodes[lhs].t, "bit") && power_int(type_of(nodes[lhs].a)) {
-        gen_int_bit_set(n)                              // x.bit(n) = b and its kin (#457)
         return
     }
     if nodes[lhs].kind == N_FIELD && tok_is(nodes[lhs].t, "case") && tagged_of(type_of(nodes[lhs].a)) >= 0 {   // a tag alone would leave the value unset (#477)

@@ -102,8 +102,8 @@ bit's `bool` of an integer 0 or 1.
     a string's is; `print` shows it whole.
 - **No C bit-field:** `unsigned a : 1` is not Kelvin; a struct holds a
   `Bits` and names its flags with an enum; see [versusC.md](versusC.md).
-- **An integer's bits** are `x.bit(n)` and `x.flip(n)` (#454); see
-  [integers.md](integers.md).
+- **An integer's bits** are `x.bits`, an `Array<bool>`, `x.bits[n]` and
+  `x.bits[n].flip()` (#530); see [integers.md](integers.md).
 
 ## Where it lives
 

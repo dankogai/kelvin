@@ -267,37 +267,61 @@ let main():int32 {
   has no order.
 - A struct's field named `sign`, and an attribute of your own, win.
 
-### Bits: `.bit(n)` and `.flip(n)`
+### Bits: `.bits`
 
 ```swift
 let main():int32 {
     var x:u8 = 0b101
-    x.flip(1)                                 // 0b111
-    x.bit(7) = true                           // 0b10000111
-    x.bit(0) &= false                         // 0b10000110
+    x.bits[1].flip()                          // 0b111
+    x.bits[7] = true                          // 0b10000111
+    x.bits[0] &= false                        // 0b10000110
     let k:i32 = 6
-    println(x, " ", x.bit(7), " ", k.bit(0), " ", 5.bit(2))   // 134 true false true
+    println(x, " ", x.bits[7], " ", k.bits[0], " ", 5.bits[2])   // 134 true false true
+    var bs = x.bits                           // its 8 bools, an Array<bool>
+    println(bs, " ", u8(bs), " ", u8([false, true]))   // [false, true, true, false, false, false, false, true] 134 2
     return 0
 }
 ```
 
-- **`x.bit(n)`** of an integer, `i8` to `u128`, is its bit `n`, a
-  `bool`, 0 the lowest (#454), as a `Bits`'s `bv[n]`; see
+- **`x.bits[n]`** of an integer, `i8` to `u128`, is its bit `n`, a
+  `bool`, 0 the lowest (#530), as a `Bits`'s `bv[n]`; see
   [bits.md](bits.md).
   - It is set with `=`, `|=`, `&=` and `~=` (xor), and a `bool`:
-    `x.bit(n) = !!k` of an integer 0 or 1; an integer is no bit.
-  - A signed integer's highest bit is its sign: `n.bit(63) = false` of
+    `x.bits[n] = !!k` of an integer 0 or 1; an integer is no bit.
+  - A signed integer's highest bit is its sign: `n.bits[63] = false` of
     an `i64` -1 is the `i64`'s most.
-- **`x.flip(n)`** flips bit `n`, in the var that holds `x`: a `let` is
-  an error, and so is a value an expression gives.
+  - It reads and sets the bit where it is: no Array is made.
+- **`x.bits[n].flip()`** flips bit `n`, in the var that holds `x`, as a
+  `bool`'s `b.flip()`: a `let` is an error, and so is a value an
+  expression gives.
 - **`n`** is 0 to the width less 1, 0 to 31 of an `i32`: a literal past
   it is an error, and a value past it ends the program, as a `Bits`'s
   place does. It is an integer of 64 bits or fewer, or an enum's value,
   so the bits may have names.
-- An enum's value has both, as an `i32`'s, C's int (#469):
-  `LIMIT.bit(2)`; see [enums.md](enums.md).
-- A floating-point number has neither; a `bool` flips with `b.flip()`,
-  see [bool.md](bool.md).
+- **`x.bits`** alone is its bits as bools, an `Array<bool>` of its
+  width, place 0 first: 8 of a `u8`, 64 of an `i64`.
+  - It is a copy, a new Array each time: `var bs = x.bits` owns it, and
+    changing `bs` leaves `x`.
+  - It is walked, counted and printed as any Array is:
+    `for b in x.bits`, `x.bits.count`, `println(x.bits)`.
+  - It is not set whole: `x.bits = bs` is an error that names
+    `x.bits[n] = b` and `x = u8(bs)`.
+  - Arithmetic has C's width: `(x + 1).bits` of a `u8` is 32 bools, as
+    `x + 1` is C's `int`; a literal alone is an `i64`, 64.
+- **`T(bools)`** of an integer type is the way back (#530): the bools
+  are its bits, place 0 first, the bits past them 0, so `u8(x.bits)` is
+  `x`.
+  - It takes a `[bool]` written, `u8([false, true])`, a fixed array of
+    bools, or an `Array<bool>`.
+  - More bools than T's width end the program: `u8(bs)` of 9 bools.
+  - A signed T's highest bit is its sign: `i8(n.bits)` is `n`.
+- An enum's value has `.bits`, as an `i32`'s, C's int (#469):
+  `LIMIT.bits[2]`; see [enums.md](enums.md).
+- A floating-point number has none, and its fields are `.sign`,
+  `.exponent` and `.significand`; a `bool` flips with `b.flip()`, see
+  [bool.md](bool.md).
+- **`x.bit(n)` and `x.flip(n)`**, #454's, are gone with #530: each is
+  an error that names `x.bits[n]` or `x.bits[n].flip()`.
 
 ## Where it lives
 
@@ -312,8 +336,10 @@ The core. Integers are kelvinc's own, written as C's types, with nothing linked.
 | integers | `b ** e` | `b` to the power `e`, of `b`'s promoted type, wrapping; `e` never negative (#380) |
 | | `.pow(e)` | `b ** e` (#380) |
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |
-| | `.bit(n)` | bit `n`, a `bool`, set with `=`, `\|=`, `&=` and `~=` (#454) |
-| | `.flip(n)` | bit `n` flipped, in the var that holds it (#454) |
+| | `.bits` | its width of bools, an `Array<bool>`, place 0 first, a copy (#530) |
+| | `.bits[n]` | bit `n`, a `bool`, set with `=`, `\|=`, `&=` and `~=` (#530) |
+| | `.bits[n].flip()` | bit `n` flipped, in the var that holds it (#530) |
+| | `T(bools)` | the integer of a `[bool]`'s bools, place 0 first: `u8(x.bits)` is `x` (#530) |
 | | `.size` | `sizeof`, a `size_t` |
 | | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |

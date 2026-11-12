@@ -604,6 +604,17 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An integer's `.bits`** (#530), as kelvinc's: `x.bits`, its width of
+  bools, a new `Array<bool>`, place 0 first, held and freed as `s.elements`
+  is; `x.bits[n]`, its bit, read and set with `=`, `|=`, `&=` and `~=`
+  where it is, and `x.bits[n].flip()`; an enum's value an `i32`'s.
+  - `T(bools)` of an integer type reads a `[bool]` written, a fixed
+    array or an `Array<bool>` through the prelude's kv_int_of_bools.
+  - `x.bit(n)` and `x.flip(n)`, #457's, are kelvinc's errors that name
+    the new forms; the entries before this one that name them are of
+    their time.
+  - kelvinc's `(x + 1).bits` takes kc's width, C's: 32 bools of a `u8`.
+  - Not yet: `bs.u8`, as kc has no `v.T` of any value.
 - **An enum with values prints as it is written** (#529), as kelvinc's:
   its printer writes the enum's name before the case, `num.n(1.5)`,
   `CodepointError.empty`, a nested one's path, `shape.kind.round`, so

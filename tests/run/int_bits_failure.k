@@ -1,10 +1,10 @@
-// an integer's bit place is 0 to its width less 1 (#454): past it the
+// an integer's bit place is 0 to its width less 1 (#454, #530): past it the
 // program ends, as a Bits's does
 let main():int32 {
     var x:i32 = 0
     var k = 32
     println("before")
-    x.flip(k)
+    x.bits[k].flip()
     println("never ", x)
     return 0
 }

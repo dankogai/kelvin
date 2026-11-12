@@ -9973,3 +9973,26 @@ kc's printer write the name; an Optional and a Result stay `some(v)`,
 output changed by the names alone. Details are provisional P541.
 
 There are 1274 tests, and all pass with clang and with gcc 15.
+
+### 577. An integer's bits are `x.bits`
+
+> Now that we have BigInt in the prelude, we can and should refactor `Bits`.
+>
+> * add `.bits` to every integer type including `BigInt` that returns `[Bool]` when assigned to a variable.
+> * `.bits[n]` is both getter and setter.
+> * and `.bits[n].flip()` works.
+> * We may no longer need `Bits` with this change and if we still do, its internal should be implemented on `BigInt` rather than `[u64]`.
+
+**Claude** pushed #529, and CI passed. Asked, the user chose to remove
+`Bits`, to remove #454's `x.bit(n)` and `x.flip(n)`, a BigInt's `.bits`
+in two's complement to its sign bit, and `T(bools)` converters as the way
+back. Claude split the work in three: #530 the integers', #531 BigInt's,
+#532 `Bits` gone. Here an integer's `x.bits` is its width of bools, an
+`Array<bool>`, place 0 first, a copy; `x.bits[n]` is its bit, read and
+set where it is, and `x.bits[n].flip()` flips it; `u8(bs)` of a `[bool]`
+is the integer, more bools than its width ending the program. `x.bit(n)`
+and `x.flip(n)` are errors that name the new forms. kelvinc and kc read
+the same, and kelvinc's `(x + 1).bits` takes C's width, as kc's did.
+Details are provisional P542.
+
+There are 1283 tests, and all pass with clang and with gcc 15.

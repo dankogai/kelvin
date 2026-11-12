@@ -1,21 +1,22 @@
-// b.flip() of a bool; x.flip(n) and x.bit(n) of an integer, its bit n a
-// bool, set with =, |=, &= and ~=; bv[n].flip() of a Bits (#454)
+// b.flip() of a bool (#454); x.bits[n] of an integer, its bit n a bool,
+// set with =, |=, &= and ~=, and x.bits[n].flip() (#530); bv[n].flip() of
+// a Bits
 enum flag { ready, busy, done }
 struct holder { x: i32; on: bool }
 let main():int32 {
     var b = true
     b.flip()                                  // b = !b
     var x:i32 = 5
-    x.flip(1)                                 // 0b101 to 0b111
+    x.bits[1].flip()                                 // 0b101 to 0b111
     var u:u8 = 0
-    u.bit(7) = true
-    u.bit(0) |= true
-    u.bit(7) &= false
-    u.bit(3) ~= true                          // 0b1001
+    u.bits[7] = true
+    u.bits[0] |= true
+    u.bits[7] &= false
+    u.bits[3] ~= true                          // 0b1001
     var n:i64 = -1
-    n.bit(63) = false                         // the sign bit
+    n.bits[63] = false                         // the sign bit
     var h:holder = {0, false}
-    h.x.bit(31) = true
+    h.x.bits[31] = true
     h.on.flip()
     var bs = Bits(u8(0))
     bs[busy].flip()                           // bs.flip(busy)
@@ -23,10 +24,10 @@ let main():int32 {
     var flags = $[true, false]
     flags[1].flip()
     var big:u128 = 1
-    big.flip(127)
+    big.bits[127].flip()
     let k:i32 = 6
     println(b, " ", x, " ", u, " ", n, " ", h.x, " ", h.on, " ", bs, " ", flags)
-    println(big.bit(127), " ", big.bit(0), " ", k.bit(1), " ", k.bit(0), " ", 5.bit(2), " ", x.bit(busy), " ", (k + 1).bit(0))
+    println(big.bits[127], " ", big.bits[0], " ", k.bits[1], " ", k.bits[0], " ", 5.bits[2], " ", x.bits[busy], " ", (k + 1).bits[0])
     return 0
 }
 // out: false 7 9 9223372036854775807 -2147483648 true Bits("0b00001010") [true, true]

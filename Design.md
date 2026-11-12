@@ -578,6 +578,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 527 | A codepoint is a `u32`, the first of uchr's removal, split in two as the user chose: `s.codepoints` is an `Array<u32>` and `for c in s.codepoints` gives each a `u32`; UnicodeData's `extend uchr` is `extend u32`, `.name`, `.category`, `.upper` a `u32` and the rest, on a u32 only, as the user chose; the runtime, JSON, SION, kc and the quine no longer use `.uchr`, as `s += n` appends a codepoint | modules/UnicodeData.k, runtime/string.k, runtime/bytes.k, modules/JSON.k, modules/SION.k, src/parser.c, selfhost/gen.k, selfhost/lex.k, selfhost/kc.k, selfhost/parse.k, selfhost/sample.k, examples/quine.k, examples/lambda.k, documents/unicodedata.md, strings.md, ownership.md, versusC.md; README.md, selfhost/README.md | tests/run/string_codepoints.k, unicode_basics.k, unicode_prelude.k, regexp_unicode.k, unicode_graphemes.k, uchr.k | 2026-11-12 |
 | 528 | uchr is no more, the second of its removal: the word is an error in kelvinc's and kc's lexers, as the user chose, that names a `u32`, `s.codepoints[0]`, `s += n` and `grapheme(n)`; `.utf32` and `.codepoint` of a number say a codepoint is the number; kelvinc's and kc's uchr code goes, and, as the user chose, the runtime's `kv_uchr`, `KV_UCHR_OF` and their functions; a String walked by codepoint gives each a u32 | src/lexer.c, src/parser.c, src/codegen.c, modules/kelvin_prelude.h, runtime/unicode.c, runtime/string.c, selfhost/lex.k, selfhost/parse.k, selfhost/gen.k, selfhost/sample.k, examples/lambda.k, examples/ski.k, editors/vscode, documents/strings.md, ownership.md, arrays.md, properties.md, printing.md, c-contract.md, and others; README.md, selfhost/README.md | tests/error/uchr_gone.k, tests/error/uchr_loop_gone.k, tests/error/utf32_of_number.k; 13 tests of uchr removed, 16 changed | 2026-11-12 |
 | 529 | An enum with values prints as its value is written, as the user chose, so that the text pastes back: the case after the enum's name, `num.n(1.5)`, `err(CodepointError.surrogate(55296))`, a nested one's by its path, `shape.kind.round`; by print, `.cstr`, templates and `.pretty`, in kelvinc and kc; an untagged one and Optionals and Results stay bare | src/codegen.c, selfhost/gen.k, documents/printing.md, enums.md, json.md, unicodedata.md; README.md, selfhost/README.md | tests/run/enum_paste_back.k; 18 tests' expected output | 2026-11-12 |
+| 530 | An integer's `x.bits`, as the user asked: its width of bools, an `Array<bool>`, place 0 first, a copy; `x.bits[n]` its bit `n`, a bool, read and set with `=`, `\|=`, `&=` and `~=` where it is; `x.bits[n].flip()`; `T(bools)` of an integer type the way back, of a `[bool]` written, a fixed array or an `Array<bool>`, more bools than its width ending the program; `x.bit(n)` and `x.flip(n)`, #454's, errors that name them, as the user chose; an enum's value an `i32`'s; `(x + 1).bits` of C's width; kelvinc and kc | src/parser.c's int_bits, int_bit_at, bits_number_type, bit_method, convert; src/codegen.c's bit_int_bits, bit_int_of_bools; the prelude's kv_int_of_bools; selfhost/gen.k's int_bits_field, int_bit_index, gen_int_bits, gen_int_bit_at, gen_int_of_bools, gen_bit_method; selfhost/sample.k; documents/integers.md, bits.md, bool.md, enums.md, README.md; README.md, selfhost/README.md | `x.bits[7] = true`, `u8(x.bits)`; tests/run/int_bits_array.k, int_of_bools_failure.k; tests/error/int_bit_gone.k, int_flip_gone.k, bool_bits.k, float_bits.k, int_bits_set.k, int_of_bools_base.k, int_of_bools_item.k | 2026-11-12 |
 
 Notes:
 
@@ -1162,6 +1163,46 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (530) Agreed details: "Now that we have BigInt in the prelude, we can
+  and should refactor `Bits`": `.bits` of every integer type and of
+  BigInt, a `[Bool]` when assigned to a variable; `.bits[n]` "both getter
+  and setter"; `.bits[n].flip()`; and `Bits` perhaps no longer needed, or
+  else on BigInt, not `[u64]`.
+  - Asked, the user chose to remove `Bits`, an error naming the new
+    forms as uchr's is: a flag set is an integer or a BigInt, a counted
+    vector of bits an `Array<bool>`.
+  - Asked, the user chose to remove `x.bit(n)` and `x.flip(n)`, #454's,
+    each an error that names `x.bits[n]` or `x.bits[n].flip()`; a bool's
+    `b.flip()` stays.
+  - Asked, the user chose a BigInt's `.bits` in two's complement to its
+    sign bit, the last bool the sign: 5n `[true, false, true, false]`,
+    -1n `[true]`; `b.bits[n]` past it reads the sign, and setting there
+    grows it.
+  - Asked, the user chose `T(bools)` converters as the way back:
+    `u8(bs)`, `i64(bs)`, `BigInt(bs)`, place 0 first, so `u8(x.bits)`
+    is `x`; more bools than an integer's width end the program.
+  - In three numbers: #530 the integers', here; #531 BigInt's `.bits`
+    and `BigInt(bools)`; #532 `Bits` gone.
+  - `x.bits` is an `Array<bool>` of the integer's width, a copy made
+    each time; `x.bits[n]`, its setting and its `.flip()` are #454's
+    code by the new spelling, the bit where it is, no Array made.
+  - `x.bits = bs` is an error that names `x.bits[n] = b` and
+    `x = u8(bs)`: the Array is a copy, which a setter would hide.
+  - `T(bools)` takes a `[bool]` written, `u8([false, true])`, each item
+    a bool, an integer there an error; a fixed array; an `Array<bool>`,
+    one an expression gives freed. Fewer bools than the width leave the
+    high bits 0; a signed T's highest bit is its sign. A base is an
+    error.
+  - Found on the way: kelvinc took `(x + 1)` of a `u8` for an `i64`, 64
+    bits, and kc for C's `int`, 32, as `.size` says; kelvinc's
+    bits_number_type gives an integer literal in arithmetic the other
+    side's type, as kc's arith_type does.
+  - An enum's value has `.bits` as an `i32`'s (#469), and its constant
+    never changes.
+  - Not here, each there before: kc has no `v.T`, so `bs.u8` is
+    kelvinc's; kc reads no `.pretty` of an Array an expression gives;
+    `.cstr` of such an Array is a C error in kelvinc and kc's error.
 
 - (529) Agreed details: "go on with the enum paste-back fix"
   - #526 found that an enum with values printed its case bare,
@@ -8476,6 +8517,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P539 | Details of #527 | A codepoint is a `u32`: `s.codepoints` an `Array<u32>`, `for c in s.codepoints` each a `u32`; UnicodeData's properties of `extend u32`, on a u32 only; kc's recv_tok of u32 | provisional |
 | P540 | Details of #528 | uchr removed: the lexers' error naming the `u32` form; `.utf32`/`.codepoint` of a number an error; `kv_uchr` and its functions gone from the runtime; a codepoint walk's element a u32 | provisional |
 | P541 | Details of #529 | An enum with values printed qualified, `T.case(v)`, a nested one by its path; untagged ones, Optionals and Results bare; kelvinc's tagged_prefix, kc's qual in its printer | provisional |
+| P542 | Details of #530 | An integer's `.bits` an `Array<bool>` of its width, a copy; `x.bits[n]` and its `.flip()` in place; `T(bools)` ending the program past T's width; `x.bits = bs` an error; `x.bit(n)` and `x.flip(n)` errors; arithmetic with a literal of C's width; kelvinc's int_bits and bits_number_type, kc's int_bits_field | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

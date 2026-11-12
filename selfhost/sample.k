@@ -977,13 +977,17 @@ let main(argc:int32, argv:[cstr]):int32 {
     for bit in bgrow { if bit { bones += 1 } }
     let bcopy = bgrow.copy()
     println(bgrow.count, " ", bgrow.capacity, " ", bones, " ", bgrow.bin, " ", bcopy == bgrow, " ", Bits().isEmpty, " ", Bits(bits_text))
-    var bit_flag = true                               // a bool's flip, an integer's bits (#454, #457)
+    var bit_flag = true                               // a bool's flip (#454, #457), an integer's bits (#530)
     bit_flag.flip()
     var bit_word:u8 = 0b101
-    bit_word.flip(1)
-    bit_word.bit(7) = true
-    bit_word.bit(0) &= false
-    println(bit_flag, " ", bit_word, " ", bit_word.bit(7), " ", bones.bit(1), " ", (bones + 1).bit(0))
+    bit_word.bits[1].flip()
+    bit_word.bits[7] = true
+    bit_word.bits[0] &= false
+    println(bit_flag, " ", bit_word, " ", bit_word.bits[7], " ", bones.bits[1], " ", (bones + 1).bits[0])
+    let bit_bools = bit_word.bits                     // its width of bools, an Array<bool>, and the way back
+    var bit_ones = 0
+    for bit in bit_word.bits { if bit { bit_ones += 1 } }
+    println(bit_bools, " ", bit_ones, " ", u8(bit_bools), " ", i16(bit_word.bits), " ", u8([false, true, true]), " ", (bit_word + 1).bits.count)
     var cf_lo:int32 = 1, cf_hi:int32 = 9               // several declarators, C's for and comma (#458)
     var cf_sum:int64 = 0
     for (var i = 0, j = 4; i < j; i += 1, j -= 1) cf_sum += (i * j) as int64
@@ -1249,7 +1253,7 @@ on a new line`
     println(n8, " ", n16, " ", u16v, " ", u64v, " ", n128, " ", u128v)
     println(n8.typename, " ", u128v.typename, " ", n8.size, " ", u128v.size)
     println(n8.abs, " ", n16.sign, " ", (n8 * 100).abs, " ", (-n8).size)
-    println(n8.hex, " ", u16v.bin, " ", n128.hex, " ", u128v.bit(127), " ", u8("ff", 16), " ", u64("7"))
+    println(n8.hex, " ", u16v.bin, " ", n128.hex, " ", u128v.bits[127], " ", u8("ff", 16), " ", u64("7"))
     println(`${n8} ${u64v} ${n128} ${u128v}`)
     println(num_wide(n8), " ", num_wide(u64v), " ", num_wide(n128), " ", (0x1p4).typename, " ", 0x1p4)
     let r64:Range<u64> = 1...3

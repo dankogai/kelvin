@@ -59,7 +59,7 @@ floats in [floatingpoint.md](floatingpoint.md).
   `b`: a `let` is an error, and `.flip()` takes nothing.
   - `bv[n].flip()` of a `Bits` is `bv.flip(n)`, its bit flipped in the
     `Bits`; see [bits.md](bits.md).
-  - An integer's bits are `x.bit(n)` and `x.flip(n)`; see
+  - An integer's bit flips the same way, `x.bits[n].flip()` (#530); see
     [integers.md](integers.md).
 
 ## Where it lives
