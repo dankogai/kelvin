@@ -218,7 +218,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     BigInt.kh             the prelude's BigInt (#507, bigint.md), built by make from BigInt.k
     kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
-    Rational.k            #import <Rational> (#538, #539, rational.md): rat64 to rat8, n.over(d)
+    Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, bigrat, n.over(d)
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -276,8 +276,9 @@ grapheme cluster: see [regexp.md](regexp.md).
 
 `#import <Rational>` brings in rational numbers (#538): `rat64`, two
 `i64`s in lowest terms, made by `n.over(d)`, with exact arithmetic and
-a float's infinities and NaN, and `rat32`, `rat16` and `rat8` of the
-narrower integers (#539): see [rational.md](rational.md).
+a float's infinities and NaN, `rat32`, `rat16` and `rat8` of the
+narrower integers (#539), and `bigrat` of two `BigInt`s (#540): see
+[rational.md](rational.md).
 
 ### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
 

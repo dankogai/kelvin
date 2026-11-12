@@ -432,3 +432,5 @@ So far the changes from C are these, by topic.
   - `rat32`, `rat16` and `rat8` are the same of `i32`s, `i16`s and
     `i8`s; only signed integers have `.over`, and two widths do not
     mix: `rat64(r)` converts (#539)
+  - `bigrat` is of two `BigInt`s, a fraction of any precision:
+    `1n.over(3n)` is `(1n/3n)`, and every result fits (#540)

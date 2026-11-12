@@ -107,6 +107,8 @@ names it has it, with no import.
   - The low 64 bits are `(b & 0xffffffffffffffffn).u64`.
   - `b.exactI64` and `b.exactU64` (#511) are an `i64?` and a `u64?`:
     `some` where `b` fits, else `none`, as Swift's `Int(exactly:)`.
+- **A fraction** of two BigInts is a `bigrat`, `1n.over(3n)`, of
+  `#import <Rational>` (#540); see [rational.md](rational.md).
 - **kc** builds a program that uses it, as kelvinc does (#515), its
   `+=` in place too (#518), and its bits (#531).
 

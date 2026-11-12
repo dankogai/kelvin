@@ -588,6 +588,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 537 | kc picks an overloaded function by the function type written where its name goes, as kelvinc does (#41): a declaration's, `let h:(i64):i64 := over`, a global's, an assignment's target, `v := over`, a parameter's, `apply(over, 2)`, also of a call through a function value, and a result's, `return over`; with no overload of that type kelvinc's error, "no function 'over' is (u8):u8: ..."; kc said "'over' names 2 functions: say which by its type" of the very form that message names. A global that holds a function's name has the function declared before it in kc's C, which was C's error of any function | selfhost/gen.k's pick_overload, pick_call_args, fn_picked, overloads_of, fn_of_type, named_fn_type, gen_fn_value, gen_var, gen_assign, gen_return, the globals; selfhost/sample.k; selfhost/README.md | `let h:(f64):f64 := over`; tests/run/overload_by_type.k; tests/error/overload_no_type.k | 2026-11-12 |
 | 538 | `#import <Rational>`, rational numbers, the first of three: `rat64`, `{num: i64; den: i64}`, in lowest terms, the denominator 0 or more; `n.over(d)` of two `i64`s makes one, and `rat64(n, d)`; `+ - * /` and prefix `-`, of two and with an integer, exact in 128 bits; `== != < <= > >=`; text `(num/den)`, `(-1/3)`, and `.hex`, `.oct`, `.bin` `(num.hex/den.hex)`; a denominator of 0 an infinity, `(1/0)` and `(-1/0)`, `(0/0)` a NaN that equals nothing, `.isNaN`, `.isInfinite`, `.isFinite`, as a float's; a result that does not fit an `i64` a NaN; `.f64`. kelvinc: a method of an `i64` called on a literal or on arithmetic of literals, `1.over(3)`, `(1 << 40).twice()`, takes it as the `i64` it is, where C read an `int` and it was C's error | modules/Rational.k; src/parser.c's method call of a literal receiver; documents/rational.md, modules.md, README.md; README.md; editors/vscode | `1.over(3) + 1.over(6)` is `(1/2)`; tests/run/rational.k, rational_special.k, literal_method.k | 2026-11-12 |
 | 539 | `rat32`, `rat16` and `rat8`, the second of #538's three: a numerator over a denominator of two `i32`s, `i16`s and `i8`s, with `rat64`'s arithmetic, comparisons, text, `.hex`, `.f64` and its infinities and NaN; `n.over(d)` of `i32`, `i16` and `i8` makes one, and `rat8(n, d)`; only signed integers, an unsigned one has no `.over`; what does not fit the width's integers a NaN; two widths do not mix, `rat64(r)`, `rat32(r)`, `rat16(r)` and `rat8(r)` convert, a NaN where the narrower does not hold it. kelvinc: a number or a struct it sees that has no method of a name another type has is its error, `u8 has no method 'over': ...`, where it was C's of `kv_no_such_method` | modules/Rational.k; src/parser.c's method call; documents/rational.md, structs.md, modules.md, README.md; README.md; editors/vscode | `rat8(1, 3) + rat8(1, 6)` is `(1/2)`; tests/run/rational_widths.k; tests/error/rational_unsigned.k, rational_mixed.k; tests/error/method_missing.k's error now Kelvin's | 2026-11-12 |
+| 540 | `bigrat`, the third of #538's three: a rational of two `BigInt`s, `{num: BigInt; den: BigInt}`, a fraction of any precision, which every result fits; `1n.over(3n)` and `1n.over(3)` of a BigInt make one, and `bigrat(n, d)` of BigInts or integers; `rat64`'s arithmetic, with a BigInt or an integer on either side, its comparisons, its infinities and NaN; text `(1n/3n)`, its parts as a BigInt shows, and `.hex` `(+0x1n/+0x3n)`; `.f64` of any size, `inf` past an f64's range and 0 below it; `bigrat(r)` of a rational of integers, and `rat64(r)` to `rat8(r)` of a bigrat, a NaN where it does not fit; an owner, as a struct of owners is | modules/Rational.k; documents/rational.md, bigint.md, modules.md, README.md; README.md; editors/vscode | the sum of `1n.over(i)` for 1 to 30 is `(9304682830147n/2329089562800n)`; tests/run/rational_big.k; tests/error/rational_unsigned.k names BigInt too | 2026-11-12 |
 
 Notes:
 
@@ -1172,6 +1173,28 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (540) Agreed details: "push and go on with #540"
+  - The third of #538's three: `bigrat` with `{num:BigInt; den:BigInt}`,
+    which the user called versatile, "an arbitorary precision fraction
+    number".
+  - Its text is `(1n/3n)`: `(num/den)` as specified, each part as a
+    BigInt shows, the user's rule of #509 that a BigInt's text has its
+    `n` everywhere. Claude's reading; `(1/3)` was the other.
+  - Nothing of a bigrat fails to fit, so its only NaN is `(0n/0n)` and
+    what reckons to it; the infinities are `(1n/0n)` and `(-1n/0n)`.
+  - `n.over(d)` of a BigInt takes a BigInt or an i64, as BigInt's own
+    methods do; an operator takes a bigrat and a bigrat, a BigInt or an
+    i64, on either side.
+  - `.f64` takes 66 bits of the quotient by shifting, then scales back
+    by halves or doubles, so that it holds where `num.f64 / den.f64`
+    would be `inf / inf`.
+  - It converts with the rationals of integers both ways, as they do
+    with each other (#539).
+  - kelvinc's error of #539 names BigInt among the types that have
+    `.over`, and tests/error/rational_unsigned.k follows.
+  - modules/Rational.k is written out by a script of Claude's, kept
+    out of the repository; the module is the source.
 
 - (539) Agreed details: "push and go on with #539"
   - Asked what `n.over(d)` of an unsigned integer gives, the user
@@ -8771,6 +8794,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P549 | Details of #537 | kc's pick of an overload by a written function type in kelvinc's places and no others; kelvinc's error of no overload of the type; `let h := over` kc's own words; a global's function declared before it; an argument of an overloaded function's call not picked | provisional |
 | P550 | Details of #538 | Rational's text `(num/den)`, the stated exception to pasting back; what does not fit a NaN; lowest terms, `(0/1)`, `(n/1)`, `(1/0)`, `(-1/0)`, `(0/0)`; a NaN unequal to itself; `.f64`; the split #538 rat64, #539 rat8 to rat32, #540 bigrat; kelvinc's literal receiver an i64; kc not reading the module | provisional |
 | P551 | Details of #539 | `.over` of the signed integers alone, Claude's reading of the user's "only signed integers"; no mixing of widths, `ratN(r)` converting with a NaN where it does not fit; an integer of another width converted as C's; kelvinc's error of a method a seen type has not, `method_missing.k` following it | provisional |
+| P552 | Details of #540 | bigrat's text `(1n/3n)`, a BigInt's `n` kept, Claude's reading; `.over` of a BigInt taking a BigInt or an i64; operators with a BigInt or an i64; `.f64` by 66 bits of the quotient; conversions both ways with the rationals of integers | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

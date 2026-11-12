@@ -10164,3 +10164,19 @@ method of the name, and which types have. #540 is `bigrat`. Details are
 provisional P551.
 
 There are 1310 tests, and all pass with clang and with gcc 15.
+
+### 587. `bigrat`
+
+> push and go on with #540
+
+**Claude** pushed #539, and CI passed. `bigrat` is a rational of two
+BigInts, a fraction of any precision: `1n.over(3n)` makes one, every
+result fits, and the sum of `1n.over(i)` for 1 to 30 is
+`(9304682830147n/2329089562800n)`. It has `rat64`'s arithmetic, with a
+BigInt or an integer on either side, its comparisons, its infinities and
+its NaN; its text is `(1n/3n)`, each part as a BigInt shows; `.f64` holds
+at any size; and it converts with the rationals of integers both ways.
+With it the Rational module the user asked for is whole: `rat8` to
+`rat64` and `bigrat`. Details are provisional P552.
+
+There are 1311 tests, and all pass with clang and with gcc 15.
