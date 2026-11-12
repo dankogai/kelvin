@@ -384,7 +384,7 @@ hello! [3, 1, 2, 4] 4
 - **`return` and passing** move an owner
 - **`=` never copies**: write `.copy()`, or borrow with `&`
 
-<!-- notes: String, Bytes, Array, Dictionary, Set and Bits live on the heap. There is no garbage collector and no hidden copy. It compiles to C's cleanup attribute and plain calls. -->
+<!-- notes: String, Bytes, Array, Dictionary and Set live on the heap. There is no garbage collector and no hidden copy. It compiles to C's cleanup attribute and plain calls. -->
 
 ---
 

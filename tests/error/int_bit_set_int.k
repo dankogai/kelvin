@@ -1,4 +1,4 @@
-// an integer's bit is set with a bool, as a Bits's is (#454, #530)
+// an integer's bit is set with a bool (#454, #530)
 let main():int32 {
     var x:i32 = 0
     x.bits[1] = 1

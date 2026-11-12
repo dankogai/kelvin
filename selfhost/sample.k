@@ -958,25 +958,23 @@ let main(argc:int32, argv:[cstr]):int32 {
         }
     }
     println(fell)
-    var bset = Bits(0)                                // Bits, each bit a bool by its place (#387), 64 of an i64 (#455)
-    bset[dark] = true
-    bset[1] = !!1
-    bset[1] |= false
-    bset.flip(2)
-    let bmask = Bits(12)
+    var bset:u64 = 0                                  // an integer's bits, each a bool by its place (#530); Bits (#387) is no more (#532)
+    bset.bits[dark] = true
+    bset.bits[1] = !!1
+    bset.bits[1] |= false
+    bset.bits[2].flip()
+    let bmask:u64 = 12
     bset <<= 1
-    println(bset, " ", bset[7], " ", Bits(u8(5)), " ", bset & bmask, " ", bset | bmask)
+    println(bset, " ", bset.bits[7], " ", u8(5).bits, " ", bset & bmask, " ", bset | bmask)
     println(bset ~ bmask, " ", ~bmask == bmask, " ", bset >> 2, " ", 1 << 3)
-    let bits_text = $"0b101"
-    var bgrow = Bits(-1, u8(1), true, "0b10", [true, false], &bits_text)   // past 64 bits, of each kind (#455, #456)
-    bgrow.append(i32(-1))
-    bgrow.append([false, true])
-    bgrow.capacity(300)
-    bgrow[dark].flip()
+    var bgrow = BigInt([true, false, true, true, false])   // past 64 bits, a BigInt's (#531)
+    bgrow.bits[100] = true
+    bgrow.bits[dark].flip()
+    let bgrow_bits = bgrow.bits
     var bones = 0
-    for bit in bgrow { if bit { bones += 1 } }
-    let bcopy = bgrow.copy()
-    println(bgrow.count, " ", bgrow.capacity, " ", bones, " ", bgrow.bin, " ", bcopy == bgrow, " ", Bits().isEmpty, " ", Bits(bits_text))
+    for bit in bgrow_bits { if bit { bones += 1 } }
+    let bcopy = BigInt(bgrow_bits)
+    println(bgrow, " ", bgrow_bits.count, " ", bones, " ", bcopy == bgrow, " ", 0n.bits, " ", (-1n).bits)
     var bit_flag = true                               // a bool's flip (#454, #457), an integer's bits (#530)
     bit_flag.flip()
     var bit_word:u8 = 0b101
@@ -1257,9 +1255,8 @@ on a new line`
     println(`${n8} ${u64v} ${n128} ${u128v}`)
     println(num_wide(n8), " ", num_wide(u64v), " ", num_wide(n128), " ", (0x1p4).typename, " ", 0x1p4)
     let r64:Range<u64> = 1...3
-    let wide_bits = Bits(n8, u16v)
     println(r64, " ", r64.count, " ", r64.count.typename)
-    println($[n8, n8], " ", $[u64v], " ", wide_bits.u64s, " ", n8.size.typename, " ", (num_pack){1, 2, 3, 4})
+    println($[n8, n8], " ", $[u64v], " ", u16v.bits.count, " ", n8.size.typename, " ", (num_pack){1, 2, 3, 4})
     let at_r:at_rect = {2.0, 3.0}                        // attributes (#473)
     if at_r.big { println(at_r.area, " ", at_r.doubled, " ", at_r.twice, " ", at_r.twice.area) }
     var at_t:at_temp = {300.0}

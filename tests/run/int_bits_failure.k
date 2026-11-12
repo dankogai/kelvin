@@ -1,5 +1,5 @@
 // an integer's bit place is 0 to its width less 1 (#454, #530): past it the
-// program ends, as a Bits's does
+// program ends, as an index past an Array's count does
 let main():int32 {
     var x:i32 = 0
     var k = 32

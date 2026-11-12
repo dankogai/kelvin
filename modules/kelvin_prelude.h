@@ -202,43 +202,6 @@ void kv_print_string(kv_string s);
 void kv_fprint_string(void *fp, kv_string s);
 uint8_t *kv_cstr_string(kv_string s, uint8_t *buf);
 char *kv_template_string(char *p, size_t max, kv_string s);
-/* Bits (#387, #455): bits in u64s on the heap, each a bool by its place,
-   0 the lowest bit of at[0]; count is in bits, cap in u64s. An owner, as
-   a Bytes is: runtime/bits.c. Shown as Bits("0b..."), which pastes back */
-typedef struct kv_bits { uint64_t *at; size_t count, cap; } kv_bits;
-kv_bits kv_bits_new(void);
-kv_bits kv_bits_copy(const kv_bits *b);
-kv_bits kv_bits_take(kv_bits *b);
-void kv_bits_free(kv_bits *b);
-void kv_bits_assign(kv_bits *b, kv_bits v);
-void kv_bits_discard(kv_bits v);
-void kv_bits_reserve(kv_bits *b, int64_t n);
-void kv_bits_push(kv_bits *b, bool v);
-#ifdef __SIZEOF_INT128__
-void kv_bits_push_int(kv_bits *b, unsigned __int128 v, unsigned w);
-#endif
-void kv_bits_push_bools(kv_bits *b, const bool *p, size_t n);
-void kv_bits_push_text(kv_bits *b, const void *s, size_t n);
-void kv_bits_push_cstr(kv_bits *b, const void *s);
-bool kv_bits_at(const kv_bits *b, int64_t n);
-void kv_bits_put(kv_bits *b, int64_t n, bool v);
-void kv_bits_or(kv_bits *b, int64_t n, bool v);
-void kv_bits_and(kv_bits *b, int64_t n, bool v);
-void kv_bits_xor(kv_bits *b, int64_t n, bool v);
-void kv_bits_flip(kv_bits *b, int64_t n);
-void kv_bits_with(kv_bits *a, const kv_bits *b, char op);
-kv_bits kv_bits_op(const kv_bits *a, const kv_bits *b, char op);
-kv_bits kv_bits_not(const kv_bits *a);
-void kv_bits_shl_assign(kv_bits *b, int64_t n);
-void kv_bits_shr_assign(kv_bits *b, int64_t n);
-kv_bits kv_bits_shl(const kv_bits *b, int64_t n);
-kv_bits kv_bits_shr(const kv_bits *b, int64_t n);
-bool kv_bits_eq(const kv_bits *a, const kv_bits *b);
-kv_string kv_bits_word_bin(const kv_bits *b, size_t i);
-uint8_t *kv_cstr_bits(kv_bits b, uint8_t *buf);
-void kv_print_bits(kv_bits b);
-void kv_fprint_bits(void *fp, kv_bits b);
-char *kv_template_bits(char *p, size_t max, kv_bits b);
 
 /* String(x): text, validated, or a copy of a Bytes borrow, validated */
 /* a String of a string literal, its every byte, a NUL among them too
@@ -606,7 +569,7 @@ uint8_t *kv_cstr_ptr(const volatile void *v, uint8_t *buf);
 #define KV_TYPENAME_INT128
 #endif
 #define kv_typename(v) _Generic((v), \
-    kv_bytes: "Bytes", kv_string: "String", kv_bits: "Bits", \
+    kv_bytes: "Bytes", kv_string: "String", \
     bool: "bool", char: "u8", signed char: "i8", short: "i16", int: "i32", \
     long: KV_TYPENAME_LONG, long long: "i64", \
     unsigned char: "u8", unsigned short: "u16", unsigned: "u32", \
@@ -631,7 +594,7 @@ uint8_t *kv_cstr_u128(unsigned __int128 v, uint8_t *buf);
    int64_t is `long` on some platforms and `long long` on others, and a
    _Generic list may not name the same type twice. */
 #define KV_PROPERTY_cstr \
-    kv_bytes: kv_cstr_bytes, kv_string: kv_cstr_string, kv_bits: kv_cstr_bits, \
+    kv_bytes: kv_cstr_bytes, kv_string: kv_cstr_string, \
     bool: kv_cstr_bool, char: kv_cstr_char, \
     signed char: kv_cstr_i64, short: kv_cstr_i64, int: kv_cstr_i64, \
     long: kv_cstr_i64, long long: kv_cstr_i64, \
@@ -857,7 +820,7 @@ void kv_fprint_u128(void *fp, unsigned __int128 v);
 #endif
 
 #define KV_FPRINT1(fp, v) _Generic((v), \
-    kv_bytes: kv_fprint_bytes, kv_string: kv_fprint_string, kv_bits: kv_fprint_bits, \
+    kv_bytes: kv_fprint_bytes, kv_string: kv_fprint_string, \
     bool: kv_fprint_bool, \
     char: kv_fprint_char, \
     signed char: kv_fprint_i64, short: kv_fprint_i64, int: kv_fprint_i64, \
@@ -872,7 +835,7 @@ void kv_fprint_u128(void *fp, unsigned __int128 v);
     default: kv_fprint_ptr)(fp, v)
 
 #define kv_print1(v) _Generic((v), \
-    kv_bytes: kv_print_bytes, kv_string: kv_print_string, kv_bits: kv_print_bits, \
+    kv_bytes: kv_print_bytes, kv_string: kv_print_string, \
     bool: kv_print_bool, \
     char: kv_print_char, \
     signed char: kv_print_i64, short: kv_print_i64, int: kv_print_i64, \
@@ -1011,7 +974,7 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
    (36 digits and a 4-digit exponent, IEEE quad); a pointer is 0x and
    its digits ("(nil)" on glibc is shorter). */
 #define KV_TEMPLATE_BOUND(v) _Generic((v), \
-    kv_bits: 0, kv_bytes: 0, kv_string: 0, \
+    kv_bytes: 0, kv_string: 0, \
     bool: 5, char: 1, \
     signed char: 4, short: 6, int: 11, long: 20, long long: 20, \
     unsigned char: 3, unsigned short: 5, unsigned: 10, unsigned long: 20, unsigned long long: 20, \
@@ -1036,7 +999,7 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
     char *: kv_template_str, const char *: kv_template_str, \
     signed char *: kv_template_str, const signed char *: kv_template_str, \
     unsigned char *: kv_template_str, const unsigned char *: kv_template_str, \
-    kv_bytes: kv_template_bytes_owner, kv_string: kv_template_string, kv_bits: kv_template_bits, \
+    kv_bytes: kv_template_bytes_owner, kv_string: kv_template_string, \
     default: kv_template_ptr)((b).at, (max), (v))
 /* a buffer the size of the storage, and where the text built in it ends */
 #define KV_TEMPLATE_BUILD(b, storage) \

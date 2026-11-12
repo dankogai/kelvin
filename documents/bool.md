@@ -36,8 +36,8 @@ floats in [floatingpoint.md](floatingpoint.md).
     [operators.md](operators.md).
   - A `bool` variable, field or function result is one as it is.
   - `!!n` (#387) is the `bool` of an integer 0 or 1, a bit: `false` of
-    0, `true` of 1, and any other ends the program; `bv[n]` of a
-    `Bits` is one; see [bits.md](bits.md).
+    0, `true` of 1, and any other ends the program; `x.bits[n]` of an
+    integer is one; see [bits.md](bits.md).
 - **Inference** (#24, #25): `var done = false`, `let ok = a < b` and
   `let both = ok && f(x)` are `bool`s, as is the `bool` result of a
   Kelvin function or method; see [grammar.md](grammar.md).
@@ -57,8 +57,6 @@ floats in [floatingpoint.md](floatingpoint.md).
   see [printing.md](printing.md).
 - **Flipping:** `b.flip()` is `b = !b` (#454), in the var that holds
   `b`: a `let` is an error, and `.flip()` takes nothing.
-  - `bv[n].flip()` of a `Bits` is `bv.flip(n)`, its bit flipped in the
-    `Bits`; see [bits.md](bits.md).
   - An integer's bit flips the same way, `x.bits[n].flip()` (#530); see
     [integers.md](integers.md).
 

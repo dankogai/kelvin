@@ -10015,3 +10015,21 @@ BigInt.k's helpers, as they do of `grapheme(c0, c1)`; kc now reads a
 P543.
 
 There are 1293 tests, and all pass with clang and with gcc 15.
+
+### 579. `Bits` is no more
+
+> push and go on with #532
+
+**Claude** pushed #531, and CI passed. `Bits` is gone, the third of
+#530's three: the word is an error in kelvinc's and kc's lexers that
+names what to write, `x.bits` of an integer, `b.bits` of a BigInt and an
+`Array<bool>` for bools that grow, as uchr's error names a `u32`. With
+it go `Bits(...)`, a Bits's `bv[n]`, its methods, operators, walk and
+printing in both compilers, the runtime's bits.c and the prelude's
+`kv_bits`. `!!n` and a bool's `b.flip()` stay. documents/bits.md is now
+the document of `.bits`, with a table of what a `Bits` was and what is
+written instead; a counted vector of bits with the bitwise operators on
+it has no like-for-like form. kc's own C is 33640 lines, 754 fewer.
+Details are provisional P544.
+
+There are 1281 tests, and all pass with clang and with gcc 15.

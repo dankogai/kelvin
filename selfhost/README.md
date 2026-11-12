@@ -604,6 +604,19 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`Bits` is no more** (#532), as kelvinc's: kc's lexer says so at the
+  word, `Bits(n)`, `Bits()` or a member's type, naming `x.bits` of an
+  integer, `b.bits` of a BigInt and an `Array<bool>`.
+  - Y_BITS is gone, with kc's `Bits(a, b, ...)`, a Bits's `bv[n]`, its
+    `.append`, `.flip`, `.capacity`, `.count`, `.u64s`, `.bin` and
+    `.copy`, its operators, its walk, its printing and its temporaries:
+    gen.k's `gen_bits_assign`, `bits_part_ok`, `put_bits_push`,
+    `bits_hold` and the rest.
+  - What stays is `gen_bit_forms`: an integer's `x.bits` (#530), a
+    bool's `b.flip()` (#457) and `!!n` (#387); `bit_number` checks a
+    bit's place, an integer's and a BigInt's.
+  - The entries before this one that name Bits are of their time.
+  - sample.k's bits are a `u64`'s and a BigInt's.
 - **A BigInt's `.bits`** (#531), as kelvinc's: `b.bits` is BigInt.k's
   attribute, an `Array<bool>`; `b.bits[n]` is its bit where it is, the
   call of BigInt.k's `kv_bi_bit_of(b, n)`, with no Array made;
@@ -663,7 +676,7 @@ kc reads what it is written in, and little more.
   - `(int64){1}`, a number's compound literal, in a range's head too.
 - **A type written in a loop** (#523), as kelvinc's #480: `for x:T in`
   a range, a Range, a String, an Array, a fixed array, a cstr, a list, a
-  Dictionary, a Set, a Bits, an iterator, `f.lines` and `f.read(n)`.
+  Dictionary, a Set, an iterator, `f.lines` and `f.read(n)`.
   - A range's count is of T, an integer, else kelvinc's error; `lo...`
     goes up to T's largest.
   - An element is converted as `T(v)` does: a uchr to its codepoint, an

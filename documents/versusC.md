@@ -82,7 +82,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `struct { uint8_t tag; union { double n; ... } u; } j;` and a `switch` on the tag by hand | `enum json { null; n: f64; s: String; a: Array<json> }`: `json.n(1.5)`, `j.is(n)`, `j.n` checked, `switch j { case n: ... }` (#61) |
 | `switch (n) { case 1: case 2: ...; break; default: ... }` | `switch n { case 1, 2: ... default: ... }`: a case ends at the next, no fallthrough, every value handled (#63) |
 | `case 1: ...; /* no break */ case 2: ...` | `case 1: ...; fallthrough` then `case 2: ...`: Swift's, on into the next case's body (#386) |
-| `struct s { unsigned ready : 1, busy : 1; };`, `s.ready = 1` | `struct s { flags: Bits }` and `enum flag { ready, busy }`: `s.flags[ready] = true`, `s.flags[busy] = !!n` (#387) |
+| `struct s { unsigned ready : 1, busy : 1; };`, `s.ready = 1` | `struct s { flags: u8 }` and `enum flag { ready, busy }`: `s.flags.bits[ready] = true`, `s.flags.bits[busy] = !!n` (#387, #530) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
 | `*p++ = *q++;` | `p^ = q^; p++; q++` (`++` is a statement, for pointers, #26, #51) |
@@ -153,7 +153,7 @@ Each document says so in its "Where it lives" section. In short:
 | [integers.md](integers.md) | `i8`…`u128`, their literals, conversions of any number, numbers from text |
 | [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text |
 | [bool.md](bool.md) | `bool`, `true` and `false`, where a `bool` comes from, conditions, converting |
-| [bits.md](bits.md) | `Bits`, bits in `u64`s, `bv[n]` a `bool`, `.flip(n)`, `.append(x)`, the bitwise operators, `!!n` (#387, #455) |
+| [bits.md](bits.md) | `x.bits` of an integer and `b.bits` of a `BigInt`, `x.bits[n]` a `bool`, `x.bits[n].flip()`, `!!n` (#387, #530, #531); `Bits` is no more (#532) |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nowhere`, `.next`, `.prev`, `.isNull` |
 | [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |
@@ -196,8 +196,9 @@ Each document says so in its "Where it lives" section. In short:
   `Dictionary`, `Set`, `Optional`, `Result`, `uchr` (no more, #528,
   kept for the error that names `u32`), `any`, `nowhere`
   and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
-  (#27), `fallthrough` (#386), `Bits` (#387), `static_assert`
-  (#394), `alignof` (#395), `alignas` (#396) and `typeof` (#398).
+  (#27), `fallthrough` (#386), `Bits` (no more, #532, kept for the
+  error that names `.bits`), `static_assert` (#394), `alignof` (#395),
+  `alignas` (#396) and `typeof` (#398).
   - `in` is a keyword only in `for i in ...` and in an anonymous
     function's `{ (a:T) in ... }`, so C names called `in` still work.
 - It also rejects C compiler keywords beyond C11, such as
@@ -283,8 +284,9 @@ These C features stay out, as decided (#294):
     program never needs to.
   - Written, it is an error that says so.
 - **Bit-fields**: `unsigned a : 1` packs as the platform's ABI decides.
-  - A struct holds a `Bits` (#387) instead, bits in `u64`s (#455), each
-    a `bool` by its place, and an enum names the flags: `s.flags[busy]`.
+  - A struct holds an integer instead, its bits `.bits` (#530), each a
+    `bool` by its place, and an enum names the flags:
+    `s.flags.bits[busy]`; a `BigInt` holds more than 128 (#531).
   - See [bits.md](bits.md).
 - **The preprocessor**: Kelvin's directives, `#import` and
   `#inline C { ... }`, are its only ones.

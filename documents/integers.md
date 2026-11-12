@@ -284,8 +284,7 @@ let main():int32 {
 ```
 
 - **`x.bits[n]`** of an integer, `i8` to `u128`, is its bit `n`, a
-  `bool`, 0 the lowest (#530), as a `Bits`'s `bv[n]`; see
-  [bits.md](bits.md).
+  `bool`, 0 the lowest (#530); see [bits.md](bits.md).
   - It is set with `=`, `|=`, `&=` and `~=` (xor), and a `bool`:
     `x.bits[n] = !!k` of an integer 0 or 1; an integer is no bit.
   - A signed integer's highest bit is its sign: `n.bits[63] = false` of
@@ -295,8 +294,8 @@ let main():int32 {
   `bool`'s `b.flip()`: a `let` is an error, and so is a value an
   expression gives.
 - **`n`** is 0 to the width less 1, 0 to 31 of an `i32`: a literal past
-  it is an error, and a value past it ends the program, as a `Bits`'s
-  place does. It is an integer of 64 bits or fewer, or an enum's value,
+  it is an error, and a value past it ends the program, as an index
+  past an Array's count does. It is an integer of 64 bits or fewer, or an enum's value,
   so the bits may have names.
 - **`x.bits`** alone is its bits as bools, an `Array<bool>` of its
   width, place 0 first: 8 of a `u8`, 64 of an `i64`.

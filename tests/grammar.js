@@ -172,7 +172,7 @@ const samples = [
     ['let v = $[nan, -inf, Infinity]; nan("x"); Self.inf', [['nan', 'constant.numeric.decimal'], ['inf', 'constant.numeric.decimal'], ['Infinity', 'constant.numeric.decimal']]],
     ['#inline C { static int one(void) { return \'}\' + "{"; } }', [['#inline', 'keyword.control.directive'], ['C', 'support.constant.language'], [' static int one(void) ', 'meta.embedded.block.c'], ["'}'", 'string.quoted.single.c'], ['"{"', 'string.quoted.double.c']]],
     ['let after = 1', [['let', 'storage.type']]],
-    ['var bv = Bits(); bv[0] = !!n', [['Bits', 'support.type']]],
+    ['var bv:u8 = 0; bv.bits[0] = !!n', [['u8', 'support.type.primitive'], ['0', 'constant.numeric']]],
     ['switch n { case 1: fallthrough }', [['switch', 'keyword.control'], ['case', 'keyword.control'], ['fallthrough', 'keyword.control']]],
     ['static_assert(n == 1)', [['static_assert', 'keyword.control']]],
     ['let a = alignof(f64)', [['alignof', 'keyword.operator.word']]],

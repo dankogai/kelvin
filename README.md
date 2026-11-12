@@ -219,12 +219,14 @@ So far the changes from C are these, by topic.
   `float64`), so `char`, `int`, `long`, `float` and `double` are gone,
   and `let i = 42` is an `i64`
 - `bool`, `true` and `false` are built in; `!!n` is the `bool` of an
-  integer 0 or 1, and `Bits`, bits each a `bool` by its place, as many
-  as it holds (#455), takes the place of C's bit-fields (#387)
+  integer 0 or 1 (#387), and a number's bits, `.bits`, each a `bool` by
+  its place, take the place of C's bit-fields
   - an integer's bit is `x.bits[n]`, set with `x.bits[n] = b`, and
     `x.bits[n].flip()` flips it; `x.bits` is its bools, an
     `Array<bool>`, and `u8(bools)` the way back (#530); `b.flip()` is
     `b = !b` (#454)
+  - `Bits`, a type of its own (#387, #455), is no more (#532): the word
+    is an error that names `x.bits` and a `BigInt`'s `b.bits`
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`
   - `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`
   - `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,

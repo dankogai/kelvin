@@ -158,10 +158,6 @@ static void sync(Pos p) {
 /* ---------- types ---------- */
 
 static char *expr(Expr *e);
-static char *bits_push(const char *b, Expr *x);
-static char *bits_code(Expr *e, Buf *pre);
-static bool c_lvalue(Expr *e);
-static int bits_temps; /* the temporaries that hold a Bits an expression gives (#455) */
 static const char *range_max(Type *t);
 static char *range_walk(Type *t, const char *r, const char *p);
 static char *optional_case(Type *opt, const char *c);
@@ -180,7 +176,6 @@ static const char *c_type_name(const char *name) {
         {"any", "void"}, /* any^ is void * */
         {"Bytes", "kv_bytes"}, /* an owner (#54) */
         {"String", "kv_string"}, /* codepoints on a Bytes (#55) */
-        {"Bits", "kv_bits"}, /* 64 bits in a u64 (#387) */
         {"IO", "kv_io"}, /* stdio as an owner (#82) */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
@@ -1495,18 +1490,8 @@ static char *expr_bare(Expr *e) {
                           "(__typeof__(*_kv_ip))(%s)(%s); (void)0; })",
                           expr(e->a), n, w, expr(e->items.data[1]), u, u, u, u, u, u, strfmt(op, u));
         }
-        if (e->op && (!strncmp(e->op, "bits_", 5) || !strcmp(e->op, "bit_of"))) {
-            /* Bits (#387, #455), kv_bits in C, an owner: each bit by its
-               place, checked, through runtime/bits.c's kv_bits_ functions;
-               a Bits an expression gives is held in a temporary that frees
-               it, bits_ref's */
-            if (!strcmp(e->op, "bit_of")) /* !!n: the bool of an integer 0 or 1 */
-                return strfmt("KV_BIT_OF(%s)", expr(e->a));
-            Buf pre = {0};
-            buf_puts(&pre, "");
-            char *r = bits_code(e, &pre);
-            return pre.len ? strfmt("({ %s%s; })", pre.buf, r) : r;
-        }
+        if (e->op && !strcmp(e->op, "bit_of")) /* !!n (#387): the bool of an integer 0 or 1 */
+            return strfmt("KV_BIT_OF(%s)", expr(e->a));
         if (e->op && !strcmp(e->op, "num_isnan")) /* x.isNaN (#382) */
             return strfmt("((bool)__builtin_isnan(%s))", expr(e->a));
         if (e->op && !strcmp(e->op, "num_isinf")) /* x.isInfinite (#384): +inf or -inf */
@@ -2347,103 +2332,6 @@ static char *operand_before(Expr *e) {
     return e->paren && may_be_type ? strfmt("(%s)", s) : s;
 }
 
-/* a pointer to the Bits x (#455): &(x) of a place, else the address of
-   a temporary declared in pre, which frees it */
-static char *bits_ref(Expr *x, Buf *pre) {
-    if (c_lvalue(x))
-        return strfmt("&(%s)", expr(x));
-    char *t = strfmt("_kv_bt%d", ++bits_temps);
-    buf_printf(pre, "__attribute__((cleanup(kv_bits_free))) kv_bits %s = %s; ", t, expr(x));
-    return strfmt("&%s", t);
-}
-
-/* the C of a Bits's operation e (#387, #455), its temporaries in pre */
-static char *bits_code(Expr *e, Buf *pre) {
-    const char *n = e->items.len && strcmp(e->op, "bits_make") && strcmp(e->op, "bits_append") ? expr(e->items.data[0]) : "";
-    if (!strcmp(e->op, "bits_make")) { /* Bits(a, b, ...): each in turn, from place 0 */
-        if (!e->items.len)
-            return "kv_bits_new()";
-        Buf b = {0};
-        buf_puts(&b, "({ kv_bits _kv_bm = kv_bits_new();");
-        for (int i = 0; i < e->items.len; i++)
-            buf_printf(&b, " %s;", bits_push("&_kv_bm", e->items.data[i]));
-        buf_puts(&b, " _kv_bm; })");
-        return b.buf;
-    }
-    if (!strcmp(e->op, "bits_append"))
-        return strfmt("({ kv_bits *_kv_bp = &(%s); %s; (void)0; })", expr(e->a), bits_push("_kv_bp", e->items.data[0]));
-    if (!strcmp(e->op, "bits_reserve"))
-        return strfmt("kv_bits_reserve(&(%s), (int64_t)(%s))", expr(e->a), n);
-    if (!strcmp(e->op, "bits_set")) {
-        const char *f = !strcmp(e->text, "=") ? "put" : !strcmp(e->text, "|=") ? "or" : !strcmp(e->text, "&=") ? "and" : "xor";
-        return strfmt("kv_bits_%s(&(%s), (int64_t)(%s), %s)", f, expr(e->a), n, expr(e->items.data[1]));
-    }
-    if (!strcmp(e->op, "bits_flip"))
-        return strfmt("kv_bits_flip(&(%s), (int64_t)(%s))", expr(e->a), n);
-    bool shift = e->text[0] == '<' || e->text[0] == '>';
-    const char *sh = e->text[0] == '<' ? "shl" : "shr";
-    char op = e->text[0] == '~' ? '^' : e->text[0];
-    if (!strcmp(e->op, "bits_assign")) /* bv |= b, bv <<= n: in the var that holds bv */
-        return shift ? strfmt("kv_bits_%s_assign(&(%s), (int64_t)(%s))", sh, expr(e->a), n)
-                     : strfmt("kv_bits_with(&(%s), %s, '%c')", expr(e->a), bits_ref(e->items.data[0], pre), op);
-    char *a = bits_ref(e->a, pre);
-    if (!strcmp(e->op, "bits_copy"))
-        return strfmt("kv_bits_copy(%s)", a);
-    if (!strcmp(e->op, "bits_property")) {
-        if (!strcmp(e->text, "count"))
-            return strfmt("((uint64_t)(%s)->count)", a);
-        if (!strcmp(e->text, "capacity"))
-            return strfmt("((uint64_t)(%s)->cap * 64)", a);
-        if (!strcmp(e->text, "isEmpty"))
-            return strfmt("((bool)((%s)->count == 0))", a);
-        if (!strcmp(e->text, "u64s"))
-            return strfmt("({ const kv_bits *_kv_bq = %s; %s_from(_kv_bq->at, (_kv_bq->count + 63) / 64); })", a,
-                          e->type->cname);
-        return strfmt("({ const kv_bits *_kv_bq = %s; %s _kv_bs = {0}; for (size_t _kv_bi = 0; _kv_bi < "
-                      "(_kv_bq->count + 63) / 64; _kv_bi++) %s_append(&_kv_bs, kv_bits_word_bin(_kv_bq, _kv_bi)); "
-                      "_kv_bs; })",
-                      a, e->type->cname, e->type->cname);
-    }
-    if (!strcmp(e->op, "bits_at"))
-        return strfmt("kv_bits_at(%s, (int64_t)(%s))", a, n);
-    if (!strcmp(e->op, "bits_not"))
-        return strfmt("kv_bits_not(%s)", a);
-    if (shift) /* bits_op: bv << n, bv >> n, a new Bits */
-        return strfmt("kv_bits_%s(%s, (int64_t)(%s))", sh, a, n);
-    char *b = bits_ref(e->items.data[0], pre);
-    if (!strcmp(e->text, "==") || !strcmp(e->text, "!="))
-        return strfmt("((bool)(%skv_bits_eq(%s, %s)))", e->text[0] == '!' ? "!" : "", a, b);
-    return strfmt("kv_bits_op(%s, %s, '%c')", a, b, op);
-}
-
-/* what Bits(...) and bv.append(x) push for one part (#455), into the
-   kv_bits that the C expression b points to */
-static char *bits_push(const char *b, Expr *x) {
-    const char *k = x->text, *v = expr(x->a);
-    if (!strcmp(k, "bool"))
-        return strfmt("kv_bits_push(%s, %s)", b, v);
-    if (!strcmp(k, "cstr"))
-        return strfmt("kv_bits_push_cstr(%s, %s)", b, v);
-    if (!strcmp(k, "string") && !c_lvalue(x->a)) /* a String an expression gives, freed */
-        return strfmt("({ __attribute__((cleanup(kv_string_free))) kv_string _kv_bs = %s; kv_bits_push_text(%s, "
-                      "_kv_bs.b.at, _kv_bs.b.count); })",
-                      v, b);
-    if (!strcmp(k, "string"))
-        return strfmt("kv_bits_push_text(%s, (%s).b.at, (%s).b.count)", b, v, v);
-    if (!strcmp(k, "string_ref"))
-        return strfmt("({ const kv_string *_kv_bs = %s; kv_bits_push_text(%s, _kv_bs->b.at, _kv_bs->b.count); })", v, b);
-    if (!strcmp(k, "array") && !c_lvalue(x->a)) /* an Array an expression gives, freed */
-        return strfmt("({ __auto_type _kv_ba = %s; kv_bits_push_bools(%s, _kv_ba.at, _kv_ba.count); free(_kv_ba.at); })",
-                      v, b);
-    if (!strcmp(k, "array"))
-        return strfmt("kv_bits_push_bools(%s, (%s).at, (%s).count)", b, v, v);
-    if (!strcmp(k, "bools"))
-        return strfmt("kv_bits_push_bools(%s, %s, sizeof(%s) / sizeof((%s)[0]))", b, v, v, v);
-    const char *w = x->from->name; /* "int": its width, or 0 of what only C sees */
-    return strfmt("({ __auto_type _kv_bv = %s; kv_bits_push_int(%s, (unsigned __int128)_kv_bv, %s); })", v, b,
-                  strcmp(w, "0") ? w : "sizeof _kv_bv * 8");
-}
-
 /* The function that frees an owner of type t (#54): kv_bytes_free, or a
    struct's derived _kv_T_free; NULL for a type that owns nothing */
 /* an array's innermost element type, past each count: of [[String](2)](2), String (#371) */
@@ -2466,8 +2354,6 @@ static const char *owner_free(Type *t) {
         return "kv_string_free";
     if (!strcmp(t->name, "IO"))
         return "kv_io_free";
-    if (!strcmp(t->name, "Bits")) /* (#455) */
-        return "kv_bits_free";
     if (t->cname && !is_container(t, "_kv_range_")) /* Array<T> (#57); a Range owns nothing (#373) */
         return strfmt("%s_free", t->cname);
     Decl *r = kelvin_record(t->name);
@@ -3272,27 +3158,6 @@ static void stmt(Stmt *s) {
             line("}");
             break;
         }
-        if (s->each == EACH_BITS) { /* a Bits's count bits, each a bool (#455) */
-            char *bq = hidden(v, "bits"), *bi = hidden(v, "i");
-            line("{");
-            indent++;
-            sync(s->pos);
-            line("const kv_bits *const %s = &(%s);", bq, seq);
-            sync(s->pos);
-            line("for (size_t %s = 0; %s < %s->count; %s++)", bi, bi, bq, bi);
-            line("{");
-            indent++;
-            if (strcmp(s->name, "_")) {
-                sync(s->pos);
-                line("const bool %s = %s->at[%s / 64] >> (%s %% 64) & 1;", s->name, bq, bi, bi);
-            }
-            stmt(s->body);
-            indent--;
-            line("}");
-            indent--;
-            line("}");
-            break;
-        }
         if (s->each == EACH_BYTES) { /* a Bytes's count bytes (#54) */
             end = hidden(v, "end");
             line("{");
@@ -3702,7 +3567,7 @@ static char *text_bound(Type *t, const char *lv) {
     static const struct { const char *type, *bound; } scalars[] = {
         {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
         {"u32", "10"},  {"i64", "20"},  {"u64", "20"},  {"i128", "40"}, {"u128", "39"},
-        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"Bits", "(KV_CSTR_SCALAR - 1)"},
+        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},
     };
     for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; i++)
         if (!strcmp(t->name, scalars[i].type))
@@ -3807,7 +3672,6 @@ static char *text_writer(Type *t, const char *lv) {
         {"u8", "kv_cstr_u64"},    {"u16", "kv_cstr_u64"},  {"u32", "kv_cstr_u64"},  {"u64", "kv_cstr_u64"},
         {"i128", "kv_cstr_i128"}, {"u128", "kv_cstr_u128"}, {"f32", "kv_cstr_f32"}, {"f64", "kv_cstr_f64"},
         {"bool", "kv_cstr_bool"},
-        {"Bits", "kv_cstr_bits"}, /* Bits("0b..."), cut (#387, #455) */
     };
     for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)
         if (!strcmp(t->name, direct[i].type))
@@ -4233,8 +4097,6 @@ static char *eq_code(Type *t, const char *x, const char *y) {
         return strfmt("kv_string_eq(&%s, &%s)", x, y);
     if (f && !strcmp(f, "kv_bytes_free"))
         return strfmt("kv_bytes_eq(&%s, &%s)", x, y);
-    if (f && !strcmp(f, "kv_bits_free")) /* a Bits by its count and bits (#455) */
-        return strfmt("kv_bits_eq(&%s, &%s)", x, y);
     Decl *r = t->kind == T_BASE ? kelvin_record(t->name) : NULL;
     if (r && r->tagged)
         return strfmt("_kv_%s_eq(%s, %s)", r->name, x, y);

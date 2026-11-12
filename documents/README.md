@@ -30,9 +30,10 @@ the design decisions, numbered `#N` throughout, are in
   literals, reading, printing and text, `x ** y`.
 - [bool.md](bool.md): `bool`, `true` and `false`, where a `bool` comes
   from, conditions, converting, `b.flip()`.
-- [bits.md](bits.md): `Bits`, bits in `u64`s on the heap, each a `bool`
-  by its place, `bv[n]`, `.flip(n)`, `.append(x)`, `.u64s`, the bitwise
-  operators, and `!!n`, a bit's `bool` (#387, #455); C's bit-fields'
+- [bits.md](bits.md): a number's bits, each a `bool` by its place,
+  `x.bits` of an integer and `b.bits` of a `BigInt`, `x.bits[n]`,
+  `x.bits[n].flip()`, and `!!n`, a bit's `bool` (#387, #530, #531);
+  `Bits` is no more (#532); C's bit-fields'
   stead.
 - [cstr.md](cstr.md): `cstr`, C's text, literals, byte arrays and text
   on the stack, reading numbers, walking by byte (#525).

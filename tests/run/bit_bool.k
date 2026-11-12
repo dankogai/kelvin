@@ -5,10 +5,10 @@ let main():int32 {
     var one:u8 = 1
     let yes = true
     println(!!zero, " ", !!one, " ", !!0, " ", !!1, " ", ! !yes)
-    var bv = Bits(u8(0))
-    bv[2] = !!one
-    println(i64(bv[2]), " ", bv[2].i64, " ", u8(!!zero), " ", bv)
+    var bv:u8 = 0
+    bv.bits[2] = !!one
+    println(i64(bv.bits[2]), " ", bv.bits[2].i64, " ", u8(!!zero), " ", bv)
     return 0
 }
 // out: false true false true true
-// out: 1 1 0 Bits("0b00000100")
+// out: 1 1 0 4

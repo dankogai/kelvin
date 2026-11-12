@@ -25,8 +25,6 @@ variable's block frees.
 - `String` (#55) is a `Bytes` that holds UTF-8.
 - `Array<T>` (#57) is a growable array of any value type.
 - `Dictionary<K, V>` (#65) is a hash map.
-- `Bits` (#455) is bits in `u64`s, each a `bool`; see
-  [bits.md](bits.md).
 
 The rules below are what kelvinc enforces, from what it sees; a copy of
 the struct through C is C's business, and harmless, since an owner is

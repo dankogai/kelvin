@@ -384,7 +384,7 @@ hello! [3, 1, 2, 4] 4
 - **`return` と引数渡し**は所有者をムーブする
 - **`=` はコピーしない**: `.copy()` と書くか、`&` で借りる
 
-<!-- notes: String、Bytes、Array、Dictionary、Set、Bits はヒープに置かれます。ガベージコレクタも隠れたコピーもありません。C の cleanup 属性とふつうの関数呼び出しにコンパイルされます。 -->
+<!-- notes: String、Bytes、Array、Dictionary、Set はヒープに置かれます。ガベージコレクタも隠れたコピーもありません。C の cleanup 属性とふつうの関数呼び出しにコンパイルされます。 -->
 
 ---
 

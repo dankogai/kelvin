@@ -24,7 +24,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_ARRAY,    // $[b...], an Array of its elements (#266)
     N_DICT,     // ${k: v...}, b the first key, each key's next its value (#267)
     N_SET,      // ${a, b}, a Set of its elements, b the first (#274)
-    N_TYPE,     // IO, String, Bits or Bytes called: a type's name as a function
+    N_TYPE,     // IO, String or Bytes called: a type's name as a function
     N_INIT,     // {b...}, a struct's members in order; ty of (T){b...}, C's compound literal (#418)
     N_NULL,     // nowhere (#446)
     N_SELF,     // self, and the self of .x (#213)
@@ -104,7 +104,6 @@ enum ykind {                    // the kinds of types (#210)
                 // -3 of [const T]; a parameter's, a pointer, -2, and -4 of its const elements (#357);
                 // -10 - n of a count C computes, node n (#366)
     Y_RANGE,    // a Range<T> (#373): its integers elem
-    Y_BITS,     // a Bits (#387): 64 bits in a u64, kv_bits in C
     Y_TYPEOF,   // x.type of a local whose type is inferred (#423): its name x's node, whose type gen tells
     Y_FN,       // a function type (#428), (T, U):R: its result elem, -1 of none; its parameters name, a Y_PARAM or -1
     Y_PARAM,    // a parameter of a function type (#428): its type elem; the next name, a Y_PARAM or -1
@@ -156,7 +155,7 @@ extend node {                                      // (#213)
 extend ty {
     // whether it is an owner, freed where its block ends
     let owns():bool {
-        return .kind == Y_STRING || .kind == Y_BYTES || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK || .kind == Y_ITER || .kind == Y_BITS   // a Bits too (#455)
+        return .kind == Y_STRING || .kind == Y_BYTES || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK || .kind == Y_ITER
     }
 }
 
@@ -628,7 +627,7 @@ let value_type_end():int64 {
 let sizeof_type_at(t:int64):bool {
     if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") || tok_is(t, "${") || tagged_word(t) { return true }
     if toks[t].kind != T_ID { return false }
-    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
+    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "String") || tok_is(t, "IO") {
         return !tok_is(t + 1, "(")                       // String(x), a converter's value
     }
     if tok_is(t, "typeof") { return tok_is(t + 1, "(") }
@@ -770,7 +769,6 @@ let type_word(y:int64):String {
     case Y_STRING: return $"String"
     case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
-    case Y_BITS: return $"Bits"
     case Y_PTR:
         var s = type_word(types[y].elem)
         s += "p"
@@ -1315,8 +1313,6 @@ let parse_bare_type():int64 {
         y = base_type(Y_BYTES)
     } else if tok_is(t, "IO") {
         y = base_type(Y_IO)
-    } else if tok_is(t, "Bits") {                // (#387)
-        y = base_type(Y_BITS)
     } else if tok_is(t, "typeof") {             // typeof(T), typeof(x) (#398), C23's
         if !at_word("(") {
             parse_error("typeof takes a value or a type in parentheses, as C23's: typeof(x)")
@@ -2136,7 +2132,7 @@ let parse_primary():int64 {
         }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
         if tok_is(t, "Self") && self_name >= 0 && at_word(".") { return make_node(N_ID, self_name) }   // Self.f(), Self.x (#140)
-        if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bits(n) (#387), Bytes(x) (#439)
+        if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bytes(x) (#439)
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
         if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#391)
         if at_word(".") && toks[pos + 1].kind == T_ID && !local_named(t) {
@@ -2279,7 +2275,7 @@ let parse_unary():int64 {
         set_a(n, parse_unary())
         return n
     }
-    if at_word("-") || at_word("!") || at_word("~") {     // ~ of a Bits (#387)
+    if at_word("-") || at_word("!") || at_word("~") {
         let t:int64 = advance()
         let n:int64 = make_node(N_UNARY, t)
         set_a(n, parse_unary())

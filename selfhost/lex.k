@@ -462,6 +462,9 @@ let lex_range(from:int64, to:int64, file:int64) {
             if tok_is(toks.count as int64 - 1, "uchr") {       // removed (#528): a codepoint is a u32 (#527), as kelvinc says it
                 lex_error(file, line, "uchr is no more (#528): a codepoint is a u32, as s.codepoints[0] gives it; s += n appends one, and grapheme(n) is a String of it")
             }
+            if tok_is(toks.count as int64 - 1, "Bits") {       // removed (#532): an integer's and a BigInt's bits are .bits (#530, #531), as kelvinc says it
+                lex_error(file, line, "Bits is no more (#532): an integer's bits are x.bits, an Array<bool>, and x.bits[n] its bit n; a BigInt's are b.bits, of any width; and bools that grow are an Array<bool>")
+            }
             if tok_is(toks.count as int64 - 1, "_Complex") {   // C99's, left out on purpose (#404), as kelvinc says it
                 lex_error(file, line, "'_Complex' is C99's complex type, left out on purpose: #import <math> and write c64 or c32, Kelvin's own")
             }

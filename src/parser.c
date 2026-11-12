@@ -578,7 +578,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "any", "cstr", "Bytes", "String", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", "Range", "Bits", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "any", "cstr", "Bytes", "String", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", "Range", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -602,11 +602,12 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task") && !is_kw(t, "Iterator") && !is_kw(t, "Range") && !is_kw(t, "Bits");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task") && !is_kw(t, "Iterator") && !is_kw(t, "Range");
 }
 
-/* a type whose name before `(` makes a value: a converter, or Bits (#387) */
-static bool is_maker(Token *t) { return is_converter(t) || is_kw(t, "Bits"); }
+/* a type whose name before `(` makes a value: a converter (Bits, #387's,
+   was one more, and is no more, #532) */
+static bool is_maker(Token *t) { return is_converter(t); }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
 #define SHELVED_HINT "is not a method: a value's text is 'x.cstr', and String(x.cstr) a String (#22, #55)"
@@ -773,8 +774,7 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos);
 static const char *article(const char *w);
 static bool is_bytes(Type *t);
 static bool is_string(Type *t);
-static bool is_bits(Type *t);
-static void check_bit_number(Expr *n, const char *what, bool place);
+static void check_bit_number(Expr *n, const char *what);
 static bool int_literal_value(Expr *e, unsigned long long *mag, bool *neg);
 static bool is_io(Type *t);
 static bool is_io_std(Expr *e);
@@ -1767,15 +1767,12 @@ static Expr *int_bits(Expr *e, Token *name);
 static Type *promoted_number(Type *t);
 static int number_rank(const char *n);
 static Expr *int_bit_at(Expr *e, Type *t, Expr *n, Pos pos);
-static Expr *bits_held(Expr *e);
-static void check_bits_place(Expr *n, const char *what);
+static void check_bit_place(Expr *n, const char *what);
 static bool bigint_bits_attr(Expr *e);
 static bool bigint_callee(Expr *f);
 static void bigint_bools_call(Expr *x);
 static Expr *bools_literal(const char *who);
 static Expr *bigint_bit_at(Expr *recv, Expr *n, Pos pos);
-static Expr *bits_part(Expr *v, const char *what);
-static List bits_args(Token *name);
 static int int_width(Type *t);
 static Type *seen_number_type(Expr *e);
 static Decl *plain_enum_of(Type *t);
@@ -2281,21 +2278,6 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = int_bit_at(e->a, e->from, x->b, t->pos);
                 continue;
             }
-            if (is_bits(value_type(e))) {
-                /* bv[n] (#387): bit n, a bool; set with =, |=, &= and ~= */
-                if (slice)
-                    error_at(t->pos, "a Bits is indexed by a bit's place, 0 to its count less 1, and has no slice");
-                check_bits_place(x->b, "a bit's place in a Bits");
-                Expr *b = new_expr(E_METHOD, t->pos);
-                b->op = "bits_at";
-                b->text = "[]";
-                b->a = bits_held(e);
-                list_push(&b->items, x->b);
-                b->type = base_type("bool", t->pos);
-                b->is_bool = true;
-                e = b;
-                continue;
-            }
             if (slice) {
                 /* xs[lo..<hi] (#68): a copy of the elements, or of a String's
                    codepoints, or of a Bytes's bytes, of a place */
@@ -2404,62 +2386,6 @@ static Expr *parse_postfix_steps(Expr *e) {
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
-            if (is_bits(value_type(e))) { /* a Bits's (#387, #455): its bits, counted, and its u64s */
-                if (!strcmp(member, "value"))
-                    error_at(name->pos, "a Bits holds u64s, '.u64s', and grows past 64 bits (#455): '.value' is gone");
-                bool changes = call && (!strcmp(member, "flip") || !strcmp(member, "append") || !strcmp(member, "capacity"));
-                if (call && (changes || !strcmp(member, "copy"))) {
-                    /* bv.flip(n), bv.append(x), bv.capacity(n), in the var
-                       that holds bv; bv.copy() */
-                    List args = bits_args(name);
-                    if (!strcmp(member, "copy") && args.len)
-                        error_at(name->pos, "'.copy()' takes nothing");
-                    if (strcmp(member, "copy") && args.len != 1)
-                        error_at(name->pos, !strcmp(member, "flip")     ? "'.flip(n)' takes one bit's place"
-                                            : !strcmp(member, "append") ? "'.append(x)' takes one value: a bool, a [bool], an integer or text \"0b...\""
-                                                                        : "'.capacity(n)' takes a count of bits");
-                    if (!strcmp(member, "flip"))
-                        check_bits_place(args.data[0], "a bit's place in a Bits");
-                    if (!strcmp(member, "capacity"))
-                        check_bit_number(args.data[0], "'.capacity(n)'s n", false);
-                    if (!strcmp(member, "append"))
-                        args.data[0] = bits_part(args.data[0], "'.append(x)'");
-                    if (changes)
-                        reject_var_method_receiver(e, member, name->pos);
-                    Expr *x = new_expr(E_METHOD, name->pos);
-                    x->a = changes ? e : bits_held(e);
-                    x->text = member;
-                    x->op = !strcmp(member, "flip") ? "bits_flip" : !strcmp(member, "append") ? "bits_append"
-                            : !strcmp(member, "capacity") ? "bits_reserve" : "bits_copy";
-                    x->items = args;
-                    if (!changes)
-                        x->type = base_type("Bits", name->pos);
-                    e = x;
-                    continue;
-                }
-                if (!call && (!strcmp(member, "count") || !strcmp(member, "capacity") || !strcmp(member, "isEmpty") ||
-                              !strcmp(member, "u64s") || !strcmp(member, "bin"))) {
-                    /* its count and room in bits, a u64 each; whether it has
-                       none; its u64s, an Array<u64>; their text, an
-                       Array<String> (#455) */
-                    Expr *x = new_expr(E_METHOD, name->pos);
-                    x->a = bits_held(e);
-                    x->text = member;
-                    x->op = "bits_property";
-                    x->type = !strcmp(member, "isEmpty") ? base_type("bool", name->pos)
-                              : !strcmp(member, "u64s")  ? array_type(name, base_type("u64", name->pos))
-                              : !strcmp(member, "bin")   ? array_type(name, base_type("String", name->pos))
-                                                         : base_type("u64", name->pos);
-                    x->is_bool = !strcmp(member, "isEmpty");
-                    e = x;
-                    continue;
-                }
-                if (call || (strcmp(member, "cstr") && strcmp(member, "size") && strcmp(member, "type") &&
-                             strcmp(member, "typename") && strcmp(member, "pretty")))
-                    error_at(name->pos, "a Bits has count, capacity, isEmpty, u64s, bin, append, flip, copy, cstr, "
-                                        "size, type and typename, and '.%s%s' is none of them: a bit is 'bv[n]'",
-                             member, call ? "()" : "");
-            }
             if (is_range(value_type(e))) { /* a Range's (#373): a Sequence's four, lazy and prefix; count and contains (#374); its bounds (#375) */
                 bool fn_next = call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement());
                 if (!strcmp(member, "prefix") && fn_next) {
@@ -4944,26 +4870,6 @@ static Expr *parse_primary(void) {
         list_push(&e->items, arg);
         return e;
     }
-    if (is_kw(t, "Bits")) {
-        /* Bits() (#387), empty (#455); Bits(a, b, ...) of bools, [bool]s,
-           integers, each its type's width, and text "0b...", in turn from
-           place 0 */
-        if (!is_p(peek2(), "("))
-            error_at(t->pos, "'Bits' is a type: make one with 'Bits()', empty, or 'Bits(x, ...)' of bools, [bool]s, "
-                             "integers and text \"0b...\"");
-        advance();
-        bool saved_for = brace_in_for;
-        brace_in_for = false;
-        Expr *e = new_expr(E_METHOD, t->pos);
-        e->op = "bits_make";
-        e->text = "Bits";
-        e->type = base_type("Bits", t->pos);
-        e->items = bits_args(t);
-        brace_in_for = saved_for;
-        for (int i = 0; i < e->items.len; i++)
-            e->items.data[i] = bits_part(e->items.data[i], "Bits(x, ...)");
-        return e;
-    }
     if ((is_kw(t, "Bytes") || is_kw(t, "String")) && is_p(peek2(), "(")) {
         /* Bytes(), Bytes(n), Bytes(text), Bytes(&b), Bytes(p, n) (#54);
            String(), String(text), String(&b) of a Bytes, validated (#55) */
@@ -5270,16 +5176,6 @@ static Expr *parse_unary(void) {
         Expr *e = new_expr(E_PREFIX, t->pos);
         e->op = t->text;
         e->a = parse_unary();
-        if (is_bits(value_type(e->a)) && strcmp(e->op, "&")) { /* ~bv (#387): each bit flipped */
-            if (strcmp(e->op, "~"))
-                error_at(t->pos, "a Bits has the prefix '~', which flips each bit, and no prefix '%s'", e->op);
-            Expr *x = new_expr(E_METHOD, t->pos);
-            x->op = "bits_not";
-            x->text = "~";
-            x->a = bits_held(e->a);
-            x->type = base_type("Bits", t->pos);
-            return x;
-        }
         if (!strcmp(e->op, "!"))
             require_bool(e->a);
         if (!strcmp(e->op, "&") && e->a->kind == E_CALL && e->a->op && !strcmp(e->a->op, "dict_lookup"))
@@ -5547,32 +5443,6 @@ static Expr *parse_binary_ops(int min_prec) {
             x->op = "range_eq";
             x->type = base_type("bool", t->pos);
             x->is_bool = true;
-            lhs = x;
-            continue;
-        }
-        if (is_bits(value_type(e->a)) || is_bits(value_type(e->b))) {
-            /* a | b, a & b, a ~ b (xor) of two Bits, a << n and a >> n, a ==
-               b and a != b (#387), as of their u64s */
-            bool shift = !strcmp(e->op, "<<") || !strcmp(e->op, ">>");
-            bool eq = !strcmp(e->op, "==") || !strcmp(e->op, "!=");
-            if (!shift && !eq && strcmp(e->op, "|") && strcmp(e->op, "&") && strcmp(e->op, "~"))
-                error_at(t->pos, "a Bits has '|', '&', '~', '<<', '>>', '==' and '!=', and no '%s': its u64s are "
-                                 "'.u64s'",
-                         e->op);
-            if (shift) {
-                if (!is_bits(value_type(e->a)))
-                    error_at(t->pos, "'%s' shifts a Bits, on its left, by an integer", e->op);
-                check_bits_place(e->b, "a shift of a Bits");
-            } else if (!is_bits(value_type(e->a)) || !is_bits(value_type(e->b))) {
-                error_at(t->pos, "'%s' of a Bits takes another Bits: 'Bits(n)' makes one of an integer", e->op);
-            }
-            Expr *x = new_expr(E_METHOD, t->pos);
-            x->op = "bits_op";
-            x->text = (char *)e->op;
-            x->a = bits_held(e->a);
-            list_push(&x->items, shift ? e->b : bits_held(e->b));
-            x->type = base_type(eq ? "bool" : "Bits", t->pos);
-            x->is_bool = eq;
             lhs = x;
             continue;
         }
@@ -6532,7 +6402,7 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
                       !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13) ||
                       !strncmp(e->op, "range", 5) || !strncmp(e->op, "pow_", 4) || !strncmp(e->op, "num_", 4) ||
-                      !strncmp(e->op, "bits_", 5) || !strncmp(e->op, "bit_", 4) || !strncmp(e->op, "empty_", 6))) /* (#319, #323, #325, #372, #373, #380, #381, #382, #387, #434, #454) */
+                      !strncmp(e->op, "bit_", 4) || !strncmp(e->op, "empty_", 6))) /* (#319, #323, #325, #372, #373, #380, #381, #382, #387, #434, #454) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -6846,7 +6716,7 @@ static void reject_unknown_member(Expr *e, Token *name, const char *member) {
         Decl *r;
         bool record = t->kind == T_PTR && !t->cstr && el && el->kind == T_BASE && !is_text_type(t) &&
                       (strchr("sc", type_class(el, &r)) || is_string(el) || is_bytes(el) || is_array_owner(el) ||
-                       is_dict_owner(el) || is_set_owner(el) || is_io(el) || is_bits(el));
+                       is_dict_owner(el) || is_set_owner(el) || is_io(el));
         if (record)
             error_at(name->pos, "'.%s' of %s, a pointer: its member is '%s^.%s'", member, what,
                      e->kind == E_IDENT ? e->text : "p", member);
@@ -8219,7 +8089,7 @@ static int int_width(Type *t) {
    the program */
 static Expr *int_bit_at(Expr *e, Type *t, Expr *n, Pos pos) {
     int width = int_width(t);
-    check_bit_number(n, "a bit's place in an integer", false);
+    check_bit_number(n, "a bit's place in an integer");
     unsigned long long mag;
     bool neg;
     if (int_literal_value(n, &mag, &neg) && ((neg && mag) || mag >= (unsigned long long)width))
@@ -8378,7 +8248,7 @@ static Expr *bigint_bit_call(const char *fn, Expr *recv, Expr *n, Pos pos) {
    width has it. n is 0 or more, a literal checked, a value below ending
    the program */
 static Expr *bigint_bit_at(Expr *recv, Expr *n, Pos pos) {
-    check_bits_place(n, "a bit's place in a BigInt");
+    check_bit_place(n, "a bit's place in a BigInt");
     Expr *x = bigint_bit_call("kv_bi_bit", recv, n, pos);
     resolve_call(x);
     x->is_bool = true;
@@ -8455,13 +8325,6 @@ static Expr *bit_method(Expr *e, Token *name, const char *member) {
         error_at(name->pos, "'.bit(n)' is no more (#530), and this is a bool: a bool flips with '.flip()'");
     if (args.len)
         error_at(name->pos, "'.flip()' of a bool takes nothing: it is b = !b");
-    if (e->kind == E_METHOD && e->op && !strcmp(e->op, "bits_at")) { /* bv[n].flip(), bv.flip(n) */
-        reject_var_method_receiver(e->a, member, name->pos);
-        x->a = e->a;
-        x->op = "bits_flip";
-        list_push(&x->items, e->items.data[0]);
-        return x;
-    }
     if (bigint_bit_read(e)) { /* b.bits[n].flip() of a BigInt (#531) */
         bigbit_t *r = bigint_bit_read(e);
         if (r->recv->kind == E_IDENT && !strncmp(r->recv->text, "_kv_tmp", 7))
@@ -8485,107 +8348,14 @@ static Expr *bit_method(Expr *e, Token *name, const char *member) {
     return x;
 }
 
-/* a Bits an operator or a method reads (#455): a place as it is; one an
-   expression gives codegen holds in a C temporary that frees it */
-static Expr *bits_held(Expr *e) { return e; }
-
-/* a bit's place in a Bits, or a shift (#455): an integer of 64 bits or
-   fewer, or an enum's value, a literal 0 or more; past the count the
-   program ends */
-static void check_bits_place(Expr *n, const char *what) {
-    check_bit_number(n, what, false);
+/* a bit's place in a BigInt (#531; a Bits's, #455, before #532): an
+   integer of 64 bits or fewer, or an enum's value, a literal 0 or more */
+static void check_bit_place(Expr *n, const char *what) {
+    check_bit_number(n, what);
     unsigned long long mag;
     bool neg;
     if (int_literal_value(n, &mag, &neg) && neg && mag)
         error_at(n->pos, "%s is 0 or more, and this is -%s", what, n->kind == E_PREFIX ? n->a->text : n->text);
-}
-
-/* the arguments of Bits(...) or a Bits's method, the cursor at its ( */
-static List bits_args(Token *name) {
-    (void)name;
-    expect_p("(");
-    bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
-    ident_annotation_ok = true;
-    brace_ends_condition = false;
-    List args = {0};
-    while (!is_p(peek(), ")")) {
-        if (is_p(peek(), "[")) { /* [true, false], a [bool] (#455) */
-            Type *at = xcalloc(1, sizeof *at);
-            at->kind = T_ARRAY;
-            at->pos = peek()->pos;
-            at->elem = base_type("bool", peek()->pos);
-            Expr *c = new_expr(E_COMPOUND, peek()->pos);
-            c->type = at;
-            c->a = parse_initializer_for(at);
-            count_items(at, c->a);
-            list_push(&args, c);
-        } else {
-            list_push(&args, parse_assign());
-        }
-        if (!accept_p(","))
-            break;
-    }
-    ident_annotation_ok = saved;
-    brace_ends_condition = saved_brace;
-    expect_p(")");
-    return args;
-}
-
-/* what Bits(...) and bv.append(x) take (#455), as a bits_part of its kind:
-   "bool"; "int", an integer, its type's width, a literal's 64; "text",
-   "0b..." of a literal, a cstr or a String, the last digit place 0;
-   "bools", a [bool] or an Array<bool>, its first at place 0 */
-static Expr *bits_part(Expr *v, const char *what) {
-    Expr *x = new_expr(E_METHOD, v->pos);
-    x->op = "bits_part";
-    Type *t = value_type(v);
-    Type *u = t ? unqualified(t) : NULL;
-    Decl *r;
-    char c = expr_class(v, &r);
-    if (v->is_bool || seen_bool(v) || bool_shape(v) || (u && u->kind == T_BASE && !strcmp(u->name, "bool"))) {
-        x->text = "bool";
-    } else if (v->kind == E_STRING || is_cstr(t)) {
-        x->text = "cstr";
-        if (v->kind == E_STRING) { /* its text checked here */
-            Buf b = {0};
-            buf_puts(&b, "");
-            for (int i = 0; i < v->items.len; i++)
-                buf_puts(&b, v->items.data[i]);
-            const char *s = b.buf;
-            size_t n = strlen(s);
-            bool ok = n >= 4 && s[0] == '"' && s[1] == '0' && s[2] == 'b';
-            for (size_t i = 3; ok && i + 1 < n; i++)
-                ok = s[i] == '0' || s[i] == '1' || s[i] == '"';
-            if (!ok)
-                error_at(v->pos, "%s takes text of 0b and binary digits, as \"0b101\"", what);
-        }
-    } else if (is_string(t)) {
-        x->text = "string";
-        v = bits_held(v);
-    } else if (t && t->kind == T_PTR && is_string(t->elem)) {
-        x->text = "string_ref";
-    } else if ((t && t->kind == T_ARRAY && t->size && t->elem && t->elem->kind == T_BASE &&
-                !strcmp(unqualified(t->elem)->name, "bool")) ||
-               (is_array_owner(t) && t->elem && !strcmp(unqualified(t->elem)->name, "bool"))) {
-        x->text = is_array_owner(t) ? "array" : "bools";
-        if (is_array_owner(t))
-            v = bits_held(v);
-    } else if (c == 'i' || c == 'u') {
-        Type *n = seen_number_type(v);
-        int w = int_width(n);
-        if (n && !w && strncmp(n->name, "enum ", 5) && !literal_type(v))
-            w = 0; /* a C typedef: C's sizeof */
-        else if (!w)
-            w = 64; /* a literal, an i64; an enum's value as u64(n) */
-        x->text = "int";
-        x->items.len = 0;
-        x->from = base_type(strfmt("%d", w), v->pos);
-    } else {
-        error_at(v->pos, "%s takes bools, [bool]s, integers and text \"0b...\", and this is %s", what,
-                 t ? kelvin_type(t) : literal_type(v) ? literal_type(v) : "not one");
-    }
-    x->a = v;
-    return x;
 }
 
 /* Is e a floating-point literal in digits, possibly negated? */
@@ -9829,7 +9599,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                          lhs->from->name);
             if (lhs->kind == E_METHOD && lhs->op && !strcmp(lhs->op, "bit_int_at")) {
                 /* x.bits[n] = b, |=, &= and ~= of a bool (#530, #454's
-                   x.bit(n)), as a Bits's bv[n]: in the var that holds x */
+                   x.bit(n)): in the var that holds x */
                 if (!strcmp(t->text, ":="))
                     error_at(t->pos, "':=' sets a reference: a bit of an integer is set with '='");
                 if (strcmp(t->text, "=") && strcmp(t->text, "|=") && strcmp(t->text, "&=") && strcmp(t->text, "~="))
@@ -9853,34 +9623,6 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 c->text = t->text;
                 c->op = "bit_int_set";
                 c->from = lhs->from;
-                list_push(&c->items, lhs->items.data[0]);
-                list_push(&c->items, v);
-                return c;
-            }
-            if (lhs->kind == E_METHOD && lhs->op && !strcmp(lhs->op, "bits_at")) {
-                /* bv[n] = b, bv[n] |= b, bv[n] &= b, bv[n] ~= b of a bool
-                   (#387): in the var that holds bv */
-                if (!strcmp(t->text, ":="))
-                    error_at(t->pos, "':=' sets a reference: a bit of a Bits is set with '='");
-                if (strcmp(t->text, "=") && strcmp(t->text, "|=") && strcmp(t->text, "&=") && strcmp(t->text, "~="))
-                    error_at(t->pos, "a bit of a Bits is set with '=', '|=', '&=' or '~=', and a bool, and has no '%s'",
-                             t->text);
-                if (lhs->a->kind != E_IDENT && lhs->a->kind != E_FIELD && lhs->a->kind != E_INDEX &&
-                    lhs->a->kind != E_DEREF)
-                    error_at(t->pos, "setting a bit of a Bits changes the Bits, so that Bits is a variable");
-                if (let_target(lhs->a))
-                    error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
-                reject_const_change(lhs->a, t->pos); /* through a read-only borrow (#273) */
-                Expr *v = parse_assign();
-                assign_ok = ok;
-                if (!(v->is_bool || seen_bool(v) || bool_shape(v)))
-                    error_at(v->pos, "a bit of a Bits is set with a bool, and this is %s: '!!n' makes one of an integer "
-                                     "0 or 1",
-                             value_type(v) ? kelvin_type(value_type(v)) : literal_type(v) ? literal_type(v) : "none");
-                Expr *c = new_expr(E_METHOD, t->pos);
-                c->a = lhs->a;
-                c->text = t->text;
-                c->op = "bits_set";
                 list_push(&c->items, lhs->items.data[0]);
                 list_push(&c->items, v);
                 return c;
@@ -9999,29 +9741,6 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             if ((!strcmp(t->text, "+=") || !strcmp(t->text, "-=")) && is_cstr(value_type(lhs)))
                 error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step "
                                  "a 'var p:u8^ := s'");
-            if (is_bits(value_type(lhs)) && strcmp(t->text, "=") && strcmp(t->text, ":=")) {
-                /* bv |= b, bv &= b, bv ~= b of another Bits, bv <<= n and
-                   bv >>= n (#387), as of their u64s */
-                bool shift = !strcmp(t->text, "<<=") || !strcmp(t->text, ">>=");
-                if (!shift && strcmp(t->text, "|=") && strcmp(t->text, "&=") && strcmp(t->text, "~="))
-                    error_at(t->pos, "a Bits has '|=', '&=', '~=', '<<=' and '>>=', and no '%s': its u64s are "
-                                     "'.u64s'",
-                             t->text);
-                Expr *v = parse_assign();
-                assign_ok = ok;
-                if (shift)
-                    check_bits_place(v, "a shift of a Bits");
-                else if (!is_bits(value_type(v)))
-                    error_at(v->pos, "'%s' of a Bits takes another Bits: 'Bits(n)' makes one of an integer", t->text);
-                else
-                    v = bits_held(v);
-                Expr *x = new_expr(E_METHOD, t->pos);
-                x->a = lhs;
-                x->text = t->text;
-                x->op = "bits_assign";
-                list_push(&x->items, v);
-                return x;
-            }
             if ((!strcmp(t->text, "|=") || !strcmp(t->text, "&=") || !strcmp(t->text, "~=")) &&
                 is_set_owner(value_type(lhs))) {
                 /* s |= t, s &= t, s ~= t (#73): in place, of another Set in a variable */
@@ -11189,17 +10908,9 @@ static bool is_bytes(Type *t) {
     return t && t->kind == T_BASE && !strcmp(t->name, "Bytes");
 }
 
-/* Bits (#387): 64 bits in a u64, kv_bits in C, each a bool by its place */
-static bool is_bits(Type *t) {
-    if (t && t->kind == T_TYPEOF)
-        t = t->elem;
-    return t && t->kind == T_BASE && !strcmp(t->name, "Bits");
-}
-
-/* a number a Bits takes (#387): Bits(n)'s, and a bit's place or a shift,
-   0 to 63 where it is a literal (place); an integer of 64 bits or fewer,
-   or an enum's value, by which flags are named */
-static void check_bit_number(Expr *n, const char *what, bool place) {
+/* a bit's place (#387, #530, #531): an integer of 64 bits or fewer, or an
+   enum's value, by which flags are named */
+static void check_bit_number(Expr *n, const char *what) {
     Decl *r;
     char c = expr_class(n, &r);
     Type *t = value_type(n) ? unqualified(value_type(n)) : NULL;
@@ -11210,11 +10921,6 @@ static void check_bit_number(Expr *n, const char *what, bool place) {
                  : t                                          ? kelvin_type(t)
                  : literal_type(n)                            ? literal_type(n)
                                                               : "not one");
-    unsigned long long mag;
-    bool neg;
-    if (place && int_literal_value(n, &mag, &neg) && ((neg && mag) || mag > 63))
-        error_at(n->pos, "%s is 0 to 63, and this is %s%s", what, neg ? "-" : "",
-                 n->kind == E_PREFIX ? n->a->text : n->text);
 }
 
 static bool is_string(Type *t) {
@@ -11270,7 +10976,7 @@ static bool is_owner(Type *t) {
         return is_owner(t->elem);
     if (t->kind != T_BASE)
         return false;
-    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_io(t) || is_task(t) || is_iter(t) || is_bits(t))
+    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_io(t) || is_task(t) || is_iter(t))
         return true;
     Decl *r;
     if (type_class(t, &r) != 's' || !r)
@@ -12733,9 +12439,7 @@ static bool no_value(Expr *e) {
     case E_METHOD: {
         if (e->op && builtin_owner_kind(e->op))
             return builtin_no_value(owner_letter(e->op), e->text);
-        if (e->op && !strcmp(e->op, "bits_part")) /* what Bits(...) takes (#455) */
-            return no_value(e->a);
-        if (e->op && (!strncmp(e->op, "bits_", 5) || !strncmp(e->op, "bit_", 4))) /* (#387, #454) */
+        if (e->op && !strncmp(e->op, "bit_", 4)) /* (#387, #454) */
             return !e->type;
         Decl *m = e->method ? e->method : method_named(e->a, e->text);
         return m && !m->ret;
@@ -14279,11 +13983,6 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
             error_at(seq->pos, "for over a Dictionary that an expression gives: bind it to a variable first");
         s->each = EACH_DICT;
         elem = t->key;
-    } else if (is_bits(t)) { /* its count bits, each a bool, place 0 first (#455) */
-        if (!owner_place(seq))
-            error_at(seq->pos, "for over a Bits that an expression gives: bind it to a variable first");
-        s->each = EACH_BITS;
-        elem = base_type("bool", seq->pos);
     } else if (is_bytes(t) || is_string(t) || is_array_owner(t)) {
         /* its count bytes, NULs included (#54); a String's codepoints
            (#55); an Array's elements (#57) */
