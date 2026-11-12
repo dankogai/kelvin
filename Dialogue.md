@@ -10212,3 +10212,18 @@ error that names no type, and an attribute of an i64 is not read on a
 literal. Details are provisional P554.
 
 There are 1311 tests, and all pass with clang and with gcc 15.
+
+### 590. A number's method, called before it is written
+
+> push and fix the number's method called before written as #543
+
+**Claude** pushed #542 once its battery passed. A method of a struct may
+be called before it is written since #505, by a prototype kelvinc writes;
+a method of a built-in type could not, as its receiver is a keyword, which
+the prototypes passed by, and since #539 the error named no type. kelvinc
+now writes the prototype of `let i64.later()` and of `extend i64 { }`
+too, of a number, a bool or a String, and #539's error is said only where
+a type has the method. kc read them already. Details are provisional
+P555.
+
+There are 1313 tests, and all pass with clang and with gcc 15.

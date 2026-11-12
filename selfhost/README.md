@@ -637,9 +637,9 @@ kc reads what it is written in, and little more.
     it asks whether the files name `BigInt` or `RegExp`, as kelvinc's
     with_imports, so Rational's `bigrat` has its BigInt where the
     program names none.
-  - Found, and not kc's: kelvinc reads a number's method only after it
-    is written, so sample.k writes its own before `main`; a struct's
-    may come after (#505).
+  - Found, and not kc's: kelvinc read a number's method only after it
+    was written, where a struct's may come after (#505); #543 reads
+    it, and sample.k's are written after `main`.
 - **An overload picked by its type** (#537), as kelvinc's #41: an
   overloaded function's name, where a function type is written, is the
   overload of that type: `let h:(i64):i64 := over`, a global's,

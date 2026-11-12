@@ -310,6 +310,7 @@ let main():int32 {
   - A method may be called before it is written (#505): kelvinc writes
     its prototype, `let point.area():f64`, where it is needed. A method
     may call itself.
+    - A built-in type's too (#543): `let i64.later()`, `extend i64 { }`.
   - A method call cannot appear in a global initializer.
   - C's enums cannot have methods; an enum with values can (#61). A
     function of the type, `static let T.name()`, with no self, goes on

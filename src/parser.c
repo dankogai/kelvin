@@ -3673,7 +3673,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                     bare_tags = true;
                     char *tn = kelvin_type(mrt);
                     bare_tags = false;
-                    error_at(name->pos, "%s has no method '%s': it is a method of %s", tn, member, has.buf);
+                    if (owners) /* none where its method is written after this call and has no prototype (#543) */
+                        error_at(name->pos, "%s has no method '%s': it is a method of %s", tn, member, has.buf);
                 }
                 if (m && is_owner(value_type(e)) && !owner_place(e) && !is_io_std(e)) { /* the receiver, held (#156, #187) */
                     e = make_temp(e, "a method of an owner that an expression gives: bind it to a variable first");
@@ -16837,7 +16838,12 @@ typedef struct {
     int start, name, body; /* the first token, the name's, where its header ends */
     int item;              /* the top-level declaration it is in */
     const char *recv;      /* extend T's T, or NULL */
+    int recv_kind;         /* T's token: a name, or the word of a built-in type, extend i64 (#543) */
 } AheadFn;
+
+/* whether t names the type of a method: a struct's, a union's or an
+   enum's name, or a built-in type's word, let i64.m( and extend i64 (#543) */
+static bool ahead_recv(Token *t) { return t->kind == TK_IDENT || is_base_word(t); }
 
 static bool storage_kw(Token *t) { return is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "inline"); }
 
@@ -16846,8 +16852,8 @@ static bool storage_kw(Token *t) { return is_kw(t, "static") || is_kw(t, "extern
    -1 where it is no function */
 static int ahead_body(int name) {
     int i = name + 1;
-    if (toks[name].kind == TK_IDENT && is_p(&toks[i], ".") && toks[i + 1].kind == TK_IDENT)
-        i += 2; /* let T.m( */
+    if (ahead_recv(&toks[name]) && is_p(&toks[i], ".") && toks[i + 1].kind == TK_IDENT)
+        i += 2; /* let T.m(, let i64.m( (#543) */
     if (!is_p(&toks[i], "("))
         return -1;
     int j = skip_nested(i);
@@ -16925,16 +16931,17 @@ static void forward_prototypes(void) {
         while (storage_kw(&toks[k]))
             k++;
         if ((is_kw(&toks[k], "let") || is_kw(&toks[k], "var")) &&
-            (toks[k + 1].kind == TK_IDENT || overloadable_op(&toks[k + 1])) &&
+            (toks[k + 1].kind == TK_IDENT || overloadable_op(&toks[k + 1]) ||
+             (is_base_word(&toks[k + 1]) && is_p(&toks[k + 2], ".") && toks[k + 3].kind == TK_IDENT)) &&
             !(toks[k + 1].kind == TK_IDENT && !strcmp(toks[k + 1].text, "main"))) {
             int body = ahead_body(k + 1);
             if (body >= 0 && !(t->imported && !is_p(&toks[body], "{"))) { /* not a module header's prototype */
                 AheadFn *f = xcalloc(1, sizeof *f);
-                *f = (AheadFn){i, k + 1, body, i, NULL};
+                *f = (AheadFn){i, k + 1, body, i, NULL, TK_IDENT};
                 list_push(&fns, f);
             }
         }
-        if (t->kind == TK_IDENT && !strcmp(t->text, "extend") && t[1].kind == TK_IDENT && is_p(&t[2], "{")) {
+        if (t->kind == TK_IDENT && !strcmp(t->text, "extend") && ahead_recv(&t[1]) && is_p(&t[2], "{")) {
             int end = skip_nested(i + 2);
             for (int j = i + 3, d = 0; j < end - 1; j++) { /* its members */
                 if (d == 0 && (j == i + 3 || line_break(&toks[j - 1], &toks[j]) || is_p(&toks[j - 1], ";"))) {
@@ -16946,7 +16953,7 @@ static void forward_prototypes(void) {
                         int body = ahead_body(m + 1);
                         if (body >= 0 && !(toks[j].imported && !is_p(&toks[body], "{"))) {
                             AheadFn *f = xcalloc(1, sizeof *f);
-                            *f = (AheadFn){j, m + 1, body, i, t[1].text};
+                            *f = (AheadFn){j, m + 1, body, i, t[1].text, t[1].kind};
                             list_push(&fns, f);
                         }
                     }
@@ -16986,8 +16993,8 @@ static void forward_prototypes(void) {
         if (!known || place < 0 || place >= a->start || (!a->recv && place >= a->item))
             continue;
         bool used = overloadable_op(&toks[a->name]);
-        const char *name = toks[a->name].kind == TK_IDENT && is_p(&toks[a->name + 1], ".") ? toks[a->name + 2].text
-                                                                                              : toks[a->name].text;
+        const char *name = ahead_recv(&toks[a->name]) && is_p(&toks[a->name + 1], ".") ? toks[a->name + 2].text
+                                                                                         : toks[a->name].text;
         for (int i = place; i < a->start && !used; i++)
             used = ahead_use(i, name);
         if (!used)
@@ -17007,7 +17014,7 @@ static void forward_prototypes(void) {
             if (a->recv) {
                 Token *ext = xmalloc(sizeof *ext * 3);
                 ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false, false, false};
-                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false, false, false};
+                ext[1] = (Token){a->recv_kind, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false, false, false};
                 ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false, false, false};
                 for (int e = 0; e < 3; e++)
                     list_push(&out, &ext[e]);

@@ -411,6 +411,8 @@ let main():int32 {
   - `let f(s:const String^) { f(s^.cstr) }` before `let f(s:cstr)`
     calls the second, where it was an error (#492); so does a method
     calling one of its type written after it.
+  - A built-in type's method too (#543): `n.later()` before `let
+    i64.later()` or `extend i64 { }`, of a number, a bool or a String.
   - A prototype written by hand is still one, and harmless.
   - A variable is still declared before it is used, as in C.
 - **The choice** is the overload that every argument fits exactly, or

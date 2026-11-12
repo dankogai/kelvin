@@ -524,16 +524,6 @@ struct tm_tag { n: i64 }
 extend tm_tag {
     let cstr():cstr { "a tag" }
 }
-// a number's methods (#542): int32 is i32, and Self the number; written
-// before main, as kelvinc reads a number's method before its call
-extend i64 {
-    let nm_twice():i64 { self * 2 }
-}
-extend int32 {
-    let nm_twice():Self { self * 3 }
-}
-let f64.nm_half():f64 { self / 2.0 }
-
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1460,6 +1450,16 @@ on a new line`
     println(rt_b + rt_b, " ", rt_b * 3 - 1, " ", bigrat(rt_a) == rt_b, " ", rat64(rt_b), " ", rt_b.f64, " ", rt_b.hex, " ", 2n.over(4))
     return 0
 }
+
+// a number's methods (#542): int32 is i32, and Self the number; written
+// after main, which calls them (#543)
+extend i64 {
+    let nm_twice():i64 { self * 2 }
+}
+extend int32 {
+    let nm_twice():Self { self * 3 }
+}
+let f64.nm_half():f64 { self / 2.0 }
 
 // a let parameter's array, walked up to its count, its fifth left (#524)
 let fe_sum4(xs:[int32](4)):int64 {
