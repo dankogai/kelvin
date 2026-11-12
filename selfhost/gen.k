@@ -2044,6 +2044,11 @@ let type_of(n:int64):int64 {
     }
     if k == N_CAST { return nodes[n].ty }
     if k == N_ADDR {                                   // &x, a const T^ of a let (#272)
+        let fa:int64 = nodes[n].a                      // &f of a function's name is the function itself, as kelvinc's (#536)
+        if nodes[fa].kind == N_ID && var_type(nodes[fa].t) < 0 && fn_named(nodes[fa].t) >= 0 {
+            let fy:int64 = type_of(fa)
+            if fy >= 0 && types[fy].kind == Y_FN { return fy }
+        }
         let r:int64 = changed_root(nodes[n].a)
         let fixed = r >= 0 && how_declared(nodes[r].t) != 0
         return type_of_kind(Y_PTR, type_of(nodes[n].a), fixed ? 1 : 0 - 1)

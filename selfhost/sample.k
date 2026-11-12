@@ -1118,6 +1118,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     let twice_of := doubled                              // a function's name, a value of its type
     let step:dispatch = {"half", { $0 / 2 }}
     println(clamped, " ", apply_twice(bump, 5), " ", apply_twice(twice_of, 3), " ", step.op(40), " ", bump.typename)
+    let twice_at := &doubled                             // &f of a function's name is the function itself (#536)
+    var fn_list = $[&doubled, doubled]
+    let step_at:dispatch = {"twice", &doubled}
+    println(twice_at(4), " ", apply_twice(&doubled, 3), " ", fn_list[0](5), " ", step_at.op(6), " ", twice_at.typename, " ", twice_at == doubled)
     let hex_text = $"0x1f"
     println(int64("42"), " ", int32("ff", 16), " ", float64("1.5"), " ", uint8("300"), " ", int64(hex_text, 16), " ", int64(2.7), " ", float32(odds[2]))   // converters (#429)
     let short_u8:u8 = u8("300")                           // kelvinc's short type names (#430)

@@ -604,6 +604,11 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`&f` is the function** (#536), as kelvinc's: `&f` of a function's
+  name has the function's type, where kc made of it a pointer to one,
+  `(i64):i64^`, which no call and no function's place took.
+  - `let g := &f` calls as `g(x)`, and `&f` goes where a function goes:
+    an argument, a member, an Array's element, a result.
 - **`&` takes a place** (#535), as kelvinc's: `&x.i64`, `&f()`, `&5`
   and `&(x + 1)` are `no_place`'s values (#534), which have no address,
   and kc says so where C's "cannot take the address of an rvalue" was

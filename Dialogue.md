@@ -10083,3 +10083,18 @@ owner an expression gives, which is held where it is borrowed. kc's
 is left. Details are provisional P547.
 
 There are 1301 tests, and all pass with clang and with gcc 15.
+
+### 583. kc reads `&f` as the function
+
+> push and fix kc's g() of &f as #536
+
+**Claude** pushed #535. kc typed `&f` of a function's name as a pointer
+to the function, so `let g := &f` made a `g` no call took, and `&f` went
+nowhere a function goes. kc now gives it the function's type, as kelvinc
+does, a function's address being the function itself: it is called,
+passed, kept in a typed variable, a member or an Array, and returned.
+The C kc writes is unchanged. Two things of overloads are left: kc does
+not pick one by a written type, `let h:(i64):i64 := over`, and neither
+compiler does of `&over`. Details are provisional P548.
+
+There are 1302 tests, and all pass with clang and with gcc 15.
