@@ -33,7 +33,7 @@ type's own are listed, with its methods, at the end of its document:
 | `Bits` | [bits.md](bits.md#properties-and-methods) |
 | pointers | [pointers.md](pointers.md#properties-and-methods) |
 | `cstr` | [cstr.md](cstr.md#properties-and-methods) |
-| `String`, `uchr` | [strings.md](strings.md#properties-and-methods) |
+| `String` | [strings.md](strings.md#properties-and-methods) |
 | arrays, `Array<T>` | [arrays.md](arrays.md#properties-and-methods) |
 | structs | [structs.md](structs.md#properties-and-methods) |
 | unions | [unions.md](unions.md#properties-and-methods) |
@@ -107,10 +107,9 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   and **`x.significand`** its IEEE 754 fields, read and set, as is its
   sign (#383). See [integers.md](integers.md) and
   [floatingpoint.md](floatingpoint.md).
-- **`c.utf32`** and **`c.codepoint`** are a `uchr`'s number, a `u32`,
-  and **`n.uchr`** an integer's codepoint (#56); `n.utf32` of a number
-  is an error that names `.uchr` (#297); see
-  [ownership.md](ownership.md).
+- **A codepoint** is a `u32` (#527), its own number: `n.utf32`,
+  `n.codepoint` and `n.uchr`, of `uchr` (#56), are no more (#528), and
+  an error that says so; see [strings.md](strings.md).
 - **`typeof(x)`** (#398), C23's, is `x`'s type as C has it, with its own
   qualifiers, a `let`'s `const` too, where `x.type` leaves them:
   `var a:typeof(n)`, `(typeof(p)){7, 8}`, `9 as typeof(n)`.
@@ -257,8 +256,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     (write `sizeof(x)`, `var y:x.type`, `x as uintptr_t` or `i64(x)`
     there), while `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are properties.
   - An expression kelvinc sees is a number is no struct (#297):
-    `(n + 1).size` is its `sizeof`, and `(n + 1).uchr` converts it,
-    integer arithmetic; `(x + 1.5).uchr` is an error, as `x.uchr` is.
+    `(n + 1).size` is its `sizeof`, integer arithmetic.
   - `.typename` is a property also of a C struct, since C++ reserves
     the word and C headers rarely name a field so (#34).
 - **Errors.** `.hex` on a bool or struct, `.dec`, `.oct` or `.bin` on a
@@ -271,12 +269,12 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - A struct's names its fields: `Pt has no member 'z': its fields are x
     and y`.
   - A pointer's names `p^.x`: `q.x` of a `Pt^`.
-  - A String's, a Bytes's, an Array's, a Dictionary's, a Set's, a
-    uchr's or an IO's names its document.
+  - A String's, a Bytes's, an Array's, a Dictionary's, a Set's or an
+    IO's names its document.
   - A number, a bool, an enum's value, a cstr and a fixed array have
     none.
-  - The runtime's own C fields, as `b.cap`, `c.cp` and `s.b`, are no
-    members: the error names `.capacity`, `.utf32` or `.bytes`.
+  - The runtime's own C fields, as `b.cap` and `s.b`, are no members:
+    the error names `.capacity` or `.bytes`.
     `.at` of a Bytes or an Array stays, a borrow.
   - A C struct's, or a value whose type kelvinc cannot see, the C
     compiler judges.

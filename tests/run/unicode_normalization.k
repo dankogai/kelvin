@@ -12,7 +12,7 @@ let column(line:const String^, from:i64, to:i64):String {
     for i in from..<to {
         let c = line^.bytes^[i]
         if c == ' ' {
-            if digits > 0 { s += uchr(cp) }
+            if digits > 0 { s += cp }
             cp = 0
             digits = 0
         } else {
@@ -20,7 +20,7 @@ let column(line:const String^, from:i64, to:i64):String {
             digits += 1
         }
     }
-    if digits > 0 { s += uchr(cp) }
+    if digits > 0 { s += cp }
     return s
 }
 let main():int32 {

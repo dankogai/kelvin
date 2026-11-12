@@ -110,9 +110,8 @@ union in C, with one byte for the tag.
 - **`.size`** is C's, `.typename` the name or the spelling.
 - **`==` and `!=`** (#79) compare two of one type: the same case, and
   equal values, where every case's value has a `==` of its own (a
-  number, a pointer, a `uchr`, a String, a Bytes, another enum with
-  values, or an array of numbers, bools or pointers, element by element,
-  #361).
+  number, a pointer, a String, a Bytes, another enum with values, or an
+  array of numbers, bools or pointers, element by element, #361).
   - One with a struct or an Array in a case has none, so define an
     operator, or compare `.case` and the cases.
   - `j == json.n(1.5)` makes the case on the spot; one that would own,

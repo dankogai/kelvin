@@ -34,7 +34,7 @@ let put_tok(t:int64) {
         from = 1
     }
     for i in from..<toks[t].len {
-        out += codes[at + i].uchr
+        out += codes[at + i]
     }
 }
 
@@ -97,7 +97,7 @@ let hex_lower(c:uint32):String {
     while p > 1 && c / p == 0 { p = p / 16 }
     var s = $""
     while p > 0 {
-        s += digits[(c / p) % 16].uchr
+        s += digits[(c / p) % 16]
         p = p / 16
     }
     return s
@@ -221,7 +221,7 @@ let hex_upper(v:int64):String {
     var s = $""
     if v >= 16 { s = hex_upper(v / 16) }
     let digits:cstr := "0123456789ABCDEF"
-    s += (digits[v % 16] as uint32).uchr
+    s += digits[v % 16] as uint32
     return s
 }
 
@@ -293,9 +293,9 @@ let put_ucn(t:int64, i:int64):int64 {
         let d0:int64 = '0' + b / 64
         let d1:int64 = '0' + (b / 8) % 8
         let d2:int64 = '0' + b % 8
-        out += d0.uchr
-        out += d1.uchr
-        out += d2.uchr
+        out += d0
+        out += d1
+        out += d2
     }
     return q
 }
@@ -314,10 +314,10 @@ let put_text(t:int64, from:int64) {
             continue
         }
         if c == '?' && i > from && codes[at + i - 1] == '?' { out += "\\" }
-        out += c.uchr
+        out += c
         if c == '\\' && i + 1 < toks[t].len {
             i += 1
-            out += codes[at + i].uchr
+            out += codes[at + i]
         }
         i += 1
     }
@@ -461,7 +461,6 @@ let put_ctype(y:int64) {
         put("_kv_range_")
         let w:String = mangled(types[y].elem)
         put(w.cstr)
-    case Y_UCHR: put("kv_uchr")
     case Y_BITS: put("kv_bits")                                  // (#387)
     case Y_ARRAY: put_array_name(y)
     case Y_DICT: put_dict_name(y)
@@ -924,7 +923,7 @@ let unknown_wide(n:int64, t:int64) {
     var without = $""
     for i in 0..<toks[t].len {
         let c:uint32 = codes[toks[t].at + i]
-        if c != 65038 && c != 65039 { without += c.uchr }
+        if c != 65038 && c != 65039 { without += c }
     }
     var near = $""
     if name_known_text(&with) {
@@ -1136,18 +1135,18 @@ let method_of(n:int64):int64 {
 }
 
 var tied_cands:$[int64]                  // the overloads a call fits alike (#471)
-var builtin_recvs:Dictionary<String, int64>   // String, Bytes, uchr and u32 as a receiver's name, a token of each (#515, #527)
+var builtin_recvs:Dictionary<String, int64>   // String, Bytes and u32 as a receiver's name, a token of each (#515, #527)
 
 // the token that names y's type as the receiver of its methods: a
-// struct's name, and String, Bytes or uchr, which a module extends (#515),
+// struct's name, and String or Bytes, which a module extends (#515),
 // and u32, which UnicodeData extends with a codepoint's properties (#527);
 // else -1
 let recv_tok(y:int64):int64 {
     if y < 0 { return -1 }
     let k = types[y].kind
     if k == Y_STRUCT { return types[y].name }
-    if k != Y_STRING && k != Y_BYTES && k != Y_UCHR && k != Y_U32 { return -1 }
-    var w:String = k == Y_STRING ? $"String" : k == Y_BYTES ? $"Bytes" : k == Y_U32 ? $"u32" : $"uchr"
+    if k != Y_STRING && k != Y_BYTES && k != Y_U32 { return -1 }
+    var w:String = k == Y_STRING ? $"String" : k == Y_BYTES ? $"Bytes" : $"u32"
     let had:int64 = builtin_recvs.get(w, 0 - 1)
     if had >= 0 { return had }
     let t:int64 = made_token(&w)
@@ -1155,17 +1154,16 @@ let recv_tok(y:int64):int64 {
     return t
 }
 
-// whether the token recv names String, Bytes or uchr, of kc's own methods
+// whether the token recv names String or Bytes, of kc's own methods
 // too, which serve where none of a module's fits (#515)
 let builtin_recv(recv:int64):bool {
-    return tok_is(recv, "String") || tok_is(recv, "Bytes") || tok_is(recv, "uchr")
+    return tok_is(recv, "String") || tok_is(recv, "Bytes")
 }
 
 // the type of self in a method of the type named as token recv (#515)
 let recv_type(recv:int64):int64 {
     if tok_is(recv, "String") { return base_type(Y_STRING) }
     if tok_is(recv, "Bytes") { return base_type(Y_BYTES) }
-    if tok_is(recv, "uchr") { return base_type(Y_UCHR) }
     if number_word(recv) >= 0 { return number_word(recv) }   // extend u32, a codepoint's (#527)
     return type_of_kind(Y_STRUCT, -1, recv)
 }
@@ -1191,7 +1189,7 @@ let method_chosen(n:int64, f:int64):int64 {
     if best == 0 - 1 { best = choose_among(n, &some, true) }   // a T fits a T?, the second look (#222)
     if best == 0 - 2 { best = tied_cands[0] }
     method_targets[n] = best
-    if best < 0 && builtin { return best }              // kc's own method of a String, a Bytes, a uchr
+    if best < 0 && builtin { return best }              // kc's own method of a String or a Bytes
     if best < 0 {
         var m = $"no method '"
         m += tok_text(w)
@@ -1416,7 +1414,7 @@ let resolve_attr(n:int64) {
     let y:int64 = type_of(a)
     if y < 0 { return }                                 // asked again where more is known
     attr_settled[n] = true
-    let r:int64 = recv_tok(y)                           // a struct's, or a uchr's a module extends (#515)
+    let r:int64 = recv_tok(y)                           // a struct's, or a String's a module extends (#515)
     if r < 0 { return }
     let f:int64 = method_named(r, nodes[n].t)
     if f < 0 || attributes.get(f, 0) == 0 { return }
@@ -1562,7 +1560,7 @@ let named_fn_type(n:int64):int64    // and a function's name, a value of its typ
 let anon_type(n:int64):int64    // and an anonymous function's, as a value
 let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
 let shown_cstr(n:int64):bool          // and v.cstr's of what print shows (#450)
-let scalar_cstr(n:int64):bool         // and x.cstr's of a number, a bool, a uchr or a pointer (#462)
+let scalar_cstr(n:int64):bool         // and x.cstr's of a number, a bool or a pointer (#462)
 let pointer_property(n:int64):int64   // x.size, x.addr, p.next and p.prev (#462)
 let os_call(n:int64):bool     // prototypes: OS.name(args) and SYS.name (#463)
 let os_type(n:int64):int64
@@ -1583,9 +1581,6 @@ let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
 let gen_fn_call(n:int64, fy:int64)    // and a call through a function value
 let member_fn_type(n:int64):int64    // and s.f(x) of a member f of a function type
 let converter_of(n:int64):int64    // and T(v), a converter's type (#429)
-let uchr_call(n:int64):bool    // and uchr(x), a codepoint (#478)
-let uchr_typed(n:int64):bool    // and c == d of a uchr (#478)
-let gen_uchr_compare(n:int64)
 let is_number_kind(k:ykind):bool    // and .utf32 of a number (#478)
 
 // whether the literal t, of decimal digits, is above an i64's largest (#472)
@@ -1732,7 +1727,6 @@ let type_of(n:int64):int64 {
         }
         let cy:int64 = converter_of(n)                   // int64(v), int64(text, base) (#429)
         if cy >= 0 { return cy }
-        if uchr_call(n) { return base_type(Y_UCHR) }     // uchr(x) (#478)
         let fy:int64 = callee_type(f)                    // through a function value (#428)
         if fy >= 0 { return types[fy].elem >= 0 ? types[fy].elem : base_type(Y_VOID) }
         if failed { return 0 - 1 }
@@ -1893,22 +1887,13 @@ let type_of(n:int64):int64 {
             if number_text_refused(n, types[int_view(y)].kind) { return -1 }
             return base_type(Y_CSTR)
         }
-        if tok_is(t, "uchr") && (yk == Y_F64 || yk == Y_F32 || yk == Y_BOOL || yk == Y_STRING || yk == Y_CSTR || yk == Y_UCHR) {   // as kelvinc says it (#478)
-            var m = $"'.uchr' converts an integer to a codepoint, and this is "
-            let w:String = kelvin_type_text(y)
-            m += &w
-            gen_error(n, m.cstr)
-            return -1
-        }
-        if tok_is(t, "uchr") { return base_type(Y_UCHR) }
-        if (tok_is(t, "utf32") || tok_is(t, "codepoint")) && is_number_kind(yk) {   // as kelvinc says it (#478)
+        if (tok_is(t, "utf32") || tok_is(t, "codepoint")) && is_number_kind(yk) {   // as kelvinc says it (#528)
             var m = $"'."
             m += tok_text(t)
-            m += "' is a uchr's codepoint, and this is a number, one already: '.uchr' makes a uchr of an integer (#297)"
+            m += "' was a uchr's codepoint, and uchr is no more (#528): a codepoint is a u32, the number itself"
             gen_error(n, m.cstr)
             return -1
         }
-        if tok_is(t, "utf32") || (yk == Y_UCHR && tok_is(t, "codepoint")) { return base_type(Y_U32) }   // c.codepoint too (#478)
         if tok_is(t, "isNull") && (yk == Y_PTR || yk == Y_FN || yk == Y_CSTR) { return base_type(Y_BOOL) }   // p == nowhere (#460), as kelvinc's #50
         if tok_is(t, "isNull") && yk == Y_FIXED {
             gen_error(n, "'.isNull' of an array: an array is never null; '&a[0]' is a pointer")
@@ -2063,13 +2048,6 @@ let type_of(n:int64):int64 {
             return wrap_type(ly)
         }
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
-        if uchr_typed(nodes[n].a) || uchr_typed(nodes[n].b) {          // as kelvinc says it (#478)
-            var m = $"a uchr has no operator '"
-            m += tok_text(t)
-            m += "': its codepoint is 'c.utf32', a u32"
-            gen_error(n, m.cstr)
-            return -1
-        }
         if tok_is(t, "**") { return power_type(nodes[n].a, nodes[n].b) }   // b ** e (#380)
         return arith_type(n)
     }
@@ -2393,7 +2371,7 @@ let member_unknown(n:int64, y:int64) {
     var m = $"'."
     if k == Y_PTR && types[y].elem >= 0 {
         let ek = types[types[y].elem].kind
-        if ek == Y_STRUCT || ek == Y_C || ek == Y_STRING || ek == Y_BYTES || ek == Y_ARRAY || ek == Y_DICT || ek == Y_SET || ek == Y_IO || ek == Y_UCHR || ek == Y_BITS {
+        if ek == Y_STRUCT || ek == Y_C || ek == Y_STRING || ek == Y_BYTES || ek == Y_ARRAY || ek == Y_DICT || ek == Y_SET || ek == Y_IO || ek == Y_BITS {
             let w:String = kelvin_type_text(y)
             m += tok_text(t)
             m += "' of "
@@ -2408,7 +2386,7 @@ let member_unknown(n:int64, y:int64) {
             return
         }
     }
-    let kind = k == Y_STRING ? $"a String" : k == Y_BYTES ? $"a Bytes" : k == Y_ARRAY ? $"an Array" : k == Y_DICT ? $"a Dictionary" : k == Y_SET ? $"a Set" : k == Y_UCHR ? $"a uchr" : k == Y_IO ? $"an IO" : $""
+    let kind = k == Y_STRING ? $"a String" : k == Y_BYTES ? $"a Bytes" : k == Y_ARRAY ? $"an Array" : k == Y_DICT ? $"a Dictionary" : k == Y_SET ? $"a Set" : k == Y_IO ? $"an IO" : $""
     if kind.count > 0 {
         let runtime:bool = tok_is(t, "cap") || tok_is(t, "cp") || tok_is(t, "b") || tok_is(t, "len") || tok_is(t, "head") || tok_is(t, "hcap") || tok_is(t, "fp") || tok_is(t, "kind") || tok_is(t, "named")
         if runtime {
@@ -2417,7 +2395,6 @@ let member_unknown(n:int64, y:int64) {
             m += &kind
             m += ", no member of Kelvin's"
             if tok_is(t, "cap") && (k == Y_BYTES || k == Y_ARRAY) { m += ": its spelling is '.capacity'" }
-            if tok_is(t, "cp") && k == Y_UCHR { m += ": its spelling is '.utf32'" }
             if tok_is(t, "b") && k == Y_STRING { m += ": its spelling is '.bytes'" }
             gen_error(n, m.cstr)
             return
@@ -2426,7 +2403,7 @@ let member_unknown(n:int64, y:int64) {
         e += " has no member '"
         e += tok_text(t)
         e += "': see its properties and methods in documents/"
-        e += k == Y_STRING || k == Y_UCHR ? "strings.md" : k == Y_BYTES ? "bytes.md" : k == Y_ARRAY ? "arrays.md" : k == Y_IO ? "io.md" : k == Y_SET ? "sets.md" : "dictionaries.md"
+        e += k == Y_STRING ? "strings.md" : k == Y_BYTES ? "bytes.md" : k == Y_ARRAY ? "arrays.md" : k == Y_IO ? "io.md" : k == Y_SET ? "sets.md" : "dictionaries.md"
         gen_error(n, e.cstr)
         return
     }
@@ -2495,8 +2472,8 @@ let plus_side_text(n:int64):String {
 }
 
 
-// s + t of Strings (#284), as kelvinc's: each side a String, a cstr or
-// a uchr, the left no uchr; a new String, the left copied from a
+// s + t of Strings (#284), as kelvinc's: each side a String or a cstr;
+// a new String, the left copied from a
 // variable, taken from an expression or made of text, and the right
 // appended, a String in a variable lent
 let gen_string_plus(n:int64) {
@@ -2505,9 +2482,9 @@ let gen_string_plus(n:int64) {
     var side = a
     while side >= 0 {
         let y:int64 = type_of(side)
-        let text = y >= 0 && (types[y].kind == Y_STRING || types[y].kind == Y_UCHR || types[y].kind == Y_CSTR)
+        let text = y >= 0 && (types[y].kind == Y_STRING || types[y].kind == Y_CSTR)
         if !text {
-            var s = $"'+' of a String joins text: a String, a cstr or a uchr, and this is "
+            var s = $"'+' of a String joins text: a String or a cstr, and this is "
             let what:String = plus_side_text(side)
             s += &what
             s += "; show a number with a template, $`${n}`, or String(n)"
@@ -2517,10 +2494,6 @@ let gen_string_plus(n:int64) {
         side = side == a ? b : -1
     }
     let ya:int64 = type_of(a)
-    if types[ya].kind == Y_UCHR {
-        gen_error(a, "'+' of a String starts with a String or text: write $\"\" + c, or String(c)")
-        return
-    }
     put("({ kv_string _kv_cat = ")
     if types[ya].kind != Y_STRING {
         if nodes[a].kind == N_STR { put("KV_STRING_LIT(") } else { put("KV_STRING_OF(") }   // a literal's every byte (#299)
@@ -2572,7 +2545,7 @@ let is_case_word(n:int64):bool {
     if nodes[n].kind == N_ID { return var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) < 0 }   // a function's name is a value (#516)
     if nodes[n].kind == N_CALL && nodes[nodes[n].a].kind == N_ID {
         let f = nodes[n].a
-        return var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) < 0 && converter_of(n) < 0 && !uchr_call(n)   // int64(x), uchr(x) are no case (#479)
+        return var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) < 0 && converter_of(n) < 0   // int64(x) is no case (#479)
     }
     return false
 }
@@ -2673,7 +2646,6 @@ let mangled(y:int64):String {
     case Y_STRING: return $"String"
     case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
-    case Y_UCHR: return $"uchr"
     case Y_BITS: return $"Bits"
     case Y_ARGV: return $"acstr"
     case Y_PTR:                                        // as kelvinc's, of its Kelvin text: const String^ is const_Stringp (#515)
@@ -3524,10 +3496,9 @@ let plain_shown(v:int64):bool {
     return is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_BYTES || k == Y_CSTR || k == Y_BITS
 }
 
-// whether print shows v inside a value as it is: plain_shown's, and a
-// uchr, as uchr("x") (#479)
+// whether print shows v inside a value as it is: plain_shown's
 let elem_shown(v:int64):bool {
-    return plain_shown(v) || types[v].kind == Y_UCHR
+    return plain_shown(v)
 }
 
 // whether print shows y by a _kv_show_T of its own: an enum with values
@@ -3675,10 +3646,6 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put("kv_out_quoted_text(o, (const void *)(")
         put_self(path, t)
         put("));\n")
-    } else if k == Y_UCHR {                             // uchr("x"), which pastes back (#479)
-        put("{ uint8_t _kv_b[256]; kv_cstr_quoted_uchr(")
-        put_self(path, t)
-        put(", _kv_b); kv_out_put(o, _kv_b); }\n")
     } else if !plain_shown(v) {
         put_show_name(v)
         put("(o, &(")
@@ -3793,11 +3760,6 @@ let put_eq_code(y:int64, x:cstr, z:cstr) {
         put(", &")
         put(z)
         put(")")
-    } else if k == Y_UCHR {
-        put(x)
-        put(".cp == ")
-        put(z)
-        put(".cp")
     } else if k == Y_BITS {                          // by its count and bits (#455)
         put("kv_bits_eq(&")
         put(x)
@@ -4713,7 +4675,7 @@ let gen_io_method(n:int64, a:int64) {
 // s.find(x), s.has(x), s.starts(x), s.ends(x), s.trim(), s.append(x),
 // s.clear(), s.compact() and s.reserve(n) of a String, as kelvinc's #55
 // and #177: KV_STRING_TEXT_OR_REF of the searches, text, a cstr or a
-// String borrowed; KV_STRING_APPEND of text, &t, a uchr or a codepoint;
+// String borrowed; KV_STRING_APPEND of text, &t or a codepoint;
 // a String an expression gives held around the statement, as escape's
 let gen_string_method(n:int64, a:int64, y:int64) {
     let t:int64 = nodes[n].t
@@ -5246,7 +5208,7 @@ let gen_shown_cstr(n:int64, a:int64, y:int64) {
     block_store += &d
 }
 
-// whether n is x.cstr of a number, a bool, a uchr, a cstr or another
+// whether n is x.cstr of a number, a bool, a cstr or another
 // pointer, as kelvinc's (#22, #462): its text in its block's storage, a
 // cstr's itself, another pointer's address, nowhere of a null one
 let scalar_cstr(n:int64):bool {
@@ -5254,7 +5216,7 @@ let scalar_cstr(n:int64):bool {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return false }
     let k = types[y].kind
-    return is_number_kind(k) || k == Y_BOOL || k == Y_UCHR || k == Y_CSTR || k == Y_PTR
+    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_PTR
 }
 
 // x.cstr, as kelvinc writes it: by the prelude's KV_PROPERTY_cstr of x's
@@ -5460,7 +5422,7 @@ let tpl_room(t:int64):int64 {
 }
 
 // the longest text of the value v, as kelvinc's template_bound: a number
-// 24 at most, as C may promote it, a bool 5, a uchr 4, a Bits 72, a
+// 24 at most, as C may promote it, a bool 5, a Bits 72, a
 // nested template its storage, and KV_TEMPLATE_STR, at least 64, for the
 // rest, a string's cut at that
 let tpl_bound(v:int64):String {
@@ -5478,7 +5440,6 @@ let tpl_bound(v:int64):String {
     if k == Y_U128 { return $"39" }
     if is_number_kind(k) { return $"24" }
     if k == Y_BOOL { return $"5" }
-    if k == Y_UCHR { return $"4" }
     return $"KV_TEMPLATE_STR"                            // a Bits too, cut as a string is (#455)
 }
 
@@ -5692,10 +5653,6 @@ let gen_string_template(n:int64) {
                 put("kv_string_append_text(&_kv_s, kv_bytes_cstr(&(")
                 gen_expr(x)
                 put("))); ")
-            } else if k == Y_UCHR {                      // a uchr as its character
-                put("kv_string_append_uchr(&_kv_s, ")
-                gen_expr(x)
-                put("); ")
             } else if nodes[x].kind == N_STR || nodes[x].kind == N_TPL || k == Y_CSTR {
                 put("kv_string_append_text(&_kv_s, ")
                 gen_expr(x)
@@ -5723,8 +5680,8 @@ let gen_string_template(n:int64) {
 
 // xs.join(sep) and xs.joined(sep), one method, as kelvinc's #461: a new
 // String of the elements, each appended as $`${x}` appends it, sep
-// before all but the first, read once; sep a cstr, a String in a
-// variable or a uchr, none of none; an Array an expression gives held
+// before all but the first, read once; sep a cstr or a String in a
+// variable, none of none; an Array an expression gives held
 let gen_join(n:int64) {
     let t:int64 = nodes[n].t
     let a:int64 = nodes[n].a
@@ -5745,10 +5702,10 @@ let gen_join(n:int64) {
         sy = type_of(sep)
         if failed { return }
         let sk:ykind = sy >= 0 ? types[sy].kind : Y_C
-        if !(nodes[sep].kind == N_STR || nodes[sep].kind == N_TPL || sk == Y_CSTR || sk == Y_STRING || sk == Y_UCHR) {
+        if !(nodes[sep].kind == N_STR || nodes[sep].kind == N_TPL || sk == Y_CSTR || sk == Y_STRING) {
             var m = $"'."
             m += tok_text(t)
-            m += "' puts text between the elements: a cstr, a String or a uchr, and this is "
+            m += "' puts text between the elements: a cstr or a String, and this is "
             let w:String = nodes[sep].kind == N_NUM || nodes[sep].kind == N_CHAR || sy < 0 ? $"a number" : kelvin_type_text(sy)
             m += &w
             gen_error(sep, m.cstr)
@@ -5792,8 +5749,8 @@ let gen_join(n:int64) {
 }
 
 // the value v, a C name of type y, appended to the String _kv_js as
-// $`${x}` appends it (#461): by its printer, a String by reference, a
-// uchr as its character, text as it is, a number's or a bool's text
+// $`${x}` appends it (#461): by its printer, a String by reference,
+// text as it is, a number's or a bool's text
 let put_string_part(y:int64, v:cstr) {
     let k:ykind = types[y].kind
     if shown_by_type(y) {
@@ -5810,10 +5767,6 @@ let put_string_part(y:int64, v:cstr) {
         put("kv_string_append_text(&_kv_js, kv_bytes_cstr(&(")
         put(v)
         put("))); ")
-    } else if k == Y_UCHR {
-        put("kv_string_append_uchr(&_kv_js, ")
-        put(v)
-        put("); ")
     } else if k == Y_CSTR {
         put("kv_string_append_text(&_kv_js, ")
         put(v)
@@ -5940,40 +5893,6 @@ let converter_of(n:int64):int64 {
     return 0 - 1
 }
 
-// whether the call n is uchr(x), a codepoint of a number or of text, as
-// kelvinc's #56: no function's or variable's (#478)
-let uchr_call(n:int64):bool {
-    let f:int64 = nodes[n].a
-    if nodes[f].kind != N_ID || !tok_is(nodes[f].t, "uchr") { return false }
-    return var_type(nodes[f].t) < 0 && fn_named(nodes[f].t) < 0
-}
-
-// whether n is a uchr (#478)
-let uchr_typed(n:int64):bool {
-    let y:int64 = type_of(n)
-    return y >= 0 && types[y].kind == Y_UCHR
-}
-
-// a comparison of a uchr, with a uchr or a number, by its codepoint, as
-// kelvinc's #56; it has no arithmetic (#478)
-let gen_uchr_compare(n:int64) {
-    let t:int64 = nodes[n].t
-    if !is_comparison(t) {
-        var m = $"a uchr has no operator '"
-        m += tok_text(t)
-        m += "': its codepoint is 'c.utf32', a u32"
-        gen_error(n, m.cstr)
-        return
-    }
-    put("((bool)((")
-    gen_expr(nodes[n].a)
-    put(uchr_typed(nodes[n].a) ? ").cp " : ") ")
-    put_tok(t)
-    put(" (")
-    gen_expr(nodes[n].b)
-    put(uchr_typed(nodes[n].b) ? ").cp))" : ")))")
-}
-
 // whether y is a String or a Bytes by reference, String^ or Bytes^, whose
 // text a converter reads (#495)
 let owner_text_ref(y:int64):bool {
@@ -6033,58 +5952,6 @@ let put_text_arg(v:int64) {
     put("(")
     gen_expr(v)
     put(")")
-}
-
-// uchr(x) (#478), as kelvinc writes it: KV_UCHR_OF, C's _Generic of an
-// integer or of text; a uchr as it is; the rest an error in words, as
-// kelvinc's (#494)
-let gen_uchr(n:int64) {
-    let v:int64 = nodes[n].b
-    if v < 0 || nodes[v].next >= 0 {
-        gen_error(n, "uchr(x) takes one value: a number, or text")
-        return
-    }
-    let vy:int64 = type_of(v)
-    if failed || vy < 0 { return }
-    let k = types[vy].kind
-    if k == Y_UCHR {                                     // uchr(c) is c
-        gen_expr(v)
-        return
-    }
-    // of a String or a Bytes, or one by reference, the first codepoint
-    // of its text, as kelvinc's #494
-    let pe:int64 = k == Y_PTR ? types[vy].elem : 0 - 1
-    let ref:bool = pe >= 0 && (types[pe].kind == Y_STRING || types[pe].kind == Y_BYTES)
-    if ref || k == Y_BYTES || k == Y_STRING {
-        let w:int64 = ref && nodes[v].kind == N_ADDR ? nodes[v].a : v
-        let bytes:bool = (ref ? types[pe].kind : k) == Y_BYTES
-        var opened = hold_args(w, 0 - 1)
-        put("(KV_UCHR_OF(kv_bytes_cstr(&")                 // as kelvinc writes .cstr: &s.b's, a Bytes itself
-        if !bytes { put("(") }
-        if ref && nodes[v].kind != N_ADDR {
-            put("(*")
-            gen_expr(v)
-            put(")")
-        } else {
-            gen_expr(w)
-        }
-        put(bytes ? ")))" : ").b)))")
-        close_holds(&opened)
-        return
-    }
-    let unseen:bool = k == Y_C || (k == Y_STRUCT && struct_of(vy) < 0 && tagged_of(vy) < 0)
-    let text:bool = converter_text(v)
-    if !(text || unseen || is_int_kind(k)) {
-        var m = $"uchr(x) takes an integer, a uchr or text, and this is "
-        let w:String = k == Y_BOOL ? $"a bool" : kelvin_type_text(vy)
-        m += &w
-        if k == Y_F64 || k == Y_F32 { m += ": convert it to an integer first, uchr(i64(x))" }
-        gen_error(v, m.cstr)
-        return
-    }
-    put("(KV_UCHR_OF(")
-    if text { put_text_arg(v) } else { gen_expr(v) }
-    put("))")
 }
 
 // the reader of the converter of type y, and what follows its text, as
@@ -6237,7 +6104,7 @@ let gen_converter(n:int64) {
         gen_error(base, m.cstr)
         return
     }
-    let number = !unseen && (is_number_kind(types[vy].kind) || types[vy].kind == Y_UCHR)
+    let number = !unseen && is_number_kind(types[vy].kind)
     if !text && !unseen && k != Y_BOOL && (types[vy].kind == Y_PTR || types[vy].kind == Y_FIXED) {   // as kelvinc says it (#513)
         var m = name.copy()
         m += "(v) converts a number, or reads one from text, and "
@@ -6296,12 +6163,12 @@ let gen_converter(n:int64) {
             put("); })")
         }
     } else {
-        let from:ykind = types[vy].kind == Y_UCHR ? Y_U32 : types[vy].kind
+        let from:ykind = types[vy].kind
         let clamp = k != Y_BOOL && !kind_widens(from, k)   // the nearest value T holds, as kelvinc's (#513)
         if clamp { put("({ __auto_type _kv_conv = ((void)0, ") }
         put("(")
         gen_expr(v)
-        put(types[vy].kind == Y_UCHR ? ").cp" : ")")   // i64(c) is i64(c.utf32), as kelvinc's (#478)
+        put(")")
         if clamp {
             put("); ")
             if kind_bits(k) > 1 {
@@ -6357,10 +6224,6 @@ let gen_call(n:int64) {
     }
     if converter_of(n) >= 0 {                       // int64(v), int64(text, base) (#429)
         gen_converter(n)
-        return
-    }
-    if uchr_call(n) {                               // uchr(x) (#478)
-        gen_uchr(n)
         return
     }
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
@@ -6881,14 +6744,6 @@ let gen_member(n:int64) {
         put("kv_bytes_cstr(&(")
         gen_expr(a)
         put(yk == Y_STRING ? ").b)" : "))")                 // a Bytes's own, NUL-ended (#439)
-    } else if tok_is(t, "uchr") {
-        put("kv_uchr_of(")
-        gen_expr(a)
-        put(")")
-    } else if tok_is(t, "utf32") || (yk == Y_UCHR && tok_is(t, "codepoint")) {
-        put("(")
-        gen_expr(a)
-        put(").cp")
     } else {
         put("(")
         gen_expr(a)
@@ -7663,8 +7518,8 @@ let gen_string_eq(a:int64, b:int64) {
         gen_place(a)
         put(", ")
         gen_place(b)
-    } else {                                         // with text, a uchr or a character, as kelvinc's (#522)
-        put(nodes[b].kind == N_STR || bk == Y_CSTR ? "kv_string_eq_text(" : bk == Y_UCHR ? "kv_string_eq_uchr(" : "kv_string_eq_cp(")
+    } else {                                         // with text or a character, as kelvinc's (#522)
+        put(nodes[b].kind == N_STR || bk == Y_CSTR ? "kv_string_eq_text(" : "kv_string_eq_cp(")
         gen_place(a)
         put(", ")
         gen_expr(b)
@@ -7710,7 +7565,7 @@ let gen_cond(n:int64) {
     if nodes[n].kind == N_BIN && is_comparison(nodes[n].t) {
         let y:int64 = type_of(nodes[n].a)
         let owners = tagged_side(n) >= 0 || builtin_kind(y) != Y_VOID || builtin_kind(type_of(nodes[n].b)) != Y_VOID   // an Optional's == (#343), String ==, xs == ys (#288), refusals (#287)
-        if !owners && !uchr_typed(nodes[n].a) && !uchr_typed(nodes[n].b) {   // a uchr's by its codepoint (#478)
+        if !owners {
             gen_expr(nodes[n].a)
             put(" ")
             put_tok(nodes[n].t)
@@ -10527,7 +10382,7 @@ let gen_expr_of(n:int64) {
         return
     }
     if k == N_FIELD && scalar_cstr(n) {
-        gen_scalar_cstr(n)                               // x.cstr of a number, a bool, a uchr or a pointer (#462)
+        gen_scalar_cstr(n)                               // x.cstr of a number, a bool or a pointer (#462)
         return
     }
     if k == N_FIELD && pointer_property(n) > 0 {
@@ -10706,8 +10561,6 @@ let gen_expr_of(n:int64) {
         gen_bytes_bin(n)                                 // b == c, b < c, and kelvinc's errors (#439)
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
-    } else if k == N_BIN && (uchr_typed(nodes[n].a) || uchr_typed(nodes[n].b)) && !((tok_is(t, "==") || tok_is(t, "!=")) && (builtin_kind(type_of(nodes[n].a)) == Y_STRING || builtin_kind(type_of(nodes[n].b)) == Y_STRING)) {   // s == u is the String's (#522)
-        gen_uchr_compare(n)                              // c == ' ', c < d, by the codepoint (#478)
     } else if k == N_BIN && !widen_ints && widened.get(n, false) {
         widen_ints = true                                // arithmetic of integer literals, inferred an i64 (#385)
         gen_expr(n)
@@ -10743,11 +10596,6 @@ let gen_expr_of(n:int64) {
             gen_expr(nodes[n].b)
             put(")")
         }
-    } else if k == N_CAST && types[nodes[n].ty].kind == Y_UCHR && (type_of(nodes[n].a) < 0 || types[type_of(nodes[n].a)].kind != Y_UCHR) {
-        var m = $"'"                                     // a uchr is a struct to C, which no cast makes, as kelvinc says it (#468)
-        m += tok_is(t, "as") ? "as " : ":"
-        m += "uchr' makes no codepoint: write uchr(\"k\") of text, or n.uchr of an integer"
-        gen_error(n, m.cstr)
     } else if k == N_CAST {
         put("((")
         put_ctype(nodes[n].ty)
@@ -10848,7 +10696,6 @@ let inferred(n:int64):int64 {
         gen_variant_eq(v, tagged_side(v))
         return -1
     }
-    if k == N_BIN && !is_comparison(nodes[v].t) && !is_string_plus(v) && (uchr_typed(nodes[v].a) || uchr_typed(nodes[v].b)) { return type_of(v) }   // a uchr's arithmetic, in kelvinc's words (#478)
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "!!") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380); d0 !! d1 (#460)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
@@ -10897,7 +10744,6 @@ let type_text(y:int64):String {
     case Y_STRING: return $"String"
     case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
-    case Y_UCHR: return $"uchr"
     case Y_BITS: return $"Bits"
     case Y_ARGV: return $"[cstr]"
     case Y_FIXED:                                    // [i64](3), as kelvinc names it (#354)
@@ -11129,7 +10975,7 @@ let fixed_refused(n:int64) {
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
-// bool, a cstr, a uchr (#479), a struct that owns nothing, or a fixed
+// bool, a cstr, a struct that owns nothing, or a fixed
 // array in turn
 // whether y is a struct or a union with no members, or an array of them,
 // or a struct whose first member is one, which C zeroes by {}, where {0}
@@ -11196,7 +11042,7 @@ let fixed_elem_ok(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
     if is_owner(y) || fixed_inside(y) { return false }
-    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_UCHR || k == Y_STRUCT
+    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT
 }
 
 // a fixed array's C declarator: its element type, name, and [N] for each
@@ -12530,7 +12376,7 @@ let empty_kind(n:int64):int64 {
     if k == Y_ITER { return 5 }
     if k == Y_STRUCT && field_type(y, nodes[n].t) >= 0 { return 0 }
     if k == Y_STRUCT && (iterator_next(y) >= 0 || sequence_maker(y) >= 0 || is_lazy_type(y)) { return 5 }
-    if is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_UCHR { return 0 - 1 }
+    if is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL { return 0 - 1 }
     if k == Y_PTR { return 0 - 2 }
     return 0
 }
@@ -14768,7 +14614,7 @@ let sort_operator(ey:int64):int64 {
 // whether the elements of ey have a < of their kind, else the error
 let sort_by_kind(n:int64, ey:int64):bool {
     let k:ykind = types[ey].kind
-    if is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_C || k == Y_STRING || k == Y_BYTES || k == Y_UCHR || k == Y_CSTR { return true }
+    if is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_C || k == Y_STRING || k == Y_BYTES || k == Y_CSTR { return true }
     let w:String = kelvin_type_text(ey)
     var m = $"'."
     m += tok_text(nodes[n].t)
@@ -14822,8 +14668,6 @@ let put_sort_less(f:int64, fn:int64, ey:int64) {
         put("(kv_string_cmp(&_kv_sa[_kv_sj], &_kv_sa[_kv_si]) < 0)")
     } else if k == Y_BYTES {
         put("(kv_bytes_cmp(&_kv_sa[_kv_sj], &_kv_sa[_kv_si]) < 0)")
-    } else if k == Y_UCHR {
-        put("(_kv_sa[_kv_sj].cp < _kv_sa[_kv_si].cp)")
     } else if k == Y_CSTR {
         put("(strcmp((const char *)_kv_sa[_kv_sj], (const char *)_kv_sa[_kv_si]) < 0)")
     } else {
@@ -15199,7 +15043,7 @@ let gen_eager_keyed(n:int64) {
 struct prefix_rec {
     node: int64
     src_y: int64
-    elem_y: int64           // what the function is given: an element, a value, a uchr
+    elem_y: int64           // what the function is given: an element or a value
     fn: int64               // the function; -1 of a count
 }
 
@@ -16530,8 +16374,8 @@ let gen_each(n:int64, depth:int64) {
         gen_error(nodes[n].a, "for over an array of arrays: index it, as in 'for x in a[0]'")
         return
     }
-    if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR && types[types[y].elem].kind != Y_UCHR && types[types[y].elem].kind != Y_STRUCT && types[types[y].elem].kind != Y_PTR {
-        var m = $"kc walks a fixed array of numbers, bools, uchrs or text, to its count or a zero; not yet of "
+    if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR && types[types[y].elem].kind != Y_STRUCT && types[types[y].elem].kind != Y_PTR {
+        var m = $"kc walks a fixed array of numbers, bools or text, to its count or a zero; not yet of "
         let ew:String = type_text(types[y].elem)
         m += &ew
         m += ": index it, a[i]"
@@ -16663,7 +16507,7 @@ let gen_each(n:int64, depth:int64) {
             put(at.cstr)
             put("[_kv_i")
             put_int(serial)
-            put(types[ey].kind == Y_UCHR ? "].cp != 0" : "] != 0")   // a uchr's zero, U+0000 (#480)
+            put("] != 0")
         }
         put("; _kv_i")
         put_int(serial)
@@ -16704,7 +16548,7 @@ let gen_each(n:int64, depth:int64) {
         indent(depth + 1)
         put("{\n")
         indent(depth + 2)
-        if codepoint_loops.has(n) && written < 0 {      // for c in s.codepoints: each a u32, as kelvinc's (#527)
+        if codepoint_loops.has(n) {                     // for c in s.codepoints, for c:T in s: each a u32, as kelvinc's (#527, #528)
             put("const uint32_t ")
             put_tok(nodes[n].t)
             put(" = kv_utf8_next(&_kv_p")
@@ -16712,14 +16556,6 @@ let gen_each(n:int64, depth:int64) {
             put(");\n")
             open_scope()
             declare_each(nodes[n].t, base_type(Y_U32), 3)
-        } else if codepoint_loops.has(n) {
-            put("const kv_uchr ")
-            put_tok(nodes[n].t)
-            put(" = (kv_uchr){kv_utf8_next(&_kv_p")
-            put_int(serial)
-            put(")};\n")
-            open_scope()
-            declare_each(nodes[n].t, base_type(Y_UCHR), 3)      // (#271)
         } else {                                        // its graphemes, each a String the loop frees, as kelvinc's (#522)
             put("const size_t _kv_g")
             put_int(serial)
@@ -16857,35 +16693,12 @@ let gen_each(n:int64, depth:int64) {
         declare_each(nodes[n].t, ey, 3)          // (#271)
     }
     if user >= 0 {                                      // x:T of the element (#523)
-        let ey:int64 = each_types.get(nodes[n].t, -1)
-        let wk:ykind = types[written].kind
-        let ek:ykind = types[ey].kind
-        if wk == Y_UCHR && (ek == Y_F64 || ek == Y_F32 || ek == Y_BOOL) {
-            var m = $"for "
-            m += tok_text(user)
-            m += ":uchr in s converts each element as uchr(x) does, which takes an integer, a uchr or text, and these are "
-            let et:String = kelvin_type_text(ey)
-            m += &et
-            gen_error(n, m.cstr)
-            nodes[n].t = user
-            return
-        }
         indent(depth + 2)
         put_ctype(written)
         put(" const ")                                  // a node^'s pointer itself, not what it points to
         put_tok(user)
         put(" = ")
-        if wk == Y_UCHR && ek != Y_UCHR {
-            put("KV_UCHR_OF(")
-            put_tok(nodes[n].t)
-            put(")")
-        } else if ek == Y_UCHR && wk != Y_UCHR {
-            put("(")
-            put_tok(nodes[n].t)
-            put(").cp")
-        } else {
-            put_tok(nodes[n].t)
-        }
+        put_tok(nodes[n].t)
         put(";\n")
         declare_each(user, written, 3)
         nodes[n].t = user
@@ -17448,7 +17261,7 @@ let gen_signature(d:int64) {
     let takes_self:bool = recv >= 0 && nodes[d].flag != 1
     if takes_self {                                    // a method's self, a T, first
         if nodes[d].flag == 3 { put("const ") }        // a subscript's getter, by a const pointer (#136)
-        put_ctype(recv_type(recv))                     // a String's, a Bytes's, a uchr's too (#515)
+        put_ctype(recv_type(recv))                     // a String's, a Bytes's, a u32's too (#515, #527)
         put(nodes[d].flag == 3 ? " *const _kv_selfp" : nodes[d].flag == 2 ? " *_kv_selfp" : " self")   // a var method's, the caller's var, as kelvinc's (#320)
     }
     if p < 0 && !takes_self { put(is_main(d) && nodes[d].b >= 0 ? "int _kv_argc, char **_kv_argv" : "void") }   // main's, as kelvinc writes it (#463)
@@ -18485,13 +18298,13 @@ let gen_assert(n:int64) {
             let c:uint32 = codes[i]
             if c == '\\' || c == '"' {
                 put("\\")
-                out += c.uchr
+                out += c
             } else if c == '\n' {
                 put(" ")
             } else if c == '?' {
                 put("\\?")
             } else {
-                out += c.uchr
+                out += c
             }
         }
         put("\"")

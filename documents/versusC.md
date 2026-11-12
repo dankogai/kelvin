@@ -114,7 +114,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `strlen(s)` | `s.count` (measured once per scope, #52) |
 | `char *buf = malloc(n); ... free(buf);` | `var b = Bytes(n)`, freed when its block ends (#54) |
 | a UTF-8 string by hand | `var s = String("héllo")`, or `$"héllo"`, `for c in s { }` by grapheme, `s.count` (#55, #62, #522), `s.codepoints` (#521) |
-| `uint32_t cp`, encoded by hand to print | `uchr`: `print(c)` shows the character, `c.utf32` the number (#56) |
+| `uint32_t cp`, encoded by hand to print | a `u32` (#527, #528): `s += c` appends it as its character, `for c in s.codepoints` walks them |
 | undefined behavior past a bound, or `assert` and `abort()` | a check that fails at run time prints its reason and exits with status 1, `kelvin: index 3 is out of range: the Bytes has 3`; `KELVIN_ABORT=1` in the environment makes it abort instead, for a debugger (#174) |
 | `T *xs = malloc(n * sizeof *xs); ... realloc ...` | `var xs = Array([1, 2, 3])`, or `$[1, 2, 3]`, `xs += x`, `xs[i]` checked, freed by its block; the type is `Array<i64>`, or `$[i64]` (#57, #58, #62, #64) |
 | a hash table by hand, or a library's | `var d = ${"ann": 31}`, `d["bob"] = 42`, `d["ann"]` checked, `d.has(k)`, `d.find(k)`, `for k, v in d`, `d.keys`, `d.values`; the type is `Dictionary<String, i64>`, or `${String: i64}` (#65, #66) |
@@ -141,7 +141,7 @@ Each document says so in its "Where it lives" section. In short:
 | Home | What | Needs |
 |---|---|---|
 | the core | numbers, `bool`, pointers, `cstr`, fixed arrays, structs, unions, enums, functions, operators, the statements, `#import` | kelvinc alone: the C is C's own, nothing linked |
-| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
+| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
 | loaded explicitly | `IO`; `OS` and `SYS`; `c64` and `c32`; `JSON`; a C header's names | `#import <IO>`, `#import <OS>` (#144, #145), a header and a library each; `#import <math>`, `#import <JSON>`, sources; `#import <x.h> as C` |
 
 ### The documents
@@ -160,7 +160,7 @@ Each document says so in its "Where it lives" section. In short:
 | [json.md](json.md) | `#import <JSON>`: `JSON` as an enum with values, `JSON.parse(text)`, `JSON.stringify(&j, replacer, space)` as JS's (#113) |
 | [sion.md](sion.md) | `#import <SION>`: SION values, JSON with more, keyed by any value, `SION.parse`, `SION.stringify`, `s["key"]` (#152) |
 | [msgpack.md](msgpack.md) | `#import <MsgPack>`: `MsgPack.pack(&s)` and `MsgPack.unpack(&b)` of a `SION` (#153) |
-| [unicodedata.md](unicodedata.md) | the prelude's `UnicodeData` (#520): `s.normalize(nfc)`, `s.graphemes`, the case mappings, a `uchr`'s `.name`, `.category`, `.combining` and decompositions (#156) |
+| [unicodedata.md](unicodedata.md) | the prelude's `UnicodeData` (#520): `s.normalize(nfc)`, `s.graphemes`, the case mappings, a codepoint's, a `u32`'s, `.name`, `.category`, `.combining` and decompositions (#156) |
 | [regexp.md](regexp.md) | the prelude's `RegExp` (#504): `$/pattern/flags`, JS's regular expressions over Strings, `test`, `exec`, `match`, `replace`, `split`, `\p{...}`, `\X` (#157) |
 | [io.md](io.md) | `IO`: files and the standard streams as owners, `IO(path, mode)` straight with `f.error`, `.bytes`, `.string`, `.read(n)`, `.lines`, `.write` |
 | [os.md](os.md) | `OS`: the working directory, the environment, files and directories, a shell command, the pid |
@@ -172,9 +172,9 @@ Each document says so in its "Where it lives" section. In short:
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |
 | [cstr.md](cstr.md) | C's text: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing (#525) |
-| [strings.md](strings.md) | `String`, text on the heap, `$"..."` and `` $`...` ``, graphemes, `uchr` |
+| [strings.md](strings.md) | `String`, text on the heap, `$"..."` and `` $`...` ``, graphemes, codepoints |
 | [bytes.md](bytes.md) | `Bytes`, any bytes on the heap: `Bytes("text")`, `Bytes([...])`, `Bytes.fromBase64`, `b[i]`, `b += x`, `b.string()`, `b.escape()`, with a RegExp (#54, #172) |
-| [ownership.md](ownership.md) | `Bytes`, `String`, `Array<T>` and `Dictionary<K, V>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
+| [ownership.md](ownership.md) | `Bytes`, `String`, `Array<T>` and `Dictionary<K, V>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, a struct with no tag `{x:f64, y:f64}`, methods, operators |
 | [unions.md](unions.md) | unions, the same way, and `union{i:i32, f:f32}` with no tag |
 | [enums.md](enums.md) | C's enums, and enums with values: `enum json { null; n: f64; s: String }`, a union that knows its case |
@@ -193,7 +193,8 @@ Each document says so in its "Where it lives" section. In short:
   stay reserved (#22), as a value's text is `x.cstr`.
 - Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`,
   `f64`, `bool`, `true`, `false`, `String`, `Bytes`, `Array`,
-  `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nowhere`
+  `Dictionary`, `Set`, `Optional`, `Result`, `uchr` (no more, #528,
+  kept for the error that names `u32`), `any`, `nowhere`
   and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
   (#27), `fallthrough` (#386), `Bits` (#387), `static_assert`
   (#394), `alignof` (#395), `alignas` (#396) and `typeof` (#398).

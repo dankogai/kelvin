@@ -319,7 +319,6 @@ The core. Integers are kelvinc's own, written as C's types, with nothing linked.
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text, as `print` shows it, in the block's buffer |
 | | `.dec`, `.hex`, `.oct`, `.bin` | text in that base, signed ones with a sign, `0x`/`0o`/`0b` prefixed |
-| | `.uchr` | the codepoint of the number, a `uchr` (#56) |
 | any number | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.i64` and the others | read a number from text, `i64("42")`; `i64(text, 16)` in a base |
 | | `i64(s)`, `i64(&s)` | of a String or a Bytes, by value or by reference, read from its text (#88, #495) |

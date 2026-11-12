@@ -240,7 +240,7 @@ An integer's digits and an `n`, `123n`, `0xffn` or `0b101n`, is a
     [cstr.md](cstr.md).
 - **`'c'`** is C's character constant, a `u8` in Kelvin, with C's
   escapes: `'\n'`, `'\0'`, `'\''`.
-  - A codepoint is a `uchr`, made from a number, `0x1F600.uchr`; see
+  - A codepoint is a `u32` (#527), as `s.codepoints` gives it; see
     [strings.md](strings.md).
 - **`` `...${x}...` ``** is a template literal (#39): the text with each
   `${expression}` replaced by the expression's text, as `print` shows

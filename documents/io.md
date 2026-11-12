@@ -182,8 +182,7 @@ rules are in [ownership.md](ownership.md), Results in
     as `print` and `println` do, to the IO:
     `IO.stderr.println("warning: ", n)`; see [printing.md](printing.md).
     - Each by its type: numbers, floats with every digit (#259), `bool`,
-      text, a `String`, a `Bytes`, a `uchr` as its character, a struct's
-      `.cstr`.
+      text, a `String`, a `Bytes`, a struct's `.cstr`.
   - `f.flush()` flushes.
   - Writing to a closed IO ends the program.
 - **`f.isatty`** (#103) is whether the IO's descriptor is a terminal, as

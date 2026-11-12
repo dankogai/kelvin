@@ -193,8 +193,7 @@ So far the changes from C are these, by topic.
   `for i in 1...n { ... }`, where `i` is a `let`
 - `for c in s { ... }` walks a string up to its NUL, and
   `for n in head { ... }` a list along `next`
-  - a `[uchr](N)` stops at `uchr(0)`, and `for n:u32 in s` gives each
-    codepoint's number (#480)
+  - `for n:u32 in s` gives each codepoint's number (#480)
 
 ### Types
 
@@ -285,11 +284,6 @@ So far the changes from C are these, by topic.
 - `print` and `println` show any value whole: `println(xs, " ", ages)`
   prints `[1, 2] {"ann": 31}`, with Strings inside quoted, and
   `println(cfg.pretty)` the same indented, a line for each item
-  - a `uchr` inside a value is `uchr("é")`, so that it pastes back
-    (#479)
-  - `uchr(s)` is the first codepoint of a String or a Bytes, as of
-    text; of a float, a bool or a pointer to no text it is an error,
-    where C failed or read the bytes (#494)
   - `i64(&s)` of a String or a Bytes by reference reads its text, as
     `i64(s)` does, where it converted the pointer (#495)
   - a fixed array is `[a, b]`, as inside a struct, where it was its
@@ -321,7 +315,7 @@ So far the changes from C are these, by topic.
     call: `return (Big){r, false}` takes `r` (#503)
   - `Bytes` is a growable array of bytes: `b += "more"`, `b[i]` checked
   - `String` is a `Bytes` of well-formed UTF-8, counted and walked by
-    codepoint, each a `uchr`, which prints as its character;
+    grapheme, each a String, its codepoints each a `u32` (#522, #528);
     `` $`a${x}b` `` builds one from a template, with no bound;
     `s.find(text)`, `s.has(text)`, `s.starts(text)`, `s.ends(text)`
     and `s.trim()` (#177)

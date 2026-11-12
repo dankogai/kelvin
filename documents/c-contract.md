@@ -112,7 +112,6 @@ cc -std=c11 -O0 -g0 -Wno-unknown-warning-option -Wno-pointer-sign \
 | `T^` | `T *`; a `let` parameter is `T *const` |
 | `[T](n)`, `[T]` | `T[n]`; `T *` as a parameter |
 | `(A, B):R` | `R (*)(A, B)` |
-| `uchr` | `kv_uchr`, `struct kv_uchr { uint32_t cp; }` |
 | `Bytes` | `kv_bytes`, `struct kv_bytes { uint8_t *at; size_t count, cap; }` |
 | `String` | `kv_string`, `struct kv_string { kv_bytes b; size_t count; }`: UTF-8, `count` its codepoints |
 | `IO` | `kv_io` (kIO.h) |
@@ -279,8 +278,8 @@ int32_t main(int _kv_argc, char **_kv_argv)
   status 1, or `abort()` with `KELVIN_ABORT` set (#174).
 - **Text:**
   - `$"text"` is `KV_STRING_OF("text")`;
-  - `s += x` is `KV_STRING_APPEND(&s, x)`, of text, a `kv_uchr`, a
-    `kv_string *`, or a `kv_string` it frees;
+  - `s += x` is `KV_STRING_APPEND(&s, x)`, of text, an integer, a
+    codepoint, a `kv_string *`, or a `kv_string` it frees;
   - `s.cstr` is `kv_bytes_cstr(&s.b)`;
   - `==` of two Strings is `kv_string_eq(&a, &b)`.
 - **Printing:** `println(a, ...)` and `print` are the prelude's macros,

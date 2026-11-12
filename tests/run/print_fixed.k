@@ -1,6 +1,6 @@
 // a fixed array is shown as [a, b] (#481), as inside a struct, so that it
 // pastes back: by print, a template, $`...` and .pretty; of numbers,
-// uchrs, structs, Optionals, text, rows and a variable length; a let
+// codepoints, structs, Optionals, text, rows and a variable length; a let
 // array parameter by its declared length; a [u8](N) is still text
 struct P { x: i32; two: [i32](2) }
 let show(xs:[i64](3)) {
@@ -16,8 +16,8 @@ let main():int32 {
     let t:cstr := `<${f}>`
     let s = $`<${f}>`
     println(t, " ", s)
-    var u = [uchr](2)
-    u[0] = uchr("é")
+    var u = [u32](2)
+    u[0] = 0xE9
     var m = [[i32](3)](2)
     m[1][2] = 9
     var ps = [P](1)
@@ -39,7 +39,7 @@ let main():int32 {
 // out: [5, 0] {x: 1, two: [2, 3]} [2, 3]
 // out: true
 // out: <[5, 0]> <[5, 0]>
-// out: [uchr("é"), uchr(0)] [[0, 0, 0], [0, 0, 9]] [{x: 0, two: [0, 0]}] [none, some(4)] ["hi", nowhere] A
+// out: [233, 0] [[0, 0, 0], [0, 0, 9]] [{x: 0, two: [0, 0]}] [none, some(4)] ["hi", nowhere] A
 // out: [
 // out:   5,
 // out:   0

@@ -34,7 +34,7 @@ make vscode
   an attribute, `let point.norm(...)`, of a subscript, `let T[]`, and of
   a type after `struct`, `union`, `enum`, `extend` and `typealias`.
 - Types: `int8` to `uint128`, `i8` to `u128`, `float32`, `float64`,
-  `bool`, `cstr`, `uchr`, `String`, `Bytes`, `Array`, `Dictionary`, `Set`,
+  `bool`, `cstr`, `String`, `Bytes`, `Array`, `Dictionary`, `Set`,
   `Optional`, `Result`, `IO`, and the modules' `RegExp`, `Match` and `c64`.
 - Text: `"..."` with its escapes, `"""..."""`, templates `` `a${x}b` ``
   with the code in `${...}` colored as code, `$"..."` and `` $`...` ``,

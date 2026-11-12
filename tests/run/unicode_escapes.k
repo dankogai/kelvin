@@ -5,9 +5,9 @@
 // and a u, and \x41 is C's, next to them
 let main():int32 {
     var s = $"a"
-    s += (0x7f as u32).uchr
-    s += (0x1b as u32).uchr
-    s += (0xe9 as u32).uchr
+    s += 0x7f
+    s += 0x1b
+    s += 0xe9
     let printed:$[String] = $["a\u007f\u001bé"]
     println($[s.copy()], " ", printed[0] == s, " ", $"a\u{7f}\u{1b}\u{e9}" == s)
     let t:cstr := "\u{1F600}\U0001F600\u00e9\u0041\x41\u{e9}5\\u{7f}"

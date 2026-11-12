@@ -79,9 +79,9 @@ in [ownership.md](ownership.md); this is the summary.
   by its own `==`; `!=` the opposite.
   - The two are of one key type and one value type; others are an
     error.
-  - The values compare: numbers, `bool`, text, a `uchr`, an Optional,
-    a Result or an enum with values whose values compare, a pointer,
-    and a Dictionary or an Array (#247) whose values compare. A struct
+  - The values compare: numbers, `bool`, text, an Optional, a Result or
+    an enum with values whose values compare, a pointer, and a
+    Dictionary or an Array (#247) whose values compare. A struct
     has no `==`, so a Dictionary of them is an error.
   - One an expression gives is held while compared (#187).
 - **`d.merge(&e)`** changes `d` in place, and **`d.merging(&e)`**

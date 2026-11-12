@@ -21,7 +21,7 @@ let main():int32 {
                 let n = c as i64
                 if n == '#' as i64 { break }
                 if n == 0xF7 || n == 0xD7 {                     // ÷ or ×
-                    if digits > 0 { text += uchr(cp); cluster += uchr(cp) }
+                    if digits > 0 { text += cp; cluster += cp }
                     cp = 0
                     digits = 0
                     if n == 0xF7 && started { expected += cluster.copy(); cluster = $"" }

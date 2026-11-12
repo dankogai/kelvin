@@ -1,7 +1,7 @@
 // a String's elements are its graphemes (#522), what a reader sees as one
 // character, each a String: for c in s, s[i], s[lo..<hi], s.count,
 // s.find, s.prefix(n) and s.prefix { ... } count them; a typed loop,
-// for c:uchr in s, and s.codepoints walk codepoints; a CR LF is one
+// for c:u32 in s, and s.codepoints walk codepoints; a CR LF is one
 let shout(s:const String^):String {
     var t = s^.copy()
     t += "!"
@@ -14,7 +14,7 @@ let main():int32 {
     for c in s { parts += c.copy() }
     println(parts.count, " ", s.count, " ", s.codepoints.count, " ", parts[4], " ", parts[7] == "\r\n")
     var n = 0
-    for c:uchr in s { n += 1 }
+    for c:u32 in s { n += 1 }
     var m = 0
     for _ in s { m += 1 }
     println(n, " ", m, " ", s[0], " ", s[4], " ", s[s.count - 1], " ", shout(&s)[9])

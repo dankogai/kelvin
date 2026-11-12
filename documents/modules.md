@@ -252,10 +252,10 @@ aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
 The prelude's `UnicodeData` (#156, #520), in every program with no
 import, is the Unicode Character Database:
 `s.normalize(nfc)`, `nfd`, `nfkc` and `nfkd`, `s.graphemes`, the
-grapheme clusters as an `Array<String>`, bound before it is walked, the case mappings `s.upper()`,
-`s.lower()` and `s.fold()`, and a `uchr`'s `.name`, `.category`,
-`.combining`, `.decomposition` and the rest: see
-[unicodedata.md](unicodedata.md).
+grapheme clusters as an `Array<String>`, bound before it is walked, the
+case mappings `s.upper()`, `s.lower()` and `s.fold()`, and a
+codepoint's, a `u32`'s, `.name`, `.category`, `.combining`,
+`.decomposition` and the rest: see [unicodedata.md](unicodedata.md).
 
 ### RegExp: `modules/RegExp.k`
 

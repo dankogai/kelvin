@@ -9944,3 +9944,18 @@ codepoint, and the quine walks graphemes. #528 removes uchr itself.
 Details are provisional P539.
 
 There are 1284 tests, and all pass with clang and with gcc 15.
+
+### 575. uchr is no more
+
+> push and go on with #528
+
+**Claude** pushed #527, and CI passed. Asked, the user chose that the
+word `uchr` be an error naming the new form, and that C's `kv_uchr` go
+with it. kelvinc's and kc's lexers now stop at `uchr`, wherever it is
+written, and say that a codepoint is a `u32`, `s.codepoints[0]`, that
+`s += n` appends one and `grapheme(n)` is a String of it; `.utf32` of a
+number says it is the number. Their uchr code, the runtime's `kv_uchr`
+and its functions, and 13 tests of uchr went; 16 tests that used it in
+passing use a u32 or text. Details are provisional P540.
+
+There are 1273 tests, and all pass with clang and with gcc 15.

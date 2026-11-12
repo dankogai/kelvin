@@ -92,7 +92,6 @@ enum ykind {                    // the kinds of types (#210)
     Y_STRING,
     Y_BYTES,    // a Bytes (#439): kv_bytes in C
     Y_IO,
-    Y_UCHR,
     Y_ARRAY,
     Y_DICT,     // a Dictionary: its value elem, its key name (#211)
     Y_SET,      // a Set: its element elem (#274)
@@ -319,7 +318,7 @@ let annotation_ahead():bool {
     if !at_word(":") || pos + 2 >= toks.count as int64 || toks[pos + 1].kind != T_ID { return false }
     if tok_is(pos + 2, "(") || tok_is(pos + 2, "<") { return false }
     let t:int64 = pos + 1
-    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") {
+    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") {
         return true
     }
     if tok_is(t, "struct") || tok_is(t, "union") || tok_is(t, "enum") { return true }   // p:struct node^, as kelvinc's (#453)
@@ -585,7 +584,7 @@ let literal_ahead():bool {
         return false
     }
     if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
-    if at_word("(") && (number_word(pos + 1) >= 0 || tok_is(pos + 1, "bool") || tok_is(pos + 1, "uchr")) && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") { return true }   // (int64){1}, a number's, as kelvinc's (#524)
+    if at_word("(") && (number_word(pos + 1) >= 0 || tok_is(pos + 1, "bool")) && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") { return true }   // (int64){1}, a number's, as kelvinc's (#524)
     if at_word("(") && tagged_word(pos + 1) && tok_is(pos + 3, ")") && tok_is(pos + 4, "{") { return true }   // (struct T){...} (#453)
     let e:int64 = value_type_end()
     return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || dollar_named(pos + 1) || written_type(pos + 1) != 0 - 2)
@@ -629,7 +628,7 @@ let value_type_end():int64 {
 let sizeof_type_at(t:int64):bool {
     if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") || tok_is(t, "${") || tagged_word(t) { return true }
     if toks[t].kind != T_ID { return false }
-    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
+    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
         return !tok_is(t + 1, "(")                       // String(x), a converter's value
     }
     if tok_is(t, "typeof") { return tok_is(t + 1, "(") }
@@ -771,7 +770,6 @@ let type_word(y:int64):String {
     case Y_STRING: return $"String"
     case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
-    case Y_UCHR: return $"uchr"
     case Y_BITS: return $"Bits"
     case Y_PTR:
         var s = type_word(types[y].elem)
@@ -1317,8 +1315,6 @@ let parse_bare_type():int64 {
         y = base_type(Y_BYTES)
     } else if tok_is(t, "IO") {
         y = base_type(Y_IO)
-    } else if tok_is(t, "uchr") {
-        y = base_type(Y_UCHR)
     } else if tok_is(t, "Bits") {                // (#387)
         y = base_type(Y_BITS)
     } else if tok_is(t, "typeof") {             // typeof(T), typeof(x) (#398), C23's
@@ -2794,7 +2790,7 @@ let parse_statement():int64 {
             second = advance()
         }
         var written:int64 = 0 - 1
-        if at_word(":") {                       // for c:uchr in s, for i:u8 in 0..<n: a type written (#523), as kelvinc's #480
+        if at_word(":") {                       // for c:u32 in s, for i:u8 in 0..<n: a type written (#523), as kelvinc's #480
             advance()
             written = parse_type()
         }

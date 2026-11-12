@@ -718,7 +718,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     let same_stock = ${"pear": 5, "apple": 3}            // == of Dictionaries and Arrays (#288)
     println(stock == same_stock, " ", stock != ${"apple": 3}, " ", stock.keys == $[$"apple", $"pear"], " ", listed == digit_set.elements)
     let escaped_text = $"\u{48}i\u00e9\U0001F600\u{7f}"   // \u escapes, UTF-8 bytes in C (#293)
-    println(escaped_text.count, " ", escaped_text == $"Hié😀" + (0x7f as uint32).uchr)
+    var escaped_expected = $"Hié😀"
+    escaped_expected += 0x7f                             // a codepoint appended (#528)
+    println(escaped_text.count, " ", escaped_text == escaped_expected)
     let nul_text = $"a\u{0}bé\\"                     // escape and unescape (#300), a NUL too (#299)
     println(nul_text.escape(), " ", nul_text.escape().unescape() == nul_text, " ", nul_text.count)
     let fib_task = async fib(20)                     // async f(x) and await (#313)
@@ -1303,21 +1305,21 @@ on a new line`
     println(ec_s, " ", ec_s.case, " ", ec_s.case.typename, " ", ec_o.case, " ", ec_mk(7).case, " ", ec_mk(8))
     ec_s.tag = {$"t", 9}
     println(ec_s, " ", ec_s.case, " ", ec_s.tag.s, " ", ec_s.is(tag))
-    let uc_e = uchr("é")                                  // uchr(x), compared by its codepoint (#478)
+    let uc_e:u32 = 0xE9                                   // a codepoint is a u32 (#528), compared as one
     let uc_s = $"日本"
     var uc_n = 0
     for uc_c in uc_s.codepoints { if uc_c >= 0x65E5 && uc_c != uc_e { uc_n += 1 } }
-    println(uc_e, uchr(0x41), uchr(uc_s.cstr), " ", uc_e > 'a', " ", uc_e == uchr(233), " ", uc_e.codepoint, " ", int64(uc_e) + 1, " ", uc_n)
-    let uc_a = $[uc_e, uchr(0), uchr("\"")]               // a uchr inside a value, uchr("x") (#479)
-    let uc_f:[uchr](2) = [uchr("p"), uchr(0x41)]
+    println(uc_e, " ", uc_s.codepoints[0], " ", uc_e > 'a', " ", int64(uc_e) + 1, " ", uc_n)
+    var uc_a:$[u32] = $[uc_e, 0, 0x22]                    // codepoints inside a value
+    let uc_f:[u32](2) = [0x70, 0x41]
     let uc_i:[i64](2) = [int64(2.5), 3]
-    let uc_o:uchr? = uc_e
+    let uc_o:u32? = uc_e
     println(uc_a, " ", uc_f[1], " ", uc_i[0], " ", uc_o)
-    var uc_w = [uchr](4)                                   // a walk of uchrs stops at uchr(0) (#480)
+    var uc_w = [u32](4)                                   // a walk stops at a 0 (#480)
     uc_w[0] = uc_e
-    uc_w[2] = uchr("z")
-    for uc_x in uc_f { print(uc_x) }
-    for uc_x in uc_w { print(" ", uc_x.codepoint) }
+    uc_w[2] = 0x7A
+    for uc_x in uc_f { print(uc_x, " ") }
+    for uc_x in uc_w { print(" ", uc_x) }
     println()
     println(uc_f, " ", uc_i, " ", uc_w)                    // a fixed array is [a, b] (#481)
     var ne_a:ne_none                                       // an empty struct, and one after it, {} (#498)
@@ -1376,7 +1378,7 @@ on a new line`
     for ty_n:u32 in gr_s { ty_sum += ty_n as u64 }
     var ty_cs:$[i64] = $[72, 105]
     var ty_t = $""
-    for ty_c:uchr in ty_cs { ty_t += ty_c }
+    for ty_c:u32 in ty_cs { ty_t += ty_c }
     for ty_i:u8 in 254...255 { ty_sum += ty_i as u64 }
     let ty_r = 1..<4
     for ty_j:i32 in ty_r { ty_sum += ty_j as u64 }

@@ -578,7 +578,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", "Range", "Bits", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "any", "cstr", "Bytes", "String", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", "Range", "Bits", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -773,7 +773,6 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos);
 static const char *article(const char *w);
 static bool is_bytes(Type *t);
 static bool is_string(Type *t);
-static bool is_uchr(Type *t);
 static bool is_bits(Type *t);
 static void check_bit_number(Expr *n, const char *what, bool place);
 static bool int_literal_value(Expr *e, unsigned long long *mag, bool *neg);
@@ -798,7 +797,6 @@ static Expr *array_of_list(Token *t, Type *at);
 static Type *array_type(Token *at, Type *elem);
 static Type *list_type(Expr *e, Pos pos);
 static char *mangled_type(Type *t);
-static Expr *utf32_of(Expr *c);
 static const char *builtin_owner(Type *t);
 static bool is_owner(Type *t);
 static bool owner_place(Expr *e);
@@ -3217,8 +3215,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 is_array_owner(unqualified(value_type(e))) && !method_named(e, member)) {
                 /* xs.join(sep) and xs.joined(sep), one (#461): a new String
                    of the elements, each as a template shows it, ${x}, with
-                   sep between them, "" where none is given; sep is text, a
-                   String or a uchr, or what else a template shows */
+                   sep between them, "" where none is given; sep is text or
+                   a String, or what else a template shows */
                 Type *at = unqualified(value_type(e));
                 if (!owner_place(e)) /* held (#187) */
                     e = make_temp(e, "'.join' of an Array that an expression gives: bind it to a variable first");
@@ -3240,8 +3238,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                                  member);
                     Type *st = value_type(sep);
                     if (!(sep->kind == E_STRING || sep->kind == E_TEMPLATE || is_text_expr(sep) || is_string(st) ||
-                          is_uchr(st) || (st && is_cstr(st))))
-                        error_at(sep->pos, "'.%s' puts text between the elements: a cstr, a String or a uchr, and this is %s",
+                          (st && is_cstr(st))))
+                        error_at(sep->pos, "'.%s' puts text between the elements: a cstr or a String, and this is %s",
                                  member, st ? kelvin_type(st) : shown_type(sep) ? "a number" : "not one");
                     if (is_string(st) && !owner_place(sep))
                         error_at(sep->pos, "'.%s' takes a String that an expression gives, which nothing would free: bind "
@@ -3301,7 +3299,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 /* xs.sort(), xs.sort { ... }, xs.sorted(), xs.sorted { ... } (#185):
                    in place, or a new Array, by f, which says whether its first
                    goes before its second, or by < of the elements: a number's,
-                   a uchr's codepoint, the bytes of a String, a Bytes or a cstr,
+                   the bytes of a String, a Bytes or a cstr,
                    or a struct's own operator <; a stable merge sort */
                 bool in_place = !strcmp(member, "sort");
                 Type *at = unqualified(value_type(e));
@@ -3363,8 +3361,6 @@ static Expr *parse_postfix_steps(Expr *e) {
                     list_push(&x->items, f);
                 } else if (is_string(elem) || is_bytes(elem)) {
                     x->text = is_string(elem) ? "string" : "bytes";
-                } else if (is_uchr(elem)) {
-                    x->text = "uchr";
                 } else if (is_cstr(elem)) {
                     x->text = "cstr";
                 } else if (elem->kind == T_BASE && number_kind(elem)) {
@@ -4042,7 +4038,7 @@ static bool float_word(const char *s) {
 }
 
 /* v, a template's value (#39), as $`...` appends it to its String (#67):
-   a String by reference, a uchr as its codepoint, an Array's text by the
+   a String by reference, an Array's text by the
    printer, else as text; a.join(sep)'s pieces too (#461) */
 static Expr *string_piece(Expr *v) {
     Type *vt = value_type(v);
@@ -4063,8 +4059,6 @@ static Expr *string_piece(Expr *v) {
         if (is_bytes(vt))
             w->a = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
         w->op = is_string(vt) ? "tplstr_ref" : "tplstr_text";
-    } else if (is_uchr(vt)) {
-        w->op = "tplstr_uchr";
     } else if (v->kind == E_STRING || v->kind == E_TEMPLATE || is_text_expr(v)) {
         w->op = "tplstr_text";
     } else {
@@ -4122,7 +4116,7 @@ static Expr *parse_primary(void) {
     if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && peek2()->kind == TK_TPL_HEAD) {
         /* $`a${x}b` (#67): a String built on the heap from the parts and the
            values' text, with no bound; each value is appended as text, a
-           String's by reference, a uchr as its codepoint */
+           String's by reference */
         advance();
         Expr *e = parse_template();
         e->op = "string";
@@ -5387,11 +5381,7 @@ static Expr *parse_cast(void) {
         Token *t = advance();
         Expr *c = new_expr(E_CAST, t->pos);
         c->a = e;
-        Token *at = peek();
         c->type = parse_type_in(TYPE_AS);
-        if (is_uchr(c->type) && !is_uchr(value_type(e))) /* a uchr is a struct to C, which no cast makes (#468) */
-            error_at(at->pos, "'%suchr' makes no codepoint: write uchr(\"k\") of text, or n.uchr of an integer",
-                     is_kw(t, "as") ? "as " : ":");
         e = c;
         if (is_p(peek(), "**")) /* (#380) */
             error_at(peek()->pos, "'**' binds tighter than '%s': write '(x%sT) ** y'", t->text, is_kw(t, "as") ? " as " : ":");
@@ -5524,22 +5514,6 @@ static Expr *parse_binary_ops(int min_prec) {
             x->type = base_type("bool", t->pos);
             x->is_bool = true;
             lhs = x;
-            continue;
-        }
-        if ((is_uchr(value_type(e->a)) || is_uchr(value_type(e->b))) &&
-            !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b)))) && /* s + c (#183) */
-            !((!strcmp(e->op, "==") || !strcmp(e->op, "!=")) &&
-              (is_string(value_type(e->a)) || is_string(value_type(e->b))))) { /* s == u, the String's (#522) */
-            /* a uchr compares by its codepoint, with a uchr or a number
-               (#56); it has no arithmetic */
-            if (!is_comparison(e->op))
-                error_at(t->pos, "a uchr has no operator '%s': its codepoint is 'c.utf32', a u32", e->op);
-            if (is_uchr(value_type(e->a)))
-                e->a = utf32_of(e->a);
-            if (is_uchr(value_type(e->b)))
-                e->b = utf32_of(e->b);
-            e->is_bool = true;
-            lhs = e;
             continue;
         }
         if (is_bits(value_type(e->a)) || is_bits(value_type(e->b))) {
@@ -5689,19 +5663,17 @@ static Expr *parse_binary_ops(int min_prec) {
             }
             if (kl == 's' && !strcmp(e->op, "+")) {
                 /* s + t (#183): a new String of the two, s's text and then t's;
-                   either may be a String, text, or a uchr, one a String; a
+                   either may be a String or text, one a String; a
                    String in a variable is copied, one an expression gives is
                    taken, so that s + t + u frees what it made */
                 Expr *sides[2] = {e->a, e->b};
                 for (int k = 0; k < 2; k++) {
                     Type *st = value_type(sides[k]);
-                    if (!is_string(st) && !is_uchr(st) && !is_text_expr(sides[k]) && !(st && is_cstr(st)))
-                        error_at(sides[k]->pos, "'+' of a String joins text: a String, a cstr or a uchr, and this is %s; "
+                    if (!is_string(st) && !is_text_expr(sides[k]) && !(st && is_cstr(st)))
+                        error_at(sides[k]->pos, "'+' of a String joins text: a String or a cstr, and this is %s; "
                                                 "show a number with a template, $`${n}`, or String(n)",
                                  st ? kelvin_type(st) : number_expr(sides[k]) ? "a number" : "not text");
                 }
-                if (!is_string(value_type(e->a)) && is_uchr(value_type(e->a)))
-                    error_at(e->a->pos, "'+' of a String starts with a String or text: write $\"\" + c, or String(c)");
                 Expr *c = new_expr(E_CALL, t->pos);
                 c->a = new_expr(E_IDENT, t->pos);
                 c->a->text = "String";
@@ -5801,19 +5773,19 @@ static Expr *parse_binary_ops(int min_prec) {
                          e->op, kl == 's' ? ", join with +" : "");
             if (kl == 's' && (!ka || !kb)) {
                 /* s == "x", c != ' ', s == u (#522): a String and text, a
-                   cstr or a literal, a uchr or a character, by the bytes, a
+                   cstr or a literal, or a character, by the bytes, a
                    grapheme of for c in s among them */
                 Expr *sx = ka ? e->a : e->b, *ox = ka ? e->b : e->a;
                 Type *ot = value_type(ox);
                 bool text = (ot && is_cstr(ot)) || ox->kind == E_STRING;
-                bool cp = (ot && is_uchr(ot)) || (ox->kind == E_LITERAL && ox->text[0] == '\'');
+                bool cp = ox->kind == E_LITERAL && ox->text[0] == '\'';
                 if (text || cp) {
                     List held = {0};
                     if (!owner_place(sx))
                         sx = hold_operand(sx, &held);
                     Expr *eq = new_expr(E_CALL, t->pos);
                     eq->a = new_expr(E_IDENT, t->pos);
-                    eq->a->text = text ? "kv_string_eq_text" : is_uchr(ot) ? "kv_string_eq_uchr" : "kv_string_eq_cp";
+                    eq->a->text = text ? "kv_string_eq_text" : "kv_string_eq_cp";
                     eq->op = "c";
                     Expr *ps = new_expr(E_PREFIX, t->pos);
                     ps->op = "&";
@@ -6064,19 +6036,6 @@ static Expr *parse_choice(void) {
             e->c = optional_of(e->c, tb, e->c->pos);
         else if (vc && !vb)
             e->b = optional_of(e->b, tc, e->b->pos);
-    }
-    /* c ? 'A' : ch, a uchr beside an integer: the integer becomes a uchr (#56) */
-    Decl *r;
-    if (is_uchr(value_type(e->b)) != is_uchr(value_type(e->c))) {
-        Expr **other = is_uchr(value_type(e->b)) ? &e->c : &e->b;
-        char cls = expr_class(*other, &r);
-        if (cls == 'i' || ((*other)->kind == E_LITERAL && (*other)->text[0] == '\'')) {
-            Expr *x = new_expr(E_PROPERTY, (*other)->pos);
-            x->a = *other;
-            x->text = "uchr";
-            x->op = "to";
-            *other = x;
-        }
     }
     return e;
 }
@@ -6624,8 +6583,6 @@ static Type *value_type_of(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "io")) /* f.bytes, f.string: Results (#82); f.lines: for only */
             return e->type;
-        if (e->op && !strcmp(e->op, "uchr")) /* c.utf32 (#56) */
-            return base_type("u32", e->pos);
         if (e->op && !strcmp(e->op, "tagged")) /* v.case, the tag (#61) */
             return base_type("u8", e->pos);
         if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set")) && e->type) /* d.keys, d.values, s.elements: Arrays (#66, #71) */
@@ -6639,8 +6596,6 @@ static Type *value_type_of(Expr *e) {
             p->elem->is_const = let_target(e->a) != NULL;
             return p;
         }
-        if (e->op && !strcmp(e->op, "to")) /* n.uchr (#56) */
-            return base_type("uchr", e->pos);
         if (e->op && !strcmp(e->op, "string") && !strcmp(e->text, "bytes")) { /* s.bytes, a read-only borrow (#55) */
             Type *p = xcalloc(1, sizeof *p);
             p->kind = T_PTR;
@@ -6814,11 +6769,10 @@ static char expr_class(Expr *e, Decl **record) {
         return !strcmp(literal_type(e), "f64") ? 'f' : 'i';
     case E_STRING:
         return 'n';
-    case E_PROPERTY: /* .size, .addr, .count, .capacity, .utf32, .codepoint and .case are integers */
+    case E_PROPERTY: /* .size, .addr, .count, .capacity and .case are integers */
         if ((e->op && !strcmp(e->op, "tagged")) || !strcmp(e->text, "size") || !strcmp(e->text, "align") ||
             !strcmp(e->text, "addr") ||
-            !strcmp(e->text, "count") || !strcmp(e->text, "capacity") || !strcmp(e->text, "utf32") ||
-            !strcmp(e->text, "codepoint"))
+            !strcmp(e->text, "count") || !strcmp(e->text, "capacity"))
             return 'i';
         /* a property that gives a struct kelvinc sees, f.stat (#104): its
            fields win over .size and the rest, as a variable's do */
@@ -6858,7 +6812,7 @@ static void reject_unknown_member(Expr *e, Token *name, const char *member) {
         Decl *r;
         bool record = t->kind == T_PTR && !t->cstr && el && el->kind == T_BASE && !is_text_type(t) &&
                       (strchr("sc", type_class(el, &r)) || is_string(el) || is_bytes(el) || is_array_owner(el) ||
-                       is_dict_owner(el) || is_set_owner(el) || is_io(el) || is_uchr(el) || is_bits(el));
+                       is_dict_owner(el) || is_set_owner(el) || is_io(el) || is_bits(el));
         if (record)
             error_at(name->pos, "'.%s' of %s, a pointer: its member is '%s^.%s'", member, what,
                      e->kind == E_IDENT ? e->text : "p", member);
@@ -6869,7 +6823,7 @@ static void reject_unknown_member(Expr *e, Token *name, const char *member) {
     /* a built-in type's members are its properties and methods; its own C
        fields are the runtime's, and those it documents are its spelling */
     static const struct { const char *field, *spelling; } runtime_fields[] = {
-        {"cap", ".capacity"}, {"cp", ".utf32"}, {"b", ".bytes"}, {"len", NULL}, {"head", NULL}, {"hcap", NULL},
+        {"cap", ".capacity"}, {"cp", NULL},     {"b", ".bytes"}, {"len", NULL}, {"head", NULL}, {"hcap", NULL},
         {"job", NULL},        {"state", NULL},  {"drop", NULL},  {"fp", NULL},  {"kind", NULL}, {"named", NULL},
     };
     const char *kind = is_string(t)         ? "a String"
@@ -6877,7 +6831,6 @@ static void reject_unknown_member(Expr *e, Token *name, const char *member) {
                        : is_array_owner(t)  ? "an Array"
                        : is_dict_owner(t)   ? "a Dictionary"
                        : is_set_owner(t)    ? "a Set"
-                       : is_uchr(t)         ? "a uchr"
                        : is_io(t)           ? "an IO"
                        : is_task(t)         ? "a Task"
                        : is_iter(t)         ? "an Iterator"
@@ -6886,20 +6839,18 @@ static void reject_unknown_member(Expr *e, Token *name, const char *member) {
         bool at = (is_bytes(t) || is_array_owner(t)) && !strcmp(member, "at");          /* documented, a borrow */
         bool io = is_io(t) && (!strcmp(member, "error") || !strcmp(member, "status") || /* documented (#87, #89, #109) */
                                !strcmp(member, "signal") || !strcmp(member, "pid") || !strcmp(member, "path"));
-        bool count = !strcmp(member, "count") && !is_uchr(t) && !is_io(t) && !is_task(t) && !is_iter(t);
+        bool count = !strcmp(member, "count") && !is_io(t) && !is_task(t) && !is_iter(t);
         if (at || io || count)
             return;
         for (size_t i = 0; i < sizeof runtime_fields / sizeof runtime_fields[0]; i++)
             if (!strcmp(member, runtime_fields[i].field)) {
                 const char *sp = runtime_fields[i].spelling;
-                bool has = sp && (!strcmp(sp, ".bytes")   ? is_string(t)
-                                  : !strcmp(sp, ".utf32") ? is_uchr(t)
-                                                          : is_bytes(t) || is_array_owner(t)); /* .capacity */
+                bool has = sp && (!strcmp(sp, ".bytes") ? is_string(t) : is_bytes(t) || is_array_owner(t)); /* .capacity */
                 error_at(name->pos, "'.%s' is the runtime's C field of %s, no member of Kelvin's%s%s%s", member,
                          kind, has ? ": its spelling is '" : "", has ? sp : "", has ? "'" : "");
             }
         error_at(name->pos, "%s has no member '%s': see its properties and methods in %s", kind, member,
-                 is_string(t) || is_uchr(t) ? "documents/strings.md"
+                 is_string(t)               ? "documents/strings.md"
                  : is_bytes(t)              ? "documents/bytes.md"
                  : is_array_owner(t)        ? "documents/arrays.md"
                  : is_io(t)                 ? "documents/io.md"
@@ -7097,47 +7048,6 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
     e->paren = true;
     e->a = v;
     e->b = base;
-    if (!strcmp(name, "uchr")) { /* uchr(n) of a number, uchr(text) its first codepoint (#56) */
-        if (base)
-            error_at(base->pos, "uchr(x) takes one value: a number, or text");
-        if (is_uchr(value_type(v)))
-            return v;
-        /* of a String or a Bytes, or one by reference, the first
-           codepoint of its text, as of text (#494) */
-        v = owner_text_of_ref(v);
-        Type *vt = value_type(v);
-        if (is_string(vt) || is_bytes(vt)) {
-            if (!owner_place(v)) /* held while it is read (#187) */
-                v = make_temp(v, strfmt("uchr(...) of a %s that an expression gives: bind it to a variable first",
-                                        is_string(vt) ? "String" : "Bytes"));
-            e->a = v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
-        } else {
-            /* else an integer, an enum's value or a character, or text
-               (#494): '.uchr' takes no more (#297), and C took the rest
-               as text or failed */
-            Decl *record;
-            char c = expr_class(v, &record);
-            if (c == 'u' && (int_expr(v) || v->kind == E_SIZEOF_TYPE || v->kind == E_SIZEOF_EXPR))
-                c = 'i';
-            else if (c == 'u' && float_operand(v)) /* x + 1: a number, no integer */
-                c = 'f';
-            bool nowhere = v->kind == E_LITERAL && !strcmp(v->text, "nowhere");
-            bool known = c != 'u' || seen_bool(v) || bool_shape(v) || v->is_bool; /* else C's, a typedef's */
-            if (known && c != 'i' && !is_text_expr(v) && !nowhere) {
-                Type *at = arg_type(v);
-                error_at(v->pos, "uchr(x) takes an integer, a uchr or text, and this is %s%s",
-                         v->is_bool || seen_bool(v) || bool_shape(v) ? "a bool"
-                         : at                                     ? kelvin_type(at)
-                         : c == 'f'                               ? "a float"
-                                                                  : "neither",
-                         c == 'f' ? ": convert it to an integer first, uchr(i64(x))" : "");
-            }
-        }
-        e->op = "uchr";
-        return e;
-    }
-    if (is_uchr(value_type(v))) /* i64(c) is i64(c.utf32) */
-        e->a = v = utf32_of(v);
     if (strcmp(name, "bool")) /* i64(&s) reads s's text, as i64(s) does; bool(&s) is the pointer's (#495) */
         e->a = v = owner_text_of_ref(v);
     if (is_string(value_type(v)) || is_bytes(value_type(v))) {
@@ -8986,36 +8896,10 @@ static Expr *property(Expr *e, Token *name, char *member) {
         x->is_bool = test;
         return x;
     }
-    if ((!strcmp(member, "utf32") || !strcmp(member, "codepoint")) && !is_uchr(value_type(e)) && number_expr(e))
-        error_at(name->pos, "'.%s' is a uchr's codepoint, and this is a number, one already: '.uchr' makes a uchr of "
-                            "an integer (#297)",
+    if ((!strcmp(member, "utf32") || !strcmp(member, "codepoint")) && number_expr(e))
+        error_at(name->pos, "'.%s' was a uchr's codepoint, and uchr is no more (#528): a codepoint is a u32, the "
+                            "number itself",
                  member);
-    if (is_uchr(value_type(e)) && (!strcmp(member, "utf32") || !strcmp(member, "codepoint"))) {
-        /* a uchr's codepoint as a u32 (#56) */
-        Expr *x = utf32_of(e);
-        x->pos = name->pos;
-        return x;
-    }
-    if (!strcmp(member, "uchr")) {
-        /* n.uchr is uchr(n) (#56): of an integer, or a character; a field
-           wins where kelvinc is unsure */
-        Decl *record;
-        char c = expr_class(e, &record);
-        if (c == 'u' && int_expr(e)) /* (n + 1).uchr: integer arithmetic, no struct (#297) */
-            c = 'i';
-        else if (c == 'u' && number_expr(e)) /* (x + 1.5).uchr: a number, but no integer */
-            c = 'f';
-        if ((c == 's' && record_has_field(record, member)) || c == 'c' || c == 'u')
-            return NULL;
-        if (c != 'i' && !(e->kind == E_LITERAL && e->text[0] == '\''))
-            error_at(name->pos, "'.uchr' converts an integer to a codepoint, and this is %s",
-                     arg_type(e) ? kelvin_type(arg_type(e)) : "no integer");
-        Expr *x = new_expr(E_PROPERTY, name->pos);
-        x->a = e;
-        x->text = member;
-        x->op = "to";
-        return x;
-    }
     const char *kind = builtin_owner(value_type(e));
     char kk = owner_letter(kind);
     if (kind && ((!strcmp(kind, "bytes") && (!strcmp(member, "count") || !strcmp(member, "capacity") ||
@@ -11012,13 +10896,6 @@ static bool is_bytes(Type *t) {
     return t && t->kind == T_BASE && !strcmp(t->name, "Bytes");
 }
 
-/* uchr (#56): a codepoint on the stack, shown as its UTF-8 */
-static bool is_uchr(Type *t) {
-    if (t && t->kind == T_TYPEOF)
-        t = t->elem;
-    return t && t->kind == T_BASE && !strcmp(t->name, "uchr");
-}
-
 /* Bits (#387): 64 bits in a u64, kv_bits in C, each a bool by its place */
 static bool is_bits(Type *t) {
     if (t && t->kind == T_TYPEOF)
@@ -11045,15 +10922,6 @@ static void check_bit_number(Expr *n, const char *what, bool place) {
     if (place && int_literal_value(n, &mag, &neg) && ((neg && mag) || mag > 63))
         error_at(n->pos, "%s is 0 to 63, and this is %s%s", what, neg ? "-" : "",
                  n->kind == E_PREFIX ? n->a->text : n->text);
-}
-
-/* c.utf32, a u32 (#56) */
-static Expr *utf32_of(Expr *c) {
-    Expr *x = new_expr(E_PROPERTY, c->pos);
-    x->a = c;
-    x->text = "utf32";
-    x->op = "uchr";
-    return x;
 }
 
 static bool is_string(Type *t) {
@@ -12784,8 +12652,8 @@ static Expr *text_in_buffer(Expr *e) {
     switch (e->kind) {
     case E_TEMPLATE: /* (#39); $`...` is a String on the heap (#67) */
         return e->op && !strcmp(e->op, "string") ? NULL : e;
-    case E_CAST: /* i64(x.hex) is a number (#36), uchr(s.cstr) a codepoint (#494) */
-        return e->op && (!strncmp(e->op, "text", 4) || !strcmp(e->op, "uchr")) ? NULL : text_in_buffer(e->a);
+    case E_CAST: /* i64(x.hex) is a number (#36) */
+        return e->op && !strncmp(e->op, "text", 4) ? NULL : text_in_buffer(e->a);
     case E_TERNARY: {
         Expr *b = text_in_buffer(e->b);
         return b ? b : text_in_buffer(e->c);
@@ -12806,9 +12674,9 @@ static Expr *text_in_buffer(Expr *e) {
         if (!strcmp(e->text, "size") || !strcmp(e->text, "align") || !strcmp(e->text, "typename") ||
             !strcmp(e->text, "type") || !strcmp(e->text, "addr") || !strcmp(e->text, "count") ||
             !strcmp(e->text, "isNull") ||
-            !strcmp(e->text, "utf32") || !strcmp(e->text, "codepoint") || !strcmp(e->text, "capacity") ||
+            !strcmp(e->text, "capacity") ||
             (e->op && !strcmp(e->op, "tagged")))
-            return NULL; /* .count and .isNull are numbers too (#49, #50), and a uchr's codepoint (#156) */
+            return NULL; /* .count and .isNull are numbers too (#49, #50) */
         if (is_owner(value_type(e))) /* a new owner, as d.keys, s.elements, f.abspath and a.pretty are (#280) */
             return NULL;
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
@@ -14130,10 +13998,10 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
             error_at(seq->pos, "for over a %s that an expression gives: bind it to a variable first",
                      is_bytes(t) ? "Bytes" : is_string(t) ? "String" : "Array");
         s->each = is_string(t) ? EACH_STRING : EACH_BYTES;
-        elem = is_array_owner(t) ? t->elem : base_type(is_bytes(t) ? "u8" : "uchr", seq->pos);
+        elem = is_array_owner(t) ? t->elem : base_type(is_bytes(t) ? "u8" : "u32", seq->pos);
         /* a String's graphemes (#522), each a String the loop holds; by
-           codepoint of s.codepoints (#521) and of a type written, for
-           c:uchr in s, for n:u32 in s (#480) */
+           codepoint of s.codepoints (#521, #527) and of a type written,
+           for n:u32 in s (#480) */
         if (is_string(t) && !s->codepoints && (!written || is_string(written)))
             elem = base_type("String", seq->pos);
     } else if (!t) {
@@ -14196,13 +14064,6 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
         x = plain;
     }
     s->type = x;
-    if (written && written->kind == T_BASE && !strcmp(written->name, "uchr") && elem && elem->kind == T_BASE) {
-        Decl *r;
-        if (type_class(elem, &r) == 'f' || !strcmp(elem->name, "bool")) /* as uchr(x) takes (#480) */
-            error_at(written->pos, "for %s:uchr in s converts each element as uchr(x) does, which takes an integer, "
-                                   "a uchr or text, and these are %s",
-                     s->name, kelvin_type(elem));
-    }
     open_scope();
     if (strcmp(s->name, "_"))
         declare_binding(s->name, x, LET_EACH);
@@ -16478,7 +16339,7 @@ static void check_variant_part(Token *at, const char *what, Type *t) {
 
 /* Does a case's value of this type compare with == (#79)? Numbers,
    bools, pointers (a cstr by its address, as Kelvin compares it), a
-   uchr, a String or a Bytes by its bytes, and an enum with values whose
+   String or a Bytes by its bytes, and an enum with values whose
    cases all do; not an array, a struct or union, an Array, a Dictionary
    or a Set. The first case that does not is the record's no_eq. */
 static bool eq_type(Type *t) {
@@ -16496,7 +16357,7 @@ static bool eq_type(Type *t) {
         return true;
     if (t->kind == T_ARRAY || t->cname || is_io(t))
         return false;
-    if (is_string(t) || is_bytes(t) || is_uchr(t))
+    if (is_string(t) || is_bytes(t))
         return true;
     Decl *r = NULL;
     char c = type_class(t, &r);

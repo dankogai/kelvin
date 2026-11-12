@@ -114,10 +114,9 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
   - `s.bytes` a read-only borrow of the bytes, a `const Bytes^`, with
     `s.bytes^.count` the bytes and `s.bytes^[i]` a byte.
   - `s.cstr` the text; `s.size` 32.
-- **Methods:** `append(x)`, also `s += x`, where `x` is text, a `uchr`
-  or a codepoint as a number (a surrogate or a number past U+10FFFF
-  ends the program), a borrow `&other`, or a `String` an expression
-  gives.
+- **Methods:** `append(x)`, also `s += x`, where `x` is text, a
+  codepoint as a number (a surrogate or a number past U+10FFFF ends the
+  program), a borrow `&other`, or a `String` an expression gives.
   - `clear()`, `reserve(n)`, `compact()`, `copy()`.
   - There is no `insert` or `remove` yet. `s[i]` is grapheme `i`
     (#522), found by a walk from the start, O(n); `for c in s` walks
@@ -127,33 +126,17 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
   `Bytes` through `String(&b)`, `b.string()` (a Result) or, up to a
   NUL, `b.cstr`.
   - A borrow of the other kind is an error that says so.
-- **`uchr`** is a codepoint on the stack (#56), a value type of four
-  bytes.
-  - `for c:uchr in s` gives one; `uchr("é")` is the first codepoint of
-    text. `for c in s.codepoints` gives a `u32` (#527).
-    - Of a String or a Bytes too, `uchr(s)` or `uchr(&s)` (#494).
-    - Of empty text it is U+FFFD.
-  - `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the
-    replacement character, where it is none.
-  - `uchr(x)` of anything else is an error that says so (#494).
-    - A float is one, as for `x.uchr`: `uchr(i64(x))` converts it.
-    - So are a bool and a pointer to no text, `uchr(&n)`.
-  - `x as uchr` and `x:uchr` make none, as a uchr is a struct to C:
-    they are errors that name `uchr("k")` and `n.uchr` (#468).
-  - `print(c)`, `${c}` and `c.cstr` show it as its UTF-8.
-  - `c.utf32`, or `c.codepoint`, is the number, a `u32`, as `u32(c)`
-    and `i64(c)` are.
-  - It compares with `==`, `<` and the rest, with a `uchr` or a number
-    (`c == 'a'`), and has no arithmetic: `c.utf32 + 1`.
-  - `s += c` appends it.
+- **A codepoint** is a `u32` (#527): `for c in s.codepoints` gives
+  each, and `s += c` appends one; `uchr`, a type of one (#56), is no more
+  (#528).
 
 ### `Array<T>`
 
 `Array<T>` is a growable array of `T` on the heap, an owner under the
-same rules (#57). `T` is any value type: a number, a `bool`, a `uchr`,
-a pointer, a `cstr`, a struct that owns nothing, or an owner among
-`Bytes`, `String` and `Array<U>`, which the Array then owns: freed with
-it, copied by `copy()`, and never copied by `=`.
+same rules (#57). `T` is any value type: a number, a `bool`, a pointer,
+a `cstr`, a struct that owns nothing, or an owner among `Bytes`,
+`String` and `Array<U>`, which the Array then owns: freed with it,
+copied by `copy()`, and never copied by `=`.
 
 <!-- fragment -->
 ```swift

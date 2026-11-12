@@ -1,10 +1,10 @@
-// s + t joins text into a new String (#183): either side a String, text or
-// a uchr, one a String; a String in a variable is copied and stays, one an
+// s + t joins text into a new String (#183): either side a String or text,
+// one a String; a String in a variable is copied and stays, one an
 // expression gives is taken, so that a chain frees what it made
 let main():int32 {
     var s = $"a"
     var t = $"b"
-    var u = s + t + "c" + $"d" + uchr("é")
+    var u = s + t + "c" + $"d" + "é"
     var v = "x" + s
     var w = s + ""
     var tpl = $`${1 + 1}` + "!"

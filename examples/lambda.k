@@ -76,7 +76,7 @@ let peek(r:reader^):u32 {
 let word(r:reader^):String {
     var s = $""
     while r^.at < r^.codes.count as i64 && is_name(r^.codes[r^.at]) {
-        s += r^.codes[r^.at].uchr
+        s += r^.codes[r^.at]
         r^.at += 1
     }
     return s
@@ -251,7 +251,7 @@ let show(t:i64, scope:$[i64]^, where:i64, all:i64):String {
             if s == id { taken = true }
         }
         if !taken { break }
-        name += 0x2032.uchr                     // ′
+        name += 0x2032                          // ′
     }
     scope^ += intern(&name)
     var s = $"λ" + name + "." + show(x.a, scope, 0, all)

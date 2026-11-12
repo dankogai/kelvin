@@ -55,7 +55,7 @@ extern const size_t kv_ud_upper_count, kv_ud_lower_count, kv_ud_title_count, kv_
 /* the name of a codepoint, from the table or by rule, into buf where by rule; "" where none */
 const char *kv_ud_name(uint32_t cp, char *buf, size_t max);
 
-/* ---------- what a program calls, on a String and a uchr ---------- */
+/* ---------- what a program calls, on a String and a codepoint ---------- */
 enum { KV_UD_NFC, KV_UD_NFD, KV_UD_NFKC, KV_UD_NFKD };
 kv_string kv_ucd_normalize(const kv_string *s, int form);
 /* the grapheme clusters of s (UAX #29), as Strings in a malloc'd array, freed by kv_ucd_free_strings */

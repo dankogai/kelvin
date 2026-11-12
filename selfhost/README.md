@@ -604,6 +604,14 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
+  word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
+  `.utf32` or `.codepoint` of a number is an error that says it is one.
+  - Y_UCHR is gone, with kc's `uchr(x)`, its comparisons, its printing
+    as `uchr("x")`, its walks up to `uchr(0)`, its sort and its
+    templates; a codepoint loop's variable is a `uint32_t` whatever is
+    written.
+  - The entries before this one that name uchr are of their time.
 - **A codepoint is a `u32`** (#527), as kelvinc's: `for c in
   s.codepoints` gives each as a `uint32_t`, and UnicodeData's `extend
   u32` is found on a u32, `c.name`, `c.category`, its C names

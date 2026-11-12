@@ -8,7 +8,7 @@ let main():int32 {
     println(a.count, " ", e, " ", e.unescape() == a, " ", $"\\x00mid".unescape().escape() == e)
     println($"\u{0}mid" == a, " ", $"\u0000mid" == a, " ", String("m\u{0}n").count)
     var t = $"x"
-    t += (0 as uint32).uchr
+    t += 0 as u32
     t += "y"
     var s:String = "x\u{0}y"
     let xs:$[String] = $["x\u0000y"]

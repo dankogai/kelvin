@@ -111,9 +111,6 @@ var text = ages.pretty                   // a String, where print does not show 
   and other control characters as `\u00XX`.
   - A `Bytes` shows each byte past ASCII as `\xNN`, so the text stays
     UTF-8.
-  - A `uchr` there is `uchr("x")`, its character quoted the same way,
-    so that it pastes back (#479): `[uchr("é"), uchr("\n")]`.
-    - U+0000 is `uchr(0)`, as text ends at it.
   - A value on its own is not quoted: `println(s)` of a String is its
     text.
   - The same quoting is in `.cstr` and in a template's `${v}`.
@@ -191,7 +188,7 @@ let card:cstr := `name: ${name}
       times.
 - **`` $`a${x}b` ``** (#67) builds the same text as a `String` on the
   heap, with no bound on its length: each value's text is appended as it
-  comes, a String's whole, a `uchr` as its character.
+  comes, a String's whole.
   - It is an owner, so bind it to a variable (`var s = $`...``), which
     frees it when its block ends; see [strings.md](strings.md).
 - **Values** are evaluated once each, left to right, and shown as

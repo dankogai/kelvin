@@ -278,9 +278,9 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   `[0, 1, 2, 3]`.
   - A comparator, `{ $0 > $1 }` or a named `(T, T):bool`, says whether
     its first goes before its second; without one, `<`: a number's,
-    the codepoint of a `uchr`, the bytes of a String, a Bytes or a
-    `cstr`, which for UTF-8 is codepoint order, or a struct's own
-    `let <(a:T, b:T):bool`. An element with none is a compile error.
+    a codepoint's too, the bytes of a String, a Bytes or a `cstr`,
+    which for UTF-8 is codepoint order, or a struct's own `let <(a:T,
+    b:T):bool`. An element with none is a compile error.
   - **An anonymous comparator is lent the elements** (#242), as map's
     function is (#244), one it writes `var` a copy: its
     parameters are lets the Array keeps, read and never moved, so
@@ -304,9 +304,8 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   - Each element is its text as a template shows it, `${x}`: numbers,
     bools and text as they are, a String unquoted, a struct by its
     `.cstr`, an Optional as `some(5)`, an Array as `[1, 2]`.
-  - `sep` is a `cstr`, a String in a variable, or a `uchr`, evaluated
-    once; with none, `xs.joined()`, the elements are joined with
-    nothing between.
+  - `sep` is a `cstr` or a String in a variable, evaluated once; with
+    none, `xs.joined()`, the elements are joined with nothing between.
   - Of an Array an expression gives, that one is held and freed after.
   - `$[1, 2, 3].join(", ")` is `"1, 2, 3"`, and `$[$"a", $"b"].joined()`
     is `"ab"`.
@@ -314,7 +313,7 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   its place by its own `==`; `!=` the opposite.
   - The two are of one element type; others are an error.
   - The elements compare as a Dictionary's values do (#235): numbers,
-    `bool`, text, a `uchr`, an Optional, a Result or an enum with
+    `bool`, text, an Optional, a Result or an enum with
     values whose values compare, a pointer, and an Array or a
     Dictionary whose elements compare. A struct has no `==`, so an
     Array of them is an error.
@@ -376,7 +375,7 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 | | `.sorted()`, `.sorted(f)`, `.sorted { ... }` | a new sorted Array, the same way; of an Array an expression gives, that one sorted (#185) |
 | | `.reverse()` | reverses a `var` Array in place (#186) |
 | | `.reversed()` | a new Array in the other order; of an Array an expression gives, that one reversed (#186) |
-| | `.join(sep)`, `.joined(sep)`, `.joined()` | a new String of the elements as `${x}` shows them, `sep` between, a cstr, a String or a uchr; one method of two names (#461) |
+| | `.join(sep)`, `.joined(sep)`, `.joined()` | a new String of the elements as `${x}` shows them, `sep` between, a cstr or a String; one method of two names (#461) |
 | | `a0 == a1`, `a0 != a1` | as many elements, each by its `==` in order, a `bool` (#247) |
 | | `.contains(x)`, `.contains { ... }` | whether `x`, or an element the function says true for, is there, a `bool` (#248) |
 | | `.firstIndex(x)`, `.lastIndex(x)`, `.firstIndex { ... }`, `.lastIndex { ... }` | where the first or last of them is, an `i64?`: `some(i)` or `none` (#248) |

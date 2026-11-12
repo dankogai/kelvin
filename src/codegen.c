@@ -180,7 +180,6 @@ static const char *c_type_name(const char *name) {
         {"any", "void"}, /* any^ is void * */
         {"Bytes", "kv_bytes"}, /* an owner (#54) */
         {"String", "kv_string"}, /* codepoints on a Bytes (#55) */
-        {"uchr", "kv_uchr"}, /* a codepoint (#56) */
         {"Bits", "kv_bits"}, /* 64 bits in a u64 (#387) */
         {"IO", "kv_io"}, /* stdio as an owner (#82) */
     };
@@ -1093,8 +1092,6 @@ static char *expr_bare(Expr *e) {
             return strfmt("(%s)(%s)", decl(e->type, ""), expr_bare(e->a));
         if (e->op && !strcmp(e->op, "converter"))
             return converted(e);
-        if (e->op && !strcmp(e->op, "uchr")) /* uchr(x) (#56) */
-            return strfmt("KV_UCHR_OF(%s)", expr_bare(e->a));
         if (e->op && !strncmp(e->op, "text", 4))
             return text_number(e);
         if (e->op && !strcmp(e->op, "try")) /* try x (#76) */
@@ -1139,10 +1136,6 @@ static char *expr_bare(Expr *e) {
         char *recv = expr(e->a);
         if (e->op && !strcmp(e->op, "tagged")) /* v.case, the tag (#61) */
             return strfmt("(%s).tag", recv);
-        if (e->op && !strcmp(e->op, "uchr")) /* c.utf32 (#56) */
-            return strfmt("(%s).cp", recv);
-        if (e->op && !strcmp(e->op, "to")) /* n.uchr (#56) */
-            return strfmt("kv_uchr_of(%s)", recv);
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes (#54) */
             if (!strcmp(e->text, "cstr"))
                 return strfmt("kv_bytes_cstr(&%s)", recv);
@@ -1382,8 +1375,6 @@ static char *expr_bare(Expr *e) {
                 less = strfmt("(kv_string_cmp(&%s, &%s) < 0)", x, y);
             else if (!strcmp(e->text, "bytes"))
                 less = strfmt("(kv_bytes_cmp(&%s, &%s) < 0)", x, y);
-            else if (!strcmp(e->text, "uchr"))
-                less = strfmt("(%s.cp < %s.cp)", x, y);
             else if (!strcmp(e->text, "cstr"))
                 less = strfmt("(strcmp((const char *)%s, (const char *)%s) < 0)", x, y);
             else if (!strcmp(e->text, "op")) { /* a struct's own <, lent the elements (#501), a var parameter a copy (#242) */
@@ -2570,13 +2561,11 @@ static Type *local_owner_type(const char *name) {
 /* b = v where b owns (#54): what b held is freed, then b takes v, which an
    expression gave (a place would be a copy, which the parser rejects) */
 /* x, a value of $`...` (#67), appended to the String s by its kind: a
-   String by reference, a uchr as its codepoint, an Array's text by the
+   String by reference, an Array's text by the
    printer, else its text; a.join(sep)'s pieces too (#461) */
 static void string_part(Buf *b, Expr *x, const char *s) {
     if (!strcmp(x->op, "tplstr_ref")) {
         buf_printf(b, "kv_string_append_ref(&%s, &(%s)); ", s, expr(x->a));
-    } else if (!strcmp(x->op, "tplstr_uchr")) {
-        buf_printf(b, "kv_string_append_uchr(&%s, %s); ", s, expr(x->a));
     } else if (!strcmp(x->op, "tplstr_show")) { /* ${xs} (#125): its text, whole */
         need_show(x->recv_type);
         buf_printf(b, "{ %s } ",
@@ -2874,19 +2863,7 @@ static bool element_first(Stmt *s) {
     return false;
 }
 
-static bool is_uchr_type(Type *t) { return t && t->kind == T_BASE && !strcmp(t->name, "uchr"); }
 static bool is_string_type(Type *t) { return t && t->kind == T_BASE && !strcmp(t->name, "String"); }
-
-/* for x:T in s: x of the element v, converted as T(v) is; a uchr to a
-   number is its codepoint, and a number to a uchr is uchr(v) (#480) */
-static char *each_value(Stmt *s, char *v) {
-    bool to = is_uchr_type(s->type), from = is_uchr_type(s->elem);
-    if (to && !from)
-        return strfmt("KV_UCHR_OF(%s)", v);
-    if (from && !to)
-        return strfmt("(%s).cp", v);
-    return v;
-}
 
 static void stmt(Stmt *s) {
     if (s->kind != S_BLOCK)
@@ -3231,9 +3208,8 @@ static void stmt(Stmt *s) {
         if (s->from_argv) /* char ** in C, u8^^ in Kelvin */
             seq = strfmt("(%s)(%s)", decl(reader, ""), seq);
         bool wrap = s->each == EACH_ARRAY || s->each == EACH_RECORDS;
-        /* a walk stops at a 0 element; a uchr's is its codepoint, U+0000 (#480) */
-        bool cp = is_uchr_type(s->elem);
-        char *at = strfmt(cp ? "(*%s).cp" : "*%s", p);
+        /* a walk stops at a 0 element (#480) */
+        char *at = strfmt("*%s", p);
         if (s->each == EACH_IO_READ || s->each == EACH_IO_LINES) {
             /* f.read(n), f.lines (#82): the loop owns one Bytes or String,
                filled again each time round, which x borrows; a line is a
@@ -3374,17 +3350,15 @@ static void stmt(Stmt *s) {
             if (strcmp(s->name, "_"))
                 line("__attribute__((cleanup(kv_string_free))) kv_string %s = kv_string_span(%s, %s);", s->name, p, g);
             line("%s += %s;", p, g);
-        } else if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55, #56) */
-            line(!strcmp(s->name, "_")      ? "kv_utf8_next(&%s);"
-                 : is_uchr_type(s->type) ? "%s = (kv_uchr){kv_utf8_next(&%s)};"
-                                         : "%s = kv_utf8_next(&%s);", /* for b:u32 in s (#480) */
+        } else if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55), a u32 (#527) */
+            line(!strcmp(s->name, "_") ? "kv_utf8_next(&%s);" : "%s = kv_utf8_next(&%s);", /* for b:u32 in s (#480) */
                  strcmp(s->name, "_") ? decl(const_type(s->type), s->name) : p, p);
         else if (!strcmp(s->name, "_"))
             ; /* for _ in s names no variable */
         else if (s->each == EACH_LIST)
             line("%s = %s;", decl(const_type(s->type), s->name), p);
         else if (s->type)
-            line("%s = %s;", decl(const_type(s->type), s->name), each_value(s, strfmt("*%s", p)));
+            line("%s = %s;", decl(const_type(s->type), s->name), strfmt("*%s", p));
         else
             line("const __typeof__(*%s) %s = *%s;", p, s->name, p);
         if (s->each == EACH_LIST) {
@@ -3709,7 +3683,7 @@ static char *text_bound(Type *t, const char *lv) {
     static const struct { const char *type, *bound; } scalars[] = {
         {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
         {"u32", "10"},  {"i64", "20"},  {"u64", "20"},  {"i128", "40"}, {"u128", "39"},
-        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"uchr", "14"}, {"Bits", "(KV_CSTR_SCALAR - 1)"},
+        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"Bits", "(KV_CSTR_SCALAR - 1)"},
     };
     for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; i++)
         if (!strcmp(t->name, scalars[i].type))
@@ -3776,7 +3750,7 @@ static const char *template_bound(Expr *x) {
         return "KV_TEMPLATE_STR";
     static const struct { const char *type, *bound; } numbers[] = {
         {"i8", "4"},   {"u8", "3"},   {"i16", "6"},   {"u16", "5"},    {"i32", "11"}, {"u32", "10"}, {"i64", "20"},
-        {"u64", "20"}, {"i128", "40"}, {"u128", "39"}, {"f32", "15"}, {"f64", "24"}, {"bool", "5"}, {"uchr", "4"},
+        {"u64", "20"}, {"i128", "40"}, {"u128", "39"}, {"f32", "15"}, {"f64", "24"}, {"bool", "5"},
     };
     for (size_t i = 0; i < sizeof numbers / sizeof numbers[0]; i++)
         if (!strcmp(t->name, numbers[i].type))
@@ -3797,8 +3771,6 @@ static char *text_writer(Type *t, const char *lv) {
         return "kv_cstr_put(_kv_p, \"[...]\")";
     if (t->kind == T_BASE && t->cname && (!strncmp(t->cname, "_kv_dict_", 9) || !strncmp(t->cname, "_kv_set_", 8)))
         return "kv_cstr_put(_kv_p, \"{...}\")";
-    if (t->kind == T_BASE && !strcmp(t->name, "uchr")) /* uchr("x"), which pastes back (#479) */
-        return strfmt("kv_cstr_quoted_uchr(%s, _kv_p)", lv);
     if (t->kind == T_BASE && !strcmp(t->name, "IO")) /* an IO member (#82): no text of its own */
         return "kv_cstr_put(_kv_p, \"<IO>\")";
     /* a function's address: ISO C converts it to an integer, not to a
@@ -4217,8 +4189,8 @@ static void emit_arrays_after(Decl *d) {
     }
 }
 
-/* x == y of a case's value (#79): a String or a Bytes by its bytes, a
-   uchr by its codepoint, an enum with values by its own _eq, the rest
+/* x == y of a case's value (#79): a String or a Bytes by its bytes, an
+   enum with values by its own _eq, the rest
    by C's == */
 static char *eq_code(Type *t, const char *x, const char *y) {
     if (t->kind == T_ARRAY) /* an enum case's array, element by element (#361) */
@@ -4230,8 +4202,6 @@ static char *eq_code(Type *t, const char *x, const char *y) {
         return strfmt("kv_string_eq(&%s, &%s)", x, y);
     if (f && !strcmp(f, "kv_bytes_free"))
         return strfmt("kv_bytes_eq(&%s, &%s)", x, y);
-    if (!strcmp(decl(t, ""), "kv_uchr"))
-        return strfmt("%s.cp == %s.cp", x, y);
     if (f && !strcmp(f, "kv_bits_free")) /* a Bits by its count and bits (#455) */
         return strfmt("kv_bits_eq(&%s, &%s)", x, y);
     Decl *r = t->kind == T_BASE ? kelvin_record(t->name) : NULL;

@@ -18,7 +18,7 @@
    `in` is a keyword only in `for i in ...`. */
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
-    "f32", "f64", "bool", "true", "false", "String", "any", "nowhere", "nullptr", "cstr", "Bytes", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "OS", "SYS", "try", "let", "var",
+    "f32", "f64", "bool", "true", "false", "String", "any", "nowhere", "nullptr", "cstr", "Bytes", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "OS", "SYS", "try", "let", "var",
     "Task", "async", "await", "Iterator", "Range", "fallthrough", "Bits", "static_assert", "alignof", "alignas", "typeof",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
@@ -833,6 +833,9 @@ Token *lex(const char *file, const char *src, int *ntoks) {
             for (int i = 0; keywords[i]; i++)
                 if (!strcmp(t->text, keywords[i]))
                     t->kind = TK_KEYWORD;
+            if (!strcmp(t->text, "uchr")) /* removed (#528): a codepoint is a u32 (#527) */
+                error_at(pos, "uchr is no more (#528): a codepoint is a u32, as s.codepoints[0] gives it; s += n "
+                              "appends one, and grapheme(n) is a String of it");
             if (!strcmp(t->text, "_Complex")) /* C99's, left out on purpose (#404) */
                 error_at(pos, "'_Complex' is C99's complex type, left out on purpose: #import <math> and write c64 "
                               "or c32, Kelvin's own");

@@ -1,7 +1,7 @@
 // xs.sort() in place and xs.sorted() a new Array (#185), by a comparator,
 // true where its first goes before its second, or by <: numbers by value,
 // a String, a Bytes or a cstr by its bytes, codepoint order for UTF-8, a
-// uchr by its codepoint, a struct by its own operator <; a stable sort
+// struct by its own operator <; a stable sort
 struct point { x: int64; y: int64 }
 let <(a:point, b:point):bool { a.x < b.x || (a.x == b.x && a.y < b.y) }
 let descending(a:int64, b:int64):bool { a > b }
@@ -22,9 +22,9 @@ let main():int32 {
     cs.sort()
     var fs = $[2.5, -1.0, 0.5]
     var fsorted = fs.sorted()
-    var us = $[uchr("γ"), uchr("a"), uchr("é")]
+    var us = $"γaé".codepoints
     us.sort()
-    println(ps, " ", cs, " ", fsorted, " ", us[0], us[1], us[2])
+    println(ps, " ", cs, " ", fsorted, " ", us)
     var bs = $[Bytes([2]), Bytes([1, 9]), Bytes([1])]
     bs.sort()
     var be = bs.map { $0.escape() }
@@ -42,6 +42,6 @@ let main():int32 {
 }
 // out: [0, 1, 2, 3] [0, 1, 2, 3] [0, 1, 2, 3] [3, 2, 1, 0]
 // out: ["Zed", "ann", "ann2", "bob", "émile"] ["bob", "ann", "Zed", "ann2", "émile"]
-// out: [{x: 1, y: 2}, {x: 1, y: 5}, {x: 2, y: 1}] ["apple", "fig", "pear"] [-1.0, 0.5, 2.5] aéγ
+// out: [{x: 1, y: 2}, {x: 1, y: 5}, {x: 2, y: 1}] ["apple", "fig", "pear"] [-1.0, 0.5, 2.5] [97, 233, 947]
 // out: ["\\x01", "\\x01\\x09", "\\x02"] [7] 0 [50, 40, 10]
 // out: true false true true

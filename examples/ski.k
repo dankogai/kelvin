@@ -62,7 +62,11 @@ let ski(s:cstr):i64 {
 // parentheses
 let show(t:i64):String {
     let n = pool[t]
-    if n.kind != '@' { return $"" + n.kind.uchr }
+    if n.kind != '@' {
+        var leaf = $""
+        leaf += n.kind
+        return leaf
+    }
     var s = show(n.fun)
     if pool[n.arg].kind == '@' {
         s += "("

@@ -15,8 +15,9 @@ println(s, " ", s.count, " ", s[1], " ", s[0..<5])   // héllo, world 12 é hél
 `String` (#55) is text that is well-formed UTF-8, on the heap, growing,
 and freed when its block ends. Its elements are its graphemes (#522),
 what a reader sees as one character, each a String: it is counted,
-walked, indexed and sliced by them. `uchr` (#56) is a single codepoint,
-and `s.codepoints` (#521) the codepoints of a String. `Bytes` (#54),
+walked, indexed and sliced by them. A codepoint is a `u32` (#527), and
+`s.codepoints` (#521) the codepoints of a String; `uchr`, a type of one
+(#56), is no more (#528). `Bytes` (#54),
 any bytes on the heap, looks the same and is another thing, indexed by
 byte and not text: [bytes.md](bytes.md).
 
@@ -104,8 +105,8 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
       are an `err`: [unicodedata.md](unicodedata.md#codepoints-into-a-string-grapheme-and-stringfromcodepoints).
   - A `Bytes` is made its own ways, `Bytes("text")`, `Bytes([...])`,
     `Bytes.fromBase64(text)`: [bytes.md](bytes.md).
-- **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`, a
-  codepoint as an integer, or a String an expression gives), `clear`,
+- **Methods:** `append` (also `+=`, of text, a borrow `&t`, a codepoint
+  as an integer, or a String an expression gives), `clear`,
   `reserve`, `compact`, `copy`, `escape` and `unescape`.
 - **Graphemes** (#522): a String's elements are its grapheme clusters,
   what a reader sees as one character (UAX #29), each a String.
@@ -118,8 +119,8 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
 - **`s[i]`** (#522) is grapheme `i`, a new String, `i` an integer; past
   the end ends the program: `kelvin: index 5 is out of range: the String
   has 5 graphemes`.
-- **`s + t`** (#183) is a new String of the two, either side a String,
-  text or a `uchr`, one a String: `s + "!"`, `"x" + s`, `s + t + u`.
+- **`s + t`** (#183) is a new String of the two, either side a String
+  or text, one a String: `s + "!"`, `"x" + s`, `s + t + u`.
   - A String in a variable is copied and stays; one an expression gives
     is taken, so that a chain frees what it made.
   - `s += t` still appends in place, and a number is shown with a
@@ -152,8 +153,7 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
     an argument is the same error (#437).
 - **Walking:** `for c in s` gives each grapheme (#522), a String the
   loop holds and frees, `c` a let; `for x in s.bytes^` each byte.
-  - A type written walks codepoints: `for c:uchr in s` gives each as a
-    `uchr`, which prints as its character, and `for n:u32 in s` each
+  - A type written walks codepoints: `for n:u32 in s` gives each
     one's number (#480).
   - **`s.codepoints`** (#521) is its codepoints, an `Array<u32>`
     (#527); `s.codepoints[0]` is the first.
@@ -165,15 +165,14 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
     - `s += c` appends a codepoint, a `u32` or any integer.
     - Of a borrow, `s^.codepoints`, and of a String an expression
       gives, `f().codepoints`, which is held for the loop.
-  - A `[uchr](N)` or a `uchr^` is walked up to `uchr(0)` (#480).
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
   and `s[...hi]` are new Strings of those graphemes (#522); a range past
   the count ends the program.
   - `s[r]` slices by a Range value as well (#377).
 - **Comparing:** `==` and `!=` compare two Strings by their bytes.
-  - A String compares with text, a `cstr` or a literal, a `uchr` or a
-    character, on either side (#522): `c == " "`, `c != ' '`, `s == u`
-    where `s` is that one codepoint.
+  - A String compares with text, a `cstr` or a literal, or a character,
+    on either side (#522): `c == " "`, `c != ' '`, where `c` is that one
+    codepoint.
   - `<`, `<=`, `>` and `>=` order two Strings by their bytes, codepoint
     order for UTF-8, `"Zed" < "ann"` (#185).
   - A Bytes compares the same way.
@@ -188,7 +187,7 @@ to come.
 
 ## Where it lives
 
-The prelude's, `libkelvin`, linked without an import: `String` and `uchr` (#55, #56), with the graphemes' functions of runtime/unicode.c and UnicodeData's (#520, #522).
+The prelude's, `libkelvin`, linked without an import: `String` (#55), with the graphemes' functions of runtime/unicode.c and UnicodeData's (#520, #522).
 
 ## Properties and methods
 
@@ -198,16 +197,16 @@ The prelude's, `libkelvin`, linked without an import: `String` and `uchr` (#55, 
 | | `.isEmpty` | whether it holds no text, `.count == 0`, a `bool` (#434) |
 | | `.bytes` | its Bytes, a read-only borrow ([bytes.md](bytes.md)) |
 | | `.cstr` | a borrow of the text |
-| | `.append(x)`, `+=` | text, a `uchr`, a codepoint as an integer, `&other`, or a String an expression gives |
+| | `.append(x)`, `+=` | text, a codepoint as an integer, `&other`, or a String an expression gives |
 | | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | changes in place; a new String |
-| | `s + t` | a new String of the two, a String, text or a `uchr` on either side (#183) |
+| | `s + t` | a new String of the two, a String or text on either side (#183) |
 | | `.find(text)`, `.find(&t)` | the grapheme index of the first `text`, or -1 (#177, #522) |
 | | `.has(text)`, `.starts(text)`, `.ends(text)` | whether `text` is there, at the start, at the end; `&t` too |
 | | `.trim()` | a new String without the blanks at either end |
 | | `.escape()` | the text with each codepoint beyond ASCII as `\u{...}`, a NUL as `\u{0}` (#299), and a `\` as `\\`, a new String (#164); with the prelude's `RegExp` (#504), `.escape(&re)` escapes what `re` matches instead |
 | | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with the prelude's `RegExp` (#504), `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each grapheme, a String (#522) |
-| | `for c:uchr in s`, `for n:u32 in s` | each codepoint, a `uchr`, or its number (#480) |
+| | `for n:u32 in s` | each codepoint, its number (#480) |
 | | `s[i]` | grapheme `i`, a new String, O(n) (#522) |
 | | `.codepoints` | its codepoints, an `Array<u32>` (#527); `for c in s.codepoints` walks them in place, each a `u32` (#521) |
 | | `s[lo..<hi]` | a slice by grapheme, a new String (#68, #522) |
@@ -217,15 +216,9 @@ The prelude's, `libkelvin`, linked without an import: `String` and `uchr` (#55, 
 | | `grapheme(c0, c1, ...)` | the same of the first grapheme alone, the rest checked and dropped (#526) |
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | the prelude's `UnicodeData` (#156, #520): [unicodedata.md](unicodedata.md) |
 | | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with the prelude's `RegExp` (#157, #504), `re` a `$/.../`: [regexp.md](regexp.md) |
-| | `==`, `!=` | by the bytes, with a String, text, a `uchr` or a character (#522) |
+| | `==`, `!=` | by the bytes, with a String, text or a character (#522) |
 | | `<`, `<=`, `>`, `>=` | by the bytes, codepoint order (#185) |
 | | `i64(s)`, `f64(s)`, ... | a number read from its text (#88): [cstr.md](cstr.md#reading-numbers-from-text) |
-| `uchr` | `uchr(x)` | of an integer, or the first codepoint of text, a String or a Bytes, `uchr(s)` or `uchr(&s)`; U+FFFD where none (#56, #494) |
-| | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
-| | `.cstr` | the character as UTF-8 text |
-| | inside a value | `uchr("x")`, quoted, so that it pastes back; U+0000 `uchr(0)` (#479) |
-| | `<`, `==` and the rest | with a `uchr` or a number |
-| | `for c in a` | of a `[uchr](N)` or a `uchr^`, each up to `uchr(0)` (#480) |
 | all | `.size`, `.typename` | as any value's |
 
 The ownership rules are in [ownership.md](ownership.md), the general
