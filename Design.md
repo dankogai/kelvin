@@ -582,6 +582,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 531 | A BigInt's `b.bits`, the second of #530's three: its bits in the shortest two's complement form, an `Array<bool>`, place 0 first, the last bool its sign, a copy; `b.bits[n]` its bit `n` where it is, past its top the sign; set with `=`, `\|=`, `&=` and `~=` of a bool, and `b.bits[n].flip()`, in the var that holds it, which grows past its top and keeps its sign; `BigInt(bools)` the way back, of an `Array<bool>` lent, a `[bool]` written or a fixed array, the last bool the sign; a negative place a literal's error, a value's end of the program; kelvinc and kc, which reads `b:lent $[T]` | modules/BigInt.k's kv_bi_bit, kv_bi_bit_set, kv_bi_bit_flip, kv_bi_bit_put, kv_bi_bit_of, kv_bi_bools, kv_bi_of_bools, kv_bi_from_bools, `bits`, `BigInt(bools:lent $[bool])`; src/parser.c's bigint_helper, bigint_bits_attr, bigint_bit_at, bigint_bit_call, bigint_bools_call, bools_literal, bit_method; selfhost/gen.k's resolve_bigbits, big_bits_field, big_bit_call, gen_big_bit_set, gen_big_bit_flip; selfhost/parse.k's parse_params; selfhost/sample.k; documents/bigint.md, integers.md, bits.md, README.md; README.md, selfhost/README.md | `b.bits[100] = true`, `BigInt(b.bits)`; tests/run/bigint_bits.k, bigint_bits_failure.k; tests/error/bigint_bit_let.k, bigint_bit_flip_let.k, bigint_bit_set_int.k, bigint_bit_op.k, bigint_bits_set.k, bigint_bit_place.k, bigint_bit_temp.k, bigint_of_bools_item.k | 2026-11-12 |
 | 532 | `Bits` is no more, the third of #530's three: the word is an error in kelvinc's and kc's lexers that names `x.bits` of an integer, `b.bits` of a BigInt and an `Array<bool>`, as uchr's names a `u32` (#528); `Bits(...)`, `bv[n]`, its `.append`, `.flip`, `.capacity`, `.count`, `.isEmpty`, `.u64s`, `.bin` and `.copy`, its operators, its walk and its printing go, with the runtime's `kv_bits`; `!!n` stays, and `x.bits`, `b.bits` and a bool's `b.flip()`; documents/bits.md is the document of `.bits`, with a table of what a `Bits` was and what is written now | src/lexer.c; src/parser.c, less is_bits, bits_args, bits_part, bits_held and a Bits's branches, check_bits_place now check_bit_place; src/codegen.c, less bits_code, bits_ref, bits_push; src/kelvin.h, less EACH_BITS; modules/kelvin_prelude.h, less kv_bits; runtime/bits.c removed; selfhost/lex.k; selfhost/parse.k, less Y_BITS; selfhost/gen.k, less gen_bits_assign, bits_part_ok, put_bits_push, bits_hold, gen_bits now gen_bit_forms; selfhost/sample.k; documents/bits.md, bool.md, integers.md, ownership.md, properties.md, versusC.md, README.md; README.md, selfhost/README.md; editors/vscode/syntaxes/kelvin.tmLanguage.json; tests/grammar.js; intro's notes | `var bv = Bits(u8(0))` is the error; tests/error/bits_gone.k, bits_type_gone.k; tests/run/bit_bool.k and int_bits.k rewritten; 14 tests of Bits removed | 2026-11-12 |
 | 533 | kc reads `v.T`, a converter's name after a value, as `T(v)`, as kelvinc does (#36): `b.i64` of a bool, 0 or 1, of a bit `x.bits[n].i64` too; `x.f64` of a number, clamped as `T(v)` clamps (#513); `c.i64` of an enum's value; `"42".i64` and `s.i64` of text; of a pointer or a fixed array the converter's error; a struct's member of that name stays its own. kelvinc: `"2.5".f64` and `3.i64`, of a literal whose type it had not, were taken for a struct's attribute of that name, a BigInt's `.f64` and `.i64` (#512), and failed in C; they are the converters | selfhost/gen.k's resolve_convert, called in type_of and gen_expr; src/parser.c's attribute read; selfhost/sample.k; selfhost/README.md | `b.i64`, `"2.5".f64` beside a BigInt; tests/run/converter_property.k, converter_property_bigint.k; tests/run/bit_bool.k builds with kc | 2026-11-12 |
+| 534 | An assignment's left is a place: a variable, a member, an element or `p^`. A value kelvinc and kc see is none is an error that names it, where it was C's "expression is not assignable" or "assignment to cast is illegal": a conversion, `b.i64 = 1`, `i64(b) = 1`, `x as i64 = 2`; what a function gives, `f() = 2`, and its member, `mk().x = 1`; a literal; what an operator gives; a property or a method, `x.size = 2`; a function's name, `f = 1`; under `=`, the compound assignments and `:=`. A call neither has a function of, a C macro's, is left to C | src/parser.c's no_place, in assign_to; selfhost/gen.k's no_place, in gen_assign; documents/grammar.md; selfhost/README.md | `b.i64 = 1` is "a conversion to i64 is a value, and no place to set: '=' sets a variable, a member, an element or 'p^'"; tests/error/no_place_conversion.k, no_place_converter.k, no_place_as.k, no_place_call.k, no_place_call_member.k, no_place_literal.k, no_place_operator.k, no_place_property.k, no_place_method.k, no_place_function.k, no_place_reference.k | 2026-11-12 |
 
 Notes:
 
@@ -1166,6 +1167,30 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (534) Agreed details: "push and fix b.i64 = 1 as #534"
+  - `b.i64 = 1` was C's error in both compilers, and so were
+    `i64(b) = 1`, `x as i64 = 2`, `f() = 2`, `(x + 1) = 2`, `5 = 2`,
+    `x.size = 2` and `x.hex = "2"`: neither checked that an
+    assignment's left is a place.
+  - Asked how wide, the user chose every non-place the compiler can
+    see, not the conversions alone, under `=`, the compound assignments
+    and `:=`; what only C sees is left to C.
+  - One message, naming what the left side is: "a conversion to i64 is
+    a value, and no place to set: '=' sets a variable, a member, an
+    element or 'p^'"; "what a function gives", "what '+' gives", "a
+    literal", "text", "'.size'", "a size", "the function 'f'".
+  - A member of a value is a value: `mk().x = 1` is what a function
+    gives. An element is not judged, as `buf()[0] = 1` of a pointer a
+    function gives is a place.
+  - A call of a name neither compiler has a function or a variable of
+    may be a C macro, which may be a place: C decides.
+  - Checks that were there come first and keep their words: a let, an
+    enum's constant, `p++` of what is no pointer, `.sign` of an integer,
+    a `.bits` set whole, an unknown member.
+  - Seen and left: `&x.i64`, the address of a value, is C's error in
+    both, "cannot take the address of an rvalue"; an address was not
+    asked.
 
 - (533) Agreed details: "push and fix kc's b.i64 of a bool as #533"
   - kc had no `v.T` at all, of a number as of a bool: `x.i64` of a
@@ -8606,6 +8631,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P543 | Details of #531 | A BigInt's `.bits` in the shortest two's complement form, the last bool the sign, a copy; `b.bits[n]` past its top the sign, and setting there growing it with its sign kept; a negative place an error or the program's end; `BigInt(bools)` reading the last bool as the sign, so `BigInt(u8(200).bits)` is -56n; the compilers' calls of BigInt.k's kv_bi_bit, kv_bi_bit_put, kv_bi_bit_flip, kv_bi_bit_of and kv_bi_from_bools | provisional |
 | P544 | Details of #532 | `Bits` an error of the lexers that names `x.bits`, `b.bits` and `Array<bool>`, the word reserved for it; no like-for-like form for a counted vector of bits with operators; `!!n` and a bool's `.flip()` kept; documents/bits.md kept as the document of `.bits` with the table of old and new; runtime/bits.c and `kv_bits` gone | provisional |
 | P545 | Details of #533 | kc's `v.T` the converter's call, of a number, a bool, an enum's value, text, a pointer and a fixed array, a struct's member and what only C sees left as members; kelvinc's `"2.5".f64` and `3.i64` the converters where a struct has an attribute of that name; `b.i64 = 1` C's error in both, left | provisional |
+| P546 | Details of #534 | An assignment's left a place, a value the compilers see an error that names it, its words "is a value, and no place to set"; a member of a value a value, an element not judged; a call of an unknown name left to C; `&` of a value left C's error | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

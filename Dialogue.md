@@ -10049,3 +10049,21 @@ attribute; it is the converter now. `b.i64 = 1` is C's error in both
 compilers, and is left. Details are provisional P545.
 
 There are 1283 tests, and all pass with clang and with gcc 15.
+
+### 581. An assignment's left is a place
+
+> push and fix b.i64 = 1 as #534
+
+**Claude** pushed #533, and CI passed. `b.i64 = 1` was C's error because
+neither compiler checked that an assignment's left is a place: `f() = 2`,
+`5 = 2`, `(x + 1) = 2` and `x.size = 2` were C's errors too. Asked how
+wide the fix should be, the user chose every non-place the compiler can
+see. kelvinc and kc now say what the left side is, a conversion, what a
+function, a method or an operator gives, a literal, a property, a
+function's name, or a member of one of them, and that it "is a value,
+and no place to set", under `=`, the compound assignments and `:=`. A
+call of a name they have no function of is left to C, as a C macro may
+be a place. `&x.i64`, the address of a value, is still C's error.
+Details are provisional P546.
+
+There are 1294 tests, and all pass with clang and with gcc 15.

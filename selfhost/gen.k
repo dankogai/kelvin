@@ -11843,6 +11843,64 @@ let sub_assign(n:int64):bool {
     return true
 }
 
+// what n is, where kc sees that it is a value and no place an assignment
+// sets, as kelvinc's no_place (#534): a conversion, what a function, a
+// method or an operator gives, a literal, a property worked out of its
+// value; empty of a place, and of what only C sees, which C decides
+let no_place(n:int64):String {
+    let k:nkind = nodes[n].kind
+    let t:int64 = nodes[n].t
+    if k == N_NUM || k == N_CHAR || k == N_BOOL || k == N_NULL { return $"a literal" }
+    if k == N_STR || k == N_DSTR || k == N_TPL { return $"text" }
+    if k == N_CAST || (k == N_CALL && converter_of(n) >= 0) {
+        let y:int64 = k == N_CAST ? nodes[n].ty : converter_of(n)
+        var m = $"a conversion to "
+        let w:String = kelvin_type_text(y)
+        m += &w
+        return m
+    }
+    if k == N_BIN || k == N_UNARY || k == N_ADDR || k == N_COND {
+        type_of(n)                                       // its own error first, as kelvinc's
+        if failed { return $"" }
+        var m = $"what '"
+        if k == N_COND { m += "?:" } else if k == N_ADDR { m += "&" } else if k == N_UNARY && nodes[n].flag == 1 { m += "!!" } else { m += tok_text(t) }
+        m += "' gives"
+        return m
+    }
+    if k == N_CALL {
+        let f:int64 = nodes[n].a
+        if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 && fn_named(nodes[f].t) < 0 { return $"" }   // a call kc has no function of: a C macro may be a place
+        return $"what a function gives"
+    }
+    if k == N_ID && fn_named(t) >= 0 && var_type(t) < 0 {   // f = 1 of a function's name
+        var m = $"the function '"
+        m += tok_text(t)
+        m += "'"
+        return m
+    }
+    var member = k == N_METHOD
+    if k == N_FIELD && nodes[n].a >= 0 && !names_type(nodes[n].a) && tagged_named(nodes[n].a) < 0 {
+        let y:int64 = type_of(nodes[n].a)
+        if failed { return $"" }
+        if y >= 0 {
+            let yk:ykind = types[y].kind
+            member = is_number_kind(yk) || yk == Y_BOOL || yk == Y_CSTR || yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET || yk == Y_FIXED || yk == Y_RANGE
+            if yk == Y_STRUCT { return no_place(nodes[n].a) }   // mk().x: a member of a value is a value
+        }
+    }
+    if member {
+        type_of(n)                                       // an unknown member's error first, as kelvinc's
+        if failed { return $"" }
+        var m = $"'."
+        m += tok_text(t)
+        m += "'"
+        return m
+    }
+    if k == N_SIZEOF { return $"a size" }
+    if k == N_ANON { return $"a function" }
+    return $""
+}
+
 let gen_assign(n:int64) {
     resolve_bigbits(nodes[n].a)
     if big_bit_reads.has(nodes[n].a) {                  // b.bits[k] = v and its kin, of a BigInt (#531)
@@ -11876,6 +11934,22 @@ let gen_assign(n:int64) {
     if nodes[lhs].kind == N_FIELD && tok_is(nodes[lhs].t, "case") && tagged_of(type_of(nodes[lhs].a)) >= 0 {   // a tag alone would leave the value unset (#477)
         gen_error(n, "'.case' is read only: a case is set with its value, 'v.c = x', or 'v = T.c' of a case with none")
         return
+    }
+    if !tok_is(t, "++") && !tok_is(t, "--") {           // b.i64 = 1, f() = 2, 5 = 2 (#534), as kelvinc says it
+        resolve_op(lhs)
+        resolve_attr(lhs)
+        resolve_convert(lhs)
+        if failed { return }
+        let value:String = no_place(lhs)
+        if failed { return }
+        if value.count > 0 {
+            var m = value.copy()
+            m += " is a value, and no place to set: '"
+            m += tok_text(t)
+            m += "' sets a variable, a member, an element or 'p^'"
+            gen_error(lhs, m.cstr)
+            return
+        }
     }
     if !may_change(lhs) { return }                      // (#271)
     if compound_by_operator(n) || failed { return }     // z += w, z = z + w of a struct's operator (#42)

@@ -9335,6 +9335,52 @@ static const char *let_target(Expr *e) {
     }
 }
 
+/* what e is, where kelvinc sees that it is a value and no place an
+   assignment sets (#534): a conversion, what a function, a method or an
+   operator gives, a literal, a property worked out of its value. NULL of
+   a place, and of what only C sees, a macro's call, which C decides */
+static const char *no_place(Expr *e) {
+    switch (e->kind) {
+    case E_LITERAL:
+        return "a literal";
+    case E_STRING:
+    case E_TEMPLATE:
+        return "text";
+    case E_CAST:
+        return e->type ? strfmt("a conversion to %s", kelvin_type(e->type)) : "a conversion";
+    case E_BINARY:
+    case E_PREFIX:
+    case E_POSTFIX:
+        return e->op ? strfmt("what '%s' gives", e->op) : "what an operator gives";
+    case E_TERNARY:
+        return "what '?:' gives";
+    case E_CALL:
+        if (e->op && !strcmp(e->op, "subscript_get"))
+            return NULL;
+        return e->a && e->a->kind == E_IDENT && !e->a->target && !function_named(e->a->text) && !value_type(e->a)
+                   ? NULL /* a call kelvinc has no function of: a C macro may be a place */
+                   : "what a function gives";
+    case E_METHOD:
+    case E_PROPERTY:
+        if (e->text && !isalpha((unsigned char)e->text[0]) && e->text[0] != '_') /* !!n, a built-in's operator */
+            return strfmt("what '%s' gives", e->text);
+        return e->text ? strfmt("'.%s'", e->text) : "what a method gives";
+    case E_SIZEOF_TYPE:
+    case E_SIZEOF_EXPR:
+        return "a size";
+    case E_FUNC:
+        return "a function";
+    case E_IDENT: /* f = 1 of a function's name; a variable that holds a function is a place */
+        return function_named(e->text) ? strfmt("the function '%s'", e->text) : NULL;
+    case E_FIELD: { /* mk().x: a member of a value is a value, of a struct kelvinc sees */
+        Type *bt = e->a ? value_type(e->a) : NULL;
+        return bt && bt->kind != T_PTR ? no_place(e->a) : NULL;
+    }
+    default:
+        return NULL;
+    }
+}
+
 /* Assignment is a statement (#26): `=`, `:=` and `+=` and friends appear
    only at the top of an expression statement or of a for clause, where a
    comma list such as `i += 1, j -= 1` runs left to right. Anywhere else,
@@ -9735,6 +9781,11 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 list_push(&c->items, v);
                 return c;
             }
+            const char *value = no_place(lhs);
+            if (value) /* b.i64 = 1, f() = 2, 5 = 2 (#534): Kelvin's error, where it was C's */
+                error_at(lhs->pos, "%s is a value, and no place to set: '%s' sets a variable, a member, an element "
+                                   "or 'p^'",
+                         value, t->text);
             reject_let_change(lhs, t);
             /* a cstr's bytes never change, and it does not step (#52) */
             if ((lhs->kind == E_INDEX || lhs->kind == E_DEREF) && is_cstr(value_type(lhs->a)))

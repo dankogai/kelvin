@@ -604,6 +604,14 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An assignment's left is a place** (#534), as kelvinc's: gen.k's
+  `no_place` names a left side kc sees is a value, a conversion, what a
+  function, a method or an operator gives, a literal, a property, a
+  function's name, or a member of one of them, and `gen_assign` says so
+  where C's "expression is not assignable" was the error.
+  - `p++` and `p--` keep their own messages.
+  - A call kc has no function of is left to C, as a C macro may be a
+    place.
 - **`v.T` is `T(v)`** (#533), as kelvinc's #36: `b.i64` of a bool,
   `x.f64` of a number, `c.i64` of an enum's value and `"42".i64` of
   text are the converters' calls, which kc makes of the field read.

@@ -382,6 +382,15 @@ statements too, for pointers only (#26, #51):
   - A list either declares, after `let` or `var`, or assigns.
 - So nothing can be changed inside `[...]`, a condition or an argument,
   except by a function call.
+- **Its left is a place** (#534): a variable, a member, an element or
+  `p^`.
+  - A value is none, and assigning to one is an error that names it:
+    `b.i64 = 1`, `i64(b) = 1` and `x as i64 = 2` of a conversion,
+    `f() = 2` of what a function gives, `mk().x = 1` of its member,
+    `5 = 2` of a literal, `(x + 1) = 2` of what an operator gives,
+    `x.size = 2` of a property, and `f = 1` of a function's name.
+  - The compound assignments and `:=` are the same.
+  - What only C sees, a C macro's call, is left to C.
 
 ### C habits kelvinc catches
 
