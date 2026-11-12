@@ -152,6 +152,8 @@ let twice(s:String):String {
     return t
 }
 let twice(p:point):point { return {p.x * 2, p.y * 2} }
+let twice_global:(int64):int64 := twice                // a global of an overload, picked by its type, its function declared first (#537)
+let pick_twice():(int64):int64 { return twice }
 let kind(n:int32):cstr { return "int32" }
 let kind(b:bool):cstr { return "bool" }
 let kind(o:int64?):cstr { return "int64?" }
@@ -1122,6 +1124,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     var fn_list = $[&doubled, doubled]
     let step_at:dispatch = {"twice", &doubled}
     println(twice_at(4), " ", apply_twice(&doubled, 3), " ", fn_list[0](5), " ", step_at.op(6), " ", twice_at.typename, " ", twice_at == doubled)
+    let twice_int:(int64):int64 := twice                 // of an overloaded name, the one of the type written (#41, #537)
+    var twice_pt:(point):point := twice
+    twice_pt := twice
+    println(twice_int(21), " ", apply_twice(twice, 5), " ", twice_pt(anchor), " ", twice_global(8), " ", pick_twice()(9))
     let hex_text = $"0x1f"
     println(int64("42"), " ", int32("ff", 16), " ", float64("1.5"), " ", uint8("300"), " ", int64(hex_text, 16), " ", int64(2.7), " ", float32(odds[2]))   // converters (#429)
     let short_u8:u8 = u8("300")                           // kelvinc's short type names (#430)

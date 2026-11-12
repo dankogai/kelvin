@@ -1559,6 +1559,8 @@ let told(y:int64):int64    // and an x.type told, $0.type of a function's one ex
 let void_return(a:int64):bool    // and a value returned without a result (#427)
 let callee_type(f:int64):int64    // and the function type a call calls through (#428)
 let named_fn_type(n:int64):int64    // and a function's name, a value of its type
+let pick_overload(v:int64, y:int64)    // and of an overloaded name, the one of the type wanted (#537)
+let pick_call_args(n:int64)
 let anon_type(n:int64):int64    // and an anonymous function's, as a value
 let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
 let shown_cstr(n:int64):bool          // and v.cstr's of what print shows (#450)
@@ -1653,6 +1655,7 @@ let type_of(n:int64):int64 {
     resolve_bigbits(n)                                   // b.bits[k] of a BigInt, BigInt([b, ...]) (#531)
     resolve_attr(n)                                      // x.y, an attribute, of its getter (#131)
     resolve_convert(n)                                   // v.i64, i64(v) (#533)
+    pick_call_args(n)                                    // apply(over, 2), the overload of its parameter's type (#537)
     resolve_codepoints(n)                                // grapheme(c0, c1, ...) (#526)
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
@@ -10122,6 +10125,7 @@ let gen_expr(n:int64) {
     resolve_bigbits(n)
     resolve_attr(n)
     resolve_convert(n)
+    pick_call_args(n)
     resolve_codepoints(n)
     gen_expr_of(n)
     if nodes[n].kind == N_CALL || nodes[n].kind == N_METHOD { moves_done() }
@@ -11314,6 +11318,8 @@ let gen_var(n:int64) {
         return
     }
     let y:int64 = nodes[n].ty
+    pick_overload(nodes[n].a, y)                         // let h:(T):R := over (#537)
+    if failed { return }
     if nodes[n].a >= 0 && !assigns_as(n, nodes[n].t, y, nodes[n].c == 1) { return }
     var who = $"'"                                       // a let's borrow, as an argument's (#273)
     who += tok_text(nodes[n].t)
@@ -11975,6 +11981,10 @@ let gen_assign(n:int64) {
             return
         }
     }
+    if (tok_is(t, "=") || tok_is(t, ":=")) && nodes[n].b >= 0 && nodes[nodes[n].b].kind == N_ID {   // v := over, the overload of v's type (#537)
+        pick_overload(nodes[n].b, type_of(lhs))
+        if failed { return }
+    }
     if !may_change(lhs) { return }                      // (#271)
     if compound_by_operator(n) || failed { return }     // z += w, z = z + w of a struct's operator (#42)
     t = nodes[n].t
@@ -12272,6 +12282,8 @@ let gen_return(n:int64) {
         return
     }
     if void_return(a) { return }
+    pick_overload(a, nodes[current].ty)                  // return over, the overload of the result's type (#537)
+    if failed { return }
     let text:int64 = text_in_buffer(a)
     if text >= 0 && nodes[text].kind == N_TPL {         // as kelvinc's reject_returned_text (#445)
         gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
@@ -12616,9 +12628,82 @@ let decl_fn_type(d:int64):int64 {
     return fn_type_of(&ps, r >= 0 && types[r].kind == Y_VOID ? 0 - 1 : r)
 }
 
+// how many functions the name t names (#41), by fn_overloads, and the
+// one of them of the function type y, or -1 (#537)
+let overloads_of(t:int64):int64 {
+    return fn_overloads.get(tok_text(t), 0)
+}
+
+let fn_of_type(t:int64, y:int64):int64 {
+    for x in decls {
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) && !variadic_fns.contains(x) && decl_fn_type(x) == y { return x }
+    }
+    return 0 - 1
+}
+
+var fn_picked:Dictionary<int64, int64>    // the overload each function's name is, where a function type said which (#537)
+
+// v, where a value of type y goes: of an overloaded function's name, the
+// overload of the function type y, as kelvinc's pick_overload (#41,
+// #537); with none of that type its error
+let pick_overload(v:int64, y:int64) {
+    if v < 0 || y < 0 || failed || nodes[v].kind != N_ID || types[y].kind != Y_FN || fn_picked.has(v) { return }
+    let t:int64 = nodes[v].t
+    if var_type(t) >= 0 || overloads_of(t) < 2 { return }
+    let d:int64 = fn_of_type(t, y)
+    if d >= 0 {
+        fn_picked[v] = d
+        return
+    }
+    var m = $"no function '"
+    m += tok_text(t)
+    m += "' is "
+    let w:String = kelvin_type_text(y)
+    m += &w
+    m += ": C's function of the name is not taken where a Kelvin function has it (#223); declare C's beside it, as in 'let "
+    m += tok_text(t)
+    m += "(x:f64):f64'"
+    gen_error(v, m.cstr)
+}
+
+// the arguments of the call n, each where its parameter's type goes: an
+// overloaded function's name among them is the overload of that type
+// (#537); of a call by the name of one function, or through a function
+let pick_call_args(n:int64) {
+    if nodes[n].kind != N_CALL { return }
+    var named = false
+    var a:int64 = nodes[n].b
+    while a >= 0 {
+        if nodes[a].kind == N_ID && !fn_picked.has(a) && var_type(nodes[a].t) < 0 && overloads_of(nodes[a].t) > 1 { named = true }
+        a = nodes[a].next
+    }
+    if !named { return }
+    let f:int64 = nodes[n].a
+    let fy:int64 = callee_type(f)
+    if failed { return }
+    a = nodes[n].b
+    if fy >= 0 {                                         // through a function value: its parameters' types
+        var p:int64 = types[fy].name
+        while a >= 0 && p >= 0 {
+            pick_overload(a, types[p].elem)
+            a = nodes[a].next
+            p = types[p].name
+        }
+        return
+    }
+    if nodes[f].kind != N_ID || overloads_of(nodes[f].t) != 1 { return }
+    var p:int64 = nodes[fn_named(nodes[f].t)].a
+    while a >= 0 && p >= 0 {
+        pick_overload(a, nodes[p].ty)
+        a = nodes[a].next
+        p = nodes[p].next
+    }
+}
+
 // the function type of the name n of a function (#428); of an overloaded
 // name, kelvinc's error, as the type wanted does not say which here
 let named_fn_type(n:int64):int64 {
+    if fn_picked.has(n) { return decl_fn_type(fn_picked.get(n, 0 - 1)) }   // which a function type said (#537)
     var d:int64 = 0 - 1
     var fns:int64 = 0
     for x in decls {
@@ -12716,6 +12801,10 @@ var anon_made:Dictionary<int64, int64>    // the function kc made of each anonym
 // it writes none; a function's name, of y's type; any other value of it
 let gen_fn_value(n:int64, y:int64) {
     let k = nodes[n].kind                                // one of owners too, which a function kc makes owns, as kelvinc's: a call through it is refused (#515)
+    if fn_picked.has(n) {                                // of its overloads, the one a function type said (#537)
+        put_fn_name(fn_picked.get(n, 0 - 1))
+        return
+    }
     var given:int64 = 0 - 1
     if k == N_ANON && nodes[n].flag != 0 {
         given = y                                        // $0 and names, of y's parameters
@@ -18389,6 +18478,8 @@ let gen_program() {
                 if failed { return }
                 continue
             }
+            pick_overload(nodes[d].a, nodes[d].ty)       // a global's let h:(T):R := over (#537)
+            if failed { return }
             if nodes[d].a >= 0 && !assigns_as(d, nodes[d].t, nodes[d].ty, nodes[d].c == 1) { return }   // (#233)
             let fns:int64 = anon_fns.count as int64     // a function an anonymous function makes, declared first (#428)
             let around:int64 = current
@@ -18418,6 +18509,14 @@ let gen_program() {
             for f in fns..<anon_fns.count as int64 {
                 gen_signature(anon_fns[f])
                 put(";\n")
+            }
+            let gv:int64 = nodes[d].a                    // a global of a function's name: the function declared first (#537)
+            if gv >= 0 && nodes[gv].kind == N_ID && types[nodes[d].ty].kind == Y_FN {
+                let gf:int64 = fn_picked.get(gv, fn_named(nodes[gv].t))
+                if gf >= 0 {
+                    gen_signature(gf)
+                    put(";\n")
+                }
             }
             out += &line
         }

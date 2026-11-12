@@ -604,6 +604,20 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An overload picked by its type** (#537), as kelvinc's #41: an
+  overloaded function's name, where a function type is written, is the
+  overload of that type: `let h:(i64):i64 := over`, a global's,
+  `v := over`, `apply(over, 2)` and `return over`.
+  - gen.k's `pick_overload` keeps the choice in `fn_picked`, which
+    `named_fn_type` and `gen_fn_value` read; `pick_call_args` picks an
+    argument by its parameter's type, of a call by one function's name
+    or through a function value.
+  - With no overload of that type it is kelvinc's error; with no type
+    written, `let h := over`, the name still "names 2 functions".
+  - A global that holds a function's name has that function declared
+    before it, where C had not seen it: `let top:(i64):i64 := twice`.
+  - As kelvinc, kc picks none in a struct's member, an Array's
+    element, a method's argument, or through `&over`.
 - **`&f` is the function** (#536), as kelvinc's: `&f` of a function's
   name has the function's type, where kc made of it a pointer to one,
   `(i64):i64^`, which no call and no function's place took.

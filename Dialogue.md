@@ -10098,3 +10098,24 @@ not pick one by a written type, `let h:(i64):i64 := over`, and neither
 compiler does of `&over`. Details are provisional P548.
 
 There are 1302 tests, and all pass with clang and with gcc 15.
+
+### 584. kc picks an overload by its type
+
+> push and fix kc's overload pick by a written type as #537
+
+**Claude** pushed #536, and CI passed. kc refused an overloaded
+function's name as a value everywhere, with "say which by its type, as in
+'let f:(T):R := over'" of that very form. kc now picks the overload of
+the function type written where the name goes, as kelvinc does: in a
+declaration, a global, an assignment, an argument and a result, and says
+kelvinc's error where no overload is of that type. It picks nowhere
+kelvinc does not: a struct's member, an Array's element, a method's
+argument and `&over` are still errors in both. On the way a global that
+holds a function's name turned out to be C's error in kc, the function
+not yet declared; kc declares it first. The first battery failed in
+its three bootstraps: a function Claude had added to gen.k had the name
+of one of gen.k's globals, which kelvinc took and kc, built of it,
+refused in its own source; renamed, the second battery was the one that
+counted. Details are provisional P549.
+
+There are 1304 tests, and all pass with clang and with gcc 15.

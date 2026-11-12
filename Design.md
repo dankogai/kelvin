@@ -585,6 +585,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 534 | An assignment's left is a place: a variable, a member, an element or `p^`. A value kelvinc and kc see is none is an error that names it, where it was C's "expression is not assignable" or "assignment to cast is illegal": a conversion, `b.i64 = 1`, `i64(b) = 1`, `x as i64 = 2`; what a function gives, `f() = 2`, and its member, `mk().x = 1`; a literal; what an operator gives; a property or a method, `x.size = 2`; a function's name, `f = 1`; under `=`, the compound assignments and `:=`. A call neither has a function of, a C macro's, is left to C | src/parser.c's no_place, in assign_to; selfhost/gen.k's no_place, in gen_assign; documents/grammar.md; selfhost/README.md | `b.i64 = 1` is "a conversion to i64 is a value, and no place to set: '=' sets a variable, a member, an element or 'p^'"; tests/error/no_place_conversion.k, no_place_converter.k, no_place_as.k, no_place_call.k, no_place_call_member.k, no_place_literal.k, no_place_operator.k, no_place_property.k, no_place_method.k, no_place_function.k, no_place_reference.k | 2026-11-12 |
 | 535 | `&` takes a place: a variable, a member, an element or `p^`, a compound literal, or a function's name. A value kelvinc and kc see has no address is an error that names it, by #534's `no_place`, where it was C's "cannot take the address of an rvalue": `&x.i64` and `&i64(x)` of a conversion, `&f()` of what a function gives, a struct that owns nothing too, `&5`, `&(x + 1)`, `&xs.count`. An owner an expression gives is held, as before, and has an address | src/parser.c's parse_unary; selfhost/gen.k's gen_expr of N_ADDR; documents/pointers.md, grammar.md; selfhost/README.md | `&x.i64` is "a conversion to i64 is a value, and has no address: '&' takes a variable, a member, an element or 'p^'; bind the value to a variable first"; tests/error/no_address_conversion.k, no_address_call.k, no_address_struct.k, no_address_literal.k, no_address_operator.k, no_address_property.k; tests/run/address_of_places.k | 2026-11-12 |
 | 536 | kc reads `&f` of a function's name as the function itself, a value of its type, as kelvinc does: `let g := &f` calls as `g(x)`, and `&f` goes where a function goes, an argument, a typed variable, a member, an Array's element, a function's result; kc typed it a pointer to the function, `(i64):i64^`, so that `g(x)` was "this calls a variable, which hides the function of its name here" and `apply(&f, 5)` "this is (i64):i64^, where (i64):i64 goes" | selfhost/gen.k's type_of of N_ADDR; selfhost/sample.k; selfhost/README.md | `let g := &twice`, `g(4)`; tests/run/function_address.k | 2026-11-12 |
+| 537 | kc picks an overloaded function by the function type written where its name goes, as kelvinc does (#41): a declaration's, `let h:(i64):i64 := over`, a global's, an assignment's target, `v := over`, a parameter's, `apply(over, 2)`, also of a call through a function value, and a result's, `return over`; with no overload of that type kelvinc's error, "no function 'over' is (u8):u8: ..."; kc said "'over' names 2 functions: say which by its type" of the very form that message names. A global that holds a function's name has the function declared before it in kc's C, which was C's error of any function | selfhost/gen.k's pick_overload, pick_call_args, fn_picked, overloads_of, fn_of_type, named_fn_type, gen_fn_value, gen_var, gen_assign, gen_return, the globals; selfhost/sample.k; selfhost/README.md | `let h:(f64):f64 := over`; tests/run/overload_by_type.k; tests/error/overload_no_type.k | 2026-11-12 |
 
 Notes:
 
@@ -1169,6 +1170,35 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (537) Agreed details: "push and fix kc's overload pick by a written type as #537"
+  - kelvinc picks an overload of a name used as a value by the function
+    type wanted (#41), in a declaration, an assignment, an argument and
+    a result. kc refused the name wherever it met it, with the message
+    that names the form refused.
+  - kc picks where kelvinc picks, and nowhere else, so the two read the
+    same programs: not in a struct's member, `{over}`, an Array's
+    element, `$[over]`, `fs += over`, a method's argument, `c ? over :
+    over`, or `&over`. Those are both compilers' "names 2 functions".
+  - With no overload of the type it is kelvinc's error word for word,
+    its hint of C's function of the name too (#223).
+  - `let h := over`, no type written, stays kc's "names 2 functions",
+    where kelvinc says "'h' needs a type"; kc's names the cause.
+  - Found on the way: a global that holds any function's name, `let
+    top:(i64):i64 := twice`, was C's error in kc, the function not yet
+    declared where the global is written. kc declares it first.
+  - An argument is picked for a call by the name of one function, or
+    through a function value; where the function called is itself
+    overloaded, its arguments are not picked, in kc as it was.
+  - The first battery of #537 was not clean: the three bootstraps
+    failed. Claude had named a function of gen.k `fn_overloads`, the
+    name of a global of gen.k; kelvinc built kc of it, and that kc
+    refused its own source, "this calls a variable, which hides the
+    function of its name here". The function is `overloads_of`, and
+    reads that global. Nothing was committed before the second battery.
+  - Seen and left, kelvinc's: a function and a global variable of one
+    name are no error, `var tally:i64` and `let tally(n:i64):i64`; kc
+    refuses the call.
 
 - (536) Agreed details: "push and fix kc's g() of &f as #536"
   - A function's address is the function itself (documents/pointers.md):
@@ -8672,6 +8702,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P546 | Details of #534 | An assignment's left a place, a value the compilers see an error that names it, its words "is a value, and no place to set"; a member of a value a value, an element not judged; a call of an unknown name left to C; `&` of a value left C's error | provisional |
 | P547 | Details of #535 | `&` of a value an error by #534's no_place, its words "is a value, and has no address"; a function's name, a compound literal, text and a held owner as before; a struct that owns nothing, given by a function, the error; kc's `g()` of `let g := &f` left | provisional |
 | P548 | Details of #536 | kc's `&f` of a function's name of the function's type, in its typing alone, the C unchanged; `&g` of a variable a pointer to it; an overload picked by a written type left, kc's of `over` and both compilers' of `&over` | provisional |
+| P549 | Details of #537 | kc's pick of an overload by a written function type in kelvinc's places and no others; kelvinc's error of no overload of the type; `let h := over` kc's own words; a global's function declared before it; an argument of an overloaded function's call not picked | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
