@@ -1453,6 +1453,17 @@ on a new line`
     println(i8.min, " ", u8.max, " ", i64.max, " ", i128.min, " ", u64.min, " ", il_x.typename, " ", (i64.max - 1) / 2, " ", i64.il_top)
     println(f64.pi, " ", f32.pi, " ", f64.infinity, " ", f64.nan.isNaN, " ", f64.signalingNaN, " ", f64.radix, " ", f32.ulpOfOne.typename)   // a float's constants (#546)
     println(f64.greatestFiniteMagnitude, " ", f64.leastNormalMagnitude, " ", f64.leastNonzeroMagnitude, " ", f32.ulpOfOne, " ", f32.leastNonzeroMagnitude.hex)
+    var rn_in = true                                    // T.random() (#547): what is drawn differs, so its bounds and its type are shown
+    for rn_i in 0..<1000 {
+        let rn_d = i64.random(1...6)
+        let rn_u = u8.random(250...)
+        let rn_f = f64.random()
+        let rn_g = f32.random(-2, 2)
+        if rn_d < 1 || rn_d > 6 || rn_u < 250 || rn_f < 0.0 || rn_f >= 1.0 || rn_g < -2.0 || rn_g >= 2.0 { rn_in = false }
+    }
+    let rn_r:Range<i16> = -3..<3
+    let rn_s = i16.random(rn_r)
+    println(rn_in, " ", rn_s >= -3 && rn_s < 3, " ", i64.random(7...7), " ", i64.random() != i64.random(), " ", u128.random().typename, " ", bool.random().typename, " ", f32.random(1.5).typename)
     let rt_a = 1.over(3)                                // #import <Rational>: rat64 to rat8, and bigrat of BigInts (#542)
     let rt_b = 1n.over(3n)
     println(rt_a + 1.over(6), " ", rt_a * 3, " ", rt_a.f64, " ", rt_a.hex, " ", (-4).over(-8), " ", 1.over(0), " ", rt_a < 1.over(2))

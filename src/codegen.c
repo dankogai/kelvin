@@ -1543,6 +1543,27 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s _kv_ab = (%s); (%s)(_kv_ab < 0 ? 0u - (%s)_kv_ab : (%s)_kv_ab); })", t, expr(e->a), t, u,
                           u);
         }
+        if (e->op && !strcmp(e->op, "random")) {
+            /* T.random(...) (#547): runtime/random.k's; a Range's bounds as
+               64 bits, a signed one's sign carried, read once */
+            const char *n = e->type->name, *t = decl(e->type, "");
+            if (!strcmp(n, "bool"))
+                return "((bool)(kv_random_u64() >> 63))";
+            if (n[0] == 'f') {
+                const char *f = !strcmp(n, "f32") ? "f32" : "f64";
+                if (!e->items.len)
+                    return strfmt("kv_random_%s()", f);
+                if (e->items.len == 1)
+                    return strfmt("kv_random_%s_in(0, (%s)(%s))", f, t, expr(e->items.data[0]));
+                return strfmt("kv_random_%s_in((%s)(%s), (%s)(%s))", f, t, expr(e->items.data[0]), t,
+                              expr(e->items.data[1]));
+            }
+            if (!e->items.len)
+                return strfmt("((%s)kv_random_u%s())", t, strstr(n, "128") ? "128" : "64");
+            return strfmt("({ __auto_type _kv_rr = (%s); (%s)kv_random_span((uint64_t)_kv_rr.lo, (uint64_t)_kv_rr.hi, "
+                          "_kv_rr.kind, %s); })",
+                          expr(e->items.data[0]), t, n[0] == 'i' ? "true" : "false");
+        }
         if (e->op && !strncmp(e->op, "pow_", 4)) {
             /* b ** e and b.pow(e, m) (#380): C's pow, powf or cpow; of
                integers, multiplying in a u64, or a u128 of 128 bits, which

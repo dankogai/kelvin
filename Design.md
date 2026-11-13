@@ -594,7 +594,8 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 543 | A built-in type's method may be called before it is written, as a struct's may (#505): kelvinc writes the prototype of `let i64.m()` and of a member of `extend i64 { }`, of a number, a bool or a String, where it wrote a named type's alone; so the error of #539 names the type that has the method, where it named none, `it is a method of` and nothing after | src/parser.c: ahead_recv, ahead_body, forward_prototypes, the error's guard; documents/functions.md, structs.md; selfhost/sample.k, README.md | `println(n.later())` before `let i64.later():i64 { self * 2 }`; tests/run/number_method_before.k, tests/error/number_method_before.k | 2026-11-13 |
 | 544 | An attribute may be read before it is written, and one with a setter set, as a method may be called (#505, #543): kelvinc writes the prototype of `let T.x:R { }` and of `var T.x:R { get { } set(v) { } }`, at the top and in `extend T { }`, of a struct and of a built-in type; a function whose result is a Dictionary's type, `${K: V}`, may be called before it is written too, where its prototype was cut at the `{` | src/parser.c: ahead_body, ahead_read, forward_prototypes, the attribute's prototype with no body; src/kelvin.h: Token's ahead; documents/properties.md, functions.md; selfhost/sample.k | `println(v.area)` before `let rect.area:f64 { .w * .h }`; tests/run/attribute_before.k, tests/error/attribute_before_called.k | 2026-11-13 |
 | 545 | `T.min` and `T.max` of an integer type, as Swift's: the least and the greatest value a `T` holds, a `T`, a constant, of `i8` to `i128` and `u8` to `u128`, with no import; a type attribute of the program's own of the name wins; a type's attribute in parentheses, `(i64.max - 1)`, `(f64.pi * 2.0)`, is a value, where kelvinc took it for a C cast; kelvinc and kc, and kc reads a number type's own attribute, `static let i64.top`, where it was C's error | src/parser.c: int_limit, paren_type_ahead; selfhost/gen.k: number_named, int_limit_of, put_int_limit, resolve_attr; selfhost/parse.k: parse_type_attribute; documents/integers.md, README.md, selfhost/README.md | `println(i8.min, " ", u64.max)` is `-128 18446744073709551615`; tests/run/int_limits.k | 2026-11-13 |
-| 546 | The constants of a floating-point type, Swift's FloatingPoint's, of `f64` and of `f32`, with no import: `nan`, `signalingNaN`, `infinity`, `greatestFiniteMagnitude`, `pi`, `ulpOfOne`, `leastNormalMagnitude` and `leastNonzeroMagnitude`, each of its type, and `radix`, 2, an `i64`; each a constant; `<math>`'s `f64.pi`, `f64.infinity` and `f64.nan` are these now, its own taken out, the same values; kelvinc and kc | src/parser.c: float_constant; modules/kelvin_prelude.h: KV_F64_NAN and its kin; modules/math.k; selfhost/gen.k: float_constant_c, float_constant_of, put_float_constant; documents/floatingpoint.md, math.md, README.md, selfhost/README.md | `println(f64.leastNonzeroMagnitude.hex)` is `+0x1p-1074`; tests/run/float_constants.k | 2026-11-13 |
+| 546 | The constants of a floating-point type, Swift's FloatingPoint's, of `f64` and of `f32`, with no import: `nan`, `signalingNaN`, `infinity`, `greatestFiniteMagnitude`, `pi`, `ulpOfOne`, `leastNormalMagnitude` and `leastNonzeroMagnitude`, each of its type, and `radix`, 2, an `i64`; each a constant; `<math>`'s `f64.pi`, `f64.infinity` and `f64.nan` are these now, its own taken out, the same values; kelvinc and kc | src/parser.c: float_constant; modules/kelvin_prelude.h: KV_F64_NAN and its kin; modules/math.k; selfhost/gen.k: float_constant_c, float_constant_of, put_float_constant; documents/floatingpoint.md, math.md, README.md, selfhost/README.md | `println(f64.leastNonzeroMagnitude == 0x1p-1074)` is `true`; tests/run/float_constants.k | 2026-11-13 |
+| 547 | `T.random()` of the number types and of `bool`, as Swift's `T.random(in:)`, by the system's random bits, with no seed and no import: of an integer type any of its values, and `T.random(r)` one of a `Range<T>`'s; of a floating-point type a number from 0.0 up to 1.0, `T.random(lim)` up to a limit and `T.random(start, lim)` from a start, without the limit; `bool.random()` true or false; each as likely; an empty range, or a start not below its limit, ends the program, said; kelvinc and kc | runtime/random.k, runtime/random.c; modules/kelvin_prelude.h; src/parser.c: random_call; src/codegen.c; selfhost/gen.k: random_of, gen_random; documents/integers.md, floatingpoint.md, bool.md, ranges.md, README.md, selfhost/README.md | `i64.random(1...6)` is a die's roll; tests/run/random.k, random_empty_range.k, random_float_limit.k, seven of tests/error/random_*.k | 2026-11-13 |
 
 Notes:
 
@@ -1179,6 +1180,51 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (547) Agreed details: "add `static T.random()` to numerical types."
+  - The user's words:
+    - "Floating-point types: within`[0, 1)` as default (w/o an
+      argument). `.random(lim)` within [0, lim), and `.random(start,
+      lim)`within [start, lim)."
+    - "Integer types. `T.min...T.max` by default. `.random(r)` within
+      `r` whare `r` is a range."
+    - "Oh, give `Bool` `.random()` as well. Practically a coin-toss."
+  - Asked, the user chose:
+    - the system's randomness, with no seed, as Swift's: never
+      repeatable, nothing to set up; a seeded generator was the other;
+    - that an empty range, or a float's limit not above its start,
+      ends the program with a message, as an index out of bounds does;
+    - kelvinc and kc both in this number.
+  - Claude's readings:
+    - "numerical types" are `i8` to `i128`, `u8` to `u128`, `f32` and
+      `f64`; not BigInt, nor the rationals.
+    - `Bool` is Kelvin's `bool`: `bool.random()`.
+    - An integer of 128 bits has no Range (#373), so its `random`
+      takes none.
+    - `r` is a `Range<T>` of the very type: one written there is of
+      `T`, and a variable's of another type is an error.
+  - Built into both compilers, with no import, as #545's and #546's.
+  - The bits: `arc4random_buf` on macOS and the BSDs, `getrandom` on
+    Linux, in runtime/random.c; all else is runtime/random.k, in
+    Kelvin.
+    - Nothing is kept between calls, so that a forked child draws its
+      own; on Linux each number is a call of the system's, slower
+      than a generator in the program would be.
+  - Each value is as likely as another: an integer below `n` is drawn
+    again where 2^64 does not divide by `n` evenly; a float is one of
+    2^53, or 2^24, evenly spaced, drawn again where rounding gives
+    the limit.
+  - Bounds of a float too far apart to tell their distance, as the
+    least and the greatest finite, end the program too.
+  - Found after #546 was pushed: its test failed in CI on Linux, on
+    three jobs. It showed `f64.leastNonzeroMagnitude.hex`, and a
+    subnormal's `.hex` is C's `%a`, which glibc writes
+    `0x0.0000000000001p-1022` and macOS `0x1p-1074`, the same number.
+    - The battery runs on macOS alone, and passed.
+    - The test now compares the number, and was pushed on its own, a
+      test's change; this number's records have the account.
+    - Still so: a subnormal's `.hex` differs by the system's libc.
+      Both texts read back to the number.
 
 - (546) Agreed details: "also add static constants like
   `.leastNonzeroMagnitude` to floating points.
@@ -8940,6 +8986,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P556 | Details of #544 | src/kelvin.h: Token.ahead, of the tokens of a prototype kelvinc writes, with its value in each initializer of src/lexer.c, main.c and parser.c; src/parser.c: AheadFn.attr; ahead_body takes whether it is in extend and gives whether it is an attribute, `let T.x:R {` or a member's `let x:R {`, never one with `=`, and skips `${...}` in a type; ahead_read, a use `.x`, with or without `(`; an attribute's prototype has no body where its name is ahead, as in M.kh, and a var attribute's makes the getter's and the setter's, no library's, its `;` taken; selfhost/sample.k: at_norm and at_sq after main | provisional |
 | P557 | Details of #545 | built into both compilers, no module, Claude's choice; src/parser.c: int_limit, a cast `as T` of C's limit, INT64_MAX, UINT8_MAX, a 0 of an unsigned least, kelvin_prelude.h's KV_I128_MIN, KV_I128_MAX and KV_U128_MAX, which #513 had; asked after the program's own type attributes; paren_type_ahead gives no type of `( T . name`; selfhost/gen.k: number_named; int_limit_of and put_int_limit, asked by type_of and gen_field; resolve_attr reads a number's word as a struct's name, its key by mangled; selfhost/parse.k: a number type's attribute named by type_word, `int64` as `i64`; selfhost/sample.k: il_ lines, its type attribute before main; floats have none of the names without <math> | provisional |
 | P558 | Details of #546 | src/parser.c: float_constant, a cast `as T` of float.h's DBL_MAX, DBL_EPSILON and DBL_MIN, and FLT_'s, or of kelvin_prelude.h's KV_F64_NAN, KV_F64_SNAN, KV_F64_INFINITY, KV_F64_PI and KV_F64_LEAST_NONZERO and KV_F32_'s: GNU C's __builtin_nan, __builtin_nans and __builtin_inf, constants with no math.h, and __DBL_DENORM_MIN__; radix a cast to i64 of 2; asked after int_limit; an f32's pi is the f32 nearest pi, 3.14159274, as math.k's was, where Swift's is the one below; modules/math.k: pi, infinity and nan of f64 and of f32 taken out, so that they are constants with <math> too, where they were variables; selfhost/gen.k: float_constant_c, float_constant_of, put_float_constant, asked where int_limit_of is; selfhost/sample.k: two lines | provisional |
+| P559 | Details of #547 | runtime/random.c: kv_random_fill, arc4random_buf on macOS and the BSDs, its prototype written, as -std=c11 hides stdlib.h's, and getrandom on Linux, again where a signal breaks it; nothing held between calls, so a fork shares none; runtime/random.k, in Kelvin: kv_random_u64, kv_random_u128, kv_random_below, which draws again below what 2^64 leaves over n, kv_random_span of a Range's bounds as 64 bits, its kind and whether signed, kv_random_f64 of 53 bits and kv_random_f32 of 24, kv_random_f64_in and kv_random_f32_in, drawn again where rounding gives the limit; kelvin_prelude.h declares them; src/parser.c: random_call at `T.random(`, an E_METHOD of op random in a cast `as T`, its range made a Range<T> by string_of_ranged, its errors; src/codegen.c: its C; selfhost/gen.k: random_of, gen_random, asked first by type_of and gen_method; bool's is the top bit of 64; a global's value may be one, set as the program starts, as a call's is; the test checks bounds, types and spread, its bounds eight deviations and more from the mean | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

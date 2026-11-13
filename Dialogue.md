@@ -10277,3 +10277,23 @@ Claude took out of the module, so that the language's serve there too,
 the same values. Details are provisional P558.
 
 There are 1317 tests, and all pass with clang and with gcc 15.
+
+### 594. `T.random()`
+
+> push and go on with #547
+
+**Claude** pushed #546 once its battery passed. `T.random()` is the third
+of the three, what the user had asked for first: of an integer type any
+of its values, `i64.random()`, or one of a range's, `i64.random(1...6)`;
+of a floating-point type a number from 0.0 up to 1.0, up to a limit, or
+from a start up to a limit, `f64.random(-1.0, 1.0)`; and `bool.random()`,
+a coin's toss. The bits are the system's, with no seed, as the user
+chose, so no run repeats another; an empty range ends the program, said.
+Each value is as likely as another. Its runtime is written in Kelvin,
+over one call of the system's in C; kelvinc and kc both read it, with no
+import. After #546 was pushed its test failed in CI on Linux: it showed
+the `.hex` of the least number above 0, a subnormal, which glibc and
+macOS write differently; Claude made the test compare the number and
+pushed that alone. Details are provisional P559.
+
+There are 1327 tests, and all pass with clang and with gcc 15.

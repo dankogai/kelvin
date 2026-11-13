@@ -1780,6 +1780,7 @@ static Expr *bools_literal(const char *who);
 static Expr *bigint_bit_at(Expr *recv, Expr *n, Pos pos);
 static int int_width(Type *t);
 static Expr *int_limit(Token *t, const char *member);
+static Expr *random_call(Token *t);
 static Expr *float_constant(Token *t, const char *member);
 static Type *seen_number_type(Expr *e);
 static Decl *plain_enum_of(Type *t);
@@ -5001,6 +5002,8 @@ static Expr *parse_primary(void) {
                 e->text = cn;
                 return e;
             }
+        if (!strcmp(peek_at(2)->text, "random") && is_p(peek_at(3), "("))
+            return random_call(t); /* i64.random(), f64.random(lim), bool.random() (#547) */
         Expr *lim = int_limit(t, peek_at(2)->text); /* i64.max, u8.min (#545), where the program has none of its own */
         if (!lim)
             lim = float_constant(t, peek_at(2)->text); /* f64.infinity, f32.ulpOfOne (#546) */
@@ -8162,6 +8165,77 @@ static Expr *int_limit(Token *t, const char *member) {
     c->type = ty;
     c->a = v;
     c->paren = true;
+    return c;
+}
+
+/* T.random(...) (#547), at T: a value of T by the system's random bits,
+   which no seed repeats, as Swift's T.random(in:). Of an integer type any
+   of its values, or with a Range<T> one of the range's; of a
+   floating-point type a number from 0.0 up to 1.0, from 0.0 up to a limit
+   or from a start up to a limit, without the limit; of bool, true or
+   false. The runtime's, runtime/random.k; an empty range ends the program */
+static Expr *random_call(Token *t) {
+    Type *ty = base_type(t->text, t->pos);
+    const char *tn = kelvin_type(ty);
+    int w = int_width(ty);
+    bool flt = !strcmp(ty->name, "f64") || !strcmp(ty->name, "f32"), is_b = !strcmp(ty->name, "bool");
+    if (!w && !flt && !is_b)
+        error_at(t->pos, "'.random()' is of a number's type or of bool, and %s is neither", tn);
+    advance();
+    advance();
+    advance();
+    expect_p("(");
+    bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+    brace_ends_condition = brace_in_for = false;
+    Expr *x = new_expr(E_METHOD, t->pos);
+    x->text = "random";
+    x->op = "random";
+    x->a = new_expr(E_LITERAL, t->pos); /* no receiver: a method's node has one, which nothing writes */
+    x->a->text = "0";
+    x->type = ty;
+    x->paren = true;
+    x->is_bool = is_b;
+    while (!is_p(peek(), ")")) {
+        list_push(&x->items, parse_assign());
+        if (!accept_p(","))
+            break;
+    }
+    expect_p(")");
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
+    int n = x->items.len;
+    if (is_b && n)
+        error_at(t->pos, "bool.random() takes nothing: it is true or false, each as likely");
+    if (w && n > 1)
+        error_at(t->pos, "%s.random takes nothing, for any %s, or a range, as in '%s.random(1...6)'", tn, tn, tn);
+    if (w && n == 1) {
+        Expr *r = x->items.data[0];
+        if (w > 64)
+            error_at(r->pos, "%s.random() takes no range: a Range is of integers of 64 bits or fewer", tn);
+        r = string_of_ranged(r, range_type(r->pos, ty));
+        x->items.data[0] = r;
+        Type *rt = value_type(r) ? unqualified(value_type(r)) : NULL;
+        if (!rt || !is_range(rt) || strcmp(rt->elem->name, ty->name))
+            error_at(r->pos, "%s.random(r) takes a Range<%s>, as in '%s.random(1...6)', and this is %s", tn, tn, tn,
+                     rt ? kelvin_type(rt) : "not one");
+    }
+    if (flt && n > 2)
+        error_at(t->pos, "%s.random takes nothing, a limit, or a start and a limit, as in '%s.random(1.0, 2.0)'", tn, tn);
+    for (int i = 0; flt && i < n; i++) {
+        Expr *a = x->items.data[i];
+        Type *at = value_type(a) ? unqualified(value_type(a)) : NULL;
+        Decl *rec = NULL;
+        char cls = at ? type_class(at, &rec) : 'u';
+        if (a->kind == E_STRING || a->is_bool || seen_bool(a) || (at && cls != 'i' && cls != 'f'))
+            error_at(a->pos, "%s.random(start, lim) takes numbers, and this is %s", tn,
+                     at ? kelvin_type(at) : a->kind == E_STRING ? "text" : "a bool");
+    }
+    Expr *c = new_expr(E_CAST, t->pos); /* a T, as 'x as T' is, which a declaration infers */
+    c->op = "as";
+    c->type = ty;
+    c->a = x;
+    c->paren = true;
+    c->is_bool = is_b;
     return c;
 }
 

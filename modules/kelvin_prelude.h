@@ -269,6 +269,19 @@ static inline unsigned __int128 kv_int_of_bools(const bool *at, size_t count, un
     (bool)_kv_bt; })
 /* b.pow(e, m) (#380), Python's pow(b, e, m): runtime/pow.k's */
 __int128 kv_pow_mod(__int128 b, __int128 e, __int128 m);
+/* T.random() (#547): the system's bits, runtime/random.c's, and what
+   runtime/random.k makes of them: 64 and 128 bits, a number below n, one of
+   a Range's values by its bounds and its kind, and a floating-point number
+   from 0.0 up to 1.0 or from start up to lim, without the limit */
+void kv_random_fill(void *buf, size_t n);
+uint64_t kv_random_u64(void);
+unsigned __int128 kv_random_u128(void);
+uint64_t kv_random_below(uint64_t n);
+uint64_t kv_random_span(uint64_t lo, uint64_t hi, int32_t kind, bool is_signed);
+double kv_random_f64(void);
+float kv_random_f32(void);
+double kv_random_f64_in(double start, double lim);
+float kv_random_f32_in(float start, float lim);
 /* a slice (#68): lo..<hi within count, else the program ends */
 void kv_slice_range(size_t lo, size_t hi, size_t count, const char *what);
 kv_bytes kv_bytes_slice(const kv_bytes *b, size_t lo, size_t hi);

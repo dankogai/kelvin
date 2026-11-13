@@ -59,6 +59,12 @@ floats in [floatingpoint.md](floatingpoint.md).
   `b`: a `let` is an error, and `.flip()` takes nothing.
   - An integer's bit flips the same way, `x.bits[n].flip()` (#530); see
     [integers.md](integers.md).
+- **A coin's toss:** `bool.random()` is `true` or `false`, each as
+  likely (#547), as Swift's, by the system's random bits, with no seed
+  and no import; it takes nothing.
+  - `if bool.random() { ... }` runs its block half of the time.
+  - A number type's `T.random()` is in [integers.md](integers.md) and
+    [floatingpoint.md](floatingpoint.md).
 
 ## Where it lives
 
@@ -74,6 +80,7 @@ The core. `bool` is C's `bool` from `<stdbool.h>`, which the generated C include
 | | `.cstr` | `true` or `false`, in the block's buffer |
 | | `.i8` ... `.u64`, `.f32`, `.f64` | a conversion, `i64(v)` written after the value: 1 or 0 |
 | | `.flip()` | `b = !b`, in the var that holds it (#454) |
+| | `bool.random()` | `true` or `false`, each as likely (#547) |
 | integer | `!!n` | the `bool` of 0 or 1, `false` or `true`; any other ends the program (#387) |
 
 The details are in [properties.md](properties.md).

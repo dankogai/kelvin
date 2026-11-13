@@ -604,6 +604,17 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`T.random()`** (#547), as kelvinc's: of an integer type, with a
+  `Range<T>` or none, of a floating-point type, with a limit, a start
+  and a limit or none, and of bool; written as kelvinc writes it, calls
+  of runtime/random.k's `kv_random_u64`, `kv_random_span` and
+  `kv_random_f64_in`.
+  - gen.k's `random_of` and `gen_random`; `type_of` and `gen_method`
+    ask them first, as `T` is no variable.
+  - A range written there is of `T`, as where any `Range<T>` goes.
+  - kelvinc's errors, in its words: arguments to bool's, two to an
+    integer's, no range or another type's, a range to one of 128 bits,
+    three to a float's, and text, a bool or a range there.
 - **A floating-point type's constants** (#546), as kelvinc's:
   `f64.nan`, `f64.signalingNaN`, `f64.infinity`, `f64.pi`,
   `f64.greatestFiniteMagnitude`, `f64.leastNormalMagnitude`,

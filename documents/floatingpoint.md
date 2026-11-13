@@ -13,6 +13,7 @@ let x = float64("0x1.8p1")              // read from text: 3.0
 println(0.1, " ", $[1.0, 0.5])      // 0.10000000000000001 [1.0, 0.5]
 println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 println(f64.pi, " ", f64.infinity, " ", f64.ulpOfOne)   // 3.1415926535897931 inf 2.2204460492503131e-16
+println(f64.random(), " ", f64.random(-1.0, 1.0))       // from 0.0 up to 1.0, and from -1.0 up to 1.0
 ```
 
 ## Description
@@ -161,6 +162,20 @@ text, print and show as text. Integers are in
     and `f64.min` ([math.md](math.md)).
   - An integer type's `T.min` and `T.max` are in
     [integers.md](integers.md).
+- **`T.random()`** is a number from 0.0 up to 1.0, without it (#547),
+  as Swift's `T.random(in: 0..<1)`, of `f64` or of `f32`, with no
+  import.
+  - **`T.random(lim)`** is from 0.0 up to `lim`, and
+    **`T.random(start, lim)`** from `start` up to `lim`, each without
+    the limit: `f64.random(-1.0, 1.0)`.
+  - The bounds are numbers, converted to the type: `f32.random(10)`.
+  - An `f64`'s is one of 2^53 numbers evenly spaced, each as likely,
+    and an `f32`'s one of 2^24, scaled to the bounds.
+  - A start not below its limit, a NaN, or bounds too far apart to
+    tell their distance, as the least and the greatest, has no number
+    to give, and ends the program, said.
+  - The bits are the system's, with no seed, as an integer type's
+    are: [integers.md](integers.md).
 
 ## Where it lives
 
@@ -173,6 +188,8 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 | `f32.`, `f64.` | `.nan`, `.signalingNaN`, `.infinity`, `.pi` | the type's constants, of the type, with no import (#546) |
 | | `.greatestFiniteMagnitude`, `.leastNormalMagnitude`, `.leastNonzeroMagnitude`, `.ulpOfOne` | its limits and the gap at 1.0, of the type (#546) |
 | | `.radix` | 2, an `i64` (#546) |
+| | `T.random()` | a number from 0.0 up to 1.0, without it, by the system's random bits (#547) |
+| | `T.random(lim)`, `T.random(start, lim)` | from 0.0, or from `start`, up to `lim`, without it (#547) |
 | `f32`, `f64` | `.size` | `sizeof`, a `size_t` |
 | | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |

@@ -1162,6 +1162,139 @@ let put_float_constant(n:int64) {
     put(")")
 }
 
+// ---------- T.random() (#547) ----------
+
+// the type T of T.random(...), a number's or bool's, as kelvinc's #547:
+// a value of T by the system's random bits; or -1
+let random_of(n:int64):int64 {
+    if nodes[n].kind != N_METHOD || !tok_is(nodes[n].t, "random") { return 0 - 1 }
+    let a:int64 = nodes[n].a
+    if a < 0 || (nodes[a].kind != N_ID && nodes[a].kind != N_TYPE) || var_type(nodes[a].t) >= 0 { return 0 - 1 }
+    if tok_is(nodes[a].t, "bool") { return base_type(Y_BOOL) }
+    return number_word(nodes[a].t)
+}
+
+// T.random(...), as kelvinc writes it, by runtime/random.k: of an integer
+// type 64 or 128 bits, or with a Range<T> one of its values, its bounds as
+// 64 bits and read once; of a floating-point type from 0.0 up to 1.0, up
+// to a limit, or from a start up to a limit; of bool one bit. kelvinc's
+// errors, in its words
+let gen_random(n:int64) {
+    let y:int64 = random_of(n)
+    let k:ykind = types[y].kind
+    let tn:String = mangled(y)
+    let a:int64 = nodes[n].b
+    let count:int64 = count_args(a)
+    if k == Y_BOOL {
+        if count != 0 {
+            gen_error(n, "bool.random() takes nothing: it is true or false, each as likely")
+            return
+        }
+        put("((bool)((bool)(kv_random_u64() >> 63)))")
+        return
+    }
+    put("((")
+    put_ctype(y)
+    put(")")
+    if k == Y_F64 || k == Y_F32 {
+        if count > 2 {
+            var m:String = tn.copy()
+            m += ".random takes nothing, a limit, or a start and a limit, as in '"
+            m += &tn
+            m += ".random(1.0, 2.0)'"
+            gen_error(n, m.cstr)
+            return
+        }
+        var v:int64 = a
+        while v >= 0 {
+            let vy:int64 = type_of(v)
+            if failed { return }
+            let text = nodes[v].kind == N_STR || nodes[v].kind == N_TPL
+            if text || (vy >= 0 && (!is_number_kind(types[vy].kind) || types[vy].kind == Y_BOOL)) {
+                var m:String = tn.copy()
+                m += ".random(start, lim) takes numbers, and this is "
+                if text {
+                    m += "text"
+                } else if types[vy].kind == Y_BOOL {
+                    m += "a bool"
+                } else {
+                    let w:String = kelvin_type_text(vy)
+                    m += &w
+                }
+                gen_error(v, m.cstr)
+                return
+            }
+            v = nodes[v].next
+        }
+        put(k == Y_F64 ? "kv_random_f64" : "kv_random_f32")
+        if count == 0 {
+            put("())")
+            return
+        }
+        put("_in(")
+        if count == 1 { put("0, ") }
+        v = a
+        while v >= 0 {
+            if v != a { put(", ") }
+            put("(")
+            put_ctype(y)
+            put(")(")
+            gen_expr(v)
+            put(")")
+            v = nodes[v].next
+        }
+        put("))")
+        return
+    }
+    if count > 1 {
+        var m:String = tn.copy()
+        m += ".random takes nothing, for any "
+        m += &tn
+        m += ", or a range, as in '"
+        m += &tn
+        m += ".random(1...6)'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if count == 0 {
+        put(k == Y_I128 || k == Y_U128 ? "kv_random_u128())" : "kv_random_u64())")
+        return
+    }
+    if k == Y_I128 || k == Y_U128 {
+        var m:String = tn.copy()
+        m += ".random() takes no range: a Range is of integers of 64 bits or fewer"
+        gen_error(a, m.cstr)
+        return
+    }
+    let ry:int64 = type_of_kind(Y_RANGE, y, 0 - 1)
+    if nodes[a].kind == N_RANGE { nodes[a].ty = ry }     // a range where a Range<T> goes is of T (#373)
+    let ay:int64 = type_of(a)
+    if failed { return }
+    if ay != ry {
+        var m:String = tn.copy()
+        m += ".random(r) takes a Range<"
+        m += &tn
+        m += ">, as in '"
+        m += &tn
+        m += ".random(1...6)', and this is "
+        if ay >= 0 && types[ay].kind == Y_RANGE {
+            let w:String = kelvin_type_text(ay)
+            m += &w
+        } else {
+            m += "not one"
+        }
+        gen_error(a, m.cstr)
+        return
+    }
+    put("({ __auto_type _kv_rr = (")
+    gen_expr(a)
+    put("); (")
+    put_ctype(y)
+    put(")kv_random_span((uint64_t)_kv_rr.lo, (uint64_t)_kv_rr.hi, _kv_rr.kind, ")
+    put(is_signed_kind(k) ? "true" : "false")
+    put("); }))")
+}
+
 // ---------- enums with values (#215) ----------
 
 // the enum with values that type y is, or -1
@@ -1935,6 +2068,7 @@ let type_of(n:int64):int64 {
         gen_error(n, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or 'x as v.type'")
         return -1
     }
+    if k == N_METHOD && random_of(n) >= 0 { return random_of(n) }   // i64.random(), bool.random() (#547)
     if k == N_FIELD && int_limit_of(n) >= 0 { return int_limit_of(n) }   // i64.max, u8.min (#545)
     if k == N_FIELD && float_constant_of(n) >= 0 { return float_constant_of(n) }   // f64.infinity, f32.ulpOfOne (#546)
     if k == N_FIELD && typename_member(n) { return base_type(Y_CSTR) }   // x.typename, its type's name (#426)
@@ -7249,6 +7383,10 @@ let gen_member(n:int64) {
 let gen_lazy_make(n:int64)    // a prototype: a lazy Sequence (#324)
 
 let gen_method(n:int64) {
+    if random_of(n) >= 0 {                               // i64.random(), bool.random() (#547)
+        gen_random(n)
+        return
+    }
     let my:int64 = member_fn_type(n)
     if my >= 0 {                                        // s.f(x) through a member of a function type (#428)
         gen_fn_call(n, my)

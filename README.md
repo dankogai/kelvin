@@ -137,6 +137,8 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
     (#290).
   - `runtime/task.k`: a Task's thread, started, awaited and freed
     (#312).
+  - `runtime/random.k`: `T.random()` of the number types and of bool
+    (#547), over the system's bits, which `runtime/random.c` asks for.
   - `runtime/os.k`, built into `libkOS` beside `runtime/os.c`, whose C
     it takes over a group at a time (#301): the working directory, the
     environment, files by path and the process ids; stat and the
@@ -229,6 +231,11 @@ So far the changes from C are these, by topic.
     is an error that names `x.bits` and a `BigInt`'s `b.bits`
   - an integer type has its limits, `i64.max` and `u8.min`, of every
     width, with no import (#545), C's `INT64_MAX`
+  - `T.random()` is a value of a number's type or of `bool` by the
+    system's random bits, with no seed and no import (#547), as Swift's:
+    `i64.random(1...6)` a die's roll, `f64.random()` from 0.0 up to 1.0,
+    `bool.random()` a coin's toss; C's `rand() % 6` is neither even nor
+    hard to guess
   - a floating-point type has its constants, Swift's `FloatingPoint`'s,
     with no import (#546): `f64.pi`, `f64.infinity`, `f64.nan`,
     `f64.greatestFiniteMagnitude`, `f64.leastNonzeroMagnitude`,

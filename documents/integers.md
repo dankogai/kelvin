@@ -13,6 +13,7 @@ let big:u64 = 1:u64 << 40             // C: 1UL << 40
 println(v, " ", b, " ", k, " ", big)  // 10 255 42 1099511627776
 println(n ** 4, " ", (-5).abs, " ", (-3).sign, " ", 255.hex)   // 81 5 -1 +0xff
 println(i8.min, " ", i8.max, " ", u64.max)                     // -128 127 18446744073709551615
+println(i64.random(1...6), " ", u8.random())                   // a die's roll, and any u8
 ```
 
 ## Description
@@ -289,6 +290,28 @@ let main():int32 {
   and `f64.min` are C's `DBL_MAX` and `DBL_MIN`: see
   [math.md](math.md).
 
+### Random: `T.random()`
+
+- **`T.random()`** is any value of an integer type, each as likely
+  (#547), as Swift's `T.random(in:)`: `u8.random()` is 0 to 255, and
+  `i64.random()` any `i64`.
+  - Of `i8` to `i128` and `u8` to `u128`; the value is a `T`.
+- **`T.random(r)`** is one of the values of a range, each as likely:
+  `i64.random(1...6)` is a die's roll, `u8.random(0..<10)` a digit.
+  - `r` is a `Range<T>` ([ranges.md](ranges.md)): a range written there
+    is of `T`, and a variable's is of its own type, `Range<i64>` to
+    `i64.random`.
+  - `lo...` runs to the type's greatest: `u8.random(250...)`.
+  - An integer of 128 bits has no Range, so its `random` takes none.
+- **An empty range** has no value to give, and ends the program, said,
+  as Swift's does: `i64.random(n..<n)`.
+- **The bits are the system's**, with no seed: no run repeats another,
+  and they are good for a key or a token.
+  - It needs no import.
+- A floating-point type's is in
+  [floatingpoint.md](floatingpoint.md), and `bool.random()` in
+  [bool.md](bool.md).
+
 ### Bits: `.bits`
 
 ```swift
@@ -358,6 +381,8 @@ The core. Integers are kelvinc's own, written as C's types, with nothing linked.
 | signed integers | `.abs` | the magnitude, of its type; the least stays as it is (#381) |
 | | `.sign` | -1, 0 or 1, of its type (#382) |
 | integer types | `T.min`, `T.max` | the least and the greatest value of the type, a `T`, a constant (#545) |
+| | `T.random()` | any value of the type, each as likely, by the system's random bits (#547) |
+| | `T.random(r)` | one of the values of a `Range<T>`; an empty one ends the program (#547) |
 | integers | `b ** e` | `b` to the power `e`, of `b`'s promoted type, wrapping; `e` never negative (#380) |
 | | `.pow(e)` | `b ** e` (#380) |
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |

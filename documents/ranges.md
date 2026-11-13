@@ -64,6 +64,8 @@ and `!=` (#376), `reversed()` (#378) and `stride(n)` (#379).
   - `T` is an integer type, `i8` to `i64` or `u8` to `u64`; a
     floating-point or `bool` bound is an error.
 - **A lower bound past the upper** is empty: `5..<1` walks nothing.
+- **`T.random(r)`** is one of a range's values, each as likely (#547):
+  `i64.random(1...6)`; see [integers.md](integers.md).
 
 ### A value
 
