@@ -15061,7 +15061,10 @@ static Stmt *parse_stmt_here(void) {
                      ((!strcmp(t->text, "String") || !strcmp(t->text, "Bytes")) && is_p(peek2(), "(")) || /* String(x) (#158) */
                      ((!strcmp(t->text, "Array") || !strcmp(t->text, "Dictionary") || !strcmp(t->text, "Set")) &&
                       (is_p(peek2(), "(") || is_p(peek2(), "<"))) || /* Array<T>(n) (#182) */
-                     ((is_kw(t, "IO") || is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")); /* IO.stdout... (#82, #94) */
+                     ((is_kw(t, "IO") || is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")) || /* IO.stdout... (#82, #94) */
+                     ((is_converter(t) || !strcmp(t->text, "String") || !strcmp(t->text, "Bytes")) && is_p(peek2(), ".") &&
+                      peek_at(2)->kind == TK_IDENT); /* bool.random(), i64.max, f64.pi * 2.0, String.fromCodepoints(c): a value
+                                                        of the type's own, which begins a statement, a body's one too (#549) */
     if (!call_like && (starts_type(t) || (tag_name_ahead(t, false) && !is_p(peek2(), "(") && !is_p(peek2(), ".")))) {
         const char *example = "T";
         if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT)

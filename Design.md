@@ -597,6 +597,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 546 | The constants of a floating-point type, Swift's FloatingPoint's, of `f64` and of `f32`, with no import: `nan`, `signalingNaN`, `infinity`, `greatestFiniteMagnitude`, `pi`, `ulpOfOne`, `leastNormalMagnitude` and `leastNonzeroMagnitude`, each of its type, and `radix`, 2, an `i64`; each a constant; `<math>`'s `f64.pi`, `f64.infinity` and `f64.nan` are these now, its own taken out, the same values; kelvinc and kc | src/parser.c: float_constant; modules/kelvin_prelude.h: KV_F64_NAN and its kin; modules/math.k; selfhost/gen.k: float_constant_c, float_constant_of, put_float_constant; documents/floatingpoint.md, math.md, README.md, selfhost/README.md | `println(f64.leastNonzeroMagnitude == 0x1p-1074)` is `true`; tests/run/float_constants.k | 2026-11-13 |
 | 547 | `T.random()` of the number types and of `bool`, as Swift's `T.random(in:)`, by the system's random bits, with no seed and no import: of an integer type any of its values, and `T.random(r)` one of a `Range<T>`'s; of a floating-point type a number from 0.0 up to 1.0, `T.random(lim)` up to a limit and `T.random(start, lim)` from a start, without the limit; `bool.random()` true or false; each as likely; an empty range, or a start not below its limit, ends the program, said; kelvinc and kc | runtime/random.k, runtime/random.c; modules/kelvin_prelude.h; src/parser.c: random_call; src/codegen.c; selfhost/gen.k: random_of, gen_random; documents/integers.md, floatingpoint.md, bool.md, ranges.md, README.md, selfhost/README.md | `i64.random(1...6)` is a die's roll; tests/run/random.k, random_empty_range.k, random_float_limit.k, seven of tests/error/random_*.k | 2026-11-13 |
 | 548 | An attribute of an `i64` is read on a literal, `7.half`, and on arithmetic of literals, `(1 << 40).half`, reckoned in the i64 it is, as its method is called on one (#538); it was C's error, the literal an `int` to C, which no attribute of an i64 is of; kc read it already | src/parser.c: the attribute's read; documents/properties.md; selfhost/sample.k | `println(7.half)` of `let i64.half:f64 { self as f64 / 2.0 }` is `3.5`; tests/run/literal_attribute.k | 2026-11-13 |
+| 549 | A statement that begins with a type's word, then a `.` and a name, is a value of the type's own: `bool.random()`, `i64.max`, `f64.pi * 2.0`, `String.fromCodepoints(c)`, the one expression of a body or of a `{ }` given to `map`; kelvinc took it for C's declaration, `bool x`; and in kc a `{ }` after `map`, `filter` and their kin is their function whatever it holds, `{ bool.random() }`, `{ 7 }`, where kc asked for a `$0` or written parameters; so `var xs = (0..<8).map { bool.random() }` is read by both | src/parser.c: parse_statement's call_like; selfhost/parse.k: the trailing function of map and its kin; documents/integers.md, selfhost/README.md; selfhost/sample.k | `let top():i64 { i64.max }`; tests/run/type_value_statement.k | 2026-11-13 |
 
 Notes:
 
@@ -1181,6 +1182,30 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (549) Agreed details: "push and fix it as #549"
+  - The user asked why `var xs = (0..<8).map{ bool.random() }` is an
+    error while `for _ in 0..<8 { print(bool.random()) }` is not.
+  - kelvinc: the block's statement begins with the word `bool`, and a
+    statement that begins with a type's word was taken for C's
+    declaration, `bool x;`, with the hint of Kelvin's; in the loop it
+    begins with `print`.
+    - The same of `{ i64.max }` and of `<math>`'s `{ f64.pi * 2.0 }`,
+      older than #545; #545 to #547 made it easy to meet.
+    - It is #545's mistake of `(i64.max - 1)`, a C cast, at another
+      place, the start of a statement, which Claude missed then.
+    - Now a number type's word, `bool`, `String` or `Bytes`, then `.`
+      and a name, begins an expression. C's declaration is still the
+      error.
+  - kc: Claude first said kc read all of these, which was wrong of the
+    `map` forms, and said so. kc read `{ i64.max }` as a body, but took
+    a `{ }` after `map` for a function only where it named `$0` or
+    wrote its parameters, so `.map { true }` and `.map { 7 }` were "a
+    statement ends with its line".
+    - Now after `map`, `filter` and their kin a `{` is their function,
+      unless a condition's or a `for`'s head would end at it.
+  - Both are in this number, as what the user wrote is then read by
+    both compilers.
 
 - (548) Agreed details: "fix kelvinc's 7.half as #548"
   - Found in #542: a method of an i64 is called on a literal since
@@ -9004,6 +9029,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P558 | Details of #546 | src/parser.c: float_constant, a cast `as T` of float.h's DBL_MAX, DBL_EPSILON and DBL_MIN, and FLT_'s, or of kelvin_prelude.h's KV_F64_NAN, KV_F64_SNAN, KV_F64_INFINITY, KV_F64_PI and KV_F64_LEAST_NONZERO and KV_F32_'s: GNU C's __builtin_nan, __builtin_nans and __builtin_inf, constants with no math.h, and __DBL_DENORM_MIN__; radix a cast to i64 of 2; asked after int_limit; an f32's pi is the f32 nearest pi, 3.14159274, as math.k's was, where Swift's is the one below; modules/math.k: pi, infinity and nan of f64 and of f32 taken out, so that they are constants with <math> too, where they were variables; selfhost/gen.k: float_constant_c, float_constant_of, put_float_constant, asked where int_limit_of is; selfhost/sample.k: two lines | provisional |
 | P559 | Details of #547 | runtime/random.c: kv_random_fill, arc4random_buf on macOS and the BSDs, its prototype written, as -std=c11 hides stdlib.h's, and getrandom on Linux, again where a signal breaks it; nothing held between calls, so a fork shares none; runtime/random.k, in Kelvin: kv_random_u64, kv_random_u128, kv_random_below, which draws again below what 2^64 leaves over n, kv_random_span of a Range's bounds as 64 bits, its kind and whether signed, kv_random_f64 of 53 bits and kv_random_f32 of 24, kv_random_f64_in and kv_random_f32_in, drawn again where rounding gives the limit; kelvin_prelude.h declares them; src/parser.c: random_call at `T.random(`, an E_METHOD of op random in a cast `as T`, its range made a Range<T> by string_of_ranged, its errors; src/codegen.c: its C; selfhost/gen.k: random_of, gen_random, asked first by type_of and gen_method; bool's is the top bit of 64; a global's value may be one, set as the program starts, as a call's is; the test checks bounds, types and spread, its bounds eight deviations and more from the mean | provisional |
 | P560 | Details of #548 | src/parser.c: where `v.x` reads an attribute, a receiver that is arithmetic of literals of an i64 is cast to i64, a converter's, and where an i64 has an attribute of the name it is that one's, the literals widened, as #538's of a method; a float's literal needed none, C's double being an f64; an attribute only another type has, `7.sq` of an i32's, is still "literals have no suffixes"; selfhost/sample.k: `7.at_sq` and `(1 << 20).at_sq` | provisional |
+| P561 | Details of #549 | src/parser.c: where a statement begins with a type's word and is no declaration, a converter's word, String or Bytes followed by `.` and a name is call_like, as IO., OS. and SYS. are, so the error of C's declaration is not said; `i64 x = 3`, `bool b` and `f64 .5` are still it; a statement of such a value alone, with no effect, is C's warning of an unused value, as any is; selfhost/parse.k: after map, filter, flatMap, their WithKey forms, contains, firstKey, lastKey, firstIndex, lastIndex and prefix a `{` is the function where no condition's or for's head ends at one, brace_ends, else anon_ahead as before; kc's C of itself is the same count of lines; selfhost/sample.k: tv_ lines; tests/run's is kelvinc's alone, as it imports <math> | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

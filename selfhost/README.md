@@ -604,6 +604,15 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A function with no `$0`, trailing `map`** (#549), as kelvinc's:
+  after `map`, `filter` and their kin a `{` that no condition ends is
+  their function whatever it holds, `(0..<8).map { bool.random() }`,
+  `xs.map { 7 }`; kc asked for a `$0` or written parameters, and said
+  "a statement ends with its line".
+  - In a condition's or a `for`'s head it still asks, as the `{` there
+    may be the body's.
+  - A statement that begins with a type's word, `{ i64.max }`, kc read
+    already; kelvinc took it for C's declaration until #549.
 - **`T.random()`** (#547), as kelvinc's: of an integer type, with a
   `Range<T>` or none, of a floating-point type, with a limit, a start
   and a limit or none, and of bool; written as kelvinc writes it, calls

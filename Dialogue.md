@@ -10310,3 +10310,22 @@ literal the i64 it is, and arithmetic of literals reckoned in 64 bits:
 P560.
 
 There are 1328 tests, and all pass with clang and with gcc 15.
+
+### 596. A statement that begins with a type's word
+
+> explain why `var xs = (0..<8).map{ bool.random() }` is an error while
+> `for _ in 0..<8 { print(bool.random()) }` is not.
+
+> push and fix it as #549
+
+**Claude** explained: the block's statement begins with the word `bool`,
+and kelvinc took a statement that begins with a type's word for C's
+declaration, `bool x;`; in the loop the statement begins with `print`.
+`{ i64.max }` and `{ f64.pi * 2.0 }` failed the same way, the mistake of
+#545's `(i64.max - 1)` at another place. Claude pushed #548 and fixed
+it: a type's word, then a `.` and a name, begins an expression. kc had
+another fault with the same line, which Claude had first denied and then
+corrected: it took a `{ }` after `map` for a function only where it
+named `$0`, and now takes any. Details are provisional P561.
+
+There are 1329 tests, and all pass with clang and with gcc 15.

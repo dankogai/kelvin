@@ -1464,6 +1464,9 @@ on a new line`
     let rn_r:Range<i16> = -3..<3
     let rn_s = i16.random(rn_r)
     println(rn_in, " ", rn_s >= -3 && rn_s < 3, " ", i64.random(7...7), " ", i64.random() != i64.random(), " ", u128.random().typename, " ", bool.random().typename, " ", f32.random(1.5).typename)
+    var tv_xs = (0..<8).map { bool.random() }           // a body that begins with a type's word, and names no $0 (#549)
+    var tv_ys = (0..<3).map { u8.max }
+    println(tv_xs.count, " ", tv_xs.typename, " ", tv_ys, " ", tv_top(), " ", $[1, 2].map { 7 })
     let rt_a = 1.over(3)                                // #import <Rational>: rat64 to rat8, and bigrat of BigInts (#542)
     let rt_b = 1n.over(3n)
     println(rt_a + 1.over(6), " ", rt_a * 3, " ", rt_a.f64, " ", rt_a.hex, " ", (-4).over(-8), " ", 1.over(0), " ", rt_a < 1.over(2))
@@ -1481,6 +1484,9 @@ extend int32 {
     let nm_twice():Self { self * 3 }
 }
 let f64.nm_half():f64 { self / 2.0 }
+
+// a body's one expression, a type's own value (#549)
+let tv_top():i64 { i64.max }
 
 // attributes read before they are written (#544)
 let tm_v2.at_norm:f64 { self.x * self.x + self.y * self.y }

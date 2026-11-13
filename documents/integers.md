@@ -282,6 +282,9 @@ let main():int32 {
     goes: a global's value, an array's count, a `static_assert`.
   - They need no import.
   - In parentheses it is a value, no C cast: `(i64.max - 1) / 2`.
+  - It begins a statement too, a body's one expression (#549): `let
+    top():i64 { i64.max }`, and `xs.map { i64.random(1...6) }`. C's
+    declaration, `i64 x`, is still an error that names Kelvin's.
   - Arithmetic past a limit is C's: `i32.max + 1` overflows, as `x + 1`
     of an `i32` does.
 - **A type attribute of your own** of the name wins: `static let
