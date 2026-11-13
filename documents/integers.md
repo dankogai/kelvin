@@ -12,6 +12,7 @@ let k = i64("42")                     // a converter of text reads it
 let big:u64 = 1:u64 << 40             // C: 1UL << 40
 println(v, " ", b, " ", k, " ", big)  // 10 255 42 1099511627776
 println(n ** 4, " ", (-5).abs, " ", (-3).sign, " ", 255.hex)   // 81 5 -1 +0xff
+println(i8.min, " ", i8.max, " ", u64.max)                     // -128 127 18446744073709551615
 ```
 
 ## Description
@@ -267,6 +268,27 @@ let main():int32 {
   has no order.
 - A struct's field named `sign`, and an attribute of your own, win.
 
+### Limits: `T.min` and `T.max`
+
+- **`T.min` and `T.max`** are the least and the greatest value an
+  integer type holds (#545), as Swift's: `i8.min` is -128, `u8.max` 255,
+  `i64.max` 9223372036854775807.
+  - Of `i8` to `i128` and `u8` to `u128`, by either name of the type:
+    `int64.max` is `i64.max`. An unsigned type's `min` is 0.
+  - Each is a `T`: `u8.max.typename` is `u8`, and `let x = i32.max` an
+    `i32`.
+  - Each is a constant, C's limit of the type, which goes where one
+    goes: a global's value, an array's count, a `static_assert`.
+  - They need no import.
+  - In parentheses it is a value, no C cast: `(i64.max - 1) / 2`.
+  - Arithmetic past a limit is C's: `i32.max + 1` overflows, as `x + 1`
+    of an `i32` does.
+- **A type attribute of your own** of the name wins: `static let
+  u16.max:Self = 7`.
+- **A float** has none of these names without `<math>`, whose `f64.max`
+  and `f64.min` are C's `DBL_MAX` and `DBL_MIN`: see
+  [math.md](math.md).
+
 ### Bits: `.bits`
 
 ```swift
@@ -335,6 +357,7 @@ The core. Integers are kelvinc's own, written as C's types, with nothing linked.
 |---|---|---|
 | signed integers | `.abs` | the magnitude, of its type; the least stays as it is (#381) |
 | | `.sign` | -1, 0 or 1, of its type (#382) |
+| integer types | `T.min`, `T.max` | the least and the greatest value of the type, a `T`, a constant (#545) |
 | integers | `b ** e` | `b` to the power `e`, of `b`'s promoted type, wrapping; `e` never negative (#380) |
 | | `.pow(e)` | `b ** e` (#380) |
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |

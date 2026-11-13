@@ -10244,3 +10244,21 @@ prototype was cut short. kc read them already. `T.random()` is the next
 number, its choices asked. Details are provisional P556.
 
 There are 1315 tests, and all pass with clang and with gcc 15.
+
+### 592. An integer type's limits
+
+> Add integers `static T.min` and `static T.max` also add static
+> constants like `.leastNonzeroMagnitude` to floating points.
+
+**Claude** had asked four things of `T.random()`: where its bits come
+from, what an empty range does, which compilers, and whether integers
+should have a `T.min` and a `T.max`, which they had not. The user chose
+the system's bits with no seed, an empty range that ends the program,
+both compilers, and had the limits added, with Swift's FloatingPoint's
+constants. Claude made three numbers of it. This is the first: `i8.min`
+to `u128.max`, each a `T` and a constant, built into kelvinc and kc with
+no import. `(i64.max - 1)` in parentheses was read as a C cast, and is a
+value now; kc reads a number type's own attribute too. Details are
+provisional P557.
+
+There are 1316 tests, and all pass with clang and with gcc 15.

@@ -641,6 +641,8 @@ static bool paren_type_ahead(bool in_sizeof) {
     }
     if (!starts_type(peek2()))
         return false;
+    if (is_converter(peek2()) && is_p(peek_at(2), ".") && peek_at(3)->kind == TK_IDENT)
+        return false; /* (i64.max - 1), (f64.pi * 2.0): an attribute of the type, a value (#148, #545) */
     return !(is_maker(peek2()) && is_p(peek_at(2), "("));
 }
 
@@ -1777,6 +1779,7 @@ static void bigint_bools_call(Expr *x);
 static Expr *bools_literal(const char *who);
 static Expr *bigint_bit_at(Expr *recv, Expr *n, Pos pos);
 static int int_width(Type *t);
+static Expr *int_limit(Token *t, const char *member);
 static Type *seen_number_type(Expr *e);
 static Decl *plain_enum_of(Type *t);
 static Decl *enum_of(const char *name);
@@ -4997,6 +5000,13 @@ static Expr *parse_primary(void) {
                 e->text = cn;
                 return e;
             }
+        Expr *lim = int_limit(t, peek_at(2)->text); /* i64.max, u8.min (#545), where the program has none of its own */
+        if (lim) {
+            advance();
+            advance();
+            advance();
+            return lim;
+        }
     }
     if (is_converter(t)) {
         /* T(v): a converter for a built-in type. codegen emits ((T)(v)),
@@ -8128,6 +8138,30 @@ static char power_class(Expr *x) {
 
 /* the bits of the integer type t, 8 to 128, or 0 where t is no integer
    Kelvin sees (#454) */
+/* T.min and T.max of the integer type whose word is t (#545), as Swift's:
+   the least and the greatest value a T holds, a T, C's limit of the type,
+   and of a 128-bit one kelvin_prelude.h's; NULL of another type or member */
+static Expr *int_limit(Token *t, const char *member) {
+    bool max = !strcmp(member, "max");
+    if (!max && strcmp(member, "min"))
+        return NULL;
+    Type *ty = base_type(t->text, t->pos);
+    int w = int_width(ty);
+    if (!w)
+        return NULL;
+    bool uns = ty->name[0] == 'u';
+    Expr *v = new_expr(!max && uns ? E_LITERAL : E_IDENT, t->pos);
+    v->text = !max && uns ? "0"
+              : w == 128  ? strfmt("KV_%s128_%s", uns ? "U" : "I", max ? "MAX" : "MIN")
+                          : strfmt("%sINT%d_%s", uns ? "U" : "", w, max ? "MAX" : "MIN");
+    Expr *c = new_expr(E_CAST, t->pos);
+    c->op = "as";
+    c->type = ty;
+    c->a = v;
+    c->paren = true;
+    return c;
+}
+
 static int int_width(Type *t) {
     static const char *names[] = {"i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "i128", "u128", NULL};
     static const int widths[] = {8, 8, 16, 16, 32, 32, 64, 64, 128, 128};

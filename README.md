@@ -227,6 +227,8 @@ So far the changes from C are these, by topic.
     `b = !b` (#454)
   - `Bits`, a type of its own (#387, #455), is no more (#532): the word
     is an error that names `x.bits` and a `BigInt`'s `b.bits`
+  - an integer type has its limits, `i64.max` and `u8.min`, of every
+    width, with no import (#545), C's `INT64_MAX`
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`
   - `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`
   - `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,

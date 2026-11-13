@@ -3229,7 +3229,7 @@ let parse_type_attribute(recv:int64, is_let:bool) {
         parse_error(m.cstr)
         return
     }
-    var word:String = tok_text(recv)
+    var word:String = number_word(recv) >= 0 ? type_word(number_word(recv)) : tok_text(recv)   // int64 is i64 (#545)
     var key:String = word.copy()
     word += "__"
     word += &nm

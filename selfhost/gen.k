@@ -1070,6 +1070,47 @@ let names_type(a:int64):bool {
     return e >= 0 && nodes[e].flag == 1
 }
 
+// the number type a names by its word, i64 or int64, where no variable
+// has the name; or -1
+let number_named(a:int64):int64 {
+    if a < 0 || nodes[a].kind != N_ID || var_type(nodes[a].t) >= 0 { return 0 - 1 }
+    return number_word(nodes[a].t)
+}
+
+// ---------- an integer type's limits, T.min and T.max (#545) ----------
+
+// the integer type whose least or greatest value n reads, i64.max and
+// u8.min, as kelvinc's #545 and Swift's: a T, C's limit of the type; or
+// -1. A type attribute of the program's own of the name is read before
+// this is asked, by resolve_attr
+let int_limit_of(n:int64):int64 {
+    if nodes[n].kind != N_FIELD || !(tok_is(nodes[n].t, "min") || tok_is(nodes[n].t, "max")) { return 0 - 1 }
+    let y:int64 = number_named(nodes[n].a)
+    if y < 0 || !is_int_kind(types[y].kind) { return 0 - 1 }
+    return y
+}
+
+// i64.max as kelvinc writes it, ((int64_t)INT64_MAX); a 128-bit type's
+// by kelvin_prelude.h's KV_I128_MAX, and an unsigned type's least a 0
+let put_int_limit(n:int64, y:int64) {
+    let max = tok_is(nodes[n].t, "max")
+    let k:ykind = types[y].kind
+    let uns = is_unsigned_kind(k)
+    put("((")
+    put_ctype(y)
+    put(")")
+    if uns && !max {
+        put("0")
+    } else if k == Y_I128 || k == Y_U128 {
+        put(uns ? "KV_U128_MAX" : max ? "KV_I128_MAX" : "KV_I128_MIN")
+    } else {
+        put(uns ? "UINT" : "INT")
+        put_int(int_width(y))
+        put(max ? "_MAX" : "_MIN")
+    }
+    put(")")
+}
+
 // ---------- enums with values (#215) ----------
 
 // the enum with values that type y is, or -1
@@ -1440,9 +1481,9 @@ let resolve_attr(n:int64) {
     let nm:String = tok_text(nodes[n].t)
     if !attribute_names.has(nm) { return }
     let a:int64 = nodes[n].a
-    if names_type(a) {                                  // T.x, a type attribute (#133): the global T__x
+    if names_type(a) || number_named(a) >= 0 {          // T.x, a type attribute (#133): the global T__x; a number type's (#148, #545)
         attr_settled[n] = true
-        var key:String = tok_text(nodes[a].t)
+        var key:String = number_named(a) >= 0 ? mangled(number_named(a)) : tok_text(nodes[a].t)
         key += "."
         key += &nm
         let g:int64 = type_attrs.get(key, 0 - 1)
@@ -1843,6 +1884,7 @@ let type_of(n:int64):int64 {
         gen_error(n, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or 'x as v.type'")
         return -1
     }
+    if k == N_FIELD && int_limit_of(n) >= 0 { return int_limit_of(n) }   // i64.max, u8.min (#545)
     if k == N_FIELD && typename_member(n) { return base_type(Y_CSTR) }   // x.typename, its type's name (#426)
     if k == N_INIT && nodes[n].ty >= 0 { return nodes[n].ty }   // (T){a, b} (#418)
     if k == N_FIELD && value_align(n) { return base_type(Y_I64) }      // x.align (#395)
@@ -6890,6 +6932,10 @@ let gen_method_of(n:int64)
 let is_made_array(n:int64):bool    // a prototype: gen_field asks it (#285)
 
 let gen_field(n:int64) {
+    if int_limit_of(n) >= 0 {                            // i64.max, u8.min (#545)
+        put_int_limit(n, int_limit_of(n))
+        return
+    }
     if typename_member(n) {                              // (#426)
         gen_typename(n)
         return

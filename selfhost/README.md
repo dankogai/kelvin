@@ -604,6 +604,16 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An integer type's limits** (#545), as kelvinc's: `T.min` and
+  `T.max` of `i8` to `i128` and `u8` to `u128`, a `T`, written as
+  kelvinc writes them, `((int64_t)INT64_MAX)`.
+  - gen.k's `int_limit_of` and `put_int_limit`; `type_of` and
+    `gen_field` ask them.
+  - A type attribute of a number type, `static let i64.top:Self = 7`,
+    is read as `i64.top`, as kelvinc's #148, where it was C's error:
+    `resolve_attr` reads a number's word as it reads a struct's name,
+    and `int64` is `i64` there too. The program's own `min` or `max`
+    wins, as in kelvinc.
 - **Programs that import Rational** (#542): kc builds what
   `#import <Rational>` needs, and the module's programs print what
   kelvinc's builds print.
