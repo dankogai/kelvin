@@ -3757,6 +3757,21 @@ static Expr *parse_postfix_steps(Expr *e) {
                    method would be, with no parentheses; a field wins */
                 Decl *g = method_named(e, member);
                 Decl *record;
+                if (literal_arithmetic(e) && !strcmp(literal_arithmetic(e), "i64")) {
+                    /* 7.half, (1 << 40).half (#548): a literal, or arithmetic of literals, is an i64,
+                       as its type is, and an i64's attribute is read of it as its method is
+                       called (#538); bare, C took it for an int, which no attribute of an i64 is of */
+                    Expr *c = new_expr(E_CAST, e->pos);
+                    c->op = "converter";
+                    c->type = base_type("i64", e->pos);
+                    c->a = e;
+                    Decl *gi = method_named(c, member);
+                    if (gi && gi->attribute && gi->recv && !strcmp(gi->recv->name, "i64")) {
+                        widen_literals(e);
+                        g = gi;
+                        e = c;
+                    }
+                }
                 Type *grt = value_type(e); /* an attribute of another type is not this value's (#168): p.count of a cstr */
                 if (g && g->attribute && grt && (grt->kind != T_BASE || strcmp(grt->name, g->recv->name)))
                     g = NULL;

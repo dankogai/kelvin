@@ -10297,3 +10297,16 @@ macOS write differently; Claude made the test compare the number and
 pushed that alone. Details are provisional P559.
 
 There are 1327 tests, and all pass with clang and with gcc 15.
+
+### 595. An attribute of a literal
+
+> fix kelvinc's 7.half as #548
+
+**Claude** pushed #547 once its battery passed. A method of an i64 is
+called on a literal since #538, and an attribute was not read on one:
+`7.half` was C's error. kelvinc now reads it as it calls the method, the
+literal the i64 it is, and arithmetic of literals reckoned in 64 bits:
+`(65536 * 65536).half`. kc read them already. Details are provisional
+P560.
+
+There are 1328 tests, and all pass with clang and with gcc 15.

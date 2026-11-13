@@ -1448,7 +1448,7 @@ on a new line`
     let nm_s = 1 << 40
     println(nm_n.nm_twice(), " ", nm_m.nm_twice(), " ", 3.nm_twice(), " ", (1 << 40).nm_twice(), " ", (65536 * 65536).nm_twice(), " ", (-4).nm_twice())
     println(9.0.nm_half(), " ", nm_m.nm_twice().typename, " ", nm_s, " ", nm_n.nm_twice().nm_twice())
-    println(tm_v.at_norm, " ", nm_n.at_sq)              // attributes written after main (#544)
+    println(tm_v.at_norm, " ", nm_n.at_sq, " ", 7.at_sq, " ", (1 << 20).at_sq)   // attributes written after main (#544), of a literal too (#548)
     let il_x = i32.max                                  // an integer type's limits (#545), and a number type's own attribute
     println(i8.min, " ", u8.max, " ", i64.max, " ", i128.min, " ", u64.min, " ", il_x.typename, " ", (i64.max - 1) / 2, " ", i64.il_top)
     println(f64.pi, " ", f32.pi, " ", f64.infinity, " ", f64.nan.isNaN, " ", f64.signalingNaN, " ", f64.radix, " ", f32.ulpOfOne.typename)   // a float's constants (#546)

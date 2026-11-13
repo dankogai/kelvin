@@ -402,6 +402,9 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
     stored and the other computed.
   - An attribute may be read, and one with a setter set, before it is
     written (#544), as a method may be called (#505).
+  - An attribute of an `i64` is read on a literal, `7.half`, and on
+    arithmetic of literals, `(1 << 40).half`, which is the `i64` it
+    is (#548), as its method is called on one, `7.twice()` (#538).
   - An instance attribute is always computed: a stored one is a member
     of the struct, which `extend` cannot add, as Swift's cannot.
 - **An attribute with a setter**, `var T.x:R { get { ... } set(v) { ... } }`
