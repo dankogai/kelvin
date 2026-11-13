@@ -15355,7 +15355,7 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
                                     "'.string' or by '.cstr()'",
                          kelvin_type(d->recv));
         }
-    if (d->attribute && !is_p(peek(), "{") && !in_kh(name->pos)) /* a prototype in M.kh (#146) */
+    if (d->attribute && !is_p(peek(), "{") && !in_kh(name->pos) && !name->ahead) /* a prototype in M.kh (#146), or kelvinc's own (#544) */
         error_at(peek()->pos, "an attribute is computed by its body: write 'let %s.%s:%s { ... }'", d->recv_name,
                  d->name, kelvin_type(d->ret));
     list_push(&functions, d);
@@ -15463,9 +15463,9 @@ static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spell
                  recv->text, nm);
     advance();
     Type *vt = parse_type();
-    if (!is_p(peek(), "{") && in_kh(name->pos)) {
+    if (!is_p(peek(), "{") && (in_kh(name->pos) || name->ahead)) {
         /* var T.x:R in a module's header (#146): the getter's and the
-           setter's prototypes */
+           setter's prototypes; kelvinc's own too, before a use (#544) */
         Decl *g = new_decl(D_FN, pos, NULL);
         g->imported = name->imported;
         g->recv = rt;
@@ -15473,7 +15473,7 @@ static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spell
         g->name = nm;
         g->attribute = true;
         g->ret = vt;
-        g->kelvin_proto = true;
+        g->kelvin_proto = !name->ahead;
         list_push(&functions, g);
         Decl *s = new_decl(D_FN, pos, NULL);
         s->imported = name->imported;
@@ -15481,7 +15481,7 @@ static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spell
         s->recv_name = rname;
         s->name = nm;
         s->setter = true;
-        s->kelvin_proto = true;
+        s->kelvin_proto = !name->ahead;
         Var *p = xcalloc(1, sizeof *p);
         p->pos = name->pos;
         p->name = "v";
@@ -15492,6 +15492,8 @@ static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spell
         list_push(&functions, s);
         add_top_decl(prog, g);
         add_top_decl(prog, s);
+        if (name->ahead)
+            accept_p(";"); /* which ends kelvinc's own prototype (#544) */
         self_scope = saved_scope;
         self_tok = saved_self;
         self_spelled = saved_self_sp;
@@ -16839,6 +16841,7 @@ typedef struct {
     int item;              /* the top-level declaration it is in */
     const char *recv;      /* extend T's T, or NULL */
     int recv_kind;         /* T's token: a name, or the word of a built-in type, extend i64 (#543) */
+    bool attr;             /* an attribute, let T.x:R { }, read as v.x (#544) */
 } AheadFn;
 
 /* whether t names the type of a method: a struct's, a union's or an
@@ -16850,26 +16853,42 @@ static bool storage_kw(Token *t) { return is_kw(t, "static") || is_kw(t, "extern
 /* where the header of the function whose name is at name ends: its
    body's {, or, of a prototype or C's declaration, the token after it;
    -1 where it is no function */
-static int ahead_body(int name) {
+static int ahead_body(int name, bool in_extend, bool *attr) {
     int i = name + 1;
-    if (ahead_recv(&toks[name]) && is_p(&toks[i], ".") && toks[i + 1].kind == TK_IDENT)
+    bool dotted = false;
+    if (ahead_recv(&toks[name]) && is_p(&toks[i], ".") && toks[i + 1].kind == TK_IDENT) {
         i += 2; /* let T.m(, let i64.m( (#543) */
-    if (!is_p(&toks[i], "("))
+        dotted = true;
+    }
+    /* let T.x:R { } and, in extend T { }, let x:R { }: an attribute (#544) */
+    *attr = is_p(&toks[i], ":") && (dotted || in_extend) && toks[i - 1].kind == TK_IDENT;
+    if (!is_p(&toks[i], "(") && !*attr)
         return -1;
-    int j = skip_nested(i);
+    int j = *attr ? i : skip_nested(i);
     if (is_p(&toks[j], ":")) {
         j++;
         if (is_p(&toks[j], "{"))
             j = skip_nested(j); /* a result written in braces, {x:f64, y:f64} */
         while (toks[j].kind != TK_EOF && !is_p(&toks[j], "{") && !is_p(&toks[j], ";") &&
-               !line_break(&toks[j - 1], &toks[j]))
+               !line_break(&toks[j - 1], &toks[j])) {
+            if (*attr && (is_p(&toks[j], "=") || is_p(&toks[j], ":=")))
+                return -1; /* static let x:T = v, a value of the type, no attribute */
             j = is_p(&toks[j], "(") || is_p(&toks[j], "[") ? skip_nested(j)
-                : (is_kw(&toks[j], "enum") || is_kw(&toks[j], "struct") || is_kw(&toks[j], "union")) &&
-                        is_p(&toks[j + 1], "{")
+                : ((is_kw(&toks[j], "enum") || is_kw(&toks[j], "struct") || is_kw(&toks[j], "union") ||
+                    is_p(&toks[j], "$")) && /* ${K: V}, a Dictionary's type (#544) */
+                   is_p(&toks[j + 1], "{"))
                     ? skip_nested(j + 1) /* enum{nothing, just: i64} */
                     : j + 1;
+        }
     }
+    if (*attr && !is_p(&toks[j], "{"))
+        return -1; /* an attribute is computed by its body */
     return j;
+}
+
+/* whether the token at i reads or sets the attribute name: v.name */
+static bool ahead_read(int i, const char *name) {
+    return i > 0 && toks[i].kind == TK_IDENT && !strcmp(toks[i].text, name) && is_p(&toks[i - 1], ".");
 }
 
 /* whether the token at i names the function name where it is called or
@@ -16934,10 +16953,11 @@ static void forward_prototypes(void) {
             (toks[k + 1].kind == TK_IDENT || overloadable_op(&toks[k + 1]) ||
              (is_base_word(&toks[k + 1]) && is_p(&toks[k + 2], ".") && toks[k + 3].kind == TK_IDENT)) &&
             !(toks[k + 1].kind == TK_IDENT && !strcmp(toks[k + 1].text, "main"))) {
-            int body = ahead_body(k + 1);
+            bool attr = false;
+            int body = ahead_body(k + 1, false, &attr);
             if (body >= 0 && !(t->imported && !is_p(&toks[body], "{"))) { /* not a module header's prototype */
                 AheadFn *f = xcalloc(1, sizeof *f);
-                *f = (AheadFn){i, k + 1, body, i, NULL, TK_IDENT};
+                *f = (AheadFn){i, k + 1, body, i, NULL, TK_IDENT, attr};
                 list_push(&fns, f);
             }
         }
@@ -16948,12 +16968,16 @@ static void forward_prototypes(void) {
                     int m = j;
                     while (storage_kw(&toks[m]))
                         m++;
+                    bool member_attr = m == j && toks[m + 1].kind == TK_IDENT &&
+                                       is_p(&toks[m + 2], ":"); /* let x:R { }, var x:R { get set } (#544) */
                     if ((is_kw(&toks[m], "let") || is_kw(&toks[m], "var")) &&
-                        (toks[m + 1].kind == TK_IDENT || overloadable_op(&toks[m + 1])) && is_p(&toks[m + 2], "(")) {
-                        int body = ahead_body(m + 1);
+                        (toks[m + 1].kind == TK_IDENT || overloadable_op(&toks[m + 1])) &&
+                        (is_p(&toks[m + 2], "(") || member_attr)) {
+                        bool attr = false;
+                        int body = ahead_body(m + 1, true, &attr);
                         if (body >= 0 && !(toks[j].imported && !is_p(&toks[body], "{"))) {
                             AheadFn *f = xcalloc(1, sizeof *f);
-                            *f = (AheadFn){j, m + 1, body, i, t[1].text, t[1].kind};
+                            *f = (AheadFn){j, m + 1, body, i, t[1].text, t[1].kind, attr};
                             list_push(&fns, f);
                         }
                     }
@@ -16996,7 +17020,7 @@ static void forward_prototypes(void) {
         const char *name = ahead_recv(&toks[a->name]) && is_p(&toks[a->name + 1], ".") ? toks[a->name + 2].text
                                                                                          : toks[a->name].text;
         for (int i = place; i < a->start && !used; i++)
-            used = ahead_use(i, name);
+            used = a->attr ? ahead_read(i, name) : ahead_use(i, name);
         if (!used)
             continue;
         list_push(&at, (void *)(intptr_t)place);
@@ -17013,9 +17037,9 @@ static void forward_prototypes(void) {
             Token *first = &toks[a->start];
             if (a->recv) {
                 Token *ext = xmalloc(sizeof *ext * 3);
-                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false, false, false};
-                ext[1] = (Token){a->recv_kind, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false, false, false};
-                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false, false, false};
+                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false, false, false, false};
+                ext[1] = (Token){a->recv_kind, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false, false, false, false};
+                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false, false, false, false};
                 for (int e = 0; e < 3; e++)
                     list_push(&out, &ext[e]);
             }
@@ -17027,17 +17051,18 @@ static void forward_prototypes(void) {
                 for (int h = b->start; h < b->body; h++) {
                     Token *c = xmalloc(sizeof *c);
                     *c = toks[h]; /* imported where its file is, which names it in C (#146) */
+                    c->ahead = true;
                     list_push(&out, c);
                 }
                 Token *semi = xmalloc(sizeof *semi);
                 *semi = (Token){TK_PUNCT, toks[b->body - 1].pos, ";", toks[b->body - 1].pos.line, false,
-                                toks[b->body - 1].imported, false, false, false};
+                                toks[b->body - 1].imported, false, false, false, false};
                 list_push(&out, semi);
                 at.data[m + 1] = NULL;
             }
             if (a->recv) {
                 Token *close = xmalloc(sizeof *close);
-                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, first->imported, false, false, false};
+                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, first->imported, false, false, false, false};
                 list_push(&out, close);
             }
         }

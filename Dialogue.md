@@ -10227,3 +10227,20 @@ a type has the method. kc read them already. Details are provisional
 P555.
 
 There are 1313 tests, and all pass with clang and with gcc 15.
+
+### 591. An attribute, read before it is written
+
+> push and fix the attribute read before written as #544. Then add
+> `static T.random()` to numerical types.
+
+**Claude** pushed #543 once its battery passed. An attribute is read with
+no call, so #505's prototypes, written for what is called, passed it by:
+`v.sq` before `let p.sq:i64 { }` was "no member". kelvinc now writes the
+prototype of an attribute where a `.x` before its definition reads or
+sets it, of `let T.x:R { }` and of one with a setter, at the top and in
+`extend T { }`, of a struct and of a built-in type. A function whose
+result is a `${K: V}` may be called before it is written too; its
+prototype was cut short. kc read them already. `T.random()` is the next
+number, its choices asked. Details are provisional P556.
+
+There are 1315 tests, and all pass with clang and with gcc 15.

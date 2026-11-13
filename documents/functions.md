@@ -413,6 +413,8 @@ let main():int32 {
     calling one of its type written after it.
   - A built-in type's method too (#543): `n.later()` before `let
     i64.later()` or `extend i64 { }`, of a number, a bool or a String.
+  - An attribute too (#544): `v.area` before `let T.area:f64 { }`, and
+    `v.x = y` before `var T.x:R { get { } set(v) { } }`.
   - A prototype written by hand is still one, and harmless.
   - A variable is still declared before it is used, as in C.
 - **The choice** is the overload that every argument fits exactly, or

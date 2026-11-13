@@ -1443,6 +1443,7 @@ on a new line`
     let nm_s = 1 << 40
     println(nm_n.nm_twice(), " ", nm_m.nm_twice(), " ", 3.nm_twice(), " ", (1 << 40).nm_twice(), " ", (65536 * 65536).nm_twice(), " ", (-4).nm_twice())
     println(9.0.nm_half(), " ", nm_m.nm_twice().typename, " ", nm_s, " ", nm_n.nm_twice().nm_twice())
+    println(tm_v.at_norm, " ", nm_n.at_sq)              // attributes written after main (#544)
     let rt_a = 1.over(3)                                // #import <Rational>: rat64 to rat8, and bigrat of BigInts (#542)
     let rt_b = 1n.over(3n)
     println(rt_a + 1.over(6), " ", rt_a * 3, " ", rt_a.f64, " ", rt_a.hex, " ", (-4).over(-8), " ", 1.over(0), " ", rt_a < 1.over(2))
@@ -1460,6 +1461,12 @@ extend int32 {
     let nm_twice():Self { self * 3 }
 }
 let f64.nm_half():f64 { self / 2.0 }
+
+// attributes read before they are written (#544)
+let tm_v2.at_norm:f64 { self.x * self.x + self.y * self.y }
+extend i64 {
+    let at_sq:i64 { self * self }
+}
 
 // a let parameter's array, walked up to its count, its fifth left (#524)
 let fe_sum4(xs:[int32](4)):int64 {

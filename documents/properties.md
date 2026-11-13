@@ -400,6 +400,8 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
   - `v.x()` is an error, and so is `v.x = y`: it has no setter.
   - A member of the struct with the same name is an error, since one is
     stored and the other computed.
+  - An attribute may be read, and one with a setter set, before it is
+    written (#544), as a method may be called (#505).
   - An instance attribute is always computed: a stored one is a member
     of the struct, which `extend` cannot add, as Swift's cannot.
 - **An attribute with a setter**, `var T.x:R { get { ... } set(v) { ... } }`

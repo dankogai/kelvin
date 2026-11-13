@@ -592,6 +592,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 541 | The script that writes modules/Rational.k is in the repository, tools/gen_rational.py: Kelvin has no generic struct, so `rat8` to `rat64` are one text written out for each width, and `bigrat` once beside them; the module says so and is changed by the script; `make` reruns the script when it is the newer, as it does the Unicode tables' | tools/gen_rational.py; GNUmakefile; modules/Rational.k's note; documents/rational.md, README.md | `python3 -I tools/gen_rational.py` | 2026-11-12 |
 | 542 | kc builds programs that import Rational, which print what kelvinc's builds print; three things it lacked: a type's own text, `let T.cstr():cstr { `...` }` of #53, of a struct, a union or an enum with values, with kelvinc's errors in its words; a number's methods, `extend i64 { }` and `let f64.m()`, of any number where it read a u32's alone, `int64` and `i64` one receiver, `Self` the number, `1.over(3)` of a literal and `(1 << 40).over(3)` reckoned in an i64, and kelvinc's error of #539 of a type that has no method another has; and the prelude's BigInt where only a module names it, each `#import <M>` read before the prelude's names are asked | selfhost/gen.k: text_method, text_methods_of, method_elsewhere, recv_tok, literal_arith; selfhost/parse.k: Self; selfhost/kc.k: load_prelude; selfhost/sample.k; selfhost/README.md, documents/rational.md | `println(1.over(3) + 1.over(6))` is `(1/2)` of kc's build | 2026-11-13 |
 | 543 | A built-in type's method may be called before it is written, as a struct's may (#505): kelvinc writes the prototype of `let i64.m()` and of a member of `extend i64 { }`, of a number, a bool or a String, where it wrote a named type's alone; so the error of #539 names the type that has the method, where it named none, `it is a method of` and nothing after | src/parser.c: ahead_recv, ahead_body, forward_prototypes, the error's guard; documents/functions.md, structs.md; selfhost/sample.k, README.md | `println(n.later())` before `let i64.later():i64 { self * 2 }`; tests/run/number_method_before.k, tests/error/number_method_before.k | 2026-11-13 |
+| 544 | An attribute may be read before it is written, and one with a setter set, as a method may be called (#505, #543): kelvinc writes the prototype of `let T.x:R { }` and of `var T.x:R { get { } set(v) { } }`, at the top and in `extend T { }`, of a struct and of a built-in type; a function whose result is a Dictionary's type, `${K: V}`, may be called before it is written too, where its prototype was cut at the `{` | src/parser.c: ahead_body, ahead_read, forward_prototypes, the attribute's prototype with no body; src/kelvin.h: Token's ahead; documents/properties.md, functions.md; selfhost/sample.k | `println(v.area)` before `let rect.area:f64 { .w * .h }`; tests/run/attribute_before.k, tests/error/attribute_before_called.k | 2026-11-13 |
 
 Notes:
 
@@ -1176,6 +1177,27 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (544) Agreed details: "push and fix the attribute read before written
+  as #544"
+  - Found in #543: `v.sq` before `let p.sq:i64 { }` was "p has no
+    member 'sq'", of a struct as of a number; #505 wrote prototypes of
+    what is called, and an attribute is read with no call.
+  - kelvinc writes an attribute's prototype where a `.x` before its
+    definition reads or sets it: `let T.x:R` and `var T.x:R`, and a
+    member of `extend T { }`.
+    - A prototype of an attribute has no body, which only a module's
+      header wrote before; the program still cannot write one.
+    - A `.x` of another type's member of the name brings the prototype
+      too, which is harmless.
+  - `v.sq()` of an attribute written later is the error of #131, "read
+    it as '.sq'", where it was "no member".
+  - Fixed with it, the same reading of a header: `let f():${K: V}`
+    called before it is written was "'$' before a type", its prototype
+    cut at the Dictionary type's `{`.
+  - kc read them already; sample.k has two after `main`.
+  - Still kelvinc's, found in #542: an attribute of an i64 read on a
+    literal, `7.half`, is C's error.
 
 - (543) Agreed details: "push and fix the number's method called before
   written as #543"
@@ -8864,6 +8886,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P553 | Details of #541 | tools/gen_rational.py, the script of #539 and #540 with a docstring and its paths from its own place; GNUmakefile: modules/Rational.k among `all`'s, its rule the script; the module's three lines that name the script, the rest as #540 left it, byte for byte; no test of the two being in step | provisional |
 | P554 | Details of #542 | selfhost/gen.k: text_methods; names_text, names_string_text, record_text, text_method, which makes the method a String's and its template a $`...`, or its text String("..."), and text_methods_of, called first by gen_program; string_text_fn finds it, so the printer of #506 shows it; method_of gives none for v.cstr(); recv_tok names any number's type by mangled, and index_names makes a number's receiver that token; gen_method_of widens a literal receiver of an i64's method; literal_arith has << and >>; method_elsewhere, asked where a method's type and its C are not found; selfhost/parse.k: Self of a number's, a String's and a Bytes's method; selfhost/kc.k: load_prelude reads the modules, then the prelude's, then what those import; selfhost/sample.k: tm_, nm_ and rt_ lines, `#import <Rational>`; one number, not three, Claude's choice; no test of kc's errors, as before | provisional |
 | P555 | Details of #543 | src/parser.c: AheadFn's recv_kind; ahead_recv, a name or is_base_word; ahead_body and the name of `let T.m(` by it; the top-level `let i64.m(`; `extend i64 {`, whose prototypes' `extend` has the word's own kind of token; the #539 error only where a type has the method, else C's error as before, of a method whose header names a type written after the call; kc read them already; selfhost/sample.k's number methods after main | provisional |
+| P556 | Details of #544 | src/kelvin.h: Token.ahead, of the tokens of a prototype kelvinc writes, with its value in each initializer of src/lexer.c, main.c and parser.c; src/parser.c: AheadFn.attr; ahead_body takes whether it is in extend and gives whether it is an attribute, `let T.x:R {` or a member's `let x:R {`, never one with `=`, and skips `${...}` in a type; ahead_read, a use `.x`, with or without `(`; an attribute's prototype has no body where its name is ahead, as in M.kh, and a var attribute's makes the getter's and the setter's, no library's, its `;` taken; selfhost/sample.k: at_norm and at_sq after main | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

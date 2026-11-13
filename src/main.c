@@ -308,7 +308,7 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
             list_push(&out, u);
         }
         Token *end = xmalloc(sizeof *end);
-        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true, false, false, false};
+        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true, false, false, false, false};
         list_push(&out, end);
     }
     Token *all = xmalloc(sizeof(Token) * (size_t)(out.len + 1));
@@ -337,7 +337,7 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
         if (!strcmp(names[k], "UnicodeData")) /* (#520) */
             named = !source_name || strcmp(source_name, "UnicodeData");
         Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false, false,
-                     true}; /* implied: the prelude's, which a module's header does not write (#520) */
+                     true, false}; /* implied: the prelude's, which a module's header does not write (#520) */
         if (!named || imported_has(import_path(&imp, argv0))) /* none, or #import <RegExp> written */
             continue;
         for (int i = 0; i < n; i++) {
