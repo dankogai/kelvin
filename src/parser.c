@@ -1780,6 +1780,7 @@ static Expr *bools_literal(const char *who);
 static Expr *bigint_bit_at(Expr *recv, Expr *n, Pos pos);
 static int int_width(Type *t);
 static Expr *int_limit(Token *t, const char *member);
+static Expr *float_constant(Token *t, const char *member);
 static Type *seen_number_type(Expr *e);
 static Decl *plain_enum_of(Type *t);
 static Decl *enum_of(const char *name);
@@ -5001,6 +5002,8 @@ static Expr *parse_primary(void) {
                 return e;
             }
         Expr *lim = int_limit(t, peek_at(2)->text); /* i64.max, u8.min (#545), where the program has none of its own */
+        if (!lim)
+            lim = float_constant(t, peek_at(2)->text); /* f64.infinity, f32.ulpOfOne (#546) */
         if (lim) {
             advance();
             advance();
@@ -8154,6 +8157,49 @@ static Expr *int_limit(Token *t, const char *member) {
     v->text = !max && uns ? "0"
               : w == 128  ? strfmt("KV_%s128_%s", uns ? "U" : "I", max ? "MAX" : "MIN")
                           : strfmt("%sINT%d_%s", uns ? "U" : "", w, max ? "MAX" : "MIN");
+    Expr *c = new_expr(E_CAST, t->pos);
+    c->op = "as";
+    c->type = ty;
+    c->a = v;
+    c->paren = true;
+    return c;
+}
+
+/* a constant of the floating-point type whose word is t (#546), Swift's
+   FloatingPoint's: radix, an i64, and nan, signalingNaN, infinity,
+   greatestFiniteMagnitude, pi, ulpOfOne, leastNormalMagnitude and
+   leastNonzeroMagnitude, each a T: C's of float.h, or kelvin_prelude.h's
+   KV_F64_NAN and its kin, constants all; NULL of another type or member */
+static Expr *float_constant(Token *t, const char *member) {
+    Type *ty = base_type(t->text, t->pos);
+    bool wide = ty->kind == T_BASE && !strcmp(ty->name, "f64");
+    if (!wide && !(ty->kind == T_BASE && !strcmp(ty->name, "f32")))
+        return NULL;
+    static const struct {
+        const char *name, *c; /* c: after KV_F64_ or KV_F32_; with a leading '_', after DBL or FLT */
+    } all[] = {{"nan", "NAN"},
+               {"signalingNaN", "SNAN"},
+               {"infinity", "INFINITY"},
+               {"pi", "PI"},
+               {"leastNonzeroMagnitude", "LEAST_NONZERO"},
+               {"greatestFiniteMagnitude", "_MAX"},
+               {"ulpOfOne", "_EPSILON"},
+               {"leastNormalMagnitude", "_MIN"},
+               {NULL, NULL}};
+    Expr *v = NULL;
+    if (!strcmp(member, "radix")) { /* 2, an integer, as Swift's Int */
+        v = new_expr(E_LITERAL, t->pos);
+        v->text = "2";
+        ty = base_type("i64", t->pos);
+    }
+    for (int i = 0; !v && all[i].name; i++)
+        if (!strcmp(member, all[i].name)) {
+            v = new_expr(E_IDENT, t->pos);
+            v->text = all[i].c[0] == '_' ? strfmt("%s%s", wide ? "DBL" : "FLT", all[i].c)
+                                         : strfmt("KV_F%s_%s", wide ? "64" : "32", all[i].c);
+        }
+    if (!v)
+        return NULL;
     Expr *c = new_expr(E_CAST, t->pos);
     c->op = "as";
     c->type = ty;

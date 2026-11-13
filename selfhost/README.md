@@ -604,6 +604,13 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A floating-point type's constants** (#546), as kelvinc's:
+  `f64.nan`, `f64.signalingNaN`, `f64.infinity`, `f64.pi`,
+  `f64.greatestFiniteMagnitude`, `f64.leastNormalMagnitude`,
+  `f64.leastNonzeroMagnitude`, `f64.ulpOfOne` and `f64.radix`, and
+  `f32`'s, written as kelvinc writes them, `((double)KV_F64_INFINITY)`.
+  - gen.k's `float_constant_c`, `float_constant_of` and
+    `put_float_constant`, asked where `int_limit_of` is.
 - **An integer type's limits** (#545), as kelvinc's: `T.min` and
   `T.max` of `i8` to `i128` and `u8` to `u128`, a `T`, written as
   kelvinc writes them, `((int64_t)INT64_MAX)`.

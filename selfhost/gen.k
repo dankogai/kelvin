@@ -1111,6 +1111,57 @@ let put_int_limit(n:int64, y:int64) {
     put(")")
 }
 
+// ---------- a floating-point type's constants (#546) ----------
+
+// what follows KV_F64_ or DBL in C's name of the constant n reads of a
+// floating-point type, f64.infinity, as kelvinc's #546 and Swift's
+// FloatingPoint's; with a leading _ it follows DBL or FLT, float.h's; ""
+// of radix, an integer; nowhere of anything else
+let float_constant_c(n:int64):cstr {
+    if nodes[n].kind != N_FIELD { return nowhere }
+    let y:int64 = number_named(nodes[n].a)
+    if y < 0 || (types[y].kind != Y_F64 && types[y].kind != Y_F32) { return nowhere }
+    let t:int64 = nodes[n].t
+    if tok_is(t, "radix") { return "" }
+    if tok_is(t, "nan") { return "NAN" }
+    if tok_is(t, "signalingNaN") { return "SNAN" }
+    if tok_is(t, "infinity") { return "INFINITY" }
+    if tok_is(t, "pi") { return "PI" }
+    if tok_is(t, "leastNonzeroMagnitude") { return "LEAST_NONZERO" }
+    if tok_is(t, "greatestFiniteMagnitude") { return "_MAX" }
+    if tok_is(t, "ulpOfOne") { return "_EPSILON" }
+    if tok_is(t, "leastNormalMagnitude") { return "_MIN" }
+    return nowhere
+}
+
+// the type of the constant n reads of a floating-point type, the type
+// itself, and radix's an i64; or -1
+let float_constant_of(n:int64):int64 {
+    let c:cstr := float_constant_c(n)
+    if c == nowhere { return 0 - 1 }
+    return c[0] == 0 ? base_type(Y_I64) : number_named(nodes[n].a)
+}
+
+// f64.infinity as kelvinc writes it, ((double)KV_F64_INFINITY), and
+// f64.radix ((int64_t)2)
+let put_float_constant(n:int64) {
+    let c:cstr := float_constant_c(n)
+    let wide = types[number_named(nodes[n].a)].kind == Y_F64
+    put("((")
+    put_ctype(float_constant_of(n))
+    put(")")
+    if c[0] == 0 {
+        put("2")
+    } else if c[0] == '_' {
+        put(wide ? "DBL" : "FLT")
+        put(c)
+    } else {
+        put(wide ? "KV_F64_" : "KV_F32_")
+        put(c)
+    }
+    put(")")
+}
+
 // ---------- enums with values (#215) ----------
 
 // the enum with values that type y is, or -1
@@ -1885,6 +1936,7 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_FIELD && int_limit_of(n) >= 0 { return int_limit_of(n) }   // i64.max, u8.min (#545)
+    if k == N_FIELD && float_constant_of(n) >= 0 { return float_constant_of(n) }   // f64.infinity, f32.ulpOfOne (#546)
     if k == N_FIELD && typename_member(n) { return base_type(Y_CSTR) }   // x.typename, its type's name (#426)
     if k == N_INIT && nodes[n].ty >= 0 { return nodes[n].ty }   // (T){a, b} (#418)
     if k == N_FIELD && value_align(n) { return base_type(Y_I64) }      // x.align (#395)
@@ -6934,6 +6986,10 @@ let is_made_array(n:int64):bool    // a prototype: gen_field asks it (#285)
 let gen_field(n:int64) {
     if int_limit_of(n) >= 0 {                            // i64.max, u8.min (#545)
         put_int_limit(n, int_limit_of(n))
+        return
+    }
+    if float_constant_of(n) >= 0 {                       // f64.infinity, f32.ulpOfOne (#546)
+        put_float_constant(n)
         return
     }
     if typename_member(n) {                              // (#426)

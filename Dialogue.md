@@ -10262,3 +10262,18 @@ value now; kc reads a number type's own attribute too. Details are
 provisional P557.
 
 There are 1316 tests, and all pass with clang and with gcc 15.
+
+### 593. A floating-point type's constants
+
+> push and go on
+
+**Claude** pushed #545, and went on with the second of its three: the
+constants of `f64` and of `f32`, the nine of Swift's FloatingPoint by
+Swift's names, `f64.infinity`, `f64.greatestFiniteMagnitude`,
+`f64.leastNonzeroMagnitude`, `f64.ulpOfOne` and the rest, each of its
+type and a constant, `radix` an `i64`, built into kelvinc and kc with no
+import. `<math>` had a `pi`, an `infinity` and a `nan` of its own, which
+Claude took out of the module, so that the language's serve there too,
+the same values. Details are provisional P558.
+
+There are 1317 tests, and all pass with clang and with gcc 15.

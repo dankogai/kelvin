@@ -594,6 +594,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 543 | A built-in type's method may be called before it is written, as a struct's may (#505): kelvinc writes the prototype of `let i64.m()` and of a member of `extend i64 { }`, of a number, a bool or a String, where it wrote a named type's alone; so the error of #539 names the type that has the method, where it named none, `it is a method of` and nothing after | src/parser.c: ahead_recv, ahead_body, forward_prototypes, the error's guard; documents/functions.md, structs.md; selfhost/sample.k, README.md | `println(n.later())` before `let i64.later():i64 { self * 2 }`; tests/run/number_method_before.k, tests/error/number_method_before.k | 2026-11-13 |
 | 544 | An attribute may be read before it is written, and one with a setter set, as a method may be called (#505, #543): kelvinc writes the prototype of `let T.x:R { }` and of `var T.x:R { get { } set(v) { } }`, at the top and in `extend T { }`, of a struct and of a built-in type; a function whose result is a Dictionary's type, `${K: V}`, may be called before it is written too, where its prototype was cut at the `{` | src/parser.c: ahead_body, ahead_read, forward_prototypes, the attribute's prototype with no body; src/kelvin.h: Token's ahead; documents/properties.md, functions.md; selfhost/sample.k | `println(v.area)` before `let rect.area:f64 { .w * .h }`; tests/run/attribute_before.k, tests/error/attribute_before_called.k | 2026-11-13 |
 | 545 | `T.min` and `T.max` of an integer type, as Swift's: the least and the greatest value a `T` holds, a `T`, a constant, of `i8` to `i128` and `u8` to `u128`, with no import; a type attribute of the program's own of the name wins; a type's attribute in parentheses, `(i64.max - 1)`, `(f64.pi * 2.0)`, is a value, where kelvinc took it for a C cast; kelvinc and kc, and kc reads a number type's own attribute, `static let i64.top`, where it was C's error | src/parser.c: int_limit, paren_type_ahead; selfhost/gen.k: number_named, int_limit_of, put_int_limit, resolve_attr; selfhost/parse.k: parse_type_attribute; documents/integers.md, README.md, selfhost/README.md | `println(i8.min, " ", u64.max)` is `-128 18446744073709551615`; tests/run/int_limits.k | 2026-11-13 |
+| 546 | The constants of a floating-point type, Swift's FloatingPoint's, of `f64` and of `f32`, with no import: `nan`, `signalingNaN`, `infinity`, `greatestFiniteMagnitude`, `pi`, `ulpOfOne`, `leastNormalMagnitude` and `leastNonzeroMagnitude`, each of its type, and `radix`, 2, an `i64`; each a constant; `<math>`'s `f64.pi`, `f64.infinity` and `f64.nan` are these now, its own taken out, the same values; kelvinc and kc | src/parser.c: float_constant; modules/kelvin_prelude.h: KV_F64_NAN and its kin; modules/math.k; selfhost/gen.k: float_constant_c, float_constant_of, put_float_constant; documents/floatingpoint.md, math.md, README.md, selfhost/README.md | `println(f64.leastNonzeroMagnitude.hex)` is `+0x1p-1074`; tests/run/float_constants.k | 2026-11-13 |
 
 Notes:
 
@@ -1178,6 +1179,32 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (546) Agreed details: "also add static constants like
+  `.leastNonzeroMagnitude` to floating points.
+  https://developer.apple.com/documentation/swift/floatingpoint"
+  - The second of #545's three. The constants are the nine type
+    properties of Swift's FloatingPoint, by Swift's names: `radix`,
+    `nan`, `signalingNaN`, `infinity`, `greatestFiniteMagnitude`, `pi`,
+    `ulpOfOne`, `leastNormalMagnitude`, `leastNonzeroMagnitude`.
+  - Built into kelvinc and kc, with no import, as #545's; each is a
+    constant, a global's value or a `static_assert`'s.
+  - `radix` is 2, an `i64`, as Swift's is an Int; the others are of
+    the type.
+  - `<math>` had `f64.pi`, `f64.infinity` and `f64.nan` of its own,
+    variables to C; Claude took them out of modules/math.k, so that
+    the language's serve with the module too, the same values, and
+    are constants there. `<math>` keeps C's names: `tau`, `e`,
+    `epsilon`, `max`, `min` and the rest.
+  - An `f32`'s `pi` is the `f32` nearest pi, 3.14159274, as
+    `<math>`'s was; Swift's is the one below, so that an angle never
+    passes pi. Kept as it was, Claude's choice.
+  - A NaN and an infinity are GNU C's `__builtin_nan` and
+    `__builtin_inf`, constants without `math.h`; the least number
+    above 0 is the compiler's `__DBL_DENORM_MIN__`, C11's
+    `DBL_TRUE_MIN`.
+  - `f64.max` and `f64.min` with no import are still "'f64' is a
+    type": they are `<math>`'s, C's `DBL_MAX` and `DBL_MIN`.
 
 - (545) Agreed details: "Add integers `static T.min` and `static T.max`
   also add static constants like `.leastNonzeroMagnitude` to floating
@@ -8912,6 +8939,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P555 | Details of #543 | src/parser.c: AheadFn's recv_kind; ahead_recv, a name or is_base_word; ahead_body and the name of `let T.m(` by it; the top-level `let i64.m(`; `extend i64 {`, whose prototypes' `extend` has the word's own kind of token; the #539 error only where a type has the method, else C's error as before, of a method whose header names a type written after the call; kc read them already; selfhost/sample.k's number methods after main | provisional |
 | P556 | Details of #544 | src/kelvin.h: Token.ahead, of the tokens of a prototype kelvinc writes, with its value in each initializer of src/lexer.c, main.c and parser.c; src/parser.c: AheadFn.attr; ahead_body takes whether it is in extend and gives whether it is an attribute, `let T.x:R {` or a member's `let x:R {`, never one with `=`, and skips `${...}` in a type; ahead_read, a use `.x`, with or without `(`; an attribute's prototype has no body where its name is ahead, as in M.kh, and a var attribute's makes the getter's and the setter's, no library's, its `;` taken; selfhost/sample.k: at_norm and at_sq after main | provisional |
 | P557 | Details of #545 | built into both compilers, no module, Claude's choice; src/parser.c: int_limit, a cast `as T` of C's limit, INT64_MAX, UINT8_MAX, a 0 of an unsigned least, kelvin_prelude.h's KV_I128_MIN, KV_I128_MAX and KV_U128_MAX, which #513 had; asked after the program's own type attributes; paren_type_ahead gives no type of `( T . name`; selfhost/gen.k: number_named; int_limit_of and put_int_limit, asked by type_of and gen_field; resolve_attr reads a number's word as a struct's name, its key by mangled; selfhost/parse.k: a number type's attribute named by type_word, `int64` as `i64`; selfhost/sample.k: il_ lines, its type attribute before main; floats have none of the names without <math> | provisional |
+| P558 | Details of #546 | src/parser.c: float_constant, a cast `as T` of float.h's DBL_MAX, DBL_EPSILON and DBL_MIN, and FLT_'s, or of kelvin_prelude.h's KV_F64_NAN, KV_F64_SNAN, KV_F64_INFINITY, KV_F64_PI and KV_F64_LEAST_NONZERO and KV_F32_'s: GNU C's __builtin_nan, __builtin_nans and __builtin_inf, constants with no math.h, and __DBL_DENORM_MIN__; radix a cast to i64 of 2; asked after int_limit; an f32's pi is the f32 nearest pi, 3.14159274, as math.k's was, where Swift's is the one below; modules/math.k: pi, infinity and nan of f64 and of f32 taken out, so that they are constants with <math> too, where they were variables; selfhost/gen.k: float_constant_c, float_constant_of, put_float_constant, asked where int_limit_of is; selfhost/sample.k: two lines | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

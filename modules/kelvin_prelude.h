@@ -895,6 +895,20 @@ typedef struct kv_text_tag kv_text_tag;
 #define KV_CLAMP_U(T, hi, v) ((v) > (hi) ? (T)(hi) : (T)(v))
 #define KV_CLAMP_F(T, lo, hi, v)                                                                                \
     ((v) != (v) ? (T)0 : (v) <= (long double)(lo) ? (T)(lo) : (v) >= (long double)(hi) ? (T)(hi) : (T)(v))
+/* the constants of a floating-point type that float.h has not (#546), Swift's
+   FloatingPoint's: GNU C's of a NaN and an infinity, constants where math.h's
+   NAN and INFINITY need its header; pi, math.k's too; and the least number
+   above 0, a subnormal, C11's DBL_TRUE_MIN by the compiler's own name */
+#define KV_F64_NAN __builtin_nan("")
+#define KV_F64_SNAN __builtin_nans("")
+#define KV_F64_INFINITY __builtin_inf()
+#define KV_F64_PI 3.141592653589793
+#define KV_F64_LEAST_NONZERO __DBL_DENORM_MIN__
+#define KV_F32_NAN __builtin_nanf("")
+#define KV_F32_SNAN __builtin_nansf("")
+#define KV_F32_INFINITY __builtin_inff()
+#define KV_F32_PI 3.141592653589793
+#define KV_F32_LEAST_NONZERO __FLT_DENORM_MIN__
 #ifdef __SIZEOF_INT128__
 #define KV_I128_MAX ((__int128)(~(unsigned __int128)0 >> 1))
 #define KV_I128_MIN (-KV_I128_MAX - 1)

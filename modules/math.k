@@ -524,8 +524,8 @@ let atan(z:c32):c32 { c32(atan(c64(z))) }
 // ---------- methods and constants (#148) ----------
 
 extend f64 {
-    // the constants of math.h, as attributes of the type (#148): f64.pi, f64.infinity
-    static let pi:Self = 3.141592653589793
+    // the constants of math.h, as attributes of the type (#148): f64.tau, f64.e;
+    // f64.pi, f64.infinity and f64.nan are the language's, with no import (#546)
     static let tau:Self = 6.283185307179586
     static let e:Self = 2.718281828459045
     static let ln2:Self = 0.6931471805599453
@@ -533,8 +533,6 @@ extend f64 {
     static let log2e:Self = 1.4426950408889634
     static let log10e:Self = 0.4342944819032518
     static let sqrt2:Self = 1.4142135623730951
-    static let infinity:Self = INFINITY
-    static let nan:Self = NAN
     static let epsilon:Self = DBL_EPSILON
     static let max:Self = DBL_MAX
     static let min:Self = DBL_MIN
@@ -586,8 +584,8 @@ extend f64 {
 }
 
 extend f32 {
-    // the constants of math.h, as attributes of the type (#148): f32.pi, f32.infinity
-    static let pi:Self = 3.141592653589793:Self
+    // the constants of math.h, as attributes of the type (#148): f32.tau, f32.e;
+    // f32.pi, f32.infinity and f32.nan are the language's (#546)
     static let tau:Self = 6.283185307179586:Self
     static let e:Self = 2.718281828459045:Self
     static let ln2:Self = 0.6931471805599453:Self
@@ -595,8 +593,6 @@ extend f32 {
     static let log2e:Self = 1.4426950408889634:Self
     static let log10e:Self = 0.4342944819032518:Self
     static let sqrt2:Self = 1.4142135623730951:Self
-    static let infinity:Self = INFINITY
-    static let nan:Self = NAN
     static let epsilon:Self = FLT_EPSILON
     static let max:Self = FLT_MAX
     static let min:Self = FLT_MIN

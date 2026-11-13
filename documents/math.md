@@ -46,10 +46,13 @@ turn on the Gaussian plane.
   `x.fma(y, z)`, which says which where it matters; Kelvin's
   overloading picks the one for the type anyway (#41).
   - A literal takes them, `2.0.sqrt()`, `(0.5:f32).sin()`.
-- **The constants**, as attributes of the type (#133): `f64.pi`,
-  `f64.tau`, `f64.e`, `f64.ln2`, `f64.ln10`, `f64.log2e`, `f64.log10e`,
-  `f64.sqrt2`, `f64.infinity`, `f64.nan`, `f64.epsilon`, `f64.max` and
-  `f64.min`, and the same of `f32`, `f32.pi`, `f32.epsilon`.
+- **The constants**, as attributes of the type (#133): `f64.tau`,
+  `f64.e`, `f64.ln2`, `f64.ln10`, `f64.log2e`, `f64.log10e`,
+  `f64.sqrt2`, `f64.epsilon`, `f64.max` and `f64.min`, and the same of
+  `f32`, `f32.tau`, `f32.epsilon`.
+  - `f64.pi`, `f64.infinity` and `f64.nan` were here too; they are the
+    language's since #546, with no import, the same values:
+    [floatingpoint.md](floatingpoint.md).
   - `f32.epsilon` is larger than `f64.epsilon`, as C's `FLT_EPSILON`
     is.
 - **Tests**: `x.isnan`, `x.isinf` and `x.isfinite`; the core's
@@ -123,7 +126,7 @@ c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, pola
 | | `.abs()` | `fabs` |
 | | `.isnan`, `.isinf`, `.isfinite` | tests, a `bool` |
 | | `.i` | a `c64` or `c32`: the value rotated a quarter turn |
-| `f64.`, `f32.` | `.pi`, `.tau`, `.e`, `.ln2`, `.ln10`, `.log2e`, `.log10e`, `.sqrt2`, `.infinity`, `.nan`, `.epsilon`, `.max`, `.min` | the constants, attributes of the type |
+| `f64.`, `f32.` | `.tau`, `.e`, `.ln2`, `.ln10`, `.log2e`, `.log10e`, `.sqrt2`, `.epsilon`, `.max`, `.min` | the constants, attributes of the type; `.pi`, `.infinity` and `.nan` need no import (#546) |
 | `c64`, `c32` | `.real`, `.imag` | the parts, fields |
 | | `.exp()`, `.log()`, `.sqrt()`, `.sin()`, ..., `.conj()` | the function, as `z.exp()` |
 | | `.abs()`, `.arg()`, `.norm()` | an `f64` or `f32` |

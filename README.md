@@ -229,6 +229,10 @@ So far the changes from C are these, by topic.
     is an error that names `x.bits` and a `BigInt`'s `b.bits`
   - an integer type has its limits, `i64.max` and `u8.min`, of every
     width, with no import (#545), C's `INT64_MAX`
+  - a floating-point type has its constants, Swift's `FloatingPoint`'s,
+    with no import (#546): `f64.pi`, `f64.infinity`, `f64.nan`,
+    `f64.greatestFiniteMagnitude`, `f64.leastNonzeroMagnitude`,
+    `f64.ulpOfOne`, C's `DBL_MAX`, `DBL_TRUE_MIN` and `DBL_EPSILON`
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`
   - `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`
   - `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,

@@ -1451,6 +1451,8 @@ on a new line`
     println(tm_v.at_norm, " ", nm_n.at_sq)              // attributes written after main (#544)
     let il_x = i32.max                                  // an integer type's limits (#545), and a number type's own attribute
     println(i8.min, " ", u8.max, " ", i64.max, " ", i128.min, " ", u64.min, " ", il_x.typename, " ", (i64.max - 1) / 2, " ", i64.il_top)
+    println(f64.pi, " ", f32.pi, " ", f64.infinity, " ", f64.nan.isNaN, " ", f64.signalingNaN, " ", f64.radix, " ", f32.ulpOfOne.typename)   // a float's constants (#546)
+    println(f64.greatestFiniteMagnitude, " ", f64.leastNormalMagnitude, " ", f64.leastNonzeroMagnitude, " ", f32.ulpOfOne, " ", f32.leastNonzeroMagnitude.hex)
     let rt_a = 1.over(3)                                // #import <Rational>: rat64 to rat8, and bigrat of BigInts (#542)
     let rt_b = 1n.over(3n)
     println(rt_a + 1.over(6), " ", rt_a * 3, " ", rt_a.f64, " ", rt_a.hex, " ", (-4).over(-8), " ", 1.over(0), " ", rt_a < 1.over(2))

@@ -12,6 +12,7 @@ let half = float64(n) / 2               // a converter
 let x = float64("0x1.8p1")              // read from text: 3.0
 println(0.1, " ", $[1.0, 0.5])      // 0.10000000000000001 [1.0, 0.5]
 println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
+println(f64.pi, " ", f64.infinity, " ", f64.ulpOfOne)   // 3.1415926535897931 inf 2.2204460492503131e-16
 ```
 
 ## Description
@@ -138,6 +139,28 @@ text, print and show as text. Integers are in
     global's value may be one, `let root2:f64 = 2.0 ** 0.5`.
   - `x **= y` is `x = x ** y`.
   - Of `c64` and `c32` it is `<math>`'s `**` ([math.md](math.md)).
+- **The constants of the type** (#546) are Swift's `FloatingPoint`'s,
+  attributes of `f64` and of `f32`, with no import:
+  - `f64.nan` and `f64.signalingNaN`, a quiet NaN and a signaling one;
+    `f64.infinity`.
+  - `f64.greatestFiniteMagnitude`, the greatest finite number, C's
+    `DBL_MAX`.
+  - `f64.leastNormalMagnitude`, the least normal number above 0, C's
+    `DBL_MIN`, and `f64.leastNonzeroMagnitude`, the least above 0, a
+    subnormal, `0x1p-1074`.
+  - `f64.ulpOfOne`, the gap from 1.0 to the next number, C's
+    `DBL_EPSILON`.
+  - `f64.pi`; an `f32`'s is the `f32` nearest it, 3.14159274, where
+    Swift's is the one below.
+  - `f64.radix` is 2, an `i64`.
+  - Each but `radix` is of its type, `f32.ulpOfOne` an `f32`, and each
+    is a constant, which goes where one goes: a global's value, a
+    `static_assert`.
+  - A type attribute of your own of the name wins. `<math>` adds the
+    rest, by C's names: `f64.tau`, `f64.e`, `f64.epsilon`, `f64.max`
+    and `f64.min` ([math.md](math.md)).
+  - An integer type's `T.min` and `T.max` are in
+    [integers.md](integers.md).
 
 ## Where it lives
 
@@ -147,6 +170,9 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 
 | On | Property | Gives |
 |---|---|---|
+| `f32.`, `f64.` | `.nan`, `.signalingNaN`, `.infinity`, `.pi` | the type's constants, of the type, with no import (#546) |
+| | `.greatestFiniteMagnitude`, `.leastNormalMagnitude`, `.leastNonzeroMagnitude`, `.ulpOfOne` | its limits and the gap at 1.0, of the type (#546) |
+| | `.radix` | 2, an `i64` (#546) |
 | `f32`, `f64` | `.size` | `sizeof`, a `size_t` |
 | | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
