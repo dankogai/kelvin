@@ -10430,3 +10430,24 @@ Python's `cmath`. A method that took its other operand by value had
 moved it; they are lent now, #553's too. Details are provisional P566.
 
 There are 1339 tests, and all pass with clang and with gcc 15.
+
+### 602. A ) too many, said where it is
+
+**User** asked for the fault Claude had met in §600 and left:
+
+> fix kelvinc's misleading error for an unbalanced ) as #555
+
+**Claude** found the cause in the prototypes of #505, which kelvinc
+writes for a function called before it is written. That pass
+counts what is open to know the top level; after a `)` too many its
+count was one short, a method inside a later `extend T { }` passed for
+a function of the top level, and its header was written ahead of the
+error, where its `Self` had no type. So the parser refused the method,
+lines from the `)`. Now, where the brackets of a program do not pair,
+no prototype is written, and the parser says what it meets: the `)`.
+Claude also gave it words of its own, "')' closes nothing: no '(' is
+open here", for "expected ';' or a new line before ')'", and a `]`
+the same; the user may change them. kc said the line already. Details
+are provisional P567.
+
+There are 1343 tests, and all pass with clang and with gcc 15.

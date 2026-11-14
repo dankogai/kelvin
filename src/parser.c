@@ -12153,6 +12153,21 @@ static void end_statement(void) {
         return;
     if (cur == trailing_end)
         error_at(peek()->pos, "expected ';' or a new line after the trailing function, before what follows");
+    if (is_p(peek(), ")") || is_p(peek(), "]")) { /* one too many: (a + 1)) * 2 (#555) */
+        const char *opener = is_p(peek(), ")") ? "(" : "[";
+        char *open = xmalloc((size_t)cur + 1);
+        int depth = 0;
+        for (int i = 0; i < cur; i++) {
+            if (is_p(&toks[i], "{") || is_p(&toks[i], "(") || is_p(&toks[i], "["))
+                open[depth++] = toks[i].text[0];
+            else if ((is_p(&toks[i], "}") || is_p(&toks[i], ")") || is_p(&toks[i], "]")) && depth > 0)
+                depth--;
+        }
+        bool alone = depth == 0 || open[depth - 1] != opener[0];
+        free(open);
+        if (alone)
+            error_at(peek()->pos, "%s closes nothing: no '%s' is open here", desc(peek()), opener);
+    }
     error_at(peek()->pos, "expected ';' or a new line before %s", desc(peek()));
 }
 
@@ -17080,11 +17095,39 @@ static bool ahead_use(int i, const char *name) {
 
 static Token *written_toks; /* the tokens as written, before the prototypes, which a module's header copies (#507) */
 
+/* whether each ( [ { of the n tokens is closed by its own ) ] }, and each of
+   those closes one (#555) */
+static bool brackets_balance(int n) {
+    char *open = xmalloc((size_t)n + 1);
+    int depth = 0;
+    bool ok = true;
+    for (int i = 0; i < n && ok; i++) {
+        Token *t = &toks[i];
+        if (is_p(t, "{") || is_p(t, "(") || is_p(t, "["))
+            open[depth++] = t->text[0];
+        else if (is_p(t, "}") || is_p(t, ")") || is_p(t, "]")) {
+            char want = is_p(t, "}") ? '{' : is_p(t, ")") ? '(' : '[';
+            ok = depth > 0 && open[--depth] == want;
+        }
+    }
+    free(open);
+    return ok && depth == 0;
+}
+
 static void forward_prototypes(void) {
     written_toks = NULL;
     int n = 0;
     while (toks[n].kind != TK_EOF)
         n++;
+    /* A ) ] } that closes nothing, or a ( [ { left open, is an error the
+       parser says where it meets it. Here it would put the count of what is
+       open out by one from there on, a method of extend T { } would pass for
+       a function of the top level, and its header, written as a prototype
+       before the error, would be the first thing the parser refuses, of
+       'Self' with no T: so no prototype is written, and the parser says
+       what is wrong, where it is (#555). */
+    if (!brackets_balance(n))
+        return;
     List starts = {0}, types = {0}, imports = {0}, fns = {0};
     for (int i = 0, depth = 0; i < n; i++) {
         Token *t = &toks[i], *prev = i ? &toks[i - 1] : NULL;
