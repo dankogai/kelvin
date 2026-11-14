@@ -1,5 +1,5 @@
-// modules/math+Rational.k - the overlay of math with Rational (#551,
-// #552): read where <math> and <Rational> are both imported, and by no
+// modules/math+Rational.k - the overlay of math with Rational (#551 to
+// #554): read where <math> and <Rational> are both imported, and by no
 // program that imports one of them alone. cbr is a complex number whose
 // parts are bigrats, fractions of any size, also complexBigRat by its
 // alias, as c64 is complex64.
@@ -9,16 +9,13 @@
 //     let z = cbr(1n.over(2n), 1n.over(3n))
 //     println(z * z, " ", z / z.conj(), " ", norm(z))
 //
-// It has math's functions of a bigrat too (#553), each to a precision,
-// below.
-//
-// What a cbr offers is what stays rational, and so exact: + - * /, unary -,
-// == and !=, with a bigrat, a BigInt or an i64 on either side; conj and
-// norm, each a method too; z.i, z rotated a quarter turn, and r.i of a
-// bigrat, cbr(0, r). abs, arg, exp and the rest of math's are not
-// rational: c64(z) is the nearest c64, which has them. A part may be an
-// infinity or a NaN, a bigrat's own (rational.md): z / 0 is infinite, and
-// no division by zero.
+// What stays rational is exact: + - * /, unary -, == and !=, with a
+// bigrat, a BigInt or an i64 on either side; conj and norm, each a method
+// too; z.i, z rotated a quarter turn, and r.i of a bigrat, cbr(0, r).
+// What does not, abs, arg, exp and the rest of math's, of a bigrat
+// (#553) and of a cbr (#554), takes a precision, below; c64(z) is the
+// nearest c64. A part may be an infinity or a NaN, a bigrat's own
+// (rational.md): z / 0 is infinite, and no division by zero.
 #import <math>
 #import <Rational>
 
@@ -576,4 +573,360 @@ extend bigrat {
     let atanh(precision:i64):Self { atanh(self, precision) }
     let pow(y:lent Self):Self { pow(self, y) }
     let pow(y:lent Self, precision:i64):Self { pow(self, y, precision) }
+}
+
+// ---------- a cbr's functions that are not rational, to a precision (#554) ----------
+//
+// abs and arg, bigrats, and sqrt, exp, log, pow, the trigonometric and
+// hyperbolic functions and their inverses, cbrs: each part within
+// 2^-precision of the true value's, as a bigrat's functions are, with
+// bigrat.precision where none is written, and each a method too. The
+// inverses take their principal values, with C99's branch cuts; a
+// rational has no negative zero, so a point on a cut is on the side a
+// float's +0 is.
+
+// both parts NaNs
+let cbr_nan():cbr { (cbr){fx_nan(), fx_nan()} }
+
+// x * 2^w and y * 2^w as a cbr of 2^p parts
+let cbr_round(x:lent BigInt, y:lent BigInt, w:i64, p:i64):cbr { (cbr){fx_round(x, w, p), fx_round(y, w, p)} }
+
+// whether a part is no finite number
+let cbr_wild(z:lent cbr):bool { !z.real.isFinite || !z.imag.isFinite }
+
+// the bits of |z| above its point, 0 at least: of the larger part
+let cbr_bits(z:lent cbr):i64 {
+    let a:i64 = fx_bits(z.real.num) - fx_bits(z.real.den) + 1
+    let b:i64 = fx_bits(z.imag.num) - fx_bits(z.imag.den) + 1
+    let m:i64 = a > b ? a : b
+    return m > 0 ? m + 1 : 1
+}
+
+// |z|, the root of its norm
+let abs(z:lent cbr, precision:i64):bigrat { sqrt(norm(z), precision) }
+
+// the angle from the positive real axis, from -pi to pi
+let arg(z:lent cbr, precision:i64):bigrat { atan2(z.imag, z.real, precision) }
+
+// the principal square root, whose real part is never negative: z times
+// a power of 4 that brings |z| near 1, then sqrt((|z| + |x|) / 2) and the
+// other part from z itself, and the power of 2 taken back
+let sqrt(z:lent cbr, precision:i64):cbr {
+    if z.real.isNaN || z.imag.isNaN { return cbr_nan() }
+    if z.imag.isInfinite { return (cbr){fx_inf(1), z.imag.copy()} }
+    if z.real.isInfinite {
+        if z.real.num.isNegative { return (cbr){bigrat(0), fx_inf(z.imag.num.isNegative ? -1 : 1)} }
+        return (cbr){fx_inf(1), bigrat(0)}
+    }
+    let p:i64 = precision > 0 ? precision : 0
+    let n = norm(z)
+    if n.num.isZero { return cbr(0) }
+    let e:i64 = fx_bits(n.num) - fx_bits(n.den)
+    let k:i64 = 0 - (e >> 2)                              // z * 4^k is near 1; its root times 2^-k is z's
+    let g:i64 = (k > 0 ? (p > k ? p - k : 0) : p - k) + 24
+    let up:i64 = k > 0 ? 2 * k : 0
+    let down:i64 = k < 0 ? 0 - 2 * k : 0
+    let x = (z.real.num.abs << (g + up)) / (z.real.den << down)   // |x| and |y| of z * 4^k
+    let y = (z.imag.num.abs << (g + up)) / (z.imag.den << down)
+    let m = (x * x + y * y).isqrt()
+    let s = (((m + x) >> 1) << g).isqrt()                 // sqrt((|z| + |x|) / 2), the larger part
+    let t = (y << (g - 1)) / s                            // |y| / (2 s), the lesser
+    let re = z.real.num.isNegative ? t.copy() : s.copy()
+    let im = z.real.num.isNegative ? s.copy() : t.copy()
+    let w:i64 = k > 0 ? g + k : g
+    let shift:i64 = k < 0 ? 0 - k : 0
+    return cbr_round(re << shift, fx_signed(im << shift, z.imag.num.isNegative), w, p)
+}
+
+// how many bits e^x has above its point, at most: 0 of an x of 0 or less
+let fx_exp_size(x:lent bigrat):i64 {
+    if x.num.sign <= 0 { return 0 }
+    return (((x.num * 3) / (x.den * 2)).exactI64 ?? 0) + 2
+}
+
+// e^x (cos y + i sin y): the sine and the cosine to as many more bits as
+// e^x is large
+let exp(z:lent cbr, precision:i64):cbr {
+    if z.real.isNaN || !z.imag.isFinite { return cbr_nan() }
+    if z.real.isInfinite && z.real.num.isNegative { return cbr(0) }
+    let p:i64 = precision > 0 ? precision : 0
+    if z.real.isInfinite || fx_exp_over(z.real) {         // past reckoning: an infinity by the sign of each part
+        let c = fx_sin_cos(z.imag, 64, true)
+        let s = fx_sin_cos(z.imag, 64, false)
+        return (cbr){c.isZero ? bigrat(0) : fx_inf(c.sign), s.isZero ? bigrat(0) : fx_inf(s.sign)}
+    }
+    let w:i64 = p + 16
+    let g:i64 = w + fx_exp_size(z.real)
+    let e = fx_exp(z.real, w)
+    return cbr_round((e * fx_sin_cos(z.imag, g, true)) >> g, (e * fx_sin_cos(z.imag, g, false)) >> g, w, p)
+}
+
+// the principal value, ln|z| + i arg z: half the log of its norm
+let log(z:lent cbr, precision:i64):cbr {
+    if z.real.isNaN || z.imag.isNaN { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    if cbr_wild(z) { return (cbr){fx_inf(1), atan2(z.imag, z.real, p)} }
+    let n = norm(z)
+    if n.num.isZero { return (cbr){fx_inf(-1), bigrat(0)} }
+    return cbr_round(fx_log(n, p + 9) >> 2, fx_atan2(z.imag, z.real, p + 8), p + 8, p)
+}
+
+// sinh a cos b, cosh a sin b, cosh a cos b and sinh a sin b, each * 2^w:
+// what the sines and cosines of a cbr are made of; the trigonometric ones
+// to as many more bits as e^|a| is large. a is finite and e^|a| reckoned
+struct cbr_products {
+    shc: BigInt
+    chs: BigInt
+    chc: BigInt
+    shs: BigInt
+}
+
+let cbr_products(a:lent bigrat, b:lent bigrat, w:i64):cbr_products {
+    let mag:bigrat = a.num.isNegative ? -a : a.copy()
+    let g:i64 = w + fx_exp_size(mag)
+    let e = fx_exp(mag, w)
+    let r = (BigInt(1) << (2 * w)) / e
+    let ch = (e + r) >> 1
+    let sh = fx_signed((e - r) >> 1, a.num.isNegative)
+    let c = fx_sin_cos(b, g, true)
+    let s = fx_sin_cos(b, g, false)
+    return (cbr_products){(sh * c) >> g, (ch * s) >> g, (ch * c) >> g, (sh * s) >> g}
+}
+
+// whether e^|a| is past reckoning, or a or b no finite number: the sines
+// and cosines of such a cbr are NaNs here
+let cbr_far(a:lent bigrat, b:lent bigrat):bool {
+    return !a.isFinite || !b.isFinite || fx_exp_over(a) || fx_exp_over(-a)
+}
+
+// sinh(a + ib) = sinh a cos b + i cosh a sin b
+let sinh(z:lent cbr, precision:i64):cbr {
+    if cbr_far(z.real, z.imag) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    let q = cbr_products(z.real, z.imag, p + 16)
+    return cbr_round(q.shc, q.chs, p + 16, p)
+}
+
+// cosh(a + ib) = cosh a cos b + i sinh a sin b
+let cosh(z:lent cbr, precision:i64):cbr {
+    if cbr_far(z.real, z.imag) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    let q = cbr_products(z.real, z.imag, p + 16)
+    return cbr_round(q.chc, q.shs, p + 16, p)
+}
+
+// sin(x + iy) = sin x cosh y + i cos x sinh y
+let sin(z:lent cbr, precision:i64):cbr {
+    if cbr_far(z.imag, z.real) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    let q = cbr_products(z.imag, z.real, p + 16)
+    return cbr_round(q.chs, q.shc, p + 16, p)
+}
+
+// cos(x + iy) = cos x cosh y - i sin x sinh y
+let cos(z:lent cbr, precision:i64):cbr {
+    if cbr_far(z.imag, z.real) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    let q = cbr_products(z.imag, z.real, p + 16)
+    return cbr_round(q.chc, 0 - q.shs, p + 16, p)
+}
+
+// tanh(a + ib), by t = e^(-2|a|), 1 at most, so that nothing is large:
+// (1 - t^2) / d with a's sign, and 2 t sin 2b / d, d = 1 + t^2 + 2 t cos 2b;
+// near a pole d is near 0, and it is reckoned anew with twice as many more
+// bits as d has zeros after its point
+let tanh(z:lent cbr, precision:i64):cbr {
+    if z.real.isNaN || !z.imag.isFinite { return cbr_nan() }
+    if z.real.isInfinite { return cbr(z.real.num.sign) }
+    let p:i64 = precision > 0 ? precision : 0
+    var g:i64 = p + 40
+    while true {
+        let one = BigInt(1) << g
+        let t = fx_exp((z.real.num.isNegative ? z.real.copy() : -z.real) * 2, g)
+        let t2 = (t * t) >> g
+        let d = one + t2 + ((t * fx_sin_cos(z.imag * 2, g, true)) >> (g - 1))
+        let zeros:i64 = g - fx_bits(d)
+        if g >= p + 2 * zeros + 16 {
+            let re = ((one - t2) << g) / d
+            let im = (t * fx_sin_cos(z.imag * 2, g, false)) / (d >> 1)
+            return cbr_round(fx_signed(re, z.real.num.isNegative), im, g, p)
+        }
+        g = p + 2 * zeros + 48
+    }
+    return cbr_nan()
+}
+
+// tan z = -i tanh(iz)
+let tan(z:lent cbr, precision:i64):cbr {
+    let w = tanh((cbr){-z.imag, z.real.copy()}, precision)
+    return (cbr){w.imag.copy(), -w.real}
+}
+
+// z to a whole power, exact: by squaring
+let cbr_power(z:lent cbr, n:i64):cbr {
+    var r = cbr(1)
+    var b:cbr = (cbr){z.real.copy(), z.imag.copy()}
+    var k:i64 = n
+    while k > 0 {
+        if k % 2 == 1 { r = r * b }
+        k = k / 2
+        if k > 0 { b = b * b }
+    }
+    return r
+}
+
+// a cbr to 2^p parts, the nearest; its parts are finite
+let cbr_to(z:lent cbr, p:i64):cbr { cbr_round(fx_of(z.real, p + 2), fx_of(z.imag, p + 2), p + 2, p) }
+
+// z to the w: of a whole real w the power itself, rounded; else
+// e^(w log z), the log to as many more bits as the power is large; 0 to
+// a w whose real part is above 0 is 0, to 0 it is 1, and to a negative
+// real w infinite, as c64's
+let pow(z:lent cbr, w:lent cbr, precision:i64):cbr {
+    if cbr_wild(z) || cbr_wild(w) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    if w.real.num.isZero && w.imag.num.isZero { return cbr(1) }
+    if z.real.num.isZero && z.imag.num.isZero {
+        if w.real.num.sign > 0 { return cbr(0) }
+        if w.imag.num.isZero { return (cbr){fx_inf(1), bigrat(0)} }
+        return cbr_nan()
+    }
+    if w.imag.num.isZero && w.real.den == 1 {
+        if let n = w.real.num.abs.exactI64 {
+            if n <= 65536 {
+                let up = cbr_power(z, n)
+                if w.real.num.isNegative { return cbr_to(1 / up, p) }
+                return cbr_to(up, p)
+            }
+        }
+    }
+    let rough = w * log(z, 64)                            // w log z, about: how large the power is
+    if fx_exp_over(rough.real) { return cbr_nan() }
+    let size:i64 = fx_exp_size(rough.real)
+    return exp(w * log(z, p + size + cbr_bits(w) + 64), p)
+}
+let pow(z:lent cbr, x:lent bigrat, precision:i64):cbr { pow(z, cbr(x), precision) }
+let pow(x:lent bigrat, w:lent cbr, precision:i64):cbr { pow(cbr(x), w, precision) }
+
+// asinh z = log(z + sqrt(z^2 + 1)), reckoned so of a z right of the
+// imaginary axis, or on it above 0, where the sum cancels nothing, the
+// root to twice the bits of |z| more, as the sum may be as small as
+// 1 / (2|z|). Left of the axis it is -asinh(-z), as it is odd; on the
+// axis below 0 the conjugate of its conjugate's, the side of the cut a
+// real part of +0 is on. left says the real part, 0, is a float's -0,
+// as iz's is of a real z: then it is -asinh(-z) too
+let cbr_asinh(z:lent cbr, p:i64, left:bool):cbr {
+    if z.real.num.isNegative || (z.real.num.isZero && left) { return -cbr_asinh(-z, p, false) }
+    if z.real.num.isZero && z.imag.num.isNegative { return conj(cbr_asinh(conj(z), p, false)) }
+    return log(z + sqrt(z * z + 1, p + 2 * cbr_bits(z) + 32), p)
+}
+
+let asinh(z:lent cbr, precision:i64):cbr {
+    if cbr_wild(z) { return cbr_nan() }
+    return cbr_asinh(z, precision > 0 ? precision : 0, false)
+}
+
+// asin z = -i asinh(iz); of a real z, iz's real part is -0
+let asin(z:lent cbr, precision:i64):cbr {
+    if cbr_wild(z) { return cbr_nan() }
+    let w = cbr_asinh((cbr){-z.imag, z.real.copy()}, precision > 0 ? precision : 0, z.imag.num.isZero)
+    return (cbr){w.imag.copy(), -w.real}
+}
+
+// acos z = pi / 2 - asin z
+let acos(z:lent cbr, precision:i64):cbr {
+    if cbr_wild(z) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    let w = asin(z, p + 8)
+    return cbr_round((fx_pi(p + 9) >> 2) - fx_of(w.real, p + 8), 0 - fx_of(w.imag, p + 8), p + 8, p)
+}
+
+// acosh z = log(z + sqrt(z + 1) sqrt(z - 1)), C99's form of it, whose sum
+// is never below 1
+let acosh(z:lent cbr, precision:i64):cbr {
+    if cbr_wild(z) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    let g:i64 = p + cbr_bits(z) + 32
+    return log(z + sqrt(z + 1, g) * sqrt(z - 1, g), p)
+}
+
+// atanh z = (log(1 + z) - log(1 - z)) / 2; of 1 and -1 infinite; right of
+// 1 on the real axis 1 - z is on log's cut, on the side C99 has it
+let atanh(z:lent cbr, precision:i64):cbr {
+    if cbr_wild(z) { return cbr_nan() }
+    let p:i64 = precision > 0 ? precision : 0
+    if z.imag.num.isZero && z.real.num.abs == z.real.den { return (cbr){fx_inf(z.real.num.sign), bigrat(0)} }
+    let a = log(1 + z, p + 8)
+    let b = log(1 - z, p + 8)
+    let flip = z.imag.num.isZero && z.real > bigrat(1)
+    let im = fx_of(a.imag, p + 8) - fx_signed(fx_of(b.imag, p + 8), flip)
+    return cbr_round((fx_of(a.real, p + 8) - fx_of(b.real, p + 8)) >> 1, im >> 1, p + 8, p)
+}
+
+// atan z = -i atanh(iz)
+let atan(z:lent cbr, precision:i64):cbr {
+    let w = atanh((cbr){-z.imag, z.real.copy()}, precision)
+    return (cbr){w.imag.copy(), -w.real}
+}
+
+// each with bigrat.precision where none is written
+let abs(z:lent cbr):bigrat { abs(z, bigrat.precision) }
+let arg(z:lent cbr):bigrat { arg(z, bigrat.precision) }
+let sqrt(z:lent cbr):cbr { sqrt(z, bigrat.precision) }
+let exp(z:lent cbr):cbr { exp(z, bigrat.precision) }
+let log(z:lent cbr):cbr { log(z, bigrat.precision) }
+let sin(z:lent cbr):cbr { sin(z, bigrat.precision) }
+let cos(z:lent cbr):cbr { cos(z, bigrat.precision) }
+let tan(z:lent cbr):cbr { tan(z, bigrat.precision) }
+let sinh(z:lent cbr):cbr { sinh(z, bigrat.precision) }
+let cosh(z:lent cbr):cbr { cosh(z, bigrat.precision) }
+let tanh(z:lent cbr):cbr { tanh(z, bigrat.precision) }
+let asin(z:lent cbr):cbr { asin(z, bigrat.precision) }
+let acos(z:lent cbr):cbr { acos(z, bigrat.precision) }
+let atan(z:lent cbr):cbr { atan(z, bigrat.precision) }
+let asinh(z:lent cbr):cbr { asinh(z, bigrat.precision) }
+let acosh(z:lent cbr):cbr { acosh(z, bigrat.precision) }
+let atanh(z:lent cbr):cbr { atanh(z, bigrat.precision) }
+let pow(z:lent cbr, w:lent cbr):cbr { pow(z, w, bigrat.precision) }
+let pow(z:lent cbr, x:lent bigrat):cbr { pow(z, x, bigrat.precision) }
+let pow(x:lent bigrat, w:lent cbr):cbr { pow(x, w, bigrat.precision) }
+
+extend cbr {
+    // each function as a method, z.exp(), z.exp(64)
+    let abs():bigrat { abs(self) }
+    let abs(precision:i64):bigrat { abs(self, precision) }
+    let arg():bigrat { arg(self) }
+    let arg(precision:i64):bigrat { arg(self, precision) }
+    let sqrt():Self { sqrt(self) }
+    let sqrt(precision:i64):Self { sqrt(self, precision) }
+    let exp():Self { exp(self) }
+    let exp(precision:i64):Self { exp(self, precision) }
+    let log():Self { log(self) }
+    let log(precision:i64):Self { log(self, precision) }
+    let sin():Self { sin(self) }
+    let sin(precision:i64):Self { sin(self, precision) }
+    let cos():Self { cos(self) }
+    let cos(precision:i64):Self { cos(self, precision) }
+    let tan():Self { tan(self) }
+    let tan(precision:i64):Self { tan(self, precision) }
+    let sinh():Self { sinh(self) }
+    let sinh(precision:i64):Self { sinh(self, precision) }
+    let cosh():Self { cosh(self) }
+    let cosh(precision:i64):Self { cosh(self, precision) }
+    let tanh():Self { tanh(self) }
+    let tanh(precision:i64):Self { tanh(self, precision) }
+    let asin():Self { asin(self) }
+    let asin(precision:i64):Self { asin(self, precision) }
+    let acos():Self { acos(self) }
+    let acos(precision:i64):Self { acos(self, precision) }
+    let atan():Self { atan(self) }
+    let atan(precision:i64):Self { atan(self, precision) }
+    let asinh():Self { asinh(self) }
+    let asinh(precision:i64):Self { asinh(self, precision) }
+    let acosh():Self { acosh(self) }
+    let acosh(precision:i64):Self { acosh(self, precision) }
+    let atanh():Self { atanh(self) }
+    let atanh(precision:i64):Self { atanh(self, precision) }
+    let pow(w:lent Self):Self { pow(self, w) }
+    let pow(w:lent Self, precision:i64):Self { pow(self, w, precision) }
 }

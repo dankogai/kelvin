@@ -1,6 +1,6 @@
 # Math: `#import <math>`
 
-The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `cbr`, an exact one, and the functions of a `bigrat` to any precision.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `cbr`, an exact one, and the functions of a `bigrat` and of a `cbr` to any precision.
 
 ## Synopsis
 
@@ -139,14 +139,16 @@ let main():int32 {
 - **What stays rational**: `conj(z)` and `norm(z)`, a `bigrat`, each a
   method too; `z.i` is `z` times `i`, and `r.i` of a bigrat is
   `cbr(0, r)`.
-- **What does not**: `abs`, `arg`, `exp`, `sqrt` and the rest are
-  seldom rational. `c64(z)` is the nearest `c64`, which has them.
+- **What does not** takes a precision (#554), as a bigrat's functions
+  do, below: `abs`, `arg`, `sqrt`, `exp`, `log`, `pow`, `sin` and the
+  rest, `exp(z, 64)`, `z.sqrt()`.
+  - `c64(z)` is the nearest `c64`, where 53 bits will do.
   - No `cbr` is made of a `c64`: Rational makes no fraction of a float.
 - **The text** of one is its parts', as a struct's:
   `{real: (1n/2n), imag: (1n/3n)}`; it does not paste back, as a
   rational's does not.
 
-### Functions of a `bigrat`, to a precision, with `<Rational>`
+### Functions of a `bigrat` and of a `cbr`, to a precision, with `<Rational>`
 
 With `<Rational>` the functions take a `bigrat` too (#553). Few of
 their values are rational, so each takes a precision, in bits, and
@@ -185,6 +187,21 @@ let main():int32 {
   `atan` of an infinity is half of pi.
   - `exp` of `2^32` and more is an infinity: its value is past
     reckoning.
+- **Of a `cbr`** (#554) they are the same, each part within
+  `2^-precision` of the true value's: `sqrt`, `exp`, `log`, `pow`,
+  `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh` and their inverses give a
+  `cbr`, `abs` and `arg` a `bigrat`; each a method too.
+  - `exp(cbr(bigrat(0), bigrat.pi(200)), 64)` is
+    `{real: (-1n/1n), imag: (0n/1n)}`, Euler's, to 64 bits.
+  - `pow(z, w)` of a whole real `w` is the power itself, rounded:
+    `pow(cbr(1, 1), cbr(128), 0)` is `2^64`; a `bigrat` may be on
+    either side.
+  - The inverses take their principal values, with C99's branch cuts,
+    as `c64`'s. A rational has no negative zero, so a point on a cut is
+    on the side a float's `+0` is: `sqrt(cbr(-4))` is `2i`, and
+    `asin(cbr(2))` has a positive imaginary part.
+  - A part that is an infinity or a NaN gives NaNs, but where `exp`,
+    `log`, `sqrt` and `tanh` have a limit.
 - **How**: in `BigInt`s alone, a number as the integer `x * 2^w` of
   some bits more than asked, which the rounding takes off; series,
   after the argument is brought near 0.
@@ -194,7 +211,7 @@ let main():int32 {
 
 ## Where it lives
 
-`cbr` and the functions of a `bigrat` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+`cbr` and the functions of a `bigrat` and of a `cbr` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
 ## Functions
 
@@ -214,6 +231,9 @@ With `<Rational>` (#552):
 cbr(real:bigrat, imag:bigrat):cbr, cbr(real:bigrat):cbr                    // and of BigInts, and of i64s
 c64(z:cbr):c64, conj(z:cbr):cbr, norm(z:cbr):bigrat
 sin(x:bigrat):bigrat, sin(x:bigrat, precision:int64):bigrat                // and so for each function of a bigrat (#553)
+sin(z:cbr):cbr, sin(z:cbr, precision:int64):cbr                            // and of a cbr (#554)
+abs(z:cbr):bigrat, abs(z:cbr, precision:int64):bigrat, arg(z:cbr):bigrat, arg(z:cbr, precision:int64):bigrat
+pow(z:cbr, w:cbr):cbr, pow(z:cbr, x:bigrat):cbr, pow(x:bigrat, w:cbr):cbr   // each with a precision too
 pow(x:bigrat, y:bigrat):bigrat, pow(x:bigrat, y:bigrat, precision:int64):bigrat
 atan2(y:bigrat, x:bigrat):bigrat, atan2(y:bigrat, x:bigrat, precision:int64):bigrat
 ```
@@ -241,6 +261,9 @@ atan2(y:bigrat, x:bigrat):bigrat, atan2(y:bigrat, x:bigrat, precision:int64):big
 | | `.norm()` | `real² + imag²`, a `bigrat` |
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: (1n/2n), imag: (1n/3n)}` |
+| | `.abs()`, `.arg()`, `.abs(p)`, `.arg(p)` | to 128 bits, or within `2^-p`, a `bigrat` (#554) |
+| | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to 128 bits, a `cbr` (#554) |
+| | `.sqrt(p)`, `.exp(p)`, ..., `.pow(w)`, `.pow(w, p)` | the same, each part within `2^-p` |
 | `bigrat`, with `<Rational>` (#552) | `.i` | `cbr(0, r)`: the value rotated a quarter turn |
 | `bigrat`, with `<Rational>` (#553) | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to `bigrat.precision`, 128 bits, a `bigrat` |
 | | `.sqrt(p)`, `.exp(p)`, `.sin(p)`, ... | the same within `2^-p` |

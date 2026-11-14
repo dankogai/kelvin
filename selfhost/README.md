@@ -613,6 +613,8 @@ kc reads what it is written in, and little more.
   - math's functions of a bigrat, to a precision (#553), are in that
     overlay too, Kelvin alone: kc builds them as kelvinc does, and
     sample.k prints `bigrat.pi(64)` and three more.
+  - And a `cbr`'s (#554): sample.k prints Euler's `e^(i pi)`, a root, an
+    `abs`, an `asin` on its branch cut and a whole power.
 - **Overlays** (#551), as kelvinc's: where the modules `<A>` and `<B>`
   are both read, `A+B.kh`, else `A+B.k`, of ./modules or of the modules
   directory, is read too, with what it imports.

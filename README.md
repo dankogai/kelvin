@@ -457,3 +457,5 @@ So far the changes from C are these, by topic.
     128 where none is written: `sqrt(bigrat(2), 64)`, `x.exp()`,
     `bigrat.pi(256)`; reckoned in BigInts, the same on every system
     (#553)
+  - and a `cbr` too: `exp(z, 64)`, `z.sqrt()`, `abs(z)`, each part
+    within `2^-precision`, the inverses with C99's branch cuts (#554)

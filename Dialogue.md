@@ -10414,3 +10414,19 @@ values against another reckoning, and the worst was half a part off. A
 `cbr`'s functions are #554. Details are provisional P565.
 
 There are 1338 tests, and all pass with clang and with gcc 15.
+
+### 601. Functions of a cbr, to a precision
+
+**Claude** wrote the complex half of what the user chose in §600: with
+`<math>` and `<Rational>` both imported, `sqrt`, `exp`, `log`, `pow`,
+the trigonometric and hyperbolic functions and their inverses take a
+`cbr` and a precision, and each part of the result is within
+`2^-precision` of the true value's; `abs` and `arg` give a bigrat. So
+`exp(z, 64)`, the user's example, is there, and `exp(z)` is to 128
+bits. The inverses' branch cuts are C99's, a point on a cut where a
+float's `+0` is, Claude's choice, as a rational has no negative zero.
+Claude checked 2124 values against another reckoning and against
+Python's `cmath`. A method that took its other operand by value had
+moved it; they are lent now, #553's too. Details are provisional P566.
+
+There are 1339 tests, and all pass with clang and with gcc 15.
