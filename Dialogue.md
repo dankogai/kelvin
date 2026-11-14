@@ -10350,3 +10350,27 @@ import math and are no part of importing; Claude listed them and left
 them. Details are provisional P562.
 
 There are 1329 tests, and all pass with clang and with gcc 15.
+
+### 598. Overlays
+
+> Can you make `cbr` aka`complexBigRat` which is Complex<BigRat>
+> defined only when `<Rational>` is `#import`'ed in `<math>`?  Do we
+> have a mechanism to tell if a certain module is imported?
+
+**Claude** answered that a source file had none: kelvinc knows which
+modules are imported for its own errors, and the prelude brings RegExp
+and BigInt in where they are named, but Kelvin refuses `#if` on
+purpose. Claude asked how `cbr` should come with the two modules, and
+what it should offer.
+
+> Overlay file (Recommended)
+
+> Exact arithmetic (Recommended)
+
+So a file named for the two, `A+B.k`, is read where `<A>` and `<B>` are
+both imported, right after the later one, as Swift's cross-import
+overlay is, in kelvinc and in kc. This number is the mechanism, tested
+with modules of tests/project; `cbr` is #552. Details are provisional
+P563.
+
+There are 1334 tests, and all pass with clang and with gcc 15.

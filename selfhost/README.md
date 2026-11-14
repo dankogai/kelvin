@@ -604,6 +604,17 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **Overlays** (#551), as kelvinc's: where the modules `<A>` and `<B>`
+  are both read, `A+B.kh`, else `A+B.k`, of ./modules or of the modules
+  directory, is read too, with what it imports.
+  - kc.k's `load_overlays`, after `load_prelude`: `module_names` holds
+    each module read, by name, and each ordered pair is tried once.
+  - kc reads the files one after another, so where an overlay stands
+    matters to its aliases alone (#550): parse.k's `alias_order` passes
+    the files as kelvinc reads them and places each overlay after the
+    later of its two modules, before `alias_walk` reads any alias.
+  - sample.k meets one from #552 on, `math+Rational.k`; the tests of
+    tests/project, built by kc, print what kelvinc's builds print.
 - **Programs that import math** (#550): kc builds what
   `#import <math>` needs, where it stopped at the module's `typealias`,
   and its programs print what kelvinc's builds print.

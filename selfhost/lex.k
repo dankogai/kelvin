@@ -32,6 +32,10 @@ var toks:$[tok]
 var fnames:$[String]      // every file's name
 var file_by:$[int64]      // the #import token each file was first read for; -1 the program's own and the prelude's (#550)
 var reading_by:int64 = 0 - 1
+var file_with_a:$[int64]  // an overlay's two modules, A and B of A+B.k, as files (#551); -1 of any other file,
+var file_with_b:$[int64]  // and an overlay's file_by is -2 until the pass before parsing places it
+var reading_a:int64 = 0 - 1
+var reading_b:int64 = 0 - 1
 var failed:bool
 var eof_pos = 0           // the end of the files' tokens: kc's own come after it (#217)
 

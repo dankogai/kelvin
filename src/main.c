@@ -10,6 +10,7 @@
 #include "kelvin.h"
 
 #include <dirent.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -368,6 +369,92 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
     return toks;
 }
 
+/* The name of the module that an #import of a Kelvin file names, as the
+   parser's (#143): <dir/M.k> is M */
+static char *module_name(const Token *t) {
+    char *name = xstrndup(t->text + 1, strlen(t->text) - 2);
+    char *slash = strrchr(name, '/');
+    if (slash)
+        name = slash + 1;
+    if (strrchr(name, '.'))
+        *strrchr(name, '.') = 0;
+    return name;
+}
+
+/* An overlay (#551), as Swift's cross-import overlay: where the modules
+   <A> and <B> are both imported, and a file A+B.kh or A+B.k is in
+   ./modules or in Kelvin's modules/, it is imported too, as if
+   #import <A+B> stood right after the later of the two, whichever the
+   program imports first. It holds what A offers of B's types, as math's
+   complex number of Rational's bigrat, which a program that imports one
+   of them alone neither sees nor compiles; Kelvin has no #if to ask with.
+   An overlay imports what it likes, which may bring another overlay in;
+   one of an overlay, A+B+C, is not looked for. Written out, #import
+   <A+B>, it is a module as any, read once. */
+static Token *with_overlays(Token *toks, int n, int *out_n, const char *argv0) {
+    const char *dirs[] = {"./modules", kelvin_modules(argv0)};
+    List tried = {0}; /* char *: each A+B looked for once */
+    for (bool more = true; more;) {
+        more = false;
+        List names = {0}, ends = {0}; /* the modules, and the token each one's file ends at */
+        for (int i = 0; i < n; i++) {
+            if (toks[i].kind != TK_IMPORT_K || toks[i].text[0] != '<')
+                continue;
+            char *name = module_name(&toks[i]);
+            bool seen = strchr(name, '+') != NULL;
+            for (int k = 0; k < names.len && !seen; k++)
+                seen = !strcmp(names.data[k], name);
+            if (seen)
+                continue;
+            char *path = import_path(&toks[i], argv0);
+            int end = i; /* read through another path: after its #import */
+            for (int j = i + 1; j < n; j++)
+                if (toks[j].kind == TK_FILE_END && !strcmp(toks[j].text, path)) {
+                    end = j;
+                    break;
+                }
+            list_push(&names, name);
+            list_push(&ends, (void *)(intptr_t)end);
+        }
+        for (int a = 0; a < names.len && !more; a++)
+            for (int b = 0; b < names.len && !more; b++) {
+                if (a == b)
+                    continue;
+                char *name = strfmt("%s+%s", (char *)names.data[a], (char *)names.data[b]);
+                bool seen = false;
+                for (int k = 0; k < tried.len && !seen; k++)
+                    seen = !strcmp(tried.data[k], name);
+                if (seen)
+                    continue;
+                list_push(&tried, name);
+                char *path = NULL;
+                for (int d = 0; d < 2 && !path; d++) {
+                    if (dirs[d] && kelvin_file(strfmt("%s/%s.kh", dirs[d], name)))
+                        path = strfmt("%s/%s.kh", dirs[d], name);
+                    else if (dirs[d] && kelvin_file(strfmt("%s/%s.k", dirs[d], name)))
+                        path = strfmt("%s/%s.k", dirs[d], name);
+                }
+                if (!path || imported_has(path)) /* none, or #import <A+B> written */
+                    continue;
+                int ea = (int)(intptr_t)ends.data[a], eb = (int)(intptr_t)ends.data[b];
+                int at = (ea > eb ? ea : eb) + 1; /* after the later of the two */
+                Token imp = {TK_IMPORT_K, toks[at - 1].pos, strfmt("<%s>", name), toks[at - 1].pos.line, false, false,
+                             false, false, true, false}; /* implied, as the prelude's: a module's header does not write it */
+                int m;
+                Token *over = with_imports(&imp, 1, &m, argv0); /* the import, then the overlay's tokens */
+                Token *all = xmalloc(sizeof(Token) * (size_t)(m + n + 1));
+                memcpy(all, toks, sizeof(Token) * (size_t)at);
+                memcpy(all + at, over, sizeof(Token) * (size_t)m);
+                memcpy(all + at + m, toks + at, sizeof(Token) * (size_t)(n - at));
+                toks = all;
+                n += m;
+                more = true; /* its imports may make another pair: look again */
+            }
+    }
+    *out_n = n;
+    return toks;
+}
+
 static List lib_objects; /* --lib: the .o and .a files given after the source, into libkM too (#156) */
 static List link_objects; /* the .o and .a files linked into the program (#281) */
 
@@ -668,6 +755,7 @@ int main(int argc, char **argv) {
         const char *base = strrchr(src_path, '/');
         source_name = default_output(base ? base + 1 : src_path);
         toks = with_prelude(toks, ntoks, &ntoks, argv[0]); /* RegExp, if named (#504); UnicodeData (#520) */
+        toks = with_overlays(toks, ntoks, &ntoks, argv[0]); /* <A+B>, where <A> and <B> are both imported (#551) */
     }
     Program *prog = parse(toks, ntoks);
     char *c_code = gen_program(prog, line_directives);

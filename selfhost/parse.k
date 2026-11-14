@@ -3654,12 +3654,18 @@ let body_ahead(t:int64):bool {
 // files read for the imports in that rest, and what follows the #import
 // its own file was read for. An alias of a function type, typealias op =
 // (i64):i64 (#403), no one token another may stand for, is kept by its
-// name, which parse_bare_type asks
+// name, which parse_bare_type asks. An overlay, A+B.k (#551), kelvinc
+// reads right after the later of its two modules: the pass finds that
+// place first, alias_order, the #import after whose files both are read,
+// and the overlay is the next file read there
 var alias_errs:Dictionary<int64, int64>      // a typealias the pass refused, by its token: 1 a type already, 2 declared already, 3 no type
 var alias_records:Dictionary<String, int64>  // the structs, unions and enums at the top of the files walked so far
 var file_from:$[int64]                       // each file's first token, and the one after its last
 var file_to:$[int64]
 var import_reads:Dictionary<int64, int64>    // the file a #import token was first read for
+var file_next:$[int64]                       // the file read next at the same #import, an overlay's (#551), or -1
+var file_walked:$[bool]                      // the files alias_order has passed
+var alias_roots:$[int64]                     // the files no #import reads, as kelvinc reads them: the prelude's, then the program
 
 let alias_builtin(t:int64):bool {
     return number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "String") || tok_is(t, "Bytes") || tok_is(t, "IO")
@@ -3680,8 +3686,11 @@ let alias_reach(f:int64, from:int64, at:int64, len:int64, target:int64) {
                 toks[k].len = toks[target].len
             }
         } else if toks[k].kind == T_IMPORT && import_reads.has(k) {
-            let h:int64 = import_reads.get(k, 0)
-            alias_reach(h, file_from[h], at, len, target)
+            var h:int64 = import_reads.get(k, 0)
+            while h >= 0 {                               // the module, and the overlays read after it (#551)
+                alias_reach(h, file_from[h], at, len, target)
+                h = file_next[h]
+            }
         }
         k += 1
     }
@@ -3718,6 +3727,11 @@ let alias_at(f:int64, k:int64) {
     var from:int64 = k + 4
     while true {
         alias_reach(g, from, at, len, target)
+        var sib:int64 = file_next[g]
+        while sib >= 0 {                                 // the overlays read after it at its #import (#551)
+            alias_reach(sib, file_from[sib], at, len, target)
+            sib = file_next[sib]
+        }
         let b:int64 = file_by[g]
         if b < 0 { break }
         from = b + 1
@@ -3732,7 +3746,11 @@ let alias_walk(f:int64) {
     while k < file_to[f] && !failed {
         let kind:tkind = toks[k].kind
         if kind == T_IMPORT && import_reads.has(k) {
-            alias_walk(import_reads.get(k, 0))
+            var h:int64 = import_reads.get(k, 0)
+            while h >= 0 {
+                alias_walk(h)
+                h = file_next[h]
+            }
         } else if kind == T_PUNCT && (tok_is(k, "{") || tok_is(k, "${")) {
             depth += 1
         } else if kind == T_PUNCT && tok_is(k, "}") {
@@ -3743,6 +3761,46 @@ let alias_walk(f:int64) {
             } else if tok_is(k, "typealias") {
                 alias_at(f, k)
             }
+        }
+        k += 1
+    }
+}
+
+// the overlays whose two modules are both passed, and which have no
+// place yet, read next after file last, at #import token by, or as roots
+// where by is -1: the last file read there
+let alias_order(f:int64)    // a prototype: an overlay is passed in turn
+
+let alias_overlays(last0:int64, by:int64) {
+    var last:int64 = last0
+    var found = true
+    while found {
+        found = false
+        for o in 0..<file_by.count as int64 {
+            if file_by[o] != 0 - 2 || !file_walked[file_with_a[o]] || !file_walked[file_with_b[o]] { continue }
+            file_by[o] = by
+            if by >= 0 {
+                file_next[last] = o
+            } else {
+                alias_roots += o
+            }
+            last = o
+            alias_order(o)
+            file_walked[o] = true
+            found = true
+        }
+    }
+}
+
+// file f passed as kelvinc reads it, to place the overlays (#551)
+let alias_order(f:int64) {
+    var k:int64 = file_from[f]
+    while k < file_to[f] {
+        if toks[k].kind == T_IMPORT && import_reads.has(k) {
+            let h:int64 = import_reads.get(k, 0)
+            alias_order(h)
+            file_walked[h] = true
+            alias_overlays(h, k)
         }
         k += 1
     }
@@ -3767,12 +3825,20 @@ let alias_pass() {
     }
     for h in 0..<file_by.count as int64 {
         if file_by[h] >= 0 { import_reads[file_by[h]] = h }
+        file_next += 0 - 1
+        file_walked += false
     }
     var root:int64 = file_by.count as int64 - 1
     while root >= 0 {                                    // the prelude's first, as kelvinc reads them, then the program
-        if file_by[root] < 0 { alias_walk(root) }
+        if file_by[root] == 0 - 1 && !file_walked[root] {
+            alias_roots += root
+            alias_order(root)
+            file_walked[root] = true
+            alias_overlays(root, 0 - 1)
+        }
         root -= 1
     }
+    for r in alias_roots { alias_walk(r) }
 }
 
 let parse_typealias() {

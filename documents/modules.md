@@ -22,7 +22,7 @@ A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
-search, the layout, and the modules so far: `math.k`, `Rational.k`,
+search, the overlays (#551), the layout, and the modules so far: `math.k`, `Rational.k`,
 `JSON.k`, `SION.k` and `MsgPack.k`, and `IO`, `OS`, `UnicodeData` and `RegExp`, each a
 header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
@@ -201,6 +201,46 @@ kelvinc main.k util.o                # compiles main.k, linking util.o, into ./m
   `--lib` is how files share code for now.
 - **kc** (selfhost/) has `-c` too, and kelvinc links its objects.
 
+### Overlays: `A+B.k`
+
+An overlay is a module that comes with two others (#551), as Swift's
+cross-import overlay: where `<A>` and `<B>` are both imported,
+`A+B.k` is imported too, with no `#import` of it written.
+
+<!-- fragment -->
+```swift
+#import <len>                   // ./modules/len.k:  struct len { m: f64 }
+#import <time>                  // ./modules/time.k: struct time { s: f64 }
+                                // ./modules/len+time.k comes with the two:
+let v = len(100.0) / time(8.0)  //   its operator, a length over a time,
+println(v)                      //   and its type, a speed
+```
+
+- **What it is for:** what `A` offers of `B`'s types, which neither
+  module knows of alone.
+  - A program that imports one of the two neither sees the overlay nor
+    compiles it.
+  - Kelvin has no `#if`, on purpose
+    ([c-interfaces.md](c-interfaces.md)): a file cannot ask what else
+    is imported, so the question is the file's name.
+- **Where it is looked for:** `A+B.kh`, else `A+B.k`, in `./modules`
+  and then in Kelvin's `modules/`, as any module.
+  - `A+B` and `B+A` are two overlays, `A`'s of `B` and `B`'s of `A`;
+    each is read where it is there.
+- **Where it stands:** right after the later of the two, as if
+  `#import <A+B>` were written there, whichever the program imports
+  first.
+  - The two need not be imported by one file: one may come through
+    another module.
+  - A prelude's module counts: `BigInt`, where the program names it.
+- **What it holds:** anything a module does.
+  - It imports `<A>` and `<B>` itself, so that it reads alone too;
+    they are brought in once.
+  - What it imports may make another pair, whose overlay is read too.
+  - An overlay of an overlay, `A+B+C`, is not looked for.
+- **Written out**, `#import <A+B>` is a module as any, read once.
+- **kc** (selfhost/) reads overlays too.
+
 ### `modules/`
 
 ```
@@ -224,6 +264,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
 ./modules/                a project's own, looked in first
     x.kh, libkx.a         #import <x>: the header, and its library linked by the import (#143)
+    x+y.k                 an overlay (#551): read where <x> and <y> are both imported
     x.k, x.h, libx.a      #import <x.k>, #import <x.h> as C, KELVIN_CFLAGS=-lx
 ```
 

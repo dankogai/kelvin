@@ -143,6 +143,8 @@ let load(path:String^):Result<int64, String> {
     let file:int64 = fnames.count as int64
     fnames += path^.copy()
     file_by += reading_by
+    file_with_a += reading_a
+    file_with_b += reading_b
     let from:int64 = codes.count as int64
     for c in text.codepoints {
         codes += c
@@ -283,11 +285,46 @@ let module_library(dir:String^, name:String^) {
     }
 }
 
+// the modules read, by name, in the order read, and the file of each
+// (#551): <dir/M.k> is M, as kelvinc names a module; an overlay, A+B, is
+// none of them, as no overlay of an overlay is looked for
+var module_names:$[String] = $[]
+var module_files:$[int64] = $[]
+
+let note_module(name:String^, file:int64) {
+    for c in name^.codepoints {
+        if c == '+' { return }
+    }
+    module_names += name^.copy()
+    module_files += file
+}
+
+// the name of the module that #import token t names
+let module_base(t:int64):String {
+    var from:int64 = 1
+    var to:int64 = toks[t].len - 1
+    for j in 1..<toks[t].len - 1 {
+        if codes[toks[t].at + j] == '/' { from = j + 1 }
+    }
+    var j:int64 = toks[t].len - 2
+    while j >= from {
+        if codes[toks[t].at + j] == '.' {
+            to = j
+            break
+        }
+        j -= 1
+    }
+    var s = $""
+    for i in from..<to { s += codes[toks[t].at + i] }
+    return s
+}
+
 // the module #import <M> or <x.k> names, as kelvinc's import_path: <M> is
 // M.kh, a module's header, else M.k, in ./modules, else in Kelvin's
 // modules; it is read once, and a header's library is linked (#516)
 let load_module(mods:String^, t:int64):bool {
     var name = $""
+    var base:String = module_base(t)
     var bare = true
     for j in 1..<toks[t].len - 1 {
         let c:uint32 = codes[toks[t].at + j]
@@ -308,6 +345,7 @@ let load_module(mods:String^, t:int64):bool {
                 reading_by = t                           // (#550)
                 let read = loads(&kh)
                 reading_by = 0 - 1
+                if read { note_module(&base, fnames.count as int64 - 1) }
                 return read
             }
             path += ".k"
@@ -317,6 +355,7 @@ let load_module(mods:String^, t:int64):bool {
             reading_by = t
             let read = loads(&path)
             reading_by = 0 - 1
+            if read { note_module(&base, fnames.count as int64 - 1) }
             return read
         }
     }
@@ -343,6 +382,18 @@ let module_import(t:int64):bool {
     return toks[t].kind == T_IMPORT && codes[toks[t].at] == '<' && !is_header(t) && !tok_is(t, "<IO>") && !tok_is(t, "<OS>")
 }
 
+// each #import <M> among the tokens not looked at yet: its module read,
+// whose own imports follow in turn
+var import_scan:int64 = 0
+
+let load_module_imports(mods:String^):bool {
+    while import_scan < toks.count as int64 {
+        if module_import(import_scan) && !load_module(mods, import_scan) { return false }
+        import_scan += 1
+    }
+    return true
+}
+
 // a module of the prelude that the files name, as kelvinc's with_prelude:
 // RegExp, or a $/.../ literal, and BigInt, or a 123n, as if the program
 // began with #import <M>, unless a type of its own has that name, which a
@@ -351,12 +402,13 @@ let module_import(t:int64):bool {
 let load_prelude(mods:String^):bool {
     var ucd:String = mods^.copy()                        // UnicodeData, in every program, as kelvinc's (#520)
     ucd += "/UnicodeData.kh"
-    if !read_already(&ucd) && !loads(&ucd) { return false }
-    var i = 0
-    while i < toks.count as int64 {                      // each #import <M> first, as kelvinc's with_imports: a module
-        if module_import(i) && !load_module(mods, i) { return false }   // may name BigInt, as Rational's bigrat does (#542)
-        i += 1
+    if !read_already(&ucd) {
+        if !loads(&ucd) { return false }
+        var u = $"UnicodeData"
+        note_module(&u, fnames.count as int64 - 1)
     }
+    if !load_module_imports(mods) { return false }       // each #import <M> first, as kelvinc's with_imports: a module
+                                                         // may name BigInt, as Rational's bigrat does (#542)
     let first:int64 = toks.count as int64
     for k in 0..<2 {
         let w:cstr := k == 0 ? "RegExp" : "BigInt"
@@ -389,10 +441,66 @@ let load_prelude(mods:String^):bool {
         path += w
         path += ".kh"
         if !loads(&path) { return false }
+        var noted = String(w)
+        note_module(&noted, fnames.count as int64 - 1)
     }
-    while i < toks.count as int64 {                      // and what the prelude's own import
-        if module_import(i) && !load_module(mods, i) { return false }
-        i += 1
+    if !load_module_imports(mods) { return false }       // and what the prelude's own import
+    return !failed
+}
+
+// an overlay (#551), as kelvinc's with_overlays, Swift's cross-import
+// overlay: where the modules A and B are both read, and A+B.kh or A+B.k
+// is in ./modules or in Kelvin's modules, it is read too, with what it
+// imports, which may make another pair. Where it stands among the files
+// as kelvinc reads them, after the later of its two, is the alias pass's
+// to find (parse.k), which alone asks: its file is marked with the two
+let load_overlays(mods:String^):bool {
+    var tried:$[String] = $[]
+    var again = true
+    while again {
+        again = false
+        var a = 0
+        while a < module_names.count as int64 && !again {
+            var b = 0
+            while b < module_names.count as int64 && !again {
+                var name:String = module_names[a].copy()
+                name += "+"
+                name += &module_names[b]
+                var seen = a == b
+                for t in tried {
+                    if t == name { seen = true }
+                }
+                if !seen {
+                    tried += name.copy()
+                    for k in 0..<2 {
+                        var dir:String = k == 0 ? $"./modules" : mods^.copy()
+                        var path:String = dir.copy()
+                        path += "/"
+                        path += &name
+                        var kh:String = path.copy()
+                        kh += ".kh"
+                        path += ".k"
+                        let header = exists(&kh)
+                        if !header && !exists(&path) { continue }
+                        if header { path = kh.copy() }
+                        if read_already(&path) { break }         // #import <A+B> written
+                        if header { module_library(&dir, &name) }
+                        reading_by = 0 - 2
+                        reading_a = module_files[a]
+                        reading_b = module_files[b]
+                        let read = loads(&path)
+                        reading_by = 0 - 1
+                        reading_a = 0 - 1
+                        reading_b = 0 - 1
+                        if !read || !load_module_imports(mods) { return false }
+                        again = true
+                        break
+                    }
+                }
+                b += 1
+            }
+            a += 1
+        }
     }
     return !failed
 }
@@ -457,6 +565,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     if !loads(&input) { return 1 }
     if !load_imports() { return 1 }
     if !load_prelude(&mods) { return 1 }          // BigInt, RegExp (#515), and each #import <M> (#516)
+    if !load_overlays(&mods) { return 1 }         // A+B, where A and B are both read (#551)
     let end:tok = {T_EOF, codes.count as int64, 0, 0, 0}
     toks += end
     eof_pos = toks.count as int64 - 1

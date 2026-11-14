@@ -599,6 +599,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 548 | An attribute of an `i64` is read on a literal, `7.half`, and on arithmetic of literals, `(1 << 40).half`, reckoned in the i64 it is, as its method is called on one (#538); it was C's error, the literal an `int` to C, which no attribute of an i64 is of; kc read it already | src/parser.c: the attribute's read; documents/properties.md; selfhost/sample.k | `println(7.half)` of `let i64.half:f64 { self as f64 / 2.0 }` is `3.5`; tests/run/literal_attribute.k | 2026-11-13 |
 | 549 | A statement that begins with a type's word, then a `.` and a name, is a value of the type's own: `bool.random()`, `i64.max`, `f64.pi * 2.0`, `String.fromCodepoints(c)`, the one expression of a body or of a `{ }` given to `map`; kelvinc took it for C's declaration, `bool x`; and in kc a `{ }` after `map`, `filter` and their kin is their function whatever it holds, `{ bool.random() }`, `{ 7 }`, where kc asked for a `$0` or written parameters; so `var xs = (0..<8).map { bool.random() }` is read by both | src/parser.c: parse_statement's call_like; selfhost/parse.k: the trailing function of map and its kin; documents/integers.md, selfhost/README.md; selfhost/sample.k | `let top():i64 { i64.max }`; tests/run/type_value_statement.k | 2026-11-13 |
 | 550 | kc builds programs that import `<math>`, where it stopped at math.k's `typealias`: `typealias A = T` (#149) and of a function type (#403), read in a pass before any file is parsed, as kelvinc reads an imported file where its `#import` stands; a type of a file imported in `(c64){...}` and `sizeof(c64)`; `self` of its own type in a number's method, so `exp(self)` picks an overload; `Self(x)`; a C header's name given to an overloaded function, `copysign(INFINITY, y)`, `pow(z, NAN)`; and kelvinc's `-ffp-contract=off`; kelvinc is unchanged | selfhost/parse.k: alias_pass, scan_records, parse_typealias, `Self(`; selfhost/gen.k: type_of of self, c_name, choose_among; selfhost/kc.k and lex.k: file_by, cc's flags; selfhost/README.md; selfhost/sample.k | `#import <math>` and `let z:complex64 = complex64(3.0, 4.0)`, `abs(z)` is `5.0` from kc's build; selfhost/sample.k's ma_ lines | 2026-11-13 |
+| 551 | An overlay, as Swift's cross-import overlay: where the modules `<A>` and `<B>` are both imported, `A+B.kh`, else `A+B.k`, of `./modules` or Kelvin's `modules/`, is imported too, as if `#import <A+B>` stood right after the later of the two, whichever comes first; what `A` offers of `B`'s types, which a program that imports one alone neither sees nor compiles; Kelvin has no `#if` to ask with; `A+B` and `B+A` are two; one of an overlay is not looked for; written out it is a module as any; kelvinc and kc | src/main.c: with_overlays; selfhost/kc.k: load_overlays; selfhost/parse.k: alias_order; selfhost/lex.k; documents/modules.md, selfhost/README.md | `#import <ovl_len>` and `#import <ovl_time>` bring `ovl_len+ovl_time.k`, whose `ovl_len(100.0) / ovl_time(8.0)` is `{mps: 12.5}`; tests/project/overlay.k, overlay_reversed.k, overlay_nested.k, overlay_alone.k, overlay_written.k | 2026-11-14 |
 
 Notes:
 
@@ -1183,6 +1184,41 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (551) Agreed details: "Do we have a mechanism to tell if a certain module is imported?"
+  - The user asked for `cbr`, aka `complexBigRat`, a complex number of
+    two bigrats, "defined only when `<Rational>` is `#import`'ed in
+    `<math>`", and whether Kelvin can tell that a module is imported.
+  - It could not, from a source file. kelvinc knew, for its own
+    errors of IO and OS (module_imported), and the prelude brings
+    RegExp and BigInt in where a program names them; `#if` is refused
+    on purpose.
+  - Claude asked how `cbr` should come with the two modules, and the
+    user chose "Overlay file (Recommended)" over a conditional import
+    line in math.k, a conditional block in math.k, and a third module
+    the program imports itself.
+    - So the file's name is the question: `math+Rational.k` is read
+      where `<math>` and `<Rational>` both are. No new syntax.
+    - `+` in the name is Claude's; Swift writes `_A_B`.
+  - Two numbers, as one change at a time: the mechanism here, and
+    `cbr` in #552, which the user asked for in the same message and
+    chose "Exact arithmetic (Recommended)" for.
+  - Claude's choices, the user's to change:
+    - An overlay stands right after the later of its two modules, so
+      what follows sees it, as what follows an `#import` does.
+    - `A+B` and `B+A` are two files, each read where it is there:
+      `A`'s overlay of `B`, and `B`'s of `A`.
+    - No overlay of an overlay, `A+B+C`.
+    - An overlay's `#import` is implied, as the prelude's: a module's
+      header does not write it.
+    - A module of the prelude counts as imported where the program
+      names it.
+  - kc: it reads the files one after another, so where an overlay
+    stands matters to its aliases alone (#550): the pass before
+    parsing places each overlay first, then walks.
+    - kc's overlays are tried by hand here, the five tests built by
+      kc too; sample.k, built from the top of the tree, has no
+      overlay to meet until #552's is in `modules/`.
 
 - (550) Agreed details: "make kc import <math> as #550"
   - kc stopped at math.k:168, `typealias complex64 = c64`, one of the
@@ -9074,6 +9110,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P560 | Details of #548 | src/parser.c: where `v.x` reads an attribute, a receiver that is arithmetic of literals of an i64 is cast to i64, a converter's, and where an i64 has an attribute of the name it is that one's, the literals widened, as #538's of a method; a float's literal needed none, C's double being an f64; an attribute only another type has, `7.sq` of an i32's, is still "literals have no suffixes"; selfhost/sample.k: `7.at_sq` and `(1 << 20).at_sq` | provisional |
 | P561 | Details of #549 | src/parser.c: where a statement begins with a type's word and is no declaration, a converter's word, String or Bytes followed by `.` and a name is call_like, as IO., OS. and SYS. are, so the error of C's declaration is not said; `i64 x = 3`, `bool b` and `f64 .5` are still it; a statement of such a value alone, with no effect, is C's warning of an unused value, as any is; selfhost/parse.k: after map, filter, flatMap, their WithKey forms, contains, firstKey, lastKey, firstIndex, lastIndex and prefix a `{` is the function where no condition's or for's head ends at one, brace_ends, else anon_ahead as before; kc's C of itself is the same count of lines; selfhost/sample.k: tv_ lines; tests/run's is kelvinc's alone, as it imports <math> | provisional |
 | P562 | Details of #550 | selfhost/lex.k: file_by, the `#import` token each file was first read for, -1 the program's own and the prelude's, set by kc.k's load from reading_by, which load_imports and load_module set around their reads; selfhost/parse.k: alias_pass, called first in parse_program where a file names `typealias`, finds each file's tokens (file_from, file_to) and the file of each `#import` (import_reads), then alias_walk walks the roots, the prelude's before the program's, entering a file at its `#import`; at depth 0 and a line's start it notes a struct's, union's or enum's name (alias_records) and reads a typealias (alias_at): a refused one is kept by its token in alias_errs, 1 a built-in type's name, 2 declared already, 3 no type, which parse_typealias says where it parses the line; an alias of a function type is parsed there by parse_type and kept in fn_aliases by name, which parse_bare_type asks before a number's word; else alias_reach makes each token of the name's text the target's (at, len) in the rest of the file and in the files read for its imports, then from after the `#import` its file was read for, up to a root; scan_records notes `struct|union|enum NAME {` at the top of every file in far_records, and far_record answers literal_type and sizeof_type_at for a name of another file than its own; `Self(` in a method is the receiver's name, an N_TYPE of String or Bytes; selfhost/gen.k: type_of of N_SELF is recv_type, a number's, a String's or a Bytes's own, else the struct's; c_name, a bare name no variable, function or `none`, where a C header is imported: arg_fit gives it 1 for a parameter of no tagged type, sees_c_arg counts it, put_generic_tree branches on it; choose_among clears tied_cands after the fits are reckoned; selfhost/kc.k: `-Wno-psabi` and `-ffp-contract=off` to cc; kc's C of itself is 35020 lines, 34653 before; a typealias in a body is still no statement of kc's; an alias checks a name declared already against the records walked and the functions and globals parsed so far | provisional |
+| P563 | Details of #551 | src/main.c: with_overlays, after with_prelude: the modules of the token stream, each `#import <M>` of a Kelvin file by module_name, `<dir/M.k>` M, with the TK_FILE_END its file ends at, found by the path import_path gives, else its `#import`; for each ordered pair of two names with no `+`, tried once, `A+B.kh` then `A+B.k` in `./modules`, then Kelvin's; one found and not imported already is read by with_imports from a TK_IMPORT_K `<A+B>`, implied, and its tokens go in after the later of the two ends; then the modules are looked at again, as its imports may have made a pair; `#include <stdint.h>` for intptr_t; selfhost/kc.k: module_names and module_files, noted by load_module and load_prelude, a name with `+` not; load_module_imports, the scan of `#import <M>` tokens from import_scan, which load_prelude called in two loops; load_overlays, after load_prelude: each ordered pair once, the file read with reading_by -2 and reading_a, reading_b its two modules' files, then its imports; selfhost/lex.k: file_with_a, file_with_b; selfhost/parse.k: alias_order passes the files as kelvinc reads them and alias_overlays gives each overlay whose two modules are passed its place, file_by the `#import` token and file_next the chain of files read at one token, or a root after its two roots; alias_walk and alias_reach follow the chain, and alias_at reaches the overlays read after a file at its `#import`; the roots are kept in alias_roots; the comment of parse_program is its own again | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
