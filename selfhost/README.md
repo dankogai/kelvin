@@ -604,6 +604,27 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`+x`, the prefix** (#560), as kelvinc's: C's, the value itself, and
+  a small integer's an `int32`, as `-x`'s is. kc had no prefix `+`:
+  `+1` was "an expression is expected".
+  - `+1` and `+1.5` are the numbers, and `+-1` is `-1`: parse.k drops
+    the `+` before a number, so `let k:u8 = +200` fits as `200` does,
+    and `var x = +1` is an `i64`.
+  - Before anything else it is a node of its own, written `(+x)`:
+    `+b` of a `u8` is an `i32`, `+f` of an `f32` an `f32`.
+  - It takes no operator of a struct, as kelvinc's takes none: `+z`
+    of a `c64` is C's error from both.
+  - After `...` and `..<` it begins the range's end: `+1...+3`.
+  - A line that begins with `+` goes on with the line before it, as
+    it did: the binary one.
+  - So a text with a sign pastes back into kc too: `+2.0`,
+    `+0x1.8p+0`, `(+0x1.8p+0-0x1p+1.i)` of a `c64` (#558, #559).
+  - tests/run's unary_plus.k, float_dec.k and complex_text.k are
+    built by kc, and print what kelvinc's builds print; sample.k has
+    a line of them.
+  - Not yet as kelvinc's: `(+ok).typename` of a bool, of an enum's
+    constant and of a character is kc's `bool`, the enum and `i64`,
+    where kelvinc's is `i32`; so it is of `-ok` and `ok + 1`.
 - **A fixed array of pointers** (#557), as kelvinc's:
   `var pp:[i32^](2) = [&a, &b]`, `let names:[const u8^](2) = ["a", "b"]`,
   an array of them in turn, a struct's member `at:[node^](3)`, and a

@@ -10532,3 +10532,23 @@ One sign of a zero is lost in pasting back, `(-0.0+2.0.i)`, which
 math.md says. Details are provisional P571.
 
 There are 1345 tests, and all pass with clang and with gcc 15.
+
+### 607. kc reads the prefix +
+
+**User** ordered it with the push of #558 and #559:
+
+> push then make kc read unary + as #560
+
+**Claude** had told the user of the gap in #558: kc had no prefix `+`,
+so `+2.0` was "an expression is expected", and a text with a sign
+pasted back into kelvinc alone. kc reads it now as kelvinc does, which
+writes C's `+x`: the value itself, a small integer's an `int32`. Before
+a number the parser drops it, so `+200` fits a `u8` as `200` does and
+`+-1` is `-1`. It takes no operator of a struct, as kelvinc's takes
+none. tests/run/unary_plus.k is new, built by both, and kc builds
+float_dec.k and complex_text.k too. Two faults of kelvinc's came up,
+each a text that does not paste back, and Claude told the user:
+`0o52`, the text of `.oct`, is no literal of Kelvin's, and `+1n` of a
+BigInt is C's error. Details are provisional P572.
+
+There are 1346 tests, and all pass with clang and with gcc 15.

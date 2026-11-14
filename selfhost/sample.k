@@ -1513,6 +1513,12 @@ on a new line`
     println(bigrat.pi(64), " ", exp(bigrat(1), 32), " ", 1n.over(3n).sin(16), " ", sqrt(bigrat(2)) == sqrt(bigrat(2), bigrat.precision))   // math's functions of a bigrat, to a precision (#553)
     println(exp(cbr(bigrat(0), bigrat.pi(200)), 64), " ", cb_z.sqrt(16), " ", abs(cbr(3, 4), 0), " ", asin(cbr(2), 8), " ", pow(cbr(1, 1), cbr(8), 0))   // and of a cbr (#554)
     println(ma_z.hex, " ", ma_z.dec, " ", 1.0.i.conj().hex, " ", ma_z.hex.typename, " ", 2.0.dec, " ", cb_z.hex, " ", cb_z.oct, " ", cbr(3, -4).bin)   // a complex number's text as its parts' (#559), a float's .dec with its point (#558)
+    var up_b:u8 = 200                                   // +x, the prefix (#560): C's, a small integer's an int, and +1 the number 1
+    let up_k:u8 = +200
+    let up_t:i32 = 10
+        + 5
+    println(+up_b, " ", (+up_b).typename, " ", up_k, " ", up_t, " ", +-+1, " ", 1 - +2, " ", +2 ** 3, " ", +1...+3)
+    println(`${+up_b}`, " ", +2.0, " ", +0x1.8p+0, " ", (+0x1.8p+0-0x1p+1.i) == c64(1.5, -2.0), " ", (+1.5-2.0.i).typename)   // a text with a sign pastes back (#558, #559)
     var tv_xs = (0..<8).map { bool.random() }           // a body that begins with a type's word, and names no $0 (#549)
     var tv_ys = (0..<3).map { u8.max }
     println(tv_xs.count, " ", tv_xs.typename, " ", tv_ys, " ", tv_top(), " ", $[1, 2].map { 7 })

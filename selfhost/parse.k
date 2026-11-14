@@ -2322,6 +2322,16 @@ let parse_unary():int64 {
         set_a(n, parse_unary())
         return n
     }
+    if at_word("+") {                            // +x (#560), as kelvinc's: C's, the value itself, a small integer's an int
+        let t:int64 = advance()
+        let a:int64 = parse_unary()
+        if a < 0 { return a }
+        if nodes[a].kind == N_NUM { return a }           // +1, +1.5: the number, which fits what 1 fits
+        if nodes[a].kind == N_UNARY && tok_is(nodes[a].t, "-") && nodes[nodes[a].a].kind == N_NUM { return a }   // +-1, as -1
+        let n:int64 = make_node(N_UNARY, t)
+        set_a(n, a)
+        return n
+    }
     if at_word("&") {
         let t:int64 = advance()
         let n:int64 = make_node(N_ADDR, t)
@@ -2423,7 +2433,7 @@ let binding_power():int64 {
 let range_ends():bool {
     if at_kind(T_NL) || at_kind(T_EOF) { return true }
     if !at_kind(T_PUNCT) { return false }
-    return !(at_word("(") || at_word("-") || at_word("!") || at_word("&") || at_word("$[") || at_word("${") || at_word("[") || at_word("."))
+    return !(at_word("(") || at_word("-") || at_word("+") || at_word("!") || at_word("&") || at_word("$[") || at_word("${") || at_word("[") || at_word("."))
 }
 
 // whether a binary operator starts the next line, which goes on with the
