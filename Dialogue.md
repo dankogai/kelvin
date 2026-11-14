@@ -10374,3 +10374,16 @@ with modules of tests/project; `cbr` is #552. Details are provisional
 P563.
 
 There are 1334 tests, and all pass with clang and with gcc 15.
+
+### 599. cbr, a complex number of two bigrats
+
+**Claude** wrote `cbr` as the user had chosen it in §598: the overlay
+`modules/math+Rational.k`, read where `<math>` and `<Rational>` are both
+imported, holds a struct of two bigrats, `complexBigRat` by its alias,
+with what stays rational: the four operations with a bigrat, a BigInt
+or an `i64` on either side, `conj`, `norm`, `z.i` and a bigrat's `r.i`.
+`c64(z)` leaves for the functions that are not rational. Division by 0
+and by an infinity follow `c64`'s, Claude's choice. kc builds it as
+kelvinc does, and sample.k has it. Details are provisional P564.
+
+There are 1337 tests, and all pass with clang and with gcc 15.

@@ -604,6 +604,12 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`cbr`** (#552): modules/math+Rational.k, the overlay of math with
+  Rational, is Kelvin alone, and kc builds it as it is: a struct of two
+  bigrats, its operators with a bigrat, a BigInt or an `i64` on either
+  side, and a bigrat's `.i`.
+  - sample.k imports both modules, so it has `cbr`: the first overlay
+    kc reads in the battery.
 - **Overlays** (#551), as kelvinc's: where the modules `<A>` and `<B>`
   are both read, `A+B.kh`, else `A+B.k`, of ./modules or of the modules
   directory, is read too, with what it imports.

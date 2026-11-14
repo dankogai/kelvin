@@ -450,3 +450,6 @@ So far the changes from C are these, by topic.
     mix: `rat64(r)` converts (#539)
   - `bigrat` is of two `BigInt`s, a fraction of any precision:
     `1n.over(3n)` is `(1n/3n)`, and every result fits (#540)
+  - with `#import <math>` too there is `cbr`, a complex number of two
+    bigrats, exact in `+ - * /`: `1 / cbr(3, -4)` is
+    `{real: (3n/25n), imag: (4n/25n)}` (#552)

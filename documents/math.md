@@ -1,6 +1,6 @@
 # Math: `#import <math>`
 
-The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `cbr`, an exact one.
 
 ## Synopsis
 
@@ -102,9 +102,53 @@ turn on the Gaussian plane.
   c` with two roundings, as gcc does, and the results are the same with
   both *(provisional P55)*.
 
+### Exact complex numbers: `cbr`, with `<Rational>`
+
+Where a program imports `<Rational>` too, `<math>` has a complex number
+of two `bigrat`s (#552), fractions of any size
+([rational.md](rational.md)): every result is exact.
+
+```swift
+#import <math>
+#import <Rational>
+
+let main():int32 {
+    let z = cbr(1n.over(2n), 1n.over(3n))        // or complexBigRat(...), by the alias
+    println(z * z.conj(), " ", norm(z))           // {real: (13n/36n), imag: (0n/1n)} (13n/36n)
+    println(1 / cbr(3, -4))                       // {real: (3n/25n), imag: (4n/25n)}
+    println(abs(c64(cbr(3, -4))))                 // 5.0, by way of a c64
+    return 0
+}
+```
+
+- **The type**: `cbr`, with `real` and `imag` of `bigrat`, a struct;
+  `complexBigRat` is its alias, as `complex64` is `c64`'s.
+  - It is there with both imports alone: a program with `<math>` or
+    `<Rational>` alone neither sees it nor compiles it.
+  - It lives in an overlay, `modules/math+Rational.k` (#551,
+    [modules.md](modules.md)).
+- **Making one**: `cbr(re, im)` and `cbr(re)` of bigrats, of BigInts or
+  of `i64`s, and `(cbr){re, im}` of two bigrats.
+- **Arithmetic**: `+ - * /`, unary `-`, `==` and `!=`, between two, or
+  one and a `bigrat`, a `BigInt` or an `i64`, either way round.
+  - Nothing rounds and nothing overflows: `cbr(1, 1)` multiplied up to
+    its 128th power is `2^64`, exactly.
+  - `z / 0` is infinite, each part a bigrat's infinity, by an infinity
+    it is 0, and `0 / 0` has NaN parts, which equal nothing, as a
+    `c64`'s.
+- **What stays rational**: `conj(z)` and `norm(z)`, a `bigrat`, each a
+  method too; `z.i` is `z` times `i`, and `r.i` of a bigrat is
+  `cbr(0, r)`.
+- **What does not**: `abs`, `arg`, `exp`, `sqrt` and the rest are
+  seldom rational. `c64(z)` is the nearest `c64`, which has them.
+  - No `cbr` is made of a `c64`: Rational makes no fraction of a float.
+- **The text** of one is its parts', as a struct's:
+  `{real: (1n/2n), imag: (1n/3n)}`; it does not paste back, as a
+  rational's does not.
+
 ## Where it lives
 
-`modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+`cbr` is `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
 ## Functions
 
@@ -115,6 +159,14 @@ pow(x:float64, y:float64):float64, pow(z:c64, w:c64):c64, pow(z:c64, x:float64):
 abs(x:float64):float64, abs(x:float32):float32, abs(n:int64):int64, abs(z:c64):float64, abs(z:c32):float32
 conj(z:c64):c64, arg(z:c64):float64, norm(z:c64):float64                   // and of a c32
 c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, polar(r:float64, theta:float64):c64
+```
+
+With `<Rational>` (#552):
+
+<!-- fragment -->
+```swift
+cbr(real:bigrat, imag:bigrat):cbr, cbr(real:bigrat):cbr                    // and of BigInts, and of i64s
+c64(z:cbr):c64, conj(z:cbr):cbr, norm(z:cbr):bigrat
 ```
 
 ## Properties and methods
@@ -134,3 +186,10 @@ c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, pola
 | | `z ** w` | `pow(z, w)`, with a `c64`, a `c32` or a real number of its parts' type on either side (#380) |
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: 1.0, imag: 2.0}` |
+| `cbr`, with `<Rational>` (#552) | `.real`, `.imag` | the parts, fields, each a `bigrat` |
+| | `+`, `-`, `*`, `/`, prefix `-`, `==`, `!=` | exact, of two, or with a `bigrat`, a `BigInt` or an `i64` on either side |
+| | `.conj()` | the conjugate, a `cbr` |
+| | `.norm()` | `real² + imag²`, a `bigrat` |
+| | `.i` | `z` times `i` |
+| | `.cstr`, `${z}`, `println(z)` | `{real: (1n/2n), imag: (1n/3n)}` |
+| `bigrat`, with `<Rational>` (#552) | `.i` | `cbr(0, r)`: the value rotated a quarter turn |

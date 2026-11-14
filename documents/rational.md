@@ -106,6 +106,11 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 - **`r.f64`** is the nearest `f64`: 0.5 of `(1/2)`, `inf` or `-inf` of
   an infinity, `nan` of a NaN.
 - **`r.num` and `r.den`** are its members, read as any struct's.
+- **With `<math>`** a program has `cbr` too (#552), a complex number
+  of two bigrats, and `r.i` of a bigrat is `cbr(0, r)`: see
+  [math.md](math.md).
+  - It comes with the two imports, by an overlay,
+    `modules/math+Rational.k` (#551, [modules.md](modules.md)).
 
 ## Where it lives
 
@@ -146,3 +151,4 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/+0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |
+| | `.i`, with `<math>` (#552) | `cbr(0, r)`, a complex number of two bigrats ([math.md](math.md)) |
