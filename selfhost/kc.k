@@ -142,6 +142,7 @@ let load(path:String^):Result<int64, String> {
     var text:String = f.string ?? $""                    // a Result (#406, #407); source_error saw it is UTF-8
     let file:int64 = fnames.count as int64
     fnames += path^.copy()
+    file_by += reading_by
     let from:int64 = codes.count as int64
     for c in text.codepoints {
         codes += c
@@ -175,7 +176,10 @@ let load_imports():bool {
             for k in 0..<fnames.count as int64 {
                 if fnames[k] == path { seen = true }
             }
-            if !seen && !loads(&path) { return false }
+            reading_by = i                               // whose aliases reach what follows the #import (#550)
+            let read = seen || loads(&path)
+            reading_by = 0 - 1
+            if !read { return false }
         }
         i += 1
     }
@@ -301,13 +305,19 @@ let load_module(mods:String^, t:int64):bool {
             if exists(&kh) {
                 if read_already(&kh) { return true }
                 module_library(&dir, &name)
-                return loads(&kh)
+                reading_by = t                           // (#550)
+                let read = loads(&kh)
+                reading_by = 0 - 1
+                return read
             }
             path += ".k"
         }
         if exists(&path) {
             if read_already(&path) { return true }
-            return loads(&path)
+            reading_by = t
+            let read = loads(&path)
+            reading_by = 0 - 1
+            return read
         }
     }
     var why = $"cannot find "
@@ -493,6 +503,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     cc_arg(&args, "-Wno-incompatible-library-redeclaration")
     cc_arg(&args, "-Wno-builtin-declaration-mismatch")
     cc_arg(&args, "-Wno-tautological-constant-out-of-range-compare")   // a converter's clamp (#513)
+    cc_arg(&args, "-Wno-psabi")
+    cc_arg(&args, "-ffp-contract=off")             // a * b + c rounded twice, as kelvinc has it: z * w == w * z in <math> (#43, #550)
     var here = $"./modules"
     if exists(&here) {                          // C's headers of a module of ./modules, as kelvinc's (#516)
         var pre = $"./modules/kelvin_prelude.h"

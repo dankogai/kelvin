@@ -8,6 +8,8 @@
 #import <IO>                                          // f.lines, f.write (#450)
 #import <JSON>                                        // modules/JSON.kh, and libkJSON.a beside it (#516)
 #import <Rational>                                    // modules/Rational.k, a module's source, which names BigInt (#542)
+#import <math>                                        // modules/math.k: its typealias, C's names, Self(x) (#550)
+#import <math.h> as C
 
 struct point {
     x: int64
@@ -528,6 +530,24 @@ let tm_bits.cstr():cstr { `bits ${.u.hex}` }
 struct tm_tag { n: i64 }
 extend tm_tag {
     let cstr():cstr { "a tag" }
+}
+// aliases (#550): of a struct, of a number's type, of <math>'s own alias,
+// and of a function type; an overloaded function given self in a
+// number's method, and Self(x), the type's converter
+struct ma_pair { a: f64; b: f64 }
+typealias ma_p = ma_pair
+typealias ma_real = float64
+typealias ma_cx = complex64
+typealias ma_op = (f64):f64
+extend ma_p {
+    static let ma_of(x:ma_real):Self { (Self){x, x * 2.0} }
+    let ma_sum():ma_real { .a + .b }
+}
+let ma_apply(f:ma_op, x:f64):f64 { f(x) }
+let ma_half(x:f64):f64 { x / 2.0 }
+extend f64 {
+    let ma_root():Self { sqrt(self) }
+    let ma_twice():Self { Self(2) * self }
 }
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
@@ -1464,6 +1484,12 @@ on a new line`
     let rn_r:Range<i16> = -3..<3
     let rn_s = i16.random(rn_r)
     println(rn_in, " ", rn_s >= -3 && rn_s < 3, " ", i64.random(7...7), " ", i64.random() != i64.random(), " ", u128.random().typename, " ", bool.random().typename, " ", f32.random(1.5).typename)
+    let ma_z:ma_cx = ma_cx(3.0, 4.0)                    // <math> (#550): complex64, its alias of c64, and ours of that
+    let ma_w = (c64){1.0, 2.0} * ma_z.conj()            // a type of a file imported, in a compound literal and in sizeof
+    let ma_q:ma_p = ma_p.ma_of(ma_real(1.5))
+    println(abs(ma_z), " ", ma_z.typename, " ", ma_w, " ", 1.0.i * 1.0.i, " ", 1.0 / ma_z, " ", sqrt(16.0), " ", 16.0.ma_root(), " ", 1.5.ma_twice())
+    println(ma_q, " ", ma_q.ma_sum(), " ", ma_q.typename, " ", ma_apply(ma_half, 9.0), " ", sizeof(c64), " ", sizeof(ma_cx) == sizeof(complex32) * 2, " ", 2.0.pow(10.0), " ", floor(2.5))
+    println(copysign(INFINITY, -1.0), " ", isnan(pow(ma_z, NAN).real) != 0, " ", fmax(NAN, 2.0), " ", f64.tau > 6.28)   // C's names, given to overloads
     var tv_xs = (0..<8).map { bool.random() }           // a body that begins with a type's word, and names no $0 (#549)
     var tv_ys = (0..<3).map { u8.max }
     println(tv_xs.count, " ", tv_xs.typename, " ", tv_ys, " ", tv_top(), " ", $[1, 2].map { 7 })

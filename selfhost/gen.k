@@ -1968,7 +1968,7 @@ let type_of(n:int64):int64 {
     if k == N_TPL { return base_type(nodes[n].flag == 1 ? Y_STRING : Y_CSTR) }   // `a${x}b`, $`a${x}b` a String (#445)
     if k == N_BOOL { return base_type(Y_BOOL) }
     if k == N_NULL { return base_type(Y_C) }
-    if k == N_SELF { return type_of_kind(Y_STRUCT, -1, nodes[current].c) }      // (#213)
+    if k == N_SELF { return recv_type(nodes[current].c) }      // (#213); a number's, a String's or a Bytes's own (#550)
     if float_word(n) { return base_type(Y_F64) }                      // nan, inf (#262)
     if k == N_ID {
         if t < eof_pos && kelvin_word(t) {               // as an unnamed parameter's (#388)
@@ -3294,6 +3294,12 @@ let is_word_value(x:int64):bool {
     return tok_is(w, "ok") || tok_is(w, "err") || tok_is(w, "some")
 }
 
+// whether x is a bare name that only C sees, INFINITY of math.h, where a
+// C header is imported: no name of the program, and not none (#550)
+let c_name(x:int64):bool {
+    return c_headers && nodes[x].kind == N_ID && is_case_word(x) && !tok_is(nodes[x].t, "none")
+}
+
 // how a call's argument a fits a parameter of type t, as kelvinc's fit:
 // 2 its very type, 1 one it converts to, 0 none; a T fits a T? only
 // where wraps is, the second look (#222)
@@ -3303,7 +3309,7 @@ let arg_fit(a:int64, t:int64, wraps:bool):int64 {
     let tk:ykind = types[t].kind
     if is_word_value(a) {                                // none, ok(v), err(e): of the type that takes them
         let d = tagged_of(t)
-        if d < 0 { return 0 }
+        if d < 0 { return c_name(a) ? 1 : 0 }            // a C header's name, INFINITY, which C converts (#550)
         let w = k == N_CALL ? nodes[nodes[a].a].t : nodes[a].t
         return case_named(d, w).is(some) ? 1 : 0
     }
@@ -3339,7 +3345,6 @@ let choose_overload(n:int64, name:String^, wraps:bool):int64 {
 // the one of some that call n's arguments fit best, as choose_overload
 // says it: of a function's overloads, or of a method's (#515)
 let choose_among(n:int64, some:const $[int64]^, wraps:bool):int64 {
-    while tied_cands.count > 0 { tied_cands.pop() }
     var cands:$[int64] = $[]
     var fits:$[int64] = $[]
     var nargs = 0
@@ -3368,7 +3373,8 @@ let choose_among(n:int64, some:const $[int64]^, wraps:bool):int64 {
         }
         cands += d
     }
-    var best = -1
+    while tied_cands.count > 0 { tied_cands.pop() }      // here, once its arguments are typed: one of them may be a call
+    var best = -1                                        // chosen so in turn, pow(c64(0.0), NAN), which left its own (#550)
     var ties = 0
     for i in 0..<cands.count as int64 {
         var beaten = false
@@ -3401,6 +3407,7 @@ var generic_sets:$[int64]                 // these, their count first
 let sees_c_arg(n:int64):bool {
     var a:int64 = nodes[n].b
     while a >= 0 {
+        if c_name(a) { return true }                      // pow(z, NAN) (#550)
         let y:int64 = is_word_value(a) ? 0 - 1 : type_of(a)
         if y >= 0 && types[y].kind == Y_C { return true }
         a = nodes[a].next
@@ -6994,7 +7001,7 @@ let put_generic_tree(cands:const $[int64]^, first:int64, base:int64, from:int64,
         for d in cands^ {
             if param_at(d, k) != param_at(cands^[0], k) { differ = true }
         }
-        if differ && ay >= 0 && types[ay].kind == Y_C { break }
+        if differ && ((ay >= 0 && types[ay].kind == Y_C) || c_name(a)) { break }   // NAN, a C header's name (#550)
         k += 1
     }
     if k >= nargs {

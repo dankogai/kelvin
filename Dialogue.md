@@ -10329,3 +10329,24 @@ corrected: it took a `{ }` after `map` for a function only where it
 named `$0`, and now takes any. Details are provisional P561.
 
 There are 1329 tests, and all pass with clang and with gcc 15.
+
+### 597. kc imports math
+
+> make kc import <math> as #550
+
+**Claude** found kc stopped at math.k's `typealias`, and that the alias
+was the first of several things between kc and the module. kelvinc
+makes each later token of an alias its type's, reading an imported file
+where its `#import` stands; kc parses the program before the files it
+imports, so Claude gave kc a pass before parsing that walks the files in
+kelvinc's order. The rest came one refusal at a time: a type of an
+imported file in `(c64){...}` and `sizeof`, `self`'s own type in a
+number's method, `Self(x)`, a C header's name given to an overloaded
+function, and kelvinc's `-ffp-contract=off`. A fault of kc's own
+overloading showed on the way, and is fixed. Claude built every test of
+tests/run with kc before and after: none changed, and 9 more build and
+print what kelvinc's print. Three other gaps of kc showed in tests that
+import math and are no part of importing; Claude listed them and left
+them. Details are provisional P562.
+
+There are 1329 tests, and all pass with clang and with gcc 15.

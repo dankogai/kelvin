@@ -30,6 +30,8 @@ struct tok {
 var codes:$[uint32]       // every file's text
 var toks:$[tok]
 var fnames:$[String]      // every file's name
+var file_by:$[int64]      // the #import token each file was first read for; -1 the program's own and the prelude's (#550)
+var reading_by:int64 = 0 - 1
 var failed:bool
 var eof_pos = 0           // the end of the files' tokens: kc's own come after it (#217)
 

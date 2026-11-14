@@ -598,6 +598,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 547 | `T.random()` of the number types and of `bool`, as Swift's `T.random(in:)`, by the system's random bits, with no seed and no import: of an integer type any of its values, and `T.random(r)` one of a `Range<T>`'s; of a floating-point type a number from 0.0 up to 1.0, `T.random(lim)` up to a limit and `T.random(start, lim)` from a start, without the limit; `bool.random()` true or false; each as likely; an empty range, or a start not below its limit, ends the program, said; kelvinc and kc | runtime/random.k, runtime/random.c; modules/kelvin_prelude.h; src/parser.c: random_call; src/codegen.c; selfhost/gen.k: random_of, gen_random; documents/integers.md, floatingpoint.md, bool.md, ranges.md, README.md, selfhost/README.md | `i64.random(1...6)` is a die's roll; tests/run/random.k, random_empty_range.k, random_float_limit.k, seven of tests/error/random_*.k | 2026-11-13 |
 | 548 | An attribute of an `i64` is read on a literal, `7.half`, and on arithmetic of literals, `(1 << 40).half`, reckoned in the i64 it is, as its method is called on one (#538); it was C's error, the literal an `int` to C, which no attribute of an i64 is of; kc read it already | src/parser.c: the attribute's read; documents/properties.md; selfhost/sample.k | `println(7.half)` of `let i64.half:f64 { self as f64 / 2.0 }` is `3.5`; tests/run/literal_attribute.k | 2026-11-13 |
 | 549 | A statement that begins with a type's word, then a `.` and a name, is a value of the type's own: `bool.random()`, `i64.max`, `f64.pi * 2.0`, `String.fromCodepoints(c)`, the one expression of a body or of a `{ }` given to `map`; kelvinc took it for C's declaration, `bool x`; and in kc a `{ }` after `map`, `filter` and their kin is their function whatever it holds, `{ bool.random() }`, `{ 7 }`, where kc asked for a `$0` or written parameters; so `var xs = (0..<8).map { bool.random() }` is read by both | src/parser.c: parse_statement's call_like; selfhost/parse.k: the trailing function of map and its kin; documents/integers.md, selfhost/README.md; selfhost/sample.k | `let top():i64 { i64.max }`; tests/run/type_value_statement.k | 2026-11-13 |
+| 550 | kc builds programs that import `<math>`, where it stopped at math.k's `typealias`: `typealias A = T` (#149) and of a function type (#403), read in a pass before any file is parsed, as kelvinc reads an imported file where its `#import` stands; a type of a file imported in `(c64){...}` and `sizeof(c64)`; `self` of its own type in a number's method, so `exp(self)` picks an overload; `Self(x)`; a C header's name given to an overloaded function, `copysign(INFINITY, y)`, `pow(z, NAN)`; and kelvinc's `-ffp-contract=off`; kelvinc is unchanged | selfhost/parse.k: alias_pass, scan_records, parse_typealias, `Self(`; selfhost/gen.k: type_of of self, c_name, choose_among; selfhost/kc.k and lex.k: file_by, cc's flags; selfhost/README.md; selfhost/sample.k | `#import <math>` and `let z:complex64 = complex64(3.0, 4.0)`, `abs(z)` is `5.0` from kc's build; selfhost/sample.k's ma_ lines | 2026-11-13 |
 
 Notes:
 
@@ -1182,6 +1183,48 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (550) Agreed details: "make kc import <math> as #550"
+  - kc stopped at math.k:168, `typealias complex64 = c64`, one of the
+    gaps Claude had reported and the user had not asked for until now.
+  - What it took, each found by building the next thing kc refused:
+    - `typealias`, kelvinc's #149, and of a function type, #403.
+      - kelvinc makes each later token `A` into `T`, and reads an
+        imported file where its `#import` stands. kc parses the
+        program's file first and the files it imports after it, so an
+        alias of a module came too late for the program.
+      - So kc applies the aliases in a pass before it parses, walking
+        the files in kelvinc's order. Claude's choice; the other way,
+        reordering what kc parses, would have changed kc's C of itself
+        and of every program.
+    - A type of a file imported, `(c64){1.0, 2.0}` and `sizeof(c64)`:
+      the parser knew a struct only once parsed. Not math's alone:
+      any `#import "x.k"` had it.
+    - `self` in a number's method had the type of a struct named
+      `f64`, so `exp(self)` fit no overload; and `Self(x)` was C's
+      unknown function.
+    - A C header's name, `INFINITY`, `NAN`, was read as `none` is, and
+      fit no overload's parameter.
+    - kc's cc had no `-ffp-contract=off`, so tests/run/complex.k's
+      `(z * conj(z)).imag == 0.0` was false on arm64, where clang
+      fuses `a * b + c`.
+  - A fault of kc met on the way, older than this: the candidates of a
+    tied call were cleared before its arguments were typed, and an
+    argument that is an overloaded call left its own among them; kc
+    ended on an index out of range. Fixed here, as `pow(c64(0.0), NAN)`
+    of tests/run/complex.k needs it.
+  - Checked beyond sample.k: each of tests/run built by kc before and
+    after, 393 programs. 270 built before, and their output is
+    unchanged; 9 more build now, and print what kelvinc's builds print:
+    complex, import_bare, import_kelvin, math_complex_methods,
+    math_real, number_method_before, power_complex,
+    type_value_statement and typealias.
+  - Left, each its own gap and no part of importing, for the user to
+    order: a hex float, `0x1p-1074` (tests/run/float_constants.k);
+    `[T](N)` in an Optional (infer_seen.k); a pointer to a function
+    type as a parameter (function_type_containers.k).
+  - kelvinc is not touched: no test of tests/run is new, and the count
+    stays 1329.
 
 - (549) Agreed details: "push and fix it as #549"
   - The user asked why `var xs = (0..<8).map{ bool.random() }` is an
@@ -9030,6 +9073,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P559 | Details of #547 | runtime/random.c: kv_random_fill, arc4random_buf on macOS and the BSDs, its prototype written, as -std=c11 hides stdlib.h's, and getrandom on Linux, again where a signal breaks it; nothing held between calls, so a fork shares none; runtime/random.k, in Kelvin: kv_random_u64, kv_random_u128, kv_random_below, which draws again below what 2^64 leaves over n, kv_random_span of a Range's bounds as 64 bits, its kind and whether signed, kv_random_f64 of 53 bits and kv_random_f32 of 24, kv_random_f64_in and kv_random_f32_in, drawn again where rounding gives the limit; kelvin_prelude.h declares them; src/parser.c: random_call at `T.random(`, an E_METHOD of op random in a cast `as T`, its range made a Range<T> by string_of_ranged, its errors; src/codegen.c: its C; selfhost/gen.k: random_of, gen_random, asked first by type_of and gen_method; bool's is the top bit of 64; a global's value may be one, set as the program starts, as a call's is; the test checks bounds, types and spread, its bounds eight deviations and more from the mean | provisional |
 | P560 | Details of #548 | src/parser.c: where `v.x` reads an attribute, a receiver that is arithmetic of literals of an i64 is cast to i64, a converter's, and where an i64 has an attribute of the name it is that one's, the literals widened, as #538's of a method; a float's literal needed none, C's double being an f64; an attribute only another type has, `7.sq` of an i32's, is still "literals have no suffixes"; selfhost/sample.k: `7.at_sq` and `(1 << 20).at_sq` | provisional |
 | P561 | Details of #549 | src/parser.c: where a statement begins with a type's word and is no declaration, a converter's word, String or Bytes followed by `.` and a name is call_like, as IO., OS. and SYS. are, so the error of C's declaration is not said; `i64 x = 3`, `bool b` and `f64 .5` are still it; a statement of such a value alone, with no effect, is C's warning of an unused value, as any is; selfhost/parse.k: after map, filter, flatMap, their WithKey forms, contains, firstKey, lastKey, firstIndex, lastIndex and prefix a `{` is the function where no condition's or for's head ends at one, brace_ends, else anon_ahead as before; kc's C of itself is the same count of lines; selfhost/sample.k: tv_ lines; tests/run's is kelvinc's alone, as it imports <math> | provisional |
+| P562 | Details of #550 | selfhost/lex.k: file_by, the `#import` token each file was first read for, -1 the program's own and the prelude's, set by kc.k's load from reading_by, which load_imports and load_module set around their reads; selfhost/parse.k: alias_pass, called first in parse_program where a file names `typealias`, finds each file's tokens (file_from, file_to) and the file of each `#import` (import_reads), then alias_walk walks the roots, the prelude's before the program's, entering a file at its `#import`; at depth 0 and a line's start it notes a struct's, union's or enum's name (alias_records) and reads a typealias (alias_at): a refused one is kept by its token in alias_errs, 1 a built-in type's name, 2 declared already, 3 no type, which parse_typealias says where it parses the line; an alias of a function type is parsed there by parse_type and kept in fn_aliases by name, which parse_bare_type asks before a number's word; else alias_reach makes each token of the name's text the target's (at, len) in the rest of the file and in the files read for its imports, then from after the `#import` its file was read for, up to a root; scan_records notes `struct|union|enum NAME {` at the top of every file in far_records, and far_record answers literal_type and sizeof_type_at for a name of another file than its own; `Self(` in a method is the receiver's name, an N_TYPE of String or Bytes; selfhost/gen.k: type_of of N_SELF is recv_type, a number's, a String's or a Bytes's own, else the struct's; c_name, a bare name no variable, function or `none`, where a C header is imported: arg_fit gives it 1 for a parameter of no tagged type, sees_c_arg counts it, put_generic_tree branches on it; choose_among clears tied_cands after the fits are reckoned; selfhost/kc.k: `-Wno-psabi` and `-ffp-contract=off` to cc; kc's C of itself is 35020 lines, 34653 before; a typealias in a body is still no statement of kc's; an alias checks a name declared already against the records walked and the functions and globals parsed so far | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

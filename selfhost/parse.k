@@ -173,6 +173,7 @@ var nested_of:Dictionary<String, int64>    // a type defined in a struct (#389),
 var outer_of:Dictionary<String, int64>     // and the token of the struct it is defined in
 var own_of:Dictionary<String, int64>       // and its own name's token, kind
 var records_seen:Dictionary<String, int64> // every struct and enum read so far, by its C name (#389)
+var fn_aliases:Dictionary<String, int64>   // typealias op = (i64):i64, by the alias's name (#403, #550)
 var body_struct:int64 = 0 - 1  // the token of the struct whose body is being read, which names its nested types bare (#389)
 var nest_outer:int64 = 0 - 1   // the token of the struct a nested definition is read in (#389)
 var late_seen = false          // whether the program has an x.type gen tells (#423)
@@ -533,6 +534,34 @@ let record_tagged(t:int64, tag:int64):bool {
     return false
 }
 
+// the structs, unions and enums at the top of every file, by name, the
+// token of each one's word (#550): kc parses the program's file before
+// the files it imports, so a type of one of them, c64 of <math>, is not
+// declared so far where the program writes (c64){...} or sizeof(c64), as
+// it is to kelvinc, which reads an imported file where its #import stands
+var far_records:Dictionary<String, int64>
+
+let scan_records() {
+    var depth = 0
+    for k in 0..<eof_pos {
+        if toks[k].kind == T_PUNCT {
+            if tok_is(k, "{") || tok_is(k, "${") { depth += 1 }
+            if tok_is(k, "}") { depth -= 1 }
+        } else if toks[k].kind == T_ID && depth == 0 && toks[k + 1].kind == T_ID && tok_is(k + 2, "{") && (tok_is(k, "struct") || tok_is(k, "union") || tok_is(k, "enum")) {
+            if k == 0 || toks[k - 1].kind == T_NL || tok_is(k - 1, ";") || toks[k - 1].file != toks[k].file { far_records[tok_text(k + 1)] = k }
+        }
+    }
+}
+
+// whether token t names a struct or a union, or an enum where enums is,
+// at the top of another file than its own
+let far_record(t:int64, enums:bool):bool {
+    if far_records.count == 0 { return false }
+    let w:int64 = far_records.get(tok_text(t), 0 - 1)
+    if w < 0 || toks[w].file == toks[t].file { return false }
+    return enums || !tok_is(w, "enum")
+}
+
 // whether token t names the type of a compound literal, (T){...} (#418):
 // Self in a method, or a struct declared so far, a block's and a nested
 // one's too, which a variable or a function of the name leaves the type
@@ -543,7 +572,7 @@ let literal_type(t:int64):bool {
     for d in nodes {
         if d.kind == D_STRUCT && same_text(d.t, u) { return true }
     }
-    return false
+    return far_record(t, false)                          // one of a file imported (#550)
 }
 
 // whether ([T](N))[ or ([T])[ starts here, an array's compound literal
@@ -641,6 +670,7 @@ let sizeof_type_at(t:int64):bool {
             return tok_is(t + 1, ")") || tok_is(t + 1, "^") || tok_is(t + 1, ".")
         }
     }
+    if far_record(t, true) { return tok_is(t + 1, ")") || tok_is(t + 1, "^") || tok_is(t + 1, ".") }   // one of a file imported (#550)
     return false
 }
 
@@ -1299,6 +1329,8 @@ let parse_bare_type():int64 {
         y = type_of_kind(Y_STRUCT, tag, t)               // a C header's, which keeps its word, as one of another word: C's error
     } else if value_type_at(t) {                         // x.type, a value's type (#422), $0.type (#424)
         y = value_type(t)
+    } else if fn_aliases.count > 0 && fn_aliases.has(tok_text(t)) {   // an alias of a function type (#403, #550)
+        y = fn_aliases.get(tok_text(t), -1)
     } else if number_word(t) >= 0 {                  // int64 or i64 (#430), float64 (#262), float32 (#263)
         y = number_word(t)
     } else if tok_is(t, "bool") {
@@ -2138,6 +2170,9 @@ let parse_primary():int64 {
         }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
         if tok_is(t, "Self") && self_name >= 0 && at_word(".") { return make_node(N_ID, self_name) }   // Self.f(), Self.x (#140)
+        if tok_is(t, "Self") && self_name >= 0 && at_word("(") {   // Self(x), the type's own maker, c64(x), or a number's converter (#550)
+            return make_node(tok_is(self_name, "String") || tok_is(self_name, "Bytes") ? N_TYPE : N_ID, self_name)
+        }
         if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bytes(x) (#439)
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
         if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#391)
@@ -3609,8 +3644,200 @@ let body_ahead(t:int64):bool {
     return false
 }
 
+// typealias A = T (#149, #550), Swift's, as kelvinc reads it: from there
+// on A is T wherever a name is read, each later token A made T's, a
+// struct, union or enum read before it or a built-in type. kelvinc reads
+// an imported file where its #import stands; kc reads the files one after
+// another, the program's first, so a pass before any is parsed walks them
+// as kelvinc reads them, each file at the #import it was first read for,
+// and an alias reaches what follows it there: the rest of its file, the
+// files read for the imports in that rest, and what follows the #import
+// its own file was read for. An alias of a function type, typealias op =
+// (i64):i64 (#403), no one token another may stand for, is kept by its
+// name, which parse_bare_type asks
+var alias_errs:Dictionary<int64, int64>      // a typealias the pass refused, by its token: 1 a type already, 2 declared already, 3 no type
+var alias_records:Dictionary<String, int64>  // the structs, unions and enums at the top of the files walked so far
+var file_from:$[int64]                       // each file's first token, and the one after its last
+var file_to:$[int64]
+var import_reads:Dictionary<int64, int64>    // the file a #import token was first read for
+
+let alias_builtin(t:int64):bool {
+    return number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "String") || tok_is(t, "Bytes") || tok_is(t, "IO")
+}
+
+// the tokens of file f from token from on, and of the files read for the
+// imports among them, that are name's text: each made target's
+let alias_reach(f:int64, from:int64, at:int64, len:int64, target:int64) {
+    var k:int64 = from
+    while k < file_to[f] {
+        if toks[k].kind == T_ID && toks[k].len == len {
+            var same = true
+            for j in 0..<len {
+                if codes[toks[k].at + j] != codes[at + j] { same = false }
+            }
+            if same {
+                toks[k].at = toks[target].at
+                toks[k].len = toks[target].len
+            }
+        } else if toks[k].kind == T_IMPORT && import_reads.has(k) {
+            let h:int64 = import_reads.get(k, 0)
+            alias_reach(h, file_from[h], at, len, target)
+        }
+        k += 1
+    }
+}
+
+// typealias at token k of file f, as the pass reads it
+let alias_at(f:int64, k:int64) {
+    let name:int64 = k + 1
+    if toks[name].kind != T_ID || !tok_is(k + 2, "=") { return }   // parse_typealias says what is wrong
+    let target:int64 = k + 3
+    if alias_builtin(name) {
+        alias_errs[k] = 1
+        return
+    }
+    if alias_records.has(tok_text(name)) || fn_aliases.has(tok_text(name)) {
+        alias_errs[k] = 2
+        return
+    }
+    if tok_is(target, "(") {                             // typealias op = (i64):i64 (#403)
+        let saved:int64 = pos
+        pos = target
+        let y:int64 = parse_type()
+        pos = saved
+        if !failed { fn_aliases[tok_text(name)] = y }
+        return
+    }
+    if !alias_builtin(target) && !(toks[target].kind == T_ID && alias_records.has(tok_text(target))) {
+        alias_errs[k] = 3
+        return
+    }
+    let at:int64 = toks[name].at
+    let len:int64 = toks[name].len
+    var g:int64 = f
+    var from:int64 = k + 4
+    while true {
+        alias_reach(g, from, at, len, target)
+        let b:int64 = file_by[g]
+        if b < 0 { break }
+        from = b + 1
+        g = toks[b].file
+    }
+}
+
+// file f walked as kelvinc reads it: a file where its #import stands
+let alias_walk(f:int64) {
+    var depth = 0
+    var k:int64 = file_from[f]
+    while k < file_to[f] && !failed {
+        let kind:tkind = toks[k].kind
+        if kind == T_IMPORT && import_reads.has(k) {
+            alias_walk(import_reads.get(k, 0))
+        } else if kind == T_PUNCT && (tok_is(k, "{") || tok_is(k, "${")) {
+            depth += 1
+        } else if kind == T_PUNCT && tok_is(k, "}") {
+            depth -= 1
+        } else if kind == T_ID && depth == 0 && (k == file_from[f] || toks[k - 1].kind == T_NL || tok_is(k - 1, ";")) {
+            if (tok_is(k, "struct") || tok_is(k, "union") || tok_is(k, "enum")) && toks[k + 1].kind == T_ID {
+                alias_records[tok_text(k + 1)] = k + 1
+            } else if tok_is(k, "typealias") {
+                alias_at(f, k)
+            }
+        }
+        k += 1
+    }
+}
+
+let alias_pass() {
+    var some = false
+    for t in 0..<eof_pos {
+        if toks[t].kind == T_ID && tok_is(t, "typealias") { some = true }
+    }
+    if !some { return }
+    for _ in 0..<file_by.count as int64 {
+        file_from += eof_pos
+        file_to += eof_pos
+    }
+    var k:int64 = eof_pos - 1
+    while k >= 0 {
+        let f:int64 = toks[k].file
+        if file_to[f] == eof_pos && file_from[f] == eof_pos { file_to[f] = k + 1 }
+        file_from[f] = k
+        k -= 1
+    }
+    for h in 0..<file_by.count as int64 {
+        if file_by[h] >= 0 { import_reads[file_by[h]] = h }
+    }
+    var root:int64 = file_by.count as int64 - 1
+    while root >= 0 {                                    // the prelude's first, as kelvinc reads them, then the program
+        if file_by[root] < 0 { alias_walk(root) }
+        root -= 1
+    }
+}
+
+let parse_typealias() {
+    let kw:int64 = advance()
+    let name:int64 = pos
+    let why:int64 = alias_errs.get(kw, 0)
+    if why == 1 {
+        var m = $"'"
+        m += tok_text(name)
+        m += "' is a type already: an alias is a new name, as in 'typealias real = f64'"
+        parse_error(m.cstr)
+        return
+    }
+    if !at_kind(T_ID) {
+        parse_error("typealias names the alias, then its type: 'typealias A = T'")
+        return
+    }
+    var taken = why == 2
+    for d in decls {
+        if (nodes[d].kind == D_FN || nodes[d].kind == D_GLOBAL) && nodes[d].c < 0 && same_text(nodes[d].t, name) { taken = true }
+    }
+    if taken {
+        var m = $"'"
+        m += tok_text(name)
+        m += "' is declared already: an alias is a new name"
+        parse_error(m.cstr)
+        return
+    }
+    advance()
+    if !at_word("=") {
+        var m = $"expected '=' after the alias's name: 'typealias "
+        m += tok_text(name)
+        m += " = T'"
+        parse_error(m.cstr)
+        return
+    }
+    advance()
+    let target:int64 = pos
+    if at_word("(") {                                    // typealias op = (i64):i64 (#403), which the pass kept
+        let y:int64 = parse_type()
+        var f:int64 = y
+        while f >= 0 && (types[f].kind == Y_PTR || types[f].kind == Y_FIXED) { f = types[f].elem }
+        if !failed && (f < 0 || types[f].kind != Y_FN) {
+            pos = target
+            parse_error("an alias in parentheses is of a function type, as in 'typealias op = (i64):i64'")
+            return
+        }
+        if at_word(";") { advance() }
+        return
+    }
+    if why == 3 {
+        var m = $"'"
+        m += tok_text(target)
+        m += "' is not a type kelvinc sees: an alias is of a struct, union or enum with values declared before it, or of a built-in type"
+        parse_error(m.cstr)
+        return
+    }
+    advance()
+    if at_word(";") { advance() }
+}
+
 // the declarations from the token at pos to the end
 let parse_program() {
+    scan_records()                                       // the types of every file, and
+    alias_pass()                                         // the aliases, before any file is parsed (#550)
     skip_newlines()
     while !at_kind(T_EOF) && !failed {
         var storage:int64 = 0                            // static 1, extern 2, as C's (#459)
@@ -3750,6 +3977,8 @@ let parse_program() {
         } else if at_word("extend") {
             advance()
             parse_extend()
+        } else if at_word("typealias") && toks[pos + 1].kind == T_ID {   // typealias A = T (#149, #550)
+            parse_typealias()
         } else if at_word("let") || at_word("var") {
             let is_let:bool = at_word("let")
             advance()

@@ -604,6 +604,52 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **Programs that import math** (#550): kc builds what
+  `#import <math>` needs, where it stopped at the module's `typealias`,
+  and its programs print what kelvinc's builds print.
+  - **`typealias A = T`**, as kelvinc's #149: from there on `A` is `T`
+    wherever a name is read, a struct, union or enum read before it or
+    a built-in type; and `typealias op = (i64):i64` (#403) of a
+    function type.
+    - kelvinc reads an imported file where its `#import` stands; kc
+      parses the program's file first, then the files it imports. So a
+      pass before any is parsed, parse.k's `alias_pass`, walks the
+      files as kelvinc reads them, each at the `#import` it was first
+      read for.
+    - An alias reaches what follows it there: the rest of its file, the
+      files read for the imports in that rest, and what follows the
+      `#import` its own file was read for. `complex64` of math.k is
+      `c64` in the program that imports it, and the program's
+      `typealias cx = complex64` is `c64` too.
+    - kelvinc's errors, in its words: a built-in type's name, a name
+      declared already, no `=`, a target that is no type, and
+      parentheses that hold no function type.
+  - **A type of a file imported**, where the parser asks whether a name
+    is a type: `(c64){1.0, 2.0}` and `sizeof(c64)` in the program that
+    imports it, where kc knew a struct only once it was parsed, later
+    than the program.
+    - parse.k's `scan_records` notes the structs, unions and enums at
+      the top of every file before any is parsed.
+  - **`self` has its own type** in a method of a number, a String or a
+    Bytes, where it was a struct of that name: `exp(self)` in
+    `extend f64` picks the overload of an `f64`, as math.k's methods
+    ask.
+  - **`Self(x)`**: the type's own maker, `c64(x)` in `extend c64`, or a
+    number's converter, `f64(x)` in `extend f64`.
+  - **A C header's name given to an overloaded function**:
+    `copysign(INFINITY, y)` fits a parameter C converts it to, and
+    where it leaves two overloads alike, `pow(z, NAN)`, C's `_Generic`
+    chooses, as kelvinc's #41. It was read as `none` is, a word with no
+    type of its own, and fit none.
+  - **`-ffp-contract=off`**, kelvinc's (#43): kc's cc rounds `a * b + c`
+    twice too, so `(z * conj(z)).imag == 0.0`, and `-Wno-psabi`.
+  - Found on the way: an overloaded call whose argument is an
+    overloaded call, `pow(c64(0.0), NAN)`, left the inner one's choice
+    among the outer one's candidates, and kc ended on an index out of
+    range; the candidates are cleared once the arguments are typed.
+  - Not yet, and no part of importing: a hex float, `0x1p-1074`;
+    `[T](N)` in an Optional; a pointer to a function type as a
+    parameter, `out:((i64):i64)^`.
 - **A function with no `$0`, trailing `map`** (#549), as kelvinc's:
   after `map`, `filter` and their kin a `{` that no condition ends is
   their function whatever it holds, `(0..<8).map { bool.random() }`,
@@ -872,8 +918,8 @@ kc reads what it is written in, and little more.
     - a function's name given to an overloaded function,
       `JSON.stringify(&j, f)`;
     - `&d[k]`, the entry's place.
-  - Not yet: math's `typealias`, SION's subscripts and localStorage's
-    `extern lazy var`.
+  - Not yet: SION's subscripts and localStorage's `extern lazy var`;
+    math's `typealias` came with #550.
 - **A converter clamps** (#513), as kelvinc's: `T(v)` of a number is
   KV_CLAMP's nearest value, or C's conversion where T holds every value
   (kind_widens); KV_TEXT_CLAMP where kc cannot see text; a pointer's is
@@ -1721,9 +1767,9 @@ steps can take them on one at a time.
   - `Optional`'s `map` and the rest of its methods;
   - methods and attributes of a built-in type;
   - nested functions, and of function types (#428) arrays and
-    collections of them, `((T):R)^` and `typealias`;
+    collections of them, and `((T):R)^`;
   - `"""` and `$/.../` with its check;
-  - `union` and `typealias`;
+  - `union`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
   - `#line`;
