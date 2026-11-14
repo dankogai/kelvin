@@ -352,7 +352,7 @@
       "patterns": [
         {
           "name": "constant.numeric.bigint.kelvin",
-          "match": "\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+)n\\b"
+          "match": "\\b(?:0[xX][0-9A-Fa-f]+|0[oO][0-7]+|0[bB][01]+|\\d+)n\\b"
         },
         {
           "name": "constant.numeric.hex.kelvin",

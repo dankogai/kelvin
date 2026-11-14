@@ -69,8 +69,11 @@ Everything else about literals is C's:
 
 - hex `0xff`, octal `017`, binary `0b101`, character constants `'a'`,
   and adjacent strings.
+- An octal number is `0o17` too (#561), as `n.oct` writes one, so its
+  text pastes back: `0o17` and `017` are the same 15.
+  - It is `0o` or `0O` and digits of 0 to 7: `0o18` is an error.
 - An `n` after an integer's digits makes a `BigInt` (#508), as in JS:
-  `123n`, `0xffn`, `0b101n`; see [bigint.md](bigint.md).
+  `123n`, `0xffn`, `0o17n`, `0b101n`; see [bigint.md](bigint.md).
 - A literal inside an expression still has C's type, so a bare `1` is
   C's `int` (an `i32`).
 - Where C would write `1UL << 40`, Kelvin writes `1:u64 << 40`.

@@ -10552,3 +10552,21 @@ each a text that does not paste back, and Claude told the user:
 BigInt is C's error. Details are provisional P572.
 
 There are 1346 tests, and all pass with clang and with gcc 15.
+
+### 608. kelvinc reads 0o52
+
+**User** ordered it with the push of #560:
+
+> push then make kelvinc read 0o52 as #561
+
+**Claude** had told the user of the fault in #560: `n.oct` writes
+`0o377`, and kelvinc called `0o52` a "malformed number", so the text
+did not paste back. kelvinc reads it now, `0o` or `0O` and digits of
+0 to 7, the same number as C's `052`, which stays; with an `n` it is
+a BigInt, `0o17n`, as `b.oct` writes one. The lexer hands it on as
+C's octal, so the C written needs no `0o`, which C11 has not. `0o18`
+is an error in words of its own. kc was not touched, as ordered: it
+passes `0o52` to the C compiler and does not read `0o17n`, which
+Claude told the user. Details are provisional P573.
+
+There are 1348 tests, and all pass with clang and with gcc 15.

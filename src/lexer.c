@@ -251,6 +251,13 @@ static void check_number(Pos pos, const char *s, const char *end) {
     bool hex = p[0] == '0' && (p[1] == 'x' || p[1] == 'X');
     bool bin = p[0] == '0' && (p[1] == 'b' || p[1] == 'B');
     bool floating = false;
+    if (p[0] == '0' && (p[1] == 'o' || p[1] == 'O')) { /* 0o52 (#561): digits of 0 to 7, at least one, and no more */
+        for (p += 2; p < end && *p >= '0' && *p <= '7'; p++)
+            ;
+        if (p == end && end - s > 2)
+            return;
+        error_at(pos, "malformed number '%.*s': an octal number is 0o and digits of 0 to 7, as in 0o17", (int)(end - s), s);
+    }
     if (hex || bin)
         p += 2;
     while (p < end && (hex ? isxdigit((unsigned char)*p) : isdigit((unsigned char)*p)))
@@ -309,18 +316,21 @@ static bool method_after_number(const char *start, const char *dot) {
 static bool big_literal(Lexer *lx, Pos pos, const char *s, const char *end) {
     int base = 10;
     const char *d = s;
-    if (end - s > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X' || s[1] == 'b' || s[1] == 'B')) {
-        base = s[1] == 'x' || s[1] == 'X' ? 16 : 2;
+    if (end - s > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X' || s[1] == 'b' || s[1] == 'B' || s[1] == 'o' || s[1] == 'O')) {
+        base = s[1] == 'x' || s[1] == 'X' ? 16 : s[1] == 'o' || s[1] == 'O' ? 8 : 2; /* 0o17n (#561) */
         d = s + 2;
     }
     for (const char *q = d; q < end; q++)
-        if (base == 16 ? !isxdigit((unsigned char)*q) : base == 2 ? (*q != '0' && *q != '1') : !isdigit((unsigned char)*q))
+        if (base == 16 ? !isxdigit((unsigned char)*q)
+            : base == 8 ? (*q < '0' || *q > '7')
+            : base == 2 ? (*q != '0' && *q != '1')
+                        : !isdigit((unsigned char)*q))
             return false;
     if (d == end)
         return false;
     if (base == 10 && end - s > 1 && s[0] == '0')
-        error_at(pos, "'%.*sn': a BigInt literal is decimal, 0x hex or 0b binary, with no leading 0: C's octal is "
-                      "none of them",
+        error_at(pos, "'%.*sn': a BigInt literal is decimal, 0x hex, 0o octal or 0b binary, with no leading 0: C's "
+                      "octal is none of them",
                  (int)(end - s), s);
     push_text(lx, TK_IDENT, pos, "BigInt");
     lx->toks[lx->len - 1].bigint = true;
@@ -328,7 +338,7 @@ static bool big_literal(Lexer *lx, Pos pos, const char *s, const char *end) {
     char *digits = strfmt("\"%.*s\"", (int)(end - d), d);
     push_text(lx, TK_STRING, pos, digits);
     push_text(lx, TK_PUNCT, pos, ",");
-    push_text(lx, TK_NUMBER, pos, base == 16 ? "16" : base == 2 ? "2" : "10");
+    push_text(lx, TK_NUMBER, pos, base == 16 ? "16" : base == 8 ? "8" : base == 2 ? "2" : "10");
     push_text(lx, TK_PUNCT, pos, ")");
     free(digits);
     return true;
@@ -354,6 +364,14 @@ static void lex_number(Lexer *lx) {
     if (lx->p - start >= 2 && lx->p[-1] == 'n' && big_literal(lx, pos, start, lx->p - 1))
         return; /* 123n (#508) */
     check_number(pos, start, lx->p);
+    if (start[0] == '0' && (start[1] == 'o' || start[1] == 'O')) {
+        /* 0o52 (#561), the text of n.oct: from here on C's own octal, 052,
+           which every reader of a literal's text and the C compiler know */
+        char *octal = strfmt("0%.*s", (int)(lx->p - start - 2), start + 2);
+        push_text(lx, TK_NUMBER, pos, octal);
+        free(octal);
+        return;
+    }
     push(lx, TK_NUMBER, pos, start, lx->p);
 }
 

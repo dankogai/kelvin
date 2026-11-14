@@ -37,10 +37,12 @@ names it has it, with no import.
     and `b`.
 - **Making one:**
   - **`123n`** is a literal (#508), as JS writes one: an integer's digits
-    and an `n`, decimal, `0x` hex or `0b` binary, `0xffn`, `0b101n`.
+    and an `n`, decimal, `0x` hex, `0o` octal (#561) or `0b` binary,
+    `0xffn`, `0o17n`, `0b101n`.
     - It is `BigInt("123", 10)`, so a literal of any length is whole:
       `123456789012345678901234567890n`.
-    - A leading `0`, C's octal, is an error, as in JS: `017n`.
+    - A leading `0`, C's octal, is an error, as in JS: `017n`. `0o17n`
+      is the octal one.
     - `-5n` is `-` of `5n`.
   - `BigInt(n)` of any integer, an `i64` or a `u64`.
   - `BigInt(text)` of a `cstr` or a `String` by reference, `BigInt(&s)`,
