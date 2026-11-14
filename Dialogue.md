@@ -10512,3 +10512,23 @@ no unary `+` yet, which Claude told the user. Details are provisional
 P570.
 
 There are 1344 tests, and all pass with clang and with gcc 15.
+
+### 606. A complex number's .hex and .dec
+
+**User** had ordered them with #557's push, the words quoted in §605.
+
+**Claude** put two questions. A float has no `.oct` and no `.bin`:
+the user chose `.hex` and `.dec` for a `c64` and a `c32`, and all of
+`.hex`, `.oct` and `.bin` for a `cbr`, whose parts are bigrats. And a
+float's text has its sign already, so a `+` between two would write
+`++`: the user chose that the parts' own signs join them. So
+`c64(1.5, -2.0).hex` is `(+0x1.8p+0-0x1p+1.i)` and its `.dec`
+`(+1.5-2.0.i)`, each a `String` that pastes back as the number, now
+that a float's `.dec` keeps its point (#558); a `+` is written before
+a `nan`. A `cbr`'s is `((+0x1n/+0x2n)+(-0x1n/+0x3n).i)`, and the same
+in base 8 and base 2. They are properties written in Kelvin, in
+math.k and its overlay with Rational, so neither compiler changed.
+One sign of a zero is lost in pasting back, `(-0.0+2.0.i)`, which
+math.md says. Details are provisional P571.
+
+There are 1345 tests, and all pass with clang and with gcc 15.

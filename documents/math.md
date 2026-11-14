@@ -96,6 +96,21 @@ turn on the Gaussian plane.
 - **The text** of one is its derived `.cstr`, as in
   `{real: 1.0, imag: 2.0}`, also in a template and in `print` (#122), and
   `z.typename` is `c64`, also through its alias.
+- **`z.hex` and `z.dec`** are its parts' `.hex` and `.dec`
+  ([floatingpoint.md](floatingpoint.md)) and `.i`, in parentheses, a
+  `String` (#559).
+  - `c64(1.5, -2.0).hex` is `(+0x1.8p+0-0x1p+1.i)`, and its `.dec`
+    `(+1.5-2.0.i)`.
+  - Each part's text has a sign, and the imaginary part's joins the
+    two: `(+1.5+2.0.i)` of the conjugate.
+    - A `nan` has none, so a `+` is written before it: `(nan+nan.i)`.
+  - It pastes back as the number, a `c64`: `+1.5-2.0.i` is 1.5 less
+    `2.0.i`.
+    - One sign of a zero is lost so: `(-0.0+2.0.i)` reads as
+      `c64(0.0, 2.0)`, since `-0.0 + 0.0` is `0.0`.
+    - `inf` and `nan` are no names of Kelvin's.
+  - A `c32`'s is of its `f32` parts, `(+0.100000001-2.0.i)`.
+  - There is no `z.oct` or `z.bin`, as a float has none.
 - C99's special values for infinities and NaNs are not attempted,
   except for `sqrt` and division by an infinity *(provisional P54)*.
 - kelvinc compiles with `-ffp-contract=off`, so clang computes `a * b +
@@ -147,6 +162,10 @@ let main():int32 {
 - **The text** of one is its parts', as a struct's:
   `{real: (1n/2n), imag: (1n/3n)}`; it does not paste back, as a
   rational's does not.
+- **`z.hex`, `z.oct` and `z.bin`** are `(real.hex+imag.hex.i)` and its
+  kin, a `String` (#559): `((+0x1n/+0x2n)+(-0x1n/+0x3n).i)`.
+  - Each part is a bigrat's text, in its own parentheses
+    ([rational.md](rational.md)), so a `+` is always between them.
 
 ### Functions of a `bigrat` and of a `cbr`, to a precision, with `<Rational>`
 
@@ -255,12 +274,14 @@ atan2(y:bigrat, x:bigrat):bigrat, atan2(y:bigrat, x:bigrat, precision:int64):big
 | | `z ** w` | `pow(z, w)`, with a `c64`, a `c32` or a real number of its parts' type on either side (#380) |
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: 1.0, imag: 2.0}` |
+| | `.hex`, `.dec` | `(+0x1.8p+0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
 | `cbr`, with `<Rational>` (#552) | `.real`, `.imag` | the parts, fields, each a `bigrat` |
 | | `+`, `-`, `*`, `/`, prefix `-`, `==`, `!=` | exact, of two, or with a `bigrat`, a `BigInt` or an `i64` on either side |
 | | `.conj()` | the conjugate, a `cbr` |
 | | `.norm()` | `real² + imag²`, a `bigrat` |
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: (1n/2n), imag: (1n/3n)}` |
+| | `.hex`, `.oct`, `.bin` | `((+0x1n/+0x2n)+(-0x1n/+0x3n).i)` and its kin, a `String` (#559) |
 | | `.abs()`, `.arg()`, `.abs(p)`, `.arg(p)` | to 128 bits, or within `2^-p`, a `bigrat` (#554) |
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to 128 bits, a `cbr` (#554) |
 | | `.sqrt(p)`, `.exp(p)`, ..., `.pow(w)`, `.pow(w, p)` | the same, each part within `2^-p` |

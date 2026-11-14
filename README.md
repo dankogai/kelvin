@@ -459,3 +459,7 @@ So far the changes from C are these, by topic.
     (#553)
   - and a `cbr` too: `exp(z, 64)`, `z.sqrt()`, `abs(z)`, each part
     within `2^-precision`, the inverses with C99's branch cuts (#554)
+- a complex number has the texts of its parts: `c64(1.5, -2.0).hex` is
+  `(+0x1.8p+0-0x1p+1.i)` and its `.dec` `(+1.5-2.0.i)`, which paste
+  back as the number; a `cbr` has `.hex`, `.oct` and `.bin`, as a
+  bigrat (#559)

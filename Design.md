@@ -607,6 +607,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 556 | kc reads a hex float's fraction and its signed exponent, as kelvinc does: `0x1p-1074`, `0x1.8p+1`, `0x1.p3`, `0x.8p1`; it read `0x1p4` (#472) and ended a hex number at a `.` or a sign; a `.` is the number's only where a float's rest follows it, hex digits, if any, then `p` and an exponent, so `0xff.cstr` and `0xff.pow2()` are a member's; kelvinc is unchanged | selfhost/lex.k: hex_fraction, the number's loop; selfhost/sample.k; selfhost/README.md | `0x1p-1074 > 0.0` is `true` from kc's build; sample.k's line of #556 | 2026-11-14 |
 | 557 | kc reads a fixed array of pointers, as kelvinc does: `var pp:[i32^](2) = [&a, &b]`, `[const u8^](2)` of texts, an array of them in turn, a struct's member, a parameter `ns:[node^]`; what its elements are is C's to check, as kelvinc leaves it; main's `argv:[u8^]` is C's `char **`, as `u8^^` (#524), and either is a variable of main's body, so `var argv` steps; kelvinc is unchanged | selfhost/gen.k: fixed_elem_ok, fixed_list_fits, argv_bytes, gen_function; selfhost/sample.k; selfhost/README.md | tests/run/pointer_step.k, pointers.k, references.k and references_params.k build with kc and print what kelvinc's builds print; sample.k's lines of #557 | 2026-11-14 |
 | 558 | `x.dec` of a float is the text `print` shows, after its sign: `2.0.dec` is `+2.0` and `(-0.0).dec` `-0.0`, where C's `%+.17g` wrote `+2` and `-0`, which paste back as integers; the plain range and the exponents are `print`'s (#259), `+123456.0`, `+1e+22`; its point is `.` whatever the C locale's; a NaN is `nan`, with no sign, and an infinity `+inf` or `-inf`, as before; an integer's `.dec` is unchanged; kelvinc and kc, by the runtime | runtime/string.c: signed_text, kv_dec_f32, kv_dec_f64; documents/floatingpoint.md, properties.md | tests/run/float_dec.k | 2026-11-14 |
+| 559 | A complex number has the texts of its parts, with `<math>`: `z.hex` and `z.dec` of a `c64` or a `c32` are its parts' `.hex` and `.dec` and `.i`, in parentheses, a `String`: `c64(1.5, -2.0).hex` is `(+0x1.8p+0-0x1p+1.i)` and its `.dec` `(+1.5-2.0.i)`; each part's own sign joins the two, and a `+` is written before a `nan`, which has none; it pastes back as the `c64`; there is no `z.oct` or `z.bin`, as a float has none; of a `cbr`, with `<Rational>` too, `z.hex`, `z.oct` and `z.bin` are `(real.hex+imag.hex.i)` and its kin, `((+0x1n/+0x2n)+(-0x1n/+0x3n).i)`; kelvinc and kc | modules/math.k: complex_text, hex and dec of c64 and of c32; modules/math+Rational.k: hex, oct and bin of cbr; selfhost/sample.k; documents/math.md; README.md | tests/run/complex_text.k; sample.k's line of #559 | 2026-11-14 |
 
 Notes:
 
@@ -1191,6 +1192,34 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (559) Agreed details: "add cplx.hex as well as .bin and .oct where cplx is a complex type"
+  - The user's words: "All they have to do is turn it into
+    (real.hex+imag.hex.i) and so forth."
+  - Two questions were put, and the user took the first choice of
+    each:
+    - A float has `.dec` and `.hex` and no `.oct` or `.bin`, so a
+      `c64` and a `c32` get `.hex` and `.dec`, the two their parts
+      have. A `cbr`'s parts are bigrats, so it gets `.hex`, `.oct`
+      and `.bin`, as a bigrat.
+    - A float's text carries its sign, and a `+` between two of them
+      would write `++` before a positive imaginary part, the
+      increment. So the parts' own signs join them:
+      `(+0x1.8p+0-0x1p+1.i)`, `(+0x1.8p+0+0x1p+1.i)`.
+  - A `+` is written before a part with no sign, a `nan`:
+    `(nan+nan.i)`. Claude's choice, the user's to change.
+  - It pastes back as the `c64`, also a `c32`'s: `+1.5-2.0.i` is 1.5
+    less `2.0.i`.
+    - `.dec` does so since #558, which gave `2.0.dec` its point.
+    - `(-0.0+2.0.i)` reads back with a real part of `0.0`: `-0.0 +
+      0.0` is `0.0`. The form the user chose cannot say it; said in
+      math.md.
+  - A `cbr`'s parts are each in a bigrat's parentheses, so a `+` is
+    always between them: `((+0x1n/+0x2n)+(-0x1n/+0x3n).i)`. It does
+    not paste back, as a rational's text does not.
+  - Each is a `String`, as a rational's `.hex` is.
+  - No compiler is changed: the properties are written in Kelvin, in
+    modules/math.k and modules/math+Rational.k, and kc builds them.
 
 - (558) Agreed details: a float's `.dec` keeps its point
   - Met in the texts of a complex number, which the user ordered
@@ -9319,6 +9348,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P568 | Details of #556 | selfhost/lex.k: in the number's loop, after the run of digits and letters, a hex number goes on at a `.` where hex_fraction(i + 1) holds, and at a sign whose left is `p` or `P` and whose right is a digit; hex_fraction passes hex digits, asks for `p` or `P`, passes one sign and asks for a digit; the token's text goes to C as it is, and gen.k's float_tok (#472) tells a float by its `p` or `.` | kc's C of kc grows from 35276 lines to 35308 |
 | P569 | Details of #557 | selfhost/gen.k: fixed_elem_ok takes Y_PTR beside a number, a bool, a cstr and a struct, which opens a variable, a member (gen_written), a parameter and a compound literal at once; fixed_list_fits passes an element of a pointer's array without value_mismatch_text, which knows text only for a String or a cstr; argv_bytes takes main's second parameter where it is a pointer or a fixed array whose element is a pointer to u8; gen_function no longer writes #define argv and #undef, and main's body opens with uint8_t **argv = (uint8_t **)_kv_argv_c, kv_sys_init given _kv_argv_c itself | kc's C of kc grows from 35308 lines to 35315 |
 | P570 | Details of #558 | runtime/string.c: kv_dec_f64 and kv_dec_f32 write a `+` where kv_f64_text's or kv_f32_text's text has no `-` and is not `nan`, then that text, in place of snprintf's `%+.17g` and `%+.9g`; the longest is 24 characters, `-1.7976931348623157e+308`, in the 41 bytes kelvinc and kc give `.dec`; float_text stays for `.hex`, C's `%+a` | Where the two differ: a whole number below 2^53, `+2` now `+2.0`, and a zero; a number from 1e16 to 2^53 keeps its digits, `+9007199254740992.0`, as `print` shows it; the documents had said "as `.cstr`, signed" already |
+| P571 | Details of #559 | modules/math.k: complex_text(real, imag) of two cstrs makes a String of `(`, real, a `+` where imag begins with neither `+` nor `-`, imag and `.i)`; hex and dec are properties of extend c64 and of extend c32, complex_text of the parts' .hex and .dec; modules/math+Rational.k: hex, oct and bin of extend cbr append `(`, real's text, `+`, imag's text and `.i)`, each part a bigrat's String | The properties are Kelvin's own, of a module: neither compiler is changed, and kc's C of kc stays 35315 lines; `z.oct` of a c64 is kelvinc's "'.oct' is a property of integers", as of any struct |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

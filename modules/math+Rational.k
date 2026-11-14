@@ -105,6 +105,33 @@ extend cbr {
     let conj():Self { conj(self) }
     let norm():bigrat { norm(self) }
     let i:Self { (Self){-self.imag, self.real.copy()} }   // z rotated a quarter turn: z times i
+
+    // (real.hex+imag.hex.i), and the same in base 8 and base 2 (#558):
+    // each part is a bigrat's text, in its own parentheses
+    let hex:String {
+        var s = $"("
+        s += self.real.hex
+        s += "+"
+        s += self.imag.hex
+        s += ".i)"
+        return s
+    }
+    let oct:String {
+        var s = $"("
+        s += self.real.oct
+        s += "+"
+        s += self.imag.oct
+        s += ".i)"
+        return s
+    }
+    let bin:String {
+        var s = $"("
+        s += self.real.bin
+        s += "+"
+        s += self.imag.bin
+        s += ".i)"
+        return s
+    }
 }
 
 extend bigrat {
