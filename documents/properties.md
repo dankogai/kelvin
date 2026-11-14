@@ -211,6 +211,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     ones never do, so the text tells `i32` from `u32`.
 - **`f32`/`f64`** have `.dec` (every digit, as `.cstr`, signed) and `.hex`
   (C's `%a`), always signed.
+  - `2.0.dec` is `+2.0`: the point stays, so it pastes back as the
+    float (#558).
 - **Pointers and functions** have `.addr` and `.hex` (#37).
   - `p.addr` is the address as a number, a `uintptr_t` (C's unsigned
     integer as wide as a pointer).

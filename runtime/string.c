@@ -299,8 +299,27 @@ static uint8_t *float_text(double v, const char *format, uint8_t *buf) {
     return buf;
 }
 
-uint8_t *kv_dec_f32(float v, uint8_t *buf) { return float_text(v, "%+.9g", buf); }
-uint8_t *kv_dec_f64(double v, uint8_t *buf) { return float_text(v, "%+.17g", buf); }
+/* .dec of a float is the text print shows (#258), every digit with a
+   point, after its sign (#558): +2.0, not %+.17g's +2, which pastes back
+   as an integer, and its point is '.' whatever the C locale's; text is
+   kv_f64_text's or kv_f32_text's, 25 bytes at the longest */
+static uint8_t *signed_text(const char *text, uint8_t *buf) {
+    char *p = (char *)buf;
+    if (text[0] != '-' && strcmp(text, "nan"))
+        *p++ = '+';
+    strcpy(p, text); /* kelvinc sizes buf for the longest text */
+    return buf;
+}
+
+uint8_t *kv_dec_f32(float v, uint8_t *buf) {
+    char t[96];
+    return signed_text(kv_f32_text(v, t), buf);
+}
+
+uint8_t *kv_dec_f64(double v, uint8_t *buf) {
+    char t[96];
+    return signed_text(kv_f64_text(v, t), buf);
+}
 uint8_t *kv_hex_f32(float v, uint8_t *buf) { return float_text(v, "%+a", buf); }
 uint8_t *kv_hex_f64(double v, uint8_t *buf) { return float_text(v, "%+a", buf); }
 

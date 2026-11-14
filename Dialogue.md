@@ -10491,3 +10491,24 @@ own, a function named first in an array's elements before it is
 written, Claude told the user. Details are provisional P569.
 
 There are 1343 tests, and all pass with clang and with gcc 15.
+
+### 605. A float's .dec keeps its point
+
+**User** ordered the texts of a complex number, which are #559:
+
+> push then add cplx.hex as well as .bin and .oct where cplx is a complex type.  All they have to do is turn it into (real.hex+imag.hex.i) and so forth.
+
+**Claude** asked which texts a `c64` should have, a float having no
+`.oct` and no `.bin`, and the user chose `.hex` and `.dec`. Trying
+them, Claude found `c64(1.5, -2.0).dec` to be `(+1.5-2.i)`, which is
+no program: `2.0.dec` was `+2`, C's `%+.17g`, and an integer has no
+`.i`. The fault was `.dec`'s own, and the documents had it right
+already, "every digit, as `.cstr`, signed". So this number came first:
+a float's `.dec` is now the text `print` shows after its sign, `+2.0`,
+`-0.0`, `+123456.0`, `+1e+22`, with `print`'s plain range and a `.`
+in any locale; `nan` has no sign. It pastes back as the float.
+An integer's `.dec` and a float's `.hex` are as they were. kc reads
+no unary `+` yet, which Claude told the user. Details are provisional
+P570.
+
+There are 1344 tests, and all pass with clang and with gcc 15.

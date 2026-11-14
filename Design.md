@@ -606,6 +606,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 555 | A `)` or a `]` too many is said where it is: `')' closes nothing: no '(' is open here`, where the statement would end, in place of `expected ';' or a new line before ')'`; and where a `(`, `[` or `{` of the program has no partner, or a `)`, `]` or `}` none, kelvinc writes no prototype of a function called before it is written (#505), so the parser's error, of the place, is the first: a count put out by one had passed a method of `extend T { }` for a function of the top level and written its header ahead of the error, refused first, of `Self` with no `T`, lines away; kelvinc alone, kc said the line already | src/parser.c: brackets_balance, forward_prototypes, end_statement | `return (a + 1)) * 2` is refused at its second `)`; tests/error/paren_closes_nothing.k, bracket_closes_nothing.k, paren_closes_nothing_method.k, paren_unclosed_called_ahead.k | 2026-11-14 |
 | 556 | kc reads a hex float's fraction and its signed exponent, as kelvinc does: `0x1p-1074`, `0x1.8p+1`, `0x1.p3`, `0x.8p1`; it read `0x1p4` (#472) and ended a hex number at a `.` or a sign; a `.` is the number's only where a float's rest follows it, hex digits, if any, then `p` and an exponent, so `0xff.cstr` and `0xff.pow2()` are a member's; kelvinc is unchanged | selfhost/lex.k: hex_fraction, the number's loop; selfhost/sample.k; selfhost/README.md | `0x1p-1074 > 0.0` is `true` from kc's build; sample.k's line of #556 | 2026-11-14 |
 | 557 | kc reads a fixed array of pointers, as kelvinc does: `var pp:[i32^](2) = [&a, &b]`, `[const u8^](2)` of texts, an array of them in turn, a struct's member, a parameter `ns:[node^]`; what its elements are is C's to check, as kelvinc leaves it; main's `argv:[u8^]` is C's `char **`, as `u8^^` (#524), and either is a variable of main's body, so `var argv` steps; kelvinc is unchanged | selfhost/gen.k: fixed_elem_ok, fixed_list_fits, argv_bytes, gen_function; selfhost/sample.k; selfhost/README.md | tests/run/pointer_step.k, pointers.k, references.k and references_params.k build with kc and print what kelvinc's builds print; sample.k's lines of #557 | 2026-11-14 |
+| 558 | `x.dec` of a float is the text `print` shows, after its sign: `2.0.dec` is `+2.0` and `(-0.0).dec` `-0.0`, where C's `%+.17g` wrote `+2` and `-0`, which paste back as integers; the plain range and the exponents are `print`'s (#259), `+123456.0`, `+1e+22`; its point is `.` whatever the C locale's; a NaN is `nan`, with no sign, and an infinity `+inf` or `-inf`, as before; an integer's `.dec` is unchanged; kelvinc and kc, by the runtime | runtime/string.c: signed_text, kv_dec_f32, kv_dec_f64; documents/floatingpoint.md, properties.md | tests/run/float_dec.k | 2026-11-14 |
 
 Notes:
 
@@ -1190,6 +1191,29 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (558) Agreed details: a float's `.dec` keeps its point
+  - Met in the texts of a complex number, which the user ordered
+    ("add cplx.hex as well as .bin and .oct") and which follow as
+    #559: `c64(1.5, -2.0).dec`, made of its parts' `.dec`, was
+    `(+1.5-2.i)`, and `2.i` is no program: an integer has no `.i`.
+  - The fault is `.dec`'s own. `2.0.dec` was `+2`, C's `%+.17g`,
+    which pastes back as an integer; the documents said "every digit,
+    as `.cstr`, signed" (properties.md), and `.cstr` is `2.0`.
+  - It is now what they said: the text `print` shows (#258, #259)
+    after a sign.
+    - `+2.0`, `-2.0`, `+0.0`, `-0.0`, `+123456.0`.
+    - The plain range is `print`'s, 0.0001 to 2^53 (2^24 of an f32):
+      `+9007199254740992.0`, `+1e+16`, `+1.0000000000000001e-05`.
+    - The point is `.` in any C locale, which `%+.17g` followed.
+    - `nan` has no sign; `+inf` and `-inf` are as they were.
+  - A fix of a text that did not paste back, so no question was put;
+    Claude's choice of the order, this before the complex texts, the
+    user's to change.
+  - An integer's `.dec` and a float's `.hex` are untouched.
+  - A gap of kc's met on the way, told to the user: kc reads no unary
+    `+`, so `+2.0`, and every `.dec` and `.hex` of a signed number,
+    pastes back into kelvinc alone.
 
 - (557) Agreed details: "push and go on", the next of kc's gaps
   - Claude had listed it to the user as "`[T](N)` in an Optional",
@@ -9294,6 +9318,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P567 | Details of #555 | src/parser.c: brackets_balance(n) walks the tokens with a stack of the openers, false at a closer whose opener is not on top and at an end with any left; forward_prototypes returns before its own count where it is false, written_toks NULL as where nothing is called ahead, so a module's header is copied from the tokens as they are; fold_nested_heads counts braces alone and renames only a head whose path is a nested type's, and is left; end_statement, at a `)` or a `]`, counts what is open from the first token to it, and where none is, or the last opened is not its own, says that it closes nothing, else what it said | A token of #inline C and a string are one token each, so the brackets of a program that is read pair: the whole of tests/ and the documents' examples build as before |
 | P568 | Details of #556 | selfhost/lex.k: in the number's loop, after the run of digits and letters, a hex number goes on at a `.` where hex_fraction(i + 1) holds, and at a sign whose left is `p` or `P` and whose right is a digit; hex_fraction passes hex digits, asks for `p` or `P`, passes one sign and asks for a digit; the token's text goes to C as it is, and gen.k's float_tok (#472) tells a float by its `p` or `.` | kc's C of kc grows from 35276 lines to 35308 |
 | P569 | Details of #557 | selfhost/gen.k: fixed_elem_ok takes Y_PTR beside a number, a bool, a cstr and a struct, which opens a variable, a member (gen_written), a parameter and a compound literal at once; fixed_list_fits passes an element of a pointer's array without value_mismatch_text, which knows text only for a String or a cstr; argv_bytes takes main's second parameter where it is a pointer or a fixed array whose element is a pointer to u8; gen_function no longer writes #define argv and #undef, and main's body opens with uint8_t **argv = (uint8_t **)_kv_argv_c, kv_sys_init given _kv_argv_c itself | kc's C of kc grows from 35308 lines to 35315 |
+| P570 | Details of #558 | runtime/string.c: kv_dec_f64 and kv_dec_f32 write a `+` where kv_f64_text's or kv_f32_text's text has no `-` and is not `nan`, then that text, in place of snprintf's `%+.17g` and `%+.9g`; the longest is 24 characters, `-1.7976931348623157e+308`, in the 41 bytes kelvinc and kc give `.dec`; float_text stays for `.hex`, C's `%+a` | Where the two differ: a whole number below 2^53, `+2` now `+2.0`, and a zero; a number from 1e16 to 2^53 keeps its digits, `+9007199254740992.0`, as `print` shows it; the documents had said "as `.cstr`, signed" already |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

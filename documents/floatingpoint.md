@@ -83,8 +83,10 @@ text, print and show as text. Integers are in
   Kelvin as the value.
   - `.cstr`, `${x}` and `print` agree, and so does a float inside a
     value: a struct's member, an Array's element, an Optional's value.
-  - `.dec` is the same digits with a sign, `+0.10000000000000001`, and
-    `.hex` C's `%a` with a sign, `+0x1.8p+0`.
+  - `.dec` is the same text with a sign, `+0.10000000000000001`, `+2.0`,
+    `-0.0`, and `.hex` C's `%a` with a sign, `+0x1.8p+0`.
+    - Each pastes back as the float: `+2.0` keeps its point (#558).
+    - A NaN has no sign: `nan`.
   - `.oct` and `.bin` of a float are errors.
   - A float inside a value shows as alone, `[11.0]`, `{x: 1.0}`,
     `some(1.0)` (#258). See [properties.md](properties.md).
@@ -194,7 +196,7 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 | | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text `print` shows, every digit with a point, `1.0`, `0.10000000000000001` (#258, #259), in the block's buffer |
-| | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |
+| | `.dec`, `.hex` | its text, `+2.0`, and C's `%a`, each with a sign |
 | | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
 | | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
 | | `.sign` | a `bool?` by its sign bit: `true` positive, `false` negative, `none` of NaN (#382, #383) |
