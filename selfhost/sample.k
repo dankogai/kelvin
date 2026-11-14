@@ -42,6 +42,12 @@ let describe(v:item^):int64 {
 enum shrub { leaf: int64; twigs: $[shrub] }           // an enum holding an Array of itself (#346)
 struct tray { label: cstr; slots: [int64](3) }        // a fixed array as a member (#356)
 struct crew { ship: cstr; names: [String](2) }         // of owners, freed and copied with it (#364)
+struct pegs { at: [int64^](2); n: int64 }              // a fixed array of pointers, as a member (#557)
+let pegs_sum(ps:[int64^], n:int64):int64 {             // and as a parameter
+    var t:int64 = 0
+    for i in 0..<n { t += ps[i]^ }
+    return t
+}
 
 let hail(ns:[String], n:int64) {                       // a parameter's array of owners, its caller's (#365)
     for i in 0..<n { ns[i] += "!" }
@@ -1305,6 +1311,16 @@ on a new line`
     println(`${n8} ${u64v} ${n128} ${u128v}`)
     println(num_wide(n8), " ", num_wide(u64v), " ", num_wide(n128), " ", (0x1p4).typename, " ", 0x1p4)
     println(0x1p-2, " ", 0x1.8p+1, " ", 0x1.p3, " ", 0x.8p1, " ", 0X1.CP-3, " ", 0x1p-1074 > 0.0, " ", 0xff.cstr, " ", 0x1e + 3)   // a hex float's fraction and its signed exponent (#556)
+    var pg_a = 3                                         // fixed arrays of pointers (#557)
+    var pg_b = 4
+    var pg_ps:[int64^](2) = [&pg_a, &pg_b]
+    pg_ps[1]^ += 10
+    var pg_box:pegs = {[&pg_b, &pg_a], 2}
+    pg_box.at[0] := &pg_a
+    let pg_names:[const uint8^](2) = ["port", "starboard"]
+    var pg_n = 0
+    for pg_p in pg_ps { pg_n += pg_p^ }
+    println(pegs_sum(pg_ps, 2), " ", pg_b, " ", pegs_sum(pg_box.at, pg_box.n), " ", pg_names[1], " ", pg_ps.count, " ", pg_n, " ", pg_ps[0] == &pg_a)
     let r64:Range<u64> = 1...3
     println(r64, " ", r64.count, " ", r64.count.typename)
     println($[n8, n8], " ", $[u64v], " ", u16v.bits.count, " ", n8.size.typename, " ", (num_pack){1, 2, 3, 4})

@@ -11364,7 +11364,7 @@ let fixed_elem_ok(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
     if is_owner(y) || fixed_inside(y) { return false }
-    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT
+    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT || k == Y_PTR
 }
 
 // a fixed array's C declarator: its element type, name, and [N] for each
@@ -11518,6 +11518,8 @@ let fixed_list_fits(v:int64, y:int64):bool {
         } else if is_owner(e) && is_place(x) && !is_case_word(x) {   // as an Array's elements (#364)
             owner_assign_error(x)
             return false
+        } else if types[e].kind == Y_PTR && !is_case_word(x) {
+            // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557)
         } else {
             let bad:String = value_mismatch_text(x, e)
             if bad.count > 0 || is_case_word(x) {
@@ -17702,14 +17704,14 @@ let is_main(d:int64):bool {
     return tok_is(nodes[d].t, "main") && nodes[d].c < 0
 }
 
-// main's argv written u8^^, which C has char ** (#524), as kelvinc's: its
-// parameter, or -1
+// main's argv written u8^^, which C has char ** (#524), as kelvinc's, or
+// [u8^], an array's parameter, a pointer too (#557): its parameter, or -1
 let argv_bytes(d:int64):int64 {
     if !is_main(d) || nodes[d].a < 0 { return 0 - 1 }
     let p:int64 = nodes[nodes[d].a].next
     if p < 0 { return 0 - 1 }
     let y:int64 = nodes[p].ty
-    if y < 0 || types[y].kind != Y_PTR { return 0 - 1 }
+    if y < 0 || (types[y].kind != Y_PTR && types[y].kind != Y_FIXED) { return 0 - 1 }
     let e:int64 = types[y].elem
     if types[e].kind != Y_PTR || types[types[e].elem].kind != Y_U8 { return 0 - 1 }
     return p
@@ -18022,14 +18024,7 @@ let gen_function(d:int64) {
     }
     implicit_return(d)                                   // which sees the parameters, as await t asks t's type (#313)
     if failed { return }
-    let argv_p = argv_bytes(d)
-    if argv_p >= 0 {                                    // main's u8^^ argv, a char ** in C (#524)
-        put("#define ")
-        put_tok(nodes[argv_p].t)
-        put(" ((uint8_t **)_kv_")
-        put_tok(nodes[argv_p].t)
-        put("_c)\n")
-    }
+    let argv_p = argv_bytes(d)                          // main's u8^^ argv, a char ** in C (#524)
     gen_signature(d)
     put("\n")
     let var_method = nodes[d].c >= 0 && (nodes[d].flag == 2 || nodes[d].flag == 3)
@@ -18047,11 +18042,24 @@ let gen_function(d:int64) {
     }
     if is_main(d) {
         put("{\n")
+        if argv_p >= 0 {                                 // a variable of the body, which a var argv steps, argv := argv + 1 (#557)
+            put("    uint8_t **")
+            put_tok(nodes[argv_p].t)
+            put(" = (uint8_t **)_kv_")
+            put_tok(nodes[argv_p].t)
+            put("_c;\n")
+        }
         if (uses_io || uses_sys) && nodes[d].a >= 0 {
             put("    kv_sys_init(")
             put_tok(nodes[nodes[d].a].t)
             put(", ")
-            put_tok(nodes[nodes[nodes[d].a].next].t)
+            if argv_p >= 0 {
+                put("_kv_")
+                put_tok(nodes[argv_p].t)
+                put("_c")
+            } else {
+                put_tok(nodes[nodes[nodes[d].a].next].t)
+            }
             put(");\n")
         } else if uses_sys {                             // main's own, as kelvinc names them (#463)
             put("    kv_sys_init(_kv_argc, _kv_argv);\n")
@@ -18090,11 +18098,6 @@ let gen_function(d:int64) {
         gen_block(nodes[d].b, 0)
     }
     if var_method { put("#undef self\n") }
-    if argv_p >= 0 {
-        put("#undef ")
-        put_tok(nodes[argv_p].t)
-        put("\n")
-    }
     rp = nodes[d].a
     while rp >= 0 {
         if nodes[rp].flag == 3 {

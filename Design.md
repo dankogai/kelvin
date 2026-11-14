@@ -605,6 +605,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 554 | math's functions of a `cbr`, each to a precision, as a bigrat's (#553): each part of `f(z, precision)` within `2^-precision` of the true value's, `bigrat.precision`, 128 bits, where none is written; `sqrt`, `exp`, `log`, `pow`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh`, `asin`, `acos`, `atan`, `asinh`, `acosh`, `atanh` give a `cbr`, `abs` and `arg` a `bigrat`, each a method too; `pow` of a whole real exponent is the power itself, rounded, and a `bigrat` may be on either side; the inverses take their principal values, with C99's branch cuts, a point on a cut on the side a float's `+0` is; in Kelvin, in BigInts alone; kelvinc and kc | modules/math+Rational.k; documents/math.md, modules.md, README.md, selfhost/README.md; selfhost/sample.k | `exp(cbr(bigrat(0), bigrat.pi(200)), 64)` is `{real: (-1n/1n), imag: (0n/1n)}`; tests/run/cbr_functions.k | 2026-11-14 |
 | 555 | A `)` or a `]` too many is said where it is: `')' closes nothing: no '(' is open here`, where the statement would end, in place of `expected ';' or a new line before ')'`; and where a `(`, `[` or `{` of the program has no partner, or a `)`, `]` or `}` none, kelvinc writes no prototype of a function called before it is written (#505), so the parser's error, of the place, is the first: a count put out by one had passed a method of `extend T { }` for a function of the top level and written its header ahead of the error, refused first, of `Self` with no `T`, lines away; kelvinc alone, kc said the line already | src/parser.c: brackets_balance, forward_prototypes, end_statement | `return (a + 1)) * 2` is refused at its second `)`; tests/error/paren_closes_nothing.k, bracket_closes_nothing.k, paren_closes_nothing_method.k, paren_unclosed_called_ahead.k | 2026-11-14 |
 | 556 | kc reads a hex float's fraction and its signed exponent, as kelvinc does: `0x1p-1074`, `0x1.8p+1`, `0x1.p3`, `0x.8p1`; it read `0x1p4` (#472) and ended a hex number at a `.` or a sign; a `.` is the number's only where a float's rest follows it, hex digits, if any, then `p` and an exponent, so `0xff.cstr` and `0xff.pow2()` are a member's; kelvinc is unchanged | selfhost/lex.k: hex_fraction, the number's loop; selfhost/sample.k; selfhost/README.md | `0x1p-1074 > 0.0` is `true` from kc's build; sample.k's line of #556 | 2026-11-14 |
+| 557 | kc reads a fixed array of pointers, as kelvinc does: `var pp:[i32^](2) = [&a, &b]`, `[const u8^](2)` of texts, an array of them in turn, a struct's member, a parameter `ns:[node^]`; what its elements are is C's to check, as kelvinc leaves it; main's `argv:[u8^]` is C's `char **`, as `u8^^` (#524), and either is a variable of main's body, so `var argv` steps; kelvinc is unchanged | selfhost/gen.k: fixed_elem_ok, fixed_list_fits, argv_bytes, gen_function; selfhost/sample.k; selfhost/README.md | tests/run/pointer_step.k, pointers.k, references.k and references_params.k build with kc and print what kelvinc's builds print; sample.k's lines of #557 | 2026-11-14 |
 
 Notes:
 
@@ -1189,6 +1190,37 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (557) Agreed details: "push and go on", the next of kc's gaps
+  - Claude had listed it to the user as "`[T](N)` in an Optional",
+    after the last words of kc's message. It was wider, and not that:
+    an Optional of an array is kelvinc's error too (#368). What kc
+    refused was an array whose element is a pointer, in five of
+    tests/run.
+  - What is read now, each as kelvinc's:
+    - `[T^](N)` as a variable, a global, a struct's member, an array's
+      element, `[[i64^](2)](2)`, and a parameter, `[T^](N)` or `[T^]`.
+    - Its elements are C's to check, as kelvinc leaves them: text
+      where the pointer is a `u8^`, `&x`, an array, `nowhere`.
+    - main's `argv:[u8^]`: C's `char **`, as `u8^^` is since #524.
+  - main's argv, of either spelling, is a variable of main's body
+    now, `uint8_t **argv = (uint8_t **)_kv_argv_c`, where it was a
+    `#define` of the cast, which `argv := argv + 1` of a `var argv`
+    could not assign.
+  - Left, each for a number of its own:
+    - kc does not show an array of pointers by `print`; kelvinc shows
+      addresses.
+    - An element that is a function, `[(i32):i32](2)`.
+    - `let ap := arr`, a pointer to an array by `:=`, which keeps
+      tests/run/infer_seen.k from kc.
+    - kc's C of `var p:u8^ := s` of a cstr, and of such an element,
+      draws cc's warning of a const dropped, where kelvinc writes a
+      cast.
+  - A fault of kelvinc's met on the way, told to the user: a function
+    named first in an array's elements before it is written,
+    `[twice, thrice]`, gets no prototype (#505), and is C's error.
+  - No test is new: kelvinc read them all, and kc is checked by
+    sample.k.
 
 - (556) Agreed details: "make kc read a hex float literal as #556"
   - The gap, met in #550: tests/run/float_constants.k compares
@@ -9261,6 +9293,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P566 | Details of #554 | modules/math+Rational.k: abs is the root of the norm, exact, and arg atan2 of the parts; sqrt takes z times a power of 4 that brings |z| near 1, m = isqrt(x^2 + y^2), the larger part sqrt((m + |x|) / 2) and the lesser |y| over twice it, which is which by x's sign, the imaginary one with y's, then the power of 2 back; exp is fx_exp of the real part times the sine and the cosine of the imaginary one, these to as many more bits as e^x has above its point, fx_exp_size, 3/2 of x and 2; log is a quarter of fx_log of the norm at one bit more, and fx_atan2; cbr_products gives sinh a cos b, cosh a sin b, cosh a cos b and sinh a sin b, of which sinh, cosh, sin and cos are two each; tanh is (1 - t^2) / d and 2 t sin 2b / d of t = e^(-2|a|) and d = 1 + t^2 + 2 t cos 2b, reckoned anew with more bits while d has too many zeros after its point, and tan is -i tanh(iz); pow of a whole exponent by cbr_power, squaring, then cbr_to; else exp(w log z), the log to as many more bits as the power is large and w has; cbr_asinh is log(z + sqrt(z^2 + 1)) right of the imaginary axis or on it above 0, the root to twice the bits of |z| more; left of it -asinh(-z), on it below 0 the conjugate of the conjugate's; its `left` says the real 0 is a float's -0, as iz's of a real z, for asin; acos is pi / 2 less asin; acosh log(z + sqrt(z + 1) sqrt(z - 1)); atanh half of log(1 + z) - log(1 - z), the second one's angle turned where z is real and above 1; atan -i atanh(iz); a part no finite number is cbr_wild; struct cbr_products holds four BigInts; the methods' other operands are `lent Self` | provisional |
 | P567 | Details of #555 | src/parser.c: brackets_balance(n) walks the tokens with a stack of the openers, false at a closer whose opener is not on top and at an end with any left; forward_prototypes returns before its own count where it is false, written_toks NULL as where nothing is called ahead, so a module's header is copied from the tokens as they are; fold_nested_heads counts braces alone and renames only a head whose path is a nested type's, and is left; end_statement, at a `)` or a `]`, counts what is open from the first token to it, and where none is, or the last opened is not its own, says that it closes nothing, else what it said | A token of #inline C and a string are one token each, so the brackets of a program that is read pair: the whole of tests/ and the documents' examples build as before |
 | P568 | Details of #556 | selfhost/lex.k: in the number's loop, after the run of digits and letters, a hex number goes on at a `.` where hex_fraction(i + 1) holds, and at a sign whose left is `p` or `P` and whose right is a digit; hex_fraction passes hex digits, asks for `p` or `P`, passes one sign and asks for a digit; the token's text goes to C as it is, and gen.k's float_tok (#472) tells a float by its `p` or `.` | kc's C of kc grows from 35276 lines to 35308 |
+| P569 | Details of #557 | selfhost/gen.k: fixed_elem_ok takes Y_PTR beside a number, a bool, a cstr and a struct, which opens a variable, a member (gen_written), a parameter and a compound literal at once; fixed_list_fits passes an element of a pointer's array without value_mismatch_text, which knows text only for a String or a cstr; argv_bytes takes main's second parameter where it is a pointer or a fixed array whose element is a pointer to u8; gen_function no longer writes #define argv and #undef, and main's body opens with uint8_t **argv = (uint8_t **)_kv_argv_c, kv_sys_init given _kv_argv_c itself | kc's C of kc grows from 35308 lines to 35315 |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -604,6 +604,25 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A fixed array of pointers** (#557), as kelvinc's:
+  `var pp:[i32^](2) = [&a, &b]`, `let names:[const u8^](2) = ["a", "b"]`,
+  an array of them in turn, a struct's member `at:[node^](3)`, and a
+  parameter, `ns:[node^]`. kc took a number, a bool, a cstr or a struct
+  for an element, and said "kc reads a fixed array as a variable ..."
+  of a pointer.
+  - gen.k's `fixed_elem_ok` takes a pointer; what the elements are is
+    C's to check, as kelvinc leaves it: text for a `u8^`, `&x`, an
+    array, `nowhere`.
+  - **main's `argv:[u8^]`** is C's `char **`, as `u8^^` is (#524).
+    - Either is now a variable of main's body, `uint8_t **argv`, of the
+      `char **` C hands over, where it was a `#define` of a cast: so
+      `var argv` steps, `argv := argv + 1`.
+  - tests/run's pointer_step.k, pointers.k, references.k and
+    references_params.k are built by kc now, and print what kelvinc's
+    builds print; sample.k has a member, a parameter and two locals.
+  - Not yet: an array of pointers shown by `print`; an element that is
+    a function, `[(i32):i32](2)`; and `let ap := arr`, a pointer to an
+    array by `:=`.
 - **A hex float's fraction and its signed exponent** (#556), as
   kelvinc's: `0x1p-1074`, `0x1.8p+1`, `0x1.p3`, `0x.8p1`. kc read
   `0x1p4` since #472, and stopped a hex number at a `.` or a sign, so
@@ -684,9 +703,10 @@ kc reads what it is written in, and little more.
     overloaded call, `pow(c64(0.0), NAN)`, left the inner one's choice
     among the outer one's candidates, and kc ended on an index out of
     range; the candidates are cleared once the arguments are typed.
-  - Not yet, and no part of importing: `[T](N)` in an Optional; a
-    pointer to a function type as a parameter, `out:((i64):i64)^`. A
-    hex float, `0x1p-1074`, was a third, read since #556.
+  - Not yet, and no part of importing: a pointer to a function type
+    as a parameter, `out:((i64):i64)^`. A hex float, `0x1p-1074`, is
+    read since #556, and a fixed array of pointers, `[u8^](2)`, since
+    #557.
 - **A function with no `$0`, trailing `map`** (#549), as kelvinc's:
   after `map`, `filter` and their kin a `{` that no condition ends is
   their function whatever it holds, `(0..<8).map { bool.random() }`,

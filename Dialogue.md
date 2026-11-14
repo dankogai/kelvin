@@ -10470,3 +10470,24 @@ whose name begins with `p` on a hex integer, is "malformed number" to
 kelvinc, and kc reads it. Details are provisional P568.
 
 There are 1343 tests, and all pass with clang and with gcc 15.
+
+### 604. kc reads a fixed array of pointers
+
+**User** had the next of kc's gaps follow #556:
+
+> push and go on
+
+**Claude** had named that gap by the last words of kc's message, "in
+an Optional", and found it to be something else: kc refused a fixed
+array whose elements are pointers, `var pp:[u8^](2) = [s, s]`, and
+main's `argv:[u8^]`. Both are read now, as kelvinc reads them, with a
+struct's member and a parameter of such arrays; the elements are C's
+to check, as kelvinc leaves them. main's argv became a variable of
+main's body, so a `var argv` can step. Four more of tests/run build
+with kc, and print what kelvinc's builds print. Left for numbers of
+their own: showing such an array by `print`, an element that is a
+function, and `let ap := arr`. kelvinc is unchanged; a fault of its
+own, a function named first in an array's elements before it is
+written, Claude told the user. Details are provisional P569.
+
+There are 1343 tests, and all pass with clang and with gcc 15.
