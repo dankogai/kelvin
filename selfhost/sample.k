@@ -1519,6 +1519,7 @@ on a new line`
         + 5
     println(+up_b, " ", (+up_b).typename, " ", up_k, " ", up_t, " ", +-+1, " ", 1 - +2, " ", +2 ** 3, " ", +1...+3)
     println(`${+up_b}`, " ", +2.0, " ", +0x1.8p+0, " ", (+0x1.8p+0-0x1p+1.i) == c64(1.5, -2.0), " ", (+1.5-2.0.i).typename)   // a text with a sign pastes back (#558, #559)
+    println(0o52, " ", -0O52, " ", 0o52 == 052, " ", (255:u8).oct, " ", 0o377 == 255, " ", 0o17n, " ", (1n << 70).oct, " ", 2 ** 0o3)   // 0o52, an octal number, and 0o17n (#562), as kelvinc's (#561)
     var tv_xs = (0..<8).map { bool.random() }           // a body that begins with a type's word, and names no $0 (#549)
     var tv_ys = (0..<3).map { u8.max }
     println(tv_xs.count, " ", tv_xs.typename, " ", tv_ys, " ", tv_top(), " ", $[1, 2].map { 7 })

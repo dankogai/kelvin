@@ -604,6 +604,21 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`0o52`, an octal number, and `0o17n`** (#562), as kelvinc's (#561):
+  `0o` or `0O` and digits of 0 to 7, the text `n.oct` writes, the same
+  number as C's `052`.
+  - kc had handed `0o52` to the C compiler as it was written, which a
+    recent one reads, C2y's, and an older one does not; and `0o17n`
+    was C's "invalid suffix".
+  - lex.k: `octal_literal` makes the token C's octal, `052`, so gen.k
+    and the C written know it with no change; `big_literal` takes
+    `0o` for base 8, `BigInt("17", 8)`.
+  - What is not one is kelvinc's error, word for word: `0o18`, `0o`,
+    `0o1.5` are "malformed number '0o18': an octal number is 0o and
+    digits of 0 to 7, as in 0o17". Of `017n` the message names `0o`
+    now, as kelvinc's.
+  - tests/run/octal_literals.k is built by kc, and prints what
+    kelvinc's build prints; sample.k has a line of them.
 - **`+x`, the prefix** (#560), as kelvinc's: C's, the value itself, and
   a small integer's an `int32`, as `-x`'s is. kc had no prefix `+`:
   `+1` was "an expression is expected".

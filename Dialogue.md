@@ -10570,3 +10570,19 @@ passes `0o52` to the C compiler and does not read `0o17n`, which
 Claude told the user. Details are provisional P573.
 
 There are 1348 tests, and all pass with clang and with gcc 15.
+
+### 609. kc reads 0o52 and 0o17n
+
+**User** ordered it with the push of #561:
+
+> push then make kc read 0o52 and 0o17n as #562
+
+**Claude** had told the user what #561 left in kc: it handed `0o52`
+to the C compiler as written, which only a recent one reads, and
+`0o17n` was C's error. kc reads both now as kelvinc does: the lexer
+makes the token C's octal, `052`, and `0o17n` a BigInt of base 8.
+What is not an octal number, `0o18`, is kelvinc's error word for
+word. kc builds tests/run/octal_literals.k, and prints what kelvinc's
+build prints. kelvinc is unchanged. Details are provisional P574.
+
+There are 1348 tests, and all pass with clang and with gcc 15.

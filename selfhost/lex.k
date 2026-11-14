@@ -144,14 +144,14 @@ let hex_fraction(i:int64):bool {
 var big_lits:$[int64]     // the BigInt token of each 123n, which names the prelude's BigInt (#508, #515)
 var rx_lits:$[int64]      // the RegExp token of each $/.../, the prelude's RegExp (#157, #515)
 
-// 123n, 0xffn, 0b101n from s up to the n at e (#508), as kelvinc's
-// big_literal: BigInt("123", 10), the prelude's; false where the text
-// before the n is no integer, which is then a number's error
+// 123n, 0xffn, 0o17n (#562), 0b101n from s up to the n at e (#508), as
+// kelvinc's big_literal: BigInt("123", 10), the prelude's; false where
+// the text before the n is no integer, which is then a number's error
 let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
     var base = 10
     var d:int64 = s
-    if e - s > 2 && codes[s] == '0' && (codes[s + 1] == 'x' || codes[s + 1] == 'X' || codes[s + 1] == 'b' || codes[s + 1] == 'B') {
-        base = codes[s + 1] == 'x' || codes[s + 1] == 'X' ? 16 : 2
+    if e - s > 2 && codes[s] == '0' && (codes[s + 1] == 'x' || codes[s + 1] == 'X' || codes[s + 1] == 'b' || codes[s + 1] == 'B' || codes[s + 1] == 'o' || codes[s + 1] == 'O') {
+        base = codes[s + 1] == 'x' || codes[s + 1] == 'X' ? 16 : codes[s + 1] == 'o' || codes[s + 1] == 'O' ? 8 : 2
         d = s + 2
     }
     if d == e { return false }
@@ -159,13 +159,14 @@ let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
         let c:uint32 = codes[q]
         let hexd = is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
         if base == 16 && !hexd { return false }
+        if base == 8 && (c < '0' || c > '7') { return false }
         if base == 2 && c != '0' && c != '1' { return false }
         if base == 10 && !is_digit(c) { return false }
     }
     if base == 10 && e - s > 1 && codes[s] == '0' {
         var m = $"'"
         for q in s..<e { m += codes[q] }
-        m += "n': a BigInt literal is decimal, 0x hex or 0b binary, with no leading 0: C's octal is none of them"
+        m += "n': a BigInt literal is decimal, 0x hex, 0o octal or 0b binary, with no leading 0: C's octal is none of them"
         lex_error(file, line, m.cstr)
         return true
     }
@@ -178,9 +179,31 @@ let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
     codes += '"'
     add_tok(T_STR, at, codes.count as int64 - at, line, file)
     add_made(T_PUNCT, ",", line, file)
-    add_made(T_NUM, base == 16 ? "16" : base == 2 ? "2" : "10", line, file)
+    add_made(T_NUM, base == 16 ? "16" : base == 8 ? "8" : base == 2 ? "2" : "10", line, file)
     add_made(T_PUNCT, ")", line, file)
     return true
+}
+
+// 0o52 from s to e (#562), as kelvinc reads it (#561): 0o or 0O and
+// digits of 0 to 7, the text n.oct writes; from here on C's own octal,
+// 052, which gen.k and the C compiler know. What is not one, 0o18, 0o,
+// 0o1.5, is the error kelvinc says
+let octal_literal(s:int64, e:int64, line:int64, file:int64) {
+    var ok = e - s > 2
+    for q in s + 2..<e {
+        if codes[q] < '0' || codes[q] > '7' { ok = false }
+    }
+    if !ok {
+        var m = $"malformed number '"
+        for q in s..<e { m += codes[q] }
+        m += "': an octal number is 0o and digits of 0 to 7, as in 0o17"
+        lex_error(file, line, m.cstr)
+        return
+    }
+    let at:int64 = codes.count as int64
+    codes += '0'
+    for q in s + 2..<e { codes += codes[q] }
+    add_tok(T_NUM, at, codes.count as int64 - at, line, file)
 }
 
 // """text""" from i, at its first quote (#115, #118, #516), as kelvinc's
@@ -509,7 +532,11 @@ let lex_range(from:int64, to:int64, file:int64) {
                     more = true
                 }
             }
-            if !(i - s >= 2 && codes[i - 1] == 'n' && big_literal(s, i - 1, line, file)) {   // 123n, the prelude's BigInt (#508, #515)
+            if i - s >= 2 && codes[i - 1] == 'n' && big_literal(s, i - 1, line, file) {
+                // 123n, the prelude's BigInt (#508, #515)
+            } else if c == '0' && (code_at(s + 1) == 'o' || code_at(s + 1) == 'O') {
+                octal_literal(s, i, line, file)                         // 0o52 (#562)
+            } else {
                 add_tok(T_NUM, s, i - s, line, file)
             }
         } else if c == '`' || (c == '$' && code_at(i + 1) == '`') || (c == '}' && tpls.count > 0 && tpls[tpls.count as int64 - 1] == outer.count as int64 - 1) {
