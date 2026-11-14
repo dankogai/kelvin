@@ -1493,6 +1493,7 @@ on a new line`
     let cb_z = cbr(1n.over(2n), 1n.over(3n))            // math+Rational.k, the overlay of two modules imported above (#551, #552)
     let cb_w:complexBigRat = cb_z * cb_z.conj() + 1
     println(cb_z, " ", cb_w, " ", cb_z / cbr(3, -4), " ", norm(cb_z), " ", 1n.over(7n).i, " ", c64(cbr(3, -4)), " ", cb_z.typename)
+    println(bigrat.pi(64), " ", exp(bigrat(1), 32), " ", 1n.over(3n).sin(16), " ", sqrt(bigrat(2)) == sqrt(bigrat(2), bigrat.precision))   // math's functions of a bigrat, to a precision (#553)
     var tv_xs = (0..<8).map { bool.random() }           // a body that begins with a type's word, and names no $0 (#549)
     var tv_ys = (0..<3).map { u8.max }
     println(tv_xs.count, " ", tv_xs.typename, " ", tv_ys, " ", tv_top(), " ", $[1, 2].map { 7 })

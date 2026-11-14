@@ -10387,3 +10387,30 @@ and by an infinity follow `c64`'s, Claude's choice. kc builds it as
 kelvinc does, and sample.k has it. Details are provisional P564.
 
 There are 1337 tests, and all pass with clang and with gcc 15.
+
+### 600. Functions of a bigrat, to a precision
+
+> push and go on.  Also consider precision argument to inexact
+> operations like `exp(cbr, precision)`where precision in bits with a
+> nice default.
+
+**Claude** pushed #550, put #551 into the tree, and asked what the
+precision should count, what the default should be, and which functions
+should take one.
+
+> Bits after the point (Recommended)
+
+> 128 bits (Recommended)
+
+> All of math's, real and complex (Recommended)
+
+The real ones come first, as the complex ones are made of them: with
+`<math>` and `<Rational>` both imported, `sqrt`, `exp`, `log`, `pow`,
+the trigonometric and hyperbolic functions and their inverses take a
+bigrat and a precision, and give a bigrat within `2^-precision` of the
+true value; `bigrat.pi(precision)` too. They are written in Kelvin, in
+BigInts alone, so every system gives the same bits. Claude checked 1232
+values against another reckoning, and the worst was half a part off. A
+`cbr`'s functions are #554. Details are provisional P565.
+
+There are 1338 tests, and all pass with clang and with gcc 15.

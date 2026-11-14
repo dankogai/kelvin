@@ -453,3 +453,7 @@ So far the changes from C are these, by topic.
   - with `#import <math>` too there is `cbr`, a complex number of two
     bigrats, exact in `+ - * /`: `1 / cbr(3, -4)` is
     `{real: (3n/25n), imag: (4n/25n)}` (#552)
+  - and math's functions take a bigrat, each to a precision in bits,
+    128 where none is written: `sqrt(bigrat(2), 64)`, `x.exp()`,
+    `bigrat.pi(256)`; reckoned in BigInts, the same on every system
+    (#553)

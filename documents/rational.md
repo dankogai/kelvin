@@ -111,6 +111,8 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   [math.md](math.md).
   - It comes with the two imports, by an overlay,
     `modules/math+Rational.k` (#551, [modules.md](modules.md)).
+  - And math's functions take a bigrat (#553), each to a precision in
+    bits: `sqrt(bigrat(2), 64)`, `x.exp()`, `bigrat.pi(256)`.
 
 ## Where it lives
 
@@ -152,3 +154,4 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/+0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |
 | | `.i`, with `<math>` (#552) | `cbr(0, r)`, a complex number of two bigrats ([math.md](math.md)) |
+| | `.sqrt()`, `.exp(p)`, `.sin()`, ..., with `<math>` (#553) | math's functions, within `2^-p`, or to 128 bits ([math.md](math.md)) |

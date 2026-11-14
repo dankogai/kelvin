@@ -610,6 +610,9 @@ kc reads what it is written in, and little more.
   side, and a bigrat's `.i`.
   - sample.k imports both modules, so it has `cbr`: the first overlay
     kc reads in the battery.
+  - math's functions of a bigrat, to a precision (#553), are in that
+    overlay too, Kelvin alone: kc builds them as kelvinc does, and
+    sample.k prints `bigrat.pi(64)` and three more.
 - **Overlays** (#551), as kelvinc's: where the modules `<A>` and `<B>`
   are both read, `A+B.kh`, else `A+B.k`, of ./modules or of the modules
   directory, is read too, with what it imports.

@@ -1,6 +1,6 @@
 # Math: `#import <math>`
 
-The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `cbr`, an exact one.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `cbr`, an exact one, and the functions of a `bigrat` to any precision.
 
 ## Synopsis
 
@@ -146,9 +146,55 @@ let main():int32 {
   `{real: (1n/2n), imag: (1n/3n)}`; it does not paste back, as a
   rational's does not.
 
+### Functions of a `bigrat`, to a precision, with `<Rational>`
+
+With `<Rational>` the functions take a `bigrat` too (#553). Few of
+their values are rational, so each takes a precision, in bits, and
+gives a `bigrat` that near.
+
+```swift
+#import <math>
+#import <Rational>
+
+let main():int32 {
+    println(sqrt(bigrat(2), 64))                 // (26087635650665564425n/18446744073709551616n)
+    println(bigrat.pi(8), " ", exp(bigrat(1), 8)) // (201n/64n) (87n/32n)
+    let x = bigrat(1, 3)
+    println(x.sin(16), " ", sin(x) == sin(x, 128)) // (21443n/65536n) true
+    return 0
+}
+```
+
+- **The precision** is a count of bits after the binary point:
+  `f(x, precision)` is a fraction of `2^precision` parts, within one
+  part, `2^-precision`, of the true value.
+  - It is absolute: `exp(bigrat(100), 0)` is `e^100` to the nearest
+    whole number, 44 digits, and a value below `2^-precision` is 0.
+  - With none written it is `bigrat.precision`, 128 bits, some 38
+    decimal digits; one below 0 is 0.
+  - A result prints in lowest terms, so its denominator is `2^precision`
+    or a lesser power of 2.
+- **The functions**: `sqrt`, `exp`, `log`, `pow`, `sin`, `cos`, `tan`,
+  `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`,
+  `acosh`, `atanh`, each a method too, `x.exp()`, `x.exp(64)`; and
+  `bigrat.pi(precision)`, `bigrat.pi()`.
+  - `pow(x, y)` of a whole `y` is the power itself, rounded, of a
+    negative `x` too; else `x` is above 0.
+- **An infinity and a NaN** come where a float's function gives one:
+  `log(bigrat(0))` is `(-1n/0n)`, `sqrt(bigrat(-1))` is `(0n/0n)`,
+  `atan` of an infinity is half of pi.
+  - `exp` of `2^32` and more is an infinity: its value is past
+    reckoning.
+- **How**: in `BigInt`s alone, a number as the integer `x * 2^w` of
+  some bits more than asked, which the rounding takes off; series,
+  after the argument is brought near 0.
+  - No float is in it: every system gives the same bits.
+  - It is not the fastest way: 16000 bits of each take a fraction of a
+    second, a million would take long.
+
 ## Where it lives
 
-`cbr` is `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+`cbr` and the functions of a `bigrat` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
 ## Functions
 
@@ -167,6 +213,9 @@ With `<Rational>` (#552):
 ```swift
 cbr(real:bigrat, imag:bigrat):cbr, cbr(real:bigrat):cbr                    // and of BigInts, and of i64s
 c64(z:cbr):c64, conj(z:cbr):cbr, norm(z:cbr):bigrat
+sin(x:bigrat):bigrat, sin(x:bigrat, precision:int64):bigrat                // and so for each function of a bigrat (#553)
+pow(x:bigrat, y:bigrat):bigrat, pow(x:bigrat, y:bigrat, precision:int64):bigrat
+atan2(y:bigrat, x:bigrat):bigrat, atan2(y:bigrat, x:bigrat, precision:int64):bigrat
 ```
 
 ## Properties and methods
@@ -193,3 +242,8 @@ c64(z:cbr):c64, conj(z:cbr):cbr, norm(z:cbr):bigrat
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: (1n/2n), imag: (1n/3n)}` |
 | `bigrat`, with `<Rational>` (#552) | `.i` | `cbr(0, r)`: the value rotated a quarter turn |
+| `bigrat`, with `<Rational>` (#553) | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to `bigrat.precision`, 128 bits, a `bigrat` |
+| | `.sqrt(p)`, `.exp(p)`, `.sin(p)`, ... | the same within `2^-p` |
+| | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
+| `bigrat.` | `.pi()`, `.pi(p)` | pi to 128 bits, or within `2^-p` |
+| | `.precision` | 128, the precision where none is written |

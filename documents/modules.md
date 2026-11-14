@@ -239,8 +239,9 @@ println(v)                      //   and its type, a speed
   - What it imports may make another pair, whose overlay is read too.
   - An overlay of an overlay, `A+B+C`, is not looked for.
 - **Written out**, `#import <A+B>` is a module as any, read once.
-- **Kelvin's own** is `math+Rational.k` (#552): `cbr`, a complex
-  number of two bigrats ([math.md](math.md)).
+- **Kelvin's own** is `math+Rational.k` (#552, #553): `cbr`, a complex
+  number of two bigrats, and math's functions of a bigrat
+  ([math.md](math.md)).
 - **kc** (selfhost/) reads overlays too.
 
 ### `modules/`
@@ -261,7 +262,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, bigrat, n.over(d)
-    math+Rational.k       an overlay (#551, #552): cbr, of two bigrats, where <math> and <Rational> are both imported
+    math+Rational.k       an overlay (#551-#553), where <math> and <Rational> are both imported: cbr, of two bigrats, and math's functions of a bigrat
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -293,7 +294,8 @@ and `c32`, complex numbers, `complex64` and `complex32` by their
 aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
 
 - With `<Rational>` too it has `cbr`, a complex number of two bigrats
-  (#552), by the overlay `modules/math+Rational.k`.
+  (#552), and its functions of a bigrat, to a precision (#553), by the
+  overlay `modules/math+Rational.k`.
 
 ### UnicodeData: `modules/UnicodeData.k`
 
