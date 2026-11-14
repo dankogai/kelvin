@@ -604,6 +604,21 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A hex float's fraction and its signed exponent** (#556), as
+  kelvinc's: `0x1p-1074`, `0x1.8p+1`, `0x1.p3`, `0x.8p1`. kc read
+  `0x1p4` since #472, and stopped a hex number at a `.` or a sign, so
+  `0x1p-1074` was `0x1p` less 1074, C's error.
+  - lex.k: after a `p` or a `P` of a hex number a sign before a digit
+    is the exponent's; and a `.` is the number's where `hex_fraction`
+    finds the rest of a float after it: hex digits, if any, then `p`
+    and an exponent.
+  - So `0xff.cstr` and `0xff.pow2()` are still a member's, the `p` of
+    a name no exponent.
+  - `0x1e + 3` is an addition, as it was; written `0x1e+3` kelvinc
+    refuses it, as C does, and kc adds.
+  - sample.k prints six of them; tests/run/float_constants.k, which
+    compares `f64.leastNonzeroMagnitude` with `0x1p-1074`, is built by
+    kc now.
 - **`cbr`** (#552): modules/math+Rational.k, the overlay of math with
   Rational, is Kelvin alone, and kc builds it as it is: a struct of two
   bigrats, its operators with a bigrat, a BigInt or an `i64` on either
@@ -669,9 +684,9 @@ kc reads what it is written in, and little more.
     overloaded call, `pow(c64(0.0), NAN)`, left the inner one's choice
     among the outer one's candidates, and kc ended on an index out of
     range; the candidates are cleared once the arguments are typed.
-  - Not yet, and no part of importing: a hex float, `0x1p-1074`;
-    `[T](N)` in an Optional; a pointer to a function type as a
-    parameter, `out:((i64):i64)^`.
+  - Not yet, and no part of importing: `[T](N)` in an Optional; a
+    pointer to a function type as a parameter, `out:((i64):i64)^`. A
+    hex float, `0x1p-1074`, was a third, read since #556.
 - **A function with no `$0`, trailing `map`** (#549), as kelvinc's:
   after `map`, `filter` and their kin a `{` that no condition ends is
   their function whatever it holds, `(0..<8).map { bool.random() }`,

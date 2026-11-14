@@ -10451,3 +10451,22 @@ the same; the user may change them. kc said the line already. Details
 are provisional P567.
 
 There are 1343 tests, and all pass with clang and with gcc 15.
+
+### 603. kc reads a hex float
+
+**User** asked for the first of the three gaps of kc that Claude had
+listed:
+
+> make kc read a hex float literal as #556
+
+**Claude** found kc halfway there: it read `0x1p4`, and knew it for a
+float, but its lexer ended a hex number at a `.` or a sign, so
+`0x1p-1074` was `0x1p` less 1074 and `0x1.8p1` a member of an integer.
+Now a sign after the `p` is the exponent's, and a `.` is the number's
+where the rest of a hex float follows it; `0xff.cstr` is still a
+member's. kelvinc is unchanged. On the way Claude met a fault of
+kelvinc's and left it for the user to number: `0xff.pow2()`, a method
+whose name begins with `p` on a hex integer, is "malformed number" to
+kelvinc, and kc reads it. Details are provisional P568.
+
+There are 1343 tests, and all pass with clang and with gcc 15.

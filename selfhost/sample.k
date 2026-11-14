@@ -1304,6 +1304,7 @@ on a new line`
     println(n8.hex, " ", u16v.bin, " ", n128.hex, " ", u128v.bits[127], " ", u8("ff", 16), " ", u64("7"))
     println(`${n8} ${u64v} ${n128} ${u128v}`)
     println(num_wide(n8), " ", num_wide(u64v), " ", num_wide(n128), " ", (0x1p4).typename, " ", 0x1p4)
+    println(0x1p-2, " ", 0x1.8p+1, " ", 0x1.p3, " ", 0x.8p1, " ", 0X1.CP-3, " ", 0x1p-1074 > 0.0, " ", 0xff.cstr, " ", 0x1e + 3)   // a hex float's fraction and its signed exponent (#556)
     let r64:Range<u64> = 1...3
     println(r64, " ", r64.count, " ", r64.count.typename)
     println($[n8, n8], " ", $[u64v], " ", u16v.bits.count, " ", n8.size.typename, " ", (num_pack){1, 2, 3, 4})

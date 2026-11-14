@@ -128,6 +128,19 @@ let add_made(kind:tkind, s:cstr, line:int64, file:int64) {
     add_tok(kind, at, codes.count as int64 - at, line, file)
 }
 
+// whether what follows the . of a hex number, at i, is the rest of a hex
+// float (#556): its fraction's digits, if any, then p or P and the
+// exponent's digits, signed or not: 0x1.8p1, 0x1.f4p+9, 0x1.p3. So
+// 0xff.cstr and 0xff.pow2() are a member's, the p of a name no exponent
+let hex_fraction(i:int64):bool {
+    var k:int64 = i
+    while is_digit(code_at(k)) || (code_at(k) >= 'a' && code_at(k) <= 'f') || (code_at(k) >= 'A' && code_at(k) <= 'F') { k += 1 }
+    if code_at(k) != 'p' && code_at(k) != 'P' { return false }
+    k += 1
+    if code_at(k) == '+' || code_at(k) == '-' { k += 1 }
+    return is_digit(code_at(k))
+}
+
 var big_lits:$[int64]     // the BigInt token of each 123n, which names the prelude's BigInt (#508, #515)
 var rx_lits:$[int64]      // the RegExp token of each $/.../, the prelude's RegExp (#157, #515)
 
@@ -487,6 +500,12 @@ let lex_range(from:int64, to:int64, file:int64) {
                     more = true
                 } else if !hex && (d == '+' || d == '-') && (code_at(i - 1) == 'e' || code_at(i - 1) == 'E') && is_digit(code_at(i + 1)) {
                     i += 1                                              // 2.5e-8
+                    more = true
+                } else if hex && d == '.' && hex_fraction(i + 1) {      // 0x1.8p1, 0x1.p3, not 0xff.cstr (#556)
+                    i += 1
+                    more = true
+                } else if hex && (d == '+' || d == '-') && (code_at(i - 1) == 'p' || code_at(i - 1) == 'P') && is_digit(code_at(i + 1)) {
+                    i += 1                                              // 0x1p-1074, a hex float's exponent (#556)
                     more = true
                 }
             }
