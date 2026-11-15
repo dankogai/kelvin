@@ -1520,6 +1520,11 @@ on a new line`
     println(+up_b, " ", (+up_b).typename, " ", up_k, " ", up_t, " ", +-+1, " ", 1 - +2, " ", +2 ** 3, " ", +1...+3)
     println(`${+up_b}`, " ", +2.0, " ", +0x1.8p+0, " ", (+0x1.8p+0-0x1p+1.i) == c64(1.5, -2.0), " ", (+1.5-2.0.i).typename)   // a text with a sign pastes back (#558, #559)
     println(0o52, " ", -0O52, " ", 0o52 == 052, " ", (255:u8).oct, " ", 0o377 == 255, " ", 0o17n, " ", (1n << 70).oct, " ", 2 ** 0o3)   // 0o52, an octal number, and 0o17n (#562), as kelvinc's (#561)
+    var pv_n = 5n                                       // +x of a struct (#564), as kelvinc's (#563): its value where the type has a unary -
+    let pv_m = +pv_n                                    // of a variable that owns a new one, as -x's is
+    pv_n += 1
+    println(+1n, " ", +0xffn, " ", (+0o17n).oct, " ", pv_m, " ", pv_n, " ", +pv_n + +pv_m, " ", (+pv_n).typename, " ", - +pv_m)
+    println(+ma_z, " ", (+ma_z).hex, " ", +rat64(1, 3), " ", +1n.over(3n), " ", (+ma_z).typename)
     var tv_xs = (0..<8).map { bool.random() }           // a body that begins with a type's word, and names no $0 (#549)
     var tv_ys = (0..<3).map { u8.max }
     println(tv_xs.count, " ", tv_xs.typename, " ", tv_ys, " ", tv_top(), " ", $[1, 2].map { 7 })

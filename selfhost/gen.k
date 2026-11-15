@@ -3577,6 +3577,50 @@ let resolve_op(n:int64) {
     targets[n] = d
 }
 
+// whether n is +x of a Kelvin struct, a union or an enum with values
+// (#564), as kelvinc's plus_value takes it (#563): x's value where its
+// type has a unary -; n stays a prefix, a value and no place
+let plus_value(n:int64):bool {
+    if nodes[n].kind != N_UNARY || !tok_is(nodes[n].t, "+") { return false }
+    return op_record(type_of(nodes[n].a))
+}
+
+// +x of a struct written: a copy of a place that owns, a new owner as
+// -x's is, and else x itself, a variable that owns nothing or what an
+// expression gives, +1n; of a type with no unary -, kelvinc's error
+let gen_plus_value(n:int64) {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    if failed { return }
+    let c:int64 = make_node(N_CALL, nodes[n].t)          // -x's call, to ask which - takes x
+    let f:int64 = make_node(N_ID, nodes[n].t)
+    nodes[c].a = f
+    nodes[c].b = a
+    var name = $"-"
+    var d = choose_overload(c, &name, false)
+    if d == 0 - 1 { d = choose_overload(c, &name, true) }
+    if d < 0 {
+        var m = $"'+' gives the value of a number, or of a type with a unary '-', and no operator - takes "
+        let sa:String = operand_text(a, y)
+        m += &sa
+        m += ": define one, as in 'let -(a:"
+        m += &sa
+        m += "):... { ... }'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if is_owner(y) && is_place(a) {
+        put_owner_prefix(y)
+        put("_copy(&(")
+        gen_expr(a)
+        put("))")
+        return
+    }
+    put("(")
+    gen_expr(a)
+    put(")")
+}
+
 // grapheme(c0, c1, ...) and String.fromCodepoints(c0, c1, ...) (#526):
 // the prelude's, which take an Array<u32>, of any number of integers are
 // its kv_codepoints_string of an array of them as i64, their count and
@@ -10852,6 +10896,8 @@ let gen_expr_of(n:int64) {
         gen_index(n)                                 // of what an expression gives (#227)
     } else if k == N_INDEX {
         gen_element(n)
+    } else if k == N_UNARY && plus_value(n) {
+        gen_plus_value(n)                            // +x of a struct, its value (#564)
     } else if k == N_UNARY {
         if tok_is(t, "!") { put("(bool)") }          // C's ! gives an int, which prints as 1
         put("(")

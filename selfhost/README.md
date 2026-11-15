@@ -604,6 +604,28 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **`+x` of a struct** (#564), as kelvinc's (#563): its value where
+  the type has a unary `-`, as a `BigInt`, a complex number and a
+  rational have. kc's `+x` (#560) took no struct, so `+1n` was the C
+  compiler's "invalid argument type".
+  - It is a value and no place: of a variable, a member, an element or
+    `p^` that owns, a copy by the type's `_copy`, a new owner as `-x`'s
+    is; of a struct that owns nothing, and of what an expression
+    gives, `+1n`, the value as it is.
+  - gen.k: `plus_value` says whether a prefix `+` has a Kelvin struct,
+    a union or an enum with values for its operand, and
+    `gen_plus_value` writes it. The node stays a prefix, so it is no
+    place, and one that owns is held as any owner an expression gives.
+  - A type with no unary `-` is kelvinc's error, word for word: "'+'
+    gives the value of a number, or of a type with a unary '-', and no
+    operator - takes vec: ...".
+  - So a `BigInt`'s `.hex`, `.oct` and `.bin`, `+0xffn`, paste back
+    into kc too.
+  - tests/run/plus_value.k is built by kc, and prints what kelvinc's
+    build prints; sample.k has lines of it.
+  - Not yet as kelvinc's: `&+n` of an owner is the C compiler's error,
+    as `&-n` is, where kelvinc says "a borrow of a BigInt that an
+    expression gives".
 - **`0o52`, an octal number, and `0o17n`** (#562), as kelvinc's (#561):
   `0o` or `0O` and digits of 0 to 7, the text `n.oct` writes, the same
   number as C's `052`.
@@ -627,8 +649,8 @@ kc reads what it is written in, and little more.
     and `var x = +1` is an `i64`.
   - Before anything else it is a node of its own, written `(+x)`:
     `+b` of a `u8` is an `i32`, `+f` of an `f32` an `f32`.
-  - It takes no operator of a struct, as kelvinc's takes none: `+z`
-    of a `c64` is C's error from both.
+  - It took no operator of a struct, as kelvinc's took none: `+z` of
+    a `c64` was C's error from both, until #563 and #564.
   - After `...` and `..<` it begins the range's end: `+1...+3`.
   - A line that begins with `+` goes on with the line before it, as
     it did: the binary one.

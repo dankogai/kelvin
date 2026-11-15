@@ -10610,3 +10610,21 @@ number's `+x` is C's as before. kc is unchanged, and its `+x` takes
 no struct yet. Details are provisional P575.
 
 There are 1350 tests, and all pass with clang and with gcc 15.
+
+### 611. kc reads +1n
+
+**User** ordered it with the push of #563:
+
+> push then make kc read +1n as #564
+
+**Claude** had told the user what #563 left in kc: its `+x` took no
+struct, so `+1n` and `+z` were the C compiler's errors. kc reads them
+now as kelvinc does, by the user's two answers of #563: `+x` of a
+struct is its value where the type has a unary `-`, and of a variable
+that owns it is a new owner. kc keeps the prefix's node and writes it
+in gen.k, a copy of a place that owns and the value itself of
+anything else. A type with no unary `-` is kelvinc's error, word for
+word. kc builds tests/run/plus_value.k, and prints what kelvinc's
+build prints. kelvinc is unchanged. Details are provisional P576.
+
+There are 1350 tests, and all pass with clang and with gcc 15.
