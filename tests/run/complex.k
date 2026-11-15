@@ -194,9 +194,9 @@ let main():int32 {
     println(checked, " checked")
     return 0
 }
-// out: {real: 4.0, imag: 1.0} {real: -2.0, imag: 3.0} {real: 5.0, imag: 5.0} {real: -1.0, imag: -2.0}
-// out: {real: 2.0, imag: 2.0} {real: 2.0, imag: 4.0} {real: 0.5, imag: 1.0} {real: 0.0, imag: -2.0} {real: -1.0, imag: 0.0}
-// out: true true true false {real: 1.0, imag: -2.0} 25.0 5.0
+// out: (4.0+1.0.i) (-2.0+3.0.i) (5.0+5.0.i) (-1.0-2.0.i)
+// out: (2.0+2.0.i) (2.0+4.0.i) (0.5+1.0.i) (0.0-2.0.i) (-1.0+0.0.i)
+// out: true true true false (1.0-2.0.i) 25.0 5.0
 // out: true true true true
 // out: true true true true true true
 // out: true true true true true
@@ -206,6 +206,6 @@ let main():int32 {
 // out: true true true true true true true
 // out: true 9.0 5 true
 // out: f64 c64 4.0 2.5 true
-// out: {real: 5.0, imag: 5.0} {real: 2.0, imag: 2.0} 5.0 f32 true true
-// out: 25.0 true true false {real: 0.0, imag: 2.0} {real: 2.0, imag: 4.0} false
+// out: (5.0+5.0.i) (2.0+2.0.i) 5.0 f32 true true
+// out: 25.0 true true false (0.0+2.0.i) (2.0+4.0.i) false
 // out: 82 checked

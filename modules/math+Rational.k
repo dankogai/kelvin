@@ -86,8 +86,8 @@ let CBR_body(text:cstr, at:i64, base:i64):CBR_parts {
     return (CBR_parts){a.value.copy(), b.value.copy(), both}
 }
 
-// what print writes at text[at], after its {: real: a part, imag: a
-// part, and the }
+// the text of a struct of the parts at text[at], after its {, which print
+// wrote before #570: real: a part, imag: a part, and the }
 let CBR_record(text:cstr, at:i64, base:i64):CBR_parts {
     var i:i64 = complex_spaces(text, at)
     if !complex_word(text, i, "real", false) { return (CBR_parts){fx_nan(), fx_nan(), -1} }
@@ -110,8 +110,9 @@ let CBR_record(text:cstr, at:i64, base:i64):CBR_parts {
 
 // a CBR of its text, in a base, all of it: ((1n/2n)+(-1n/3n).i), with
 // 16, 8 or 2 its .hex, .oct or .bin, with the outer parentheses or with
-// none; a part alone, (1n/2n) or (1n/3n).i; or what print writes,
-// {real: (1n/2n), imag: (1n/3n)}. A part is a BigRat's text, as
+// none, which print writes (#570); a part alone, (1n/2n) or (1n/3n).i; or
+// the text of a struct of the parts, {real: (1n/2n), imag: (1n/3n)}. A
+// part is a BigRat's text, as
 // BigRat(text, base) reads it, in parentheses of its own or bare, 1.5
 // and 1/2, and a part left out is 0. Text that is no such thing is an
 // error, a NaN in both parts
@@ -206,6 +207,18 @@ extend CBR {
     let conj():Self { conj(self) }
     let norm():BigRat { norm(self) }
     let i:Self { (Self){-self.imag, self.real.copy()} }   // z rotated a quarter turn: z times i
+
+    // its text (#570), which print shows whole and .cstr gives:
+    // ((1n/2n)+(-1n/3n).i), each part a BigRat's text, in its own
+    // parentheses, a + between them, as .hex lays it out
+    let string:String {
+        var s = $"("
+        s += self.real.string
+        s += "+"
+        s += self.imag.string
+        s += ".i)"
+        return s
+    }
 
     // (real.hex+imag.hex.i), and the same in base 8 and base 2 (#558):
     // each part is a BigRat's text, in its own parentheses

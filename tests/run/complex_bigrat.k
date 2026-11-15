@@ -22,12 +22,12 @@ let main():int32 {
     println(p, " ", (p / CBR(1, 1)).real.den)
     return 0
 }
-// out: {real: (1n/2n), imag: (1n/3n)} {real: (3n/1n), imag: (-4n/1n)} CBR {real: (5n/1n), imag: (0n/1n)} true
-// out: {real: (7n/2n), imag: (-11n/3n)} {real: (-5n/2n), imag: (13n/3n)} {real: (-1n/2n), imag: (-1n/3n)}
-// out: {real: (17n/6n), imag: (-1n/1n)} {real: (1n/150n), imag: (3n/25n)} true
-// out: {real: (3n/2n), imag: (1n/3n)} {real: (1n/2n), imag: (-1n/3n)} {real: (1n/1n), imag: (2n/3n)} {real: (1n/4n), imag: (1n/6n)} {real: (3n/25n), imag: (4n/25n)} {real: (3n/1n), imag: (2n/1n)}
-// out: {real: (5n/2n), imag: (1n/3n)} {real: (0n/1n), imag: (1n/3n)} {real: (9n/25n), imag: (12n/25n)} {real: (3n/5n), imag: (-4n/5n)} {real: (-1n/6n), imag: (-1n/3n)} {real: (3n/1n), imag: (2n/1n)}
-// out: {real: (1n/2n), imag: (-1n/3n)} {real: (1n/2n), imag: (-1n/3n)} (25n/1n) (25n/1n) {real: (-1n/3n), imag: (1n/2n)} {real: (0n/1n), imag: (1n/7n)} true
-// out: {real: 3.0, imag: -4.0} 5.0 true true true
-// out: {real: (1n/0n), imag: (-1n/0n)} {real: (0n/1n), imag: (0n/1n)} {real: (0n/0n), imag: (0n/0n)} false
-// out: {real: (18446744073709551616n/1n), imag: (0n/1n)} 1n
+// out: ((1n/2n)+(1n/3n).i) ((3n/1n)+(-4n/1n).i) CBR ((5n/1n)+(0n/1n).i) true
+// out: ((7n/2n)+(-11n/3n).i) ((-5n/2n)+(13n/3n).i) ((-1n/2n)+(-1n/3n).i)
+// out: ((17n/6n)+(-1n/1n).i) ((1n/150n)+(3n/25n).i) true
+// out: ((3n/2n)+(1n/3n).i) ((1n/2n)+(-1n/3n).i) ((1n/1n)+(2n/3n).i) ((1n/4n)+(1n/6n).i) ((3n/25n)+(4n/25n).i) ((3n/1n)+(2n/1n).i)
+// out: ((5n/2n)+(1n/3n).i) ((0n/1n)+(1n/3n).i) ((9n/25n)+(12n/25n).i) ((3n/5n)+(-4n/5n).i) ((-1n/6n)+(-1n/3n).i) ((3n/1n)+(2n/1n).i)
+// out: ((1n/2n)+(-1n/3n).i) ((1n/2n)+(-1n/3n).i) (25n/1n) (25n/1n) ((-1n/3n)+(1n/2n).i) ((0n/1n)+(1n/7n).i) true
+// out: (3.0-4.0.i) 5.0 true true true
+// out: ((1n/0n)+(-1n/0n).i) ((0n/1n)+(0n/1n).i) ((0n/0n)+(0n/0n).i) false
+// out: ((18446744073709551616n/1n)+(0n/1n).i) 1n

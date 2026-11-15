@@ -452,7 +452,7 @@ So far the changes from C are these, by topic.
     `1n.over(3n)` is `(1n/3n)`, and every result fits (#540)
   - with `#import <math>` too there is `CBR`, a complex number of two
     BigRats, exact in `+ - * /`: `1 / CBR(3, -4)` is
-    `{real: (3n/25n), imag: (4n/25n)}` (#552)
+    `((3n/25n)+(4n/25n).i)` (#552)
   - and math's functions take a BigRat, each to a precision in bits,
     128 where none is written: `sqrt(BigRat(2), 64)`, `x.exp()`,
     `BigRat.pi(256)`; reckoned in BigInts, the same on every system
@@ -480,3 +480,8 @@ So far the changes from C are these, by topic.
   of a zero too, and `c64("1.5")` and `c64("2.0.i")` a part alone;
   `c32(text)` likewise, and with `<Rational>` `CBR(text)` and
   `CBR(z.hex, 16)` (#569)
+- `print` of a complex number writes `(a+b.i)`: `c64(1.5, -2.0)` is
+  `(1.5-2.0.i)`, each part as `print` writes a float, both always, a
+  zero with its sign, `(-0.0+0.0.i)`; a `CBR` is
+  `((1n/2n)+(-1n/3n).i)`; it is the type's `.string`, in a template
+  and `.cstr` too, and `c64(text)` and `CBR(text)` read it back (#570)

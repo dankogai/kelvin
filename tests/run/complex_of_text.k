@@ -1,6 +1,7 @@
 // a complex number of its text (#569): c64(text), c32(text) and
 // CBR(text) read what the type writes, so T(text) gives the value back:
-// z.dec's and z.hex's (a+b.i), and what print writes, {real: a, imag: b};
+// z.dec's and z.hex's (a+b.i), print's too (#570), and a struct's text of
+// the parts, {real: a, imag: b}, which print wrote before;
 // a part alone is read too, and text that is none is a NaN in both parts
 #import <math>
 #import <Rational>
@@ -30,7 +31,7 @@ let main():int32 {
     let s = z.dec
     let h = z.hex
     println(c64(&s), " ", c64(&h), " ", c32(&s), " ", c64(&s) == z)
-    // a CBR: its .hex, .oct and .bin with their base, and what print writes
+    // a CBR: its .hex, .oct and .bin with their base, what print writes, and a struct's text of the parts
     let q = CBR(1n.over(2n), (-1n).over(3n))
     println(CBR(q.hex, 16) == q, " ", CBR(q.oct, 8) == q, " ", CBR(q.bin, 2) == q, " ", CBR(q.cstr) == q, " ", CBR(q.hex, 16))
     println(CBR("((1n/2n)+(-1n/3n).i)"), " ", CBR("{real: (1n/2n), imag: (-1n/3n)}"), " ", CBR("(1/2)-(1/3).i"), " ", CBR("1/2-1/3.i"))
@@ -48,24 +49,24 @@ let main():int32 {
     println(c64(1.5), " ", c64(1.5, 2.0), " ", c32(z), " ", CBR(3), " ", CBR(1, 2), " ", CBR(1n.over(2n)))
     return 0
 }
-// out: true true true {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0}
-// out: {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0}
-// out: {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0} {real: 1.5, imag: 2.0} {real: 1.5, imag: 2.0} (+1.0-0.0.i)
-// out: {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: 0.5, imag: -2.0}
-// out: {real: 1.5, imag: 0.0} {real: 0.0, imag: 2.0} {real: 0.0, imag: -2.0} {real: 1.5, imag: 0.0} {real: 0.0, imag: -2.0} {real: 1000.0, imag: 0.0} {real: 0.0, imag: 2.0}
-// out: {real: -0.0, imag: 0.0} {real: 0.0, imag: -0.0} {real: -0.0, imag: -0.0} {real: -0.0, imag: 0.0} {real: -0.0, imag: 0.0}
-// out: {real: -0.0, imag: -0.0} {real: -0.0, imag: -0.0} {real: -0.0, imag: -0.0} (-0.0-0.0.i) (+0.0-0.0.i)
-// out: {real: nan, imag: nan} {real: inf, imag: -inf} {real: inf, imag: nan} {real: -inf, imag: 0.0} {real: 0.0, imag: inf}
-// out: {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan}
-// out: {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} {real: nan, imag: nan} true true
-// out: true true true {real: 0.100000001, imag: 0.0} {real: 0.100000001, imag: -2.0} {real: nan, imag: nan} c32
-// out: {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0} {real: 1.5, imag: -2.0} true
-// out: true true true true {real: (1n/2n), imag: (-1n/3n)}
-// out: {real: (1n/2n), imag: (-1n/3n)} {real: (1n/2n), imag: (-1n/3n)} {real: (1n/2n), imag: (-1n/3n)} {real: (1n/2n), imag: (-1n/3n)}
-// out: {real: (3n/2n), imag: (5n/2n)} {real: (1n/10n), imag: (0n/1n)} {real: (100n/1n), imag: (1n/100n)} {real: (255n/1n), imag: (16n/1n)}
-// out: {real: (1n/2n), imag: (0n/1n)} {real: (1n/2n), imag: (0n/1n)} {real: (3n/1n), imag: (0n/1n)} {real: (0n/1n), imag: (2n/1n)} {real: (0n/1n), imag: (1n/3n)} {real: (0n/1n), imag: (-1n/3n)}
-// out: {real: (1n/1n), imag: (2n/1n)} true true {real: (1n/2n), imag: (3n/1n)} {real: (0n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)}
-// out: {real: (1n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)}
-// out: {real: (0n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)} {real: (0n/0n), imag: (0n/0n)} true true
-// out: {real: (1n/2n), imag: (-1n/3n)} {real: (0n/0n), imag: (0n/0n)} CBR
-// out: {real: 1.5, imag: 0.0} {real: 1.5, imag: 2.0} {real: 1.5, imag: -2.0} {real: (3n/1n), imag: (0n/1n)} {real: (1n/1n), imag: (2n/1n)} {real: (1n/2n), imag: (0n/1n)}
+// out: true true true (1.5-2.0.i) (1.5-2.0.i)
+// out: (1.5-2.0.i) (1.5-2.0.i) (1.5-2.0.i) (1.5-2.0.i)
+// out: (1.5-2.0.i) (1.5-2.0.i) (1.5-2.0.i) (1.5+2.0.i) (1.5+2.0.i) (+1.0-0.0.i)
+// out: (nan+nan.i) (nan+nan.i) (nan+nan.i) (nan+nan.i) (0.5-2.0.i)
+// out: (1.5+0.0.i) (0.0+2.0.i) (0.0-2.0.i) (1.5+0.0.i) (0.0-2.0.i) (1000.0+0.0.i) (0.0+2.0.i)
+// out: (-0.0+0.0.i) (0.0-0.0.i) (-0.0-0.0.i) (-0.0+0.0.i) (-0.0+0.0.i)
+// out: (-0.0-0.0.i) (-0.0-0.0.i) (-0.0-0.0.i) (-0.0-0.0.i) (+0.0-0.0.i)
+// out: (nan+nan.i) (inf-inf.i) (inf+nan.i) (-inf+0.0.i) (0.0+inf.i)
+// out: (nan+nan.i) (nan+nan.i) (nan+nan.i) (nan+nan.i) (nan+nan.i) (nan+nan.i) (nan+nan.i) (nan+nan.i)
+// out: (nan+nan.i) (nan+nan.i) (nan+nan.i) (nan+nan.i) true true
+// out: true true true (0.100000001+0.0.i) (0.100000001-2.0.i) (nan+nan.i) c32
+// out: (1.5-2.0.i) (1.5-2.0.i) (1.5-2.0.i) true
+// out: true true true true ((1n/2n)+(-1n/3n).i)
+// out: ((1n/2n)+(-1n/3n).i) ((1n/2n)+(-1n/3n).i) ((1n/2n)+(-1n/3n).i) ((1n/2n)+(-1n/3n).i)
+// out: ((3n/2n)+(5n/2n).i) ((1n/10n)+(0n/1n).i) ((100n/1n)+(1n/100n).i) ((255n/1n)+(16n/1n).i)
+// out: ((1n/2n)+(0n/1n).i) ((1n/2n)+(0n/1n).i) ((3n/1n)+(0n/1n).i) ((0n/1n)+(2n/1n).i) ((0n/1n)+(1n/3n).i) ((0n/1n)+(-1n/3n).i)
+// out: ((1n/1n)+(2n/1n).i) true true ((1n/2n)+(3n/1n).i) ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i)
+// out: ((1n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i)
+// out: ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i) true true
+// out: ((1n/2n)+(-1n/3n).i) ((0n/0n)+(0n/0n).i) CBR
+// out: (1.5+0.0.i) (1.5+2.0.i) (1.5-2.0.i) ((3n/1n)+(0n/1n).i) ((1n/1n)+(2n/1n).i) ((1n/2n)+(0n/1n).i)

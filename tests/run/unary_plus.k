@@ -51,5 +51,5 @@ let main():int32 {
 // out: -2 3 1...3 1..<3 -1 -3 1.5
 // out: minus three
 // out: 15
-// out: 2.0 1.5 true true true {real: 1.5, imag: 2.0}
+// out: 2.0 1.5 true true true (1.5+2.0.i)
 // out: true 42 42 -42

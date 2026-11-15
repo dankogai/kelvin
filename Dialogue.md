@@ -10797,3 +10797,35 @@ So spaces may be on either side of the sign that joins the parts,
 neither compiler changed. Details are provisional P581.
 
 There are 1352 tests, and all pass with clang and with gcc 15.
+
+### 617. print of a complex number writes (a+b.i)
+
+**User**:
+
+> make print of a complex number write (a+b.i) as #570
+
+Print had written a complex number as the struct it is,
+`{real: 1.5, imag: -2.0}`, and #569 had left it so. **Claude** asked
+what a zero part gives, which the user's words in #569 had left
+open, and how a `CBR` is laid out.
+
+- **User** chose both parts always, over leaving a `+0.0` part out
+  and over leaving any zero part out. So `c64(1.5, 0.0)` is
+  `(1.5+0.0.i)` and `c64(-0.0, -0.0)` is `(-0.0-0.0.i)`: print agrees
+  with `.dec` and `.hex`, and `c64(text)` gives the value back.
+- **User** chose a `CBR` as `.hex` lays it out,
+  `((1n/2n)+(-1n/3n).i)`, each part a BigRat's text with a `+`
+  between them, over the imaginary part's sign joining the two.
+
+A `c64`'s part is as print writes a float, so the real part has no
+`+`, `(1.5-2.0.i)`, where `.dec` writes `(+1.5-2.0.i)`; a `nan` has
+no sign, and a `+` joins it. The text is the type's `.string`, so a
+template and `.cstr` give it, and an array and a struct show their
+complex numbers so. **Claude** kept the reader's other form,
+`{real: 1.5, imag: -2.0}`, and the other writers as they were.
+
+It is two properties in the modules, and neither compiler changed.
+Ten tests printed a complex number, and their expected lines were
+rewritten by rule. Details are provisional P582.
+
+There are 1353 tests, and all pass with clang and with gcc 15.

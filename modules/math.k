@@ -302,8 +302,9 @@ let complex_body(text:cstr, at:i64):complex_layout {
 }
 
 // the text of a complex number, all of it: z.dec's and z.hex's,
-// (+1.5-2.0.i), with its parentheses or with none, a part alone, 1.5 or
-// 2.0.i, or what print writes, {real: 1.5, imag: -2.0}; spaces may come
+// (+1.5-2.0.i), and print's (#570), (1.5-2.0.i), with its parentheses or
+// with none, a part alone, 1.5 or 2.0.i, or the text of a struct of the
+// parts, which print wrote before, {real: 1.5, imag: -2.0}; spaces may come
 // first and last, inside the parentheses and the braces, and about the
 // sign that joins the parts
 let complex_layout(text:cstr):complex_layout {
@@ -348,7 +349,7 @@ let complex_layout(text:cstr):complex_layout {
 }
 
 // a complex number of its text (#569): c64(z.dec), c64(z.hex) and
-// c64 of what print writes are z, the sign of a zero too; each part is
+// c64 of what print writes, z.cstr, are z, the sign of a zero too; each part is
 // read as f64(text) reads it, and a part left out is 0. Text that is no
 // complex number is an error, a NaN in both parts
 let c64(text:cstr):c64 {
@@ -875,6 +876,11 @@ extend c64 {
     let hex:String { complex_text(self.real.hex, self.imag.hex) }
     let dec:String { complex_text(self.real.dec, self.imag.dec) }
 
+    // its text (#570), which print shows and .cstr gives: (1.5-2.0.i),
+    // each part as print writes an f64, the imaginary part's sign joining
+    // the two; both parts always, a zero with its sign, (-0.0+0.0.i)
+    let string:String { complex_text(`${self.real}`, `${self.imag}`) }
+
     // z ** w (#380), pow's: a c64 or an f64 on either side
     static let **(a:Self, b:Self):Self { pow(a, b) }
     static let **(a:Self, b:f64):Self { pow(a, b) }
@@ -908,6 +914,9 @@ extend c32 {
     // its text as its parts' (#558), as c64's
     let hex:String { complex_text(self.real.hex, self.imag.hex) }
     let dec:String { complex_text(self.real.dec, self.imag.dec) }
+
+    // its text (#570), as c64's, of its f32 parts: (0.1-2.0.i)
+    let string:String { complex_text(`${self.real}`, `${self.imag}`) }
 
     // z ** w (#380), pow's: a c32 or an f32 on either side
     static let **(a:Self, b:Self):Self { pow(a, b) }
