@@ -15,7 +15,8 @@
 // What does not, abs, arg, exp and the rest of math's, of a BigRat
 // (#553) and of a CBR (#554), takes a precision, below; c64(z) is the
 // nearest c64. A part may be an infinity or a NaN, a BigRat's own
-// (rational.md): z / 0 is infinite, and no division by zero.
+// (rational.md): z / 0 is infinite, a part that is 0 staying 0 (#571),
+// and no division by zero.
 #import <math>
 #import <Rational>
 
@@ -143,6 +144,19 @@ let c64(z:lent CBR):c64 { (c64){z.real.f64, z.imag.f64} }
 
 // ---------- arithmetic ----------
 
+// z / 0 (#571): each part a BigRat's quotient by 0, an infinity of the
+// part's sign, but a part that is 0 stays 0 beside one that is none, since
+// a rational's 0 is exactly 0: CBR(1) / CBR(0) is ((1n/0n)+(0n/1n).i),
+// where the part was 0 / 0, a NaN. 0 / 0 is NaNs still, and a NaN part
+// makes no 0 of the other
+let CBR_by_zero(z:lent CBR, zero:lent BigRat):CBR {
+    let real = z.real.isFinite && z.real.num.isZero
+    let imag = z.imag.isFinite && z.imag.num.isZero
+    if real && !imag && !z.imag.isNaN { return (CBR){BigRat(0), z.imag / zero} }
+    if imag && !real && !z.real.isNaN { return (CBR){z.real / zero, BigRat(0)} }
+    return (CBR){z.real / zero, z.imag / zero}
+}
+
 extend CBR {
     static let +(a:Self, b:Self):Self { (Self){a.real + b.real, a.imag + b.imag} }
     static let +(a:Self, b:BigRat):Self { (Self){a.real + b, a.imag.copy()} }
@@ -172,10 +186,10 @@ extend CBR {
     static let *(a:i64, b:Self):Self { BigRat(a) * b }
 
     // a times b's conjugate, over b's norm, a BigRat; by 0 it is infinite,
-    // each part a BigRat's quotient by 0, and by an infinity 0, as c64's is
+    // CBR_by_zero's, and by an infinity 0, as c64's is
     static let /(a:Self, b:Self):Self {
         if b.real.isFinite && b.real.num.isZero && b.imag.isFinite && b.imag.num.isZero {
-            return (Self){a.real / b.real, a.imag / b.real}
+            return CBR_by_zero(a, b.real)
         }
         if b.real.isInfinite || b.imag.isInfinite {
             if !a.real.isFinite || !a.imag.isFinite { return (Self){BigRat(0, 0), BigRat(0, 0)} }
@@ -184,7 +198,10 @@ extend CBR {
         let d = b.real * b.real + b.imag * b.imag
         return (Self){(a.real * b.real + a.imag * b.imag) / d, (a.imag * b.real - a.real * b.imag) / d}
     }
-    static let /(a:Self, b:BigRat):Self { (Self){a.real / b, a.imag / b} }
+    static let /(a:Self, b:BigRat):Self {
+        if b.isFinite && b.num.isZero { return CBR_by_zero(a, b) }
+        return (Self){a.real / b, a.imag / b}
+    }
     static let /(a:BigRat, b:Self):Self { CBR(a) / b }
     static let /(a:Self, b:BigInt):Self { a / BigRat(b) }
     static let /(a:BigInt, b:Self):Self { CBR(a) / b }

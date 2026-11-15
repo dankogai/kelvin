@@ -485,3 +485,7 @@ So far the changes from C are these, by topic.
   zero with its sign, `(-0.0+0.0.i)`; a `CBR` is
   `((1n/2n)+(-1n/3n).i)`; it is the type's `.string`, in a template
   and `.cstr` too, and `c64(text)` and `CBR(text)` read it back (#570)
+- a `CBR` by 0 keeps a part that is 0: `CBR(1) / CBR(0)` is
+  `((1n/0n)+(0n/1n).i)`, where its imaginary part was `0 / 0`, a NaN;
+  each part that is not 0 is an infinity by its sign, and `0 / 0` is
+  NaNs still; a `c64`'s is C's, `(inf+nan.i)` (#571)

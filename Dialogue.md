@@ -10829,3 +10829,29 @@ Ten tests printed a complex number, and their expected lines were
 rewritten by rule. Details are provisional P582.
 
 There are 1353 tests, and all pass with clang and with gcc 15.
+
+### 618. A CBR by 0 keeps a part that is 0
+
+**User**:
+
+> fix CBR(1) / CBR(0) as #571
+
+**Claude** had reported it with #570: `CBR(1) / CBR(0)` was
+`((1n/0n)+(0n/0n).i)`. Each part was divided by 0, and the imaginary
+part, 0, became `0 / 0`, a NaN. **Claude** proposed that a part that
+is 0 stay 0, `((1n/0n)+(0n/1n).i)`, in every form of `z / 0`, and
+asked whether a `c64` and a `c32`, whose `c64(1.0) / c64(0.0)` is
+`(inf+nan.i)`, change too.
+
+- **User** chose `CBR` only. A rational's 0 is exactly 0, where a
+  float's `0.0` may be a rounded tiny number; a `c64`'s division is
+  as C's.
+
+So `CBR(0, 1) / 0` is `((0n/1n)+(1n/0n).i)` and `1 / CBR(0)` is
+`((1n/0n)+(0n/1n).i)`; a part that is not 0 is an infinity by its
+sign, as before, and `0 / 0` is NaNs still. It is one function of
+the overlay, and neither compiler changed. A product or a quotient
+of an infinite `CBR` and a real one has the like NaN, of 0 times an
+infinity, and was left. Details are provisional P583.
+
+There are 1354 tests, and all pass with clang and with gcc 15.
