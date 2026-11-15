@@ -1758,6 +1758,7 @@ static void typed_args(Expr *call, Decl *d);
 static char *signature(Decl *d);
 static bool user_operator_on(const char *op, Type *t);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
+static Expr *plus_value(Expr *e);
 static Expr *power_of(Expr *a, Expr *b, Pos pos);
 static bool ascii_name(const char *s);
 static bool name_known(const char *s);
@@ -5269,6 +5270,8 @@ static Expr *parse_unary(void) {
             error_at(e->a->pos, "%s is a value, and has no address: '&' takes a variable, a member, an element or "
                                 "'p^'; bind the value to a variable first",
                      value);
+        if (!strcmp(e->op, "+"))
+            return plus_value(e); /* +z (#563) */
         return !strcmp(e->op, "-") || !strcmp(e->op, "~") ? resolve_operator(e, e->op, e->a, NULL) : e; /* -z (#42), ~z (#502) */
     }
     if (is_p(t, "*") || is_p(t, "**"))
@@ -8077,6 +8080,40 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
     return wrap_temps(call, &held);
 }
 
+/* +x of a Kelvin struct or union (#563): x's value, where its type has a
+   unary -, as BigInt, c64 and a rational have: a value and no place, so of
+   a variable a copy, an owner's a new one as -x's is, and what an
+   expression gives, +1n, is itself. e, C's own +, of a number and of what
+   only C sees */
+static Expr *plus_value(Expr *e) {
+    Expr *a = e->a;
+    Decl *r;
+    Type *t = arg_type(a);
+    if (!t || type_class(t, &r) != 's')
+        return e;
+    List cands = overloads_of(NULL, "-"), maybe = {0};
+    if (!cands.len || !choose(&cands, &a, 1, &maybe, e->pos, "'-'")) {
+        char *name = operand_text(a, t);
+        name = name ? name : kelvin_type(t);
+        error_at(e->pos, "'+' gives the value of a number, or of a type with a unary '-', and no operator - takes %s: "
+                         "define one, as in 'let -(a:%s):... { ... }'",
+                 name, name);
+    }
+    if (a->kind != E_IDENT && a->kind != E_FIELD && a->kind != E_INDEX && a->kind != E_DEREF)
+        return a; /* what an expression gives is a value already */
+    if (is_owner(t) && !owner_place(a))
+        return a;
+    Expr *at = new_expr(E_PREFIX, a->pos);
+    at->op = "&";
+    at->a = a;
+    Expr *c = new_expr(E_CALL, e->pos);
+    c->op = "element_copy";
+    c->text = "+";
+    list_push(&c->items, at);
+    c->type = unqualified(t);
+    return c;
+}
+
 /* x op= y with the op= that x's type defines (#518): a call of it with &x
    and y, which changes x in place; NULL where none takes them, and x op= y
    is x = x op y */
@@ -9578,6 +9615,8 @@ static const char *no_place(Expr *e) {
     case E_CALL:
         if (e->op && !strcmp(e->op, "subscript_get"))
             return NULL;
+        if (e->op && !strcmp(e->op, "element_copy") && e->text && !strcmp(e->text, "+"))
+            return "what '+' gives"; /* +z (#563) */
         return e->a && e->a->kind == E_IDENT && !e->a->target && !function_named(e->a->text) && !value_type(e->a)
                    ? NULL /* a call kelvinc has no function of: a C macro may be a place */
                    : "what a function gives";

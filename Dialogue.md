@@ -10586,3 +10586,27 @@ word. kc builds tests/run/octal_literals.k, and prints what kelvinc's
 build prints. kelvinc is unchanged. Details are provisional P574.
 
 There are 1348 tests, and all pass with clang and with gcc 15.
+
+### 610. kelvinc reads +1n
+
+**User** ordered it with the push of #562:
+
+> push then make kelvinc read +1n as #563
+
+**Claude** had listed it among the open faults: a BigInt's `.hex` is
+`+0xffn`, and kelvinc's prefix `+` was C's, which takes no struct, so
+the text did not paste back. Two choices were the user's:
+
+- Which values take `+x` beyond the numbers. **User** chose any type
+  with a unary `-`, over an operator to define and over BigInt alone.
+- What `+n` of a BigInt variable is, an owner. **User** chose a new
+  BigInt, as `-n` is, over `n` itself.
+
+So `+x` of a struct is its value where the type has a unary `-`: a
+copy of a variable, a member, an element or `p^`, and the value
+itself of what an expression gives, `+1n`. A struct without a unary
+`-` is Kelvin's error where it was C's; the wording is Claude's. A
+number's `+x` is C's as before. kc is unchanged, and its `+x` takes
+no struct yet. Details are provisional P575.
+
+There are 1350 tests, and all pass with clang and with gcc 15.

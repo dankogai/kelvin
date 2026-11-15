@@ -463,3 +463,6 @@ So far the changes from C are these, by topic.
   `(+0x1.8p+0-0x1p+1.i)` and its `.dec` `(+1.5-2.0.i)`, which paste
   back as the number; a `cbr` has `.hex`, `.oct` and `.bin`, as a
   bigrat (#559)
+- `+x`, the prefix, of a struct is its value where the type has a unary
+  `-`: `+1n` is `1n`, so a `BigInt`'s `.hex`, `+0xffn`, pastes back, and
+  `+n` of a variable is a new `BigInt`, as `-n` is (#563)

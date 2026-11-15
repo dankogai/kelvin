@@ -75,6 +75,7 @@ turn on the Gaussian plane.
 - **Arithmetic**: `+ - * /` between two of one kind, or one and a real
   number of its parts' type (either way round), unary `-`, `==` and
   `!=`. `c32` and `c64` do not mix: convert one.
+  - `+z` is `z`'s value, as of any type with a unary `-` (#563).
   - Each is written in `extend c64 { }` as
     `static let +(a:Self, b:Self):Self` (#135, #140), and a mixed one
     as `static let +(a:Self, b:f64):Self`.
@@ -276,7 +277,7 @@ atan2(y:bigrat, x:bigrat):bigrat, atan2(y:bigrat, x:bigrat, precision:int64):big
 | | `.cstr`, `${z}`, `println(z)` | `{real: 1.0, imag: 2.0}` |
 | | `.hex`, `.dec` | `(+0x1.8p+0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
 | `cbr`, with `<Rational>` (#552) | `.real`, `.imag` | the parts, fields, each a `bigrat` |
-| | `+`, `-`, `*`, `/`, prefix `-`, `==`, `!=` | exact, of two, or with a `bigrat`, a `BigInt` or an `i64` on either side |
+| | `+`, `-`, `*`, `/`, prefix `-` and `+`, `==`, `!=` | exact, of two, or with a `bigrat`, a `BigInt` or an `i64` on either side |
 | | `.conj()` | the conjugate, a `cbr` |
 | | `.norm()` | `real² + imag²`, a `bigrat` |
 | | `.i` | `z` times `i` |

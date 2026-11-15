@@ -82,6 +82,10 @@ names it has it, with no import.
     signed as Kelvin's signed integers are, `+0xffn`, `-0o17n`,
     `+0b101n`; `BigInt(b.hex, 16)` reads it back, as `i64(s, 16)` does
     `0x`, and base 8 `0o` and base 2 `0b`.
+    - Each pastes back as the value: `+0xffn` is `255n`, the prefix `+`
+      of a `BigInt` being its value (#563).
+    - `+b` of a variable is a new `BigInt` of its value, as `-b` is and
+      as `b.copy()`, so `let m = +b` leaves `b`.
   - `b.text(base)` is the bare digits in a base from 2 to 36, as JS's
     `b.toString(16)`, its letters lowercase, a `-` before a negative
     one, no prefix and no `n`; another base ends the program.
@@ -239,3 +243,4 @@ repeated to the left, kept as short as it can be; zero is no limbs.
 | | `.f64` | the nearest double, about; `f64(b)` too (#512) |
 | | `.copy()` | a new `BigInt` of the same value |
 | | `+ - * / %`, `== != < <= > >=`, `& \| ~ << >>`, `-b`, `~b` | with a `BigInt` or an `i64` on the other side; `<<` and `>>` by an `i64` |
+| | `+b` | its value, a new `BigInt` of a variable's; `+0xffn` is `255n` (#563) |

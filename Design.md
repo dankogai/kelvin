@@ -611,6 +611,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 560 | kc reads `+x`, the prefix, as kelvinc does: C's, the value itself, a small integer's an `int32` as `-x`'s is; `+1` and `+1.5` are the numbers, which fit what `1` and `1.5` fit, and `+-1` is `-1`; it takes no operator of a struct, as kelvinc's takes none; `+1...+3` is a range; kc had no prefix `+`, "an expression is expected", so a text with a sign, `+2.0`, `+0x1.8p+0`, `(+0x1.8p+0-0x1p+1.i)` (#558, #559), pasted back into kelvinc alone; kelvinc is unchanged | selfhost/parse.k: parse_unary, range_ends; selfhost/sample.k; selfhost/README.md | tests/run/unary_plus.k, which both build; float_dec.k and complex_text.k build with kc and print what kelvinc's builds print; sample.k's lines of #560 | 2026-11-15 |
 | 561 | kelvinc reads `0o52`, an octal number, the text `n.oct` writes, so that text pastes back: `0o` or `0O` and digits of 0 to 7, the same number as C's `052`, which is read as before; with an `n` a BigInt, `0o17n`, the text of its `.oct`; `0o18`, `0o` alone and `0o1.5` are "malformed number ...: an octal number is 0o and digits of 0 to 7, as in 0o17"; it was "malformed number '0o52'"; kelvinc alone | src/lexer.c: check_number, big_literal, lex_number; editors/vscode/syntaxes/kelvin.tmLanguage.json; documents/integers.md, bigint.md, grammar.md; README.md | tests/run/octal_literals.k, tests/error/octal_digit.k; tests/error/bigint_literal_octal.k, whose message names 0o | 2026-11-15 |
 | 562 | kc reads `0o52`, an octal number, and `0o17n`, a BigInt, as kelvinc does (#561): `0o` or `0O` and digits of 0 to 7, the same number as C's `052`; kc had handed `0o52` to the C compiler as written, which a recent one reads and an older one does not, and `0o17n` was C's "invalid suffix"; `0o18`, `0o` alone and `0o1.5` are kelvinc's error, word for word, and the message of `017n` names `0o` as kelvinc's; kelvinc is unchanged | selfhost/lex.k: octal_literal, big_literal, the number's branch of lex; selfhost/sample.k; selfhost/README.md | tests/run/octal_literals.k builds with kc and prints what kelvinc's build prints; sample.k's line of #562 | 2026-11-15 |
+| 563 | kelvinc reads `+1n`: the prefix `+` of a Kelvin struct or union is its value where the type has a unary `-`, as a `BigInt`, `c64`, `c32`, a rational, a `bigrat` and a `cbr` have, and a struct of the program with one; a value and no place, so of a variable, a member, an element or `p^` it is a copy, and an owner's a new one, as `-x`'s is: `let m = +n` of a `BigInt` is a new `BigInt`; of what an expression gives, `+1n`, `+(a + b)`, it is that value; so a `BigInt`'s `.hex`, `.oct` and `.bin`, `+0xffn`, paste back, which were C's "invalid argument type"; a struct without a unary `-` is "'+' gives the value of a number, or of a type with a unary '-', and no operator - takes vec: ..."; `+` is no operator to define; a number's `+x` is C's, as before, and so is that of a String or a pointer, C's error; kelvinc alone | src/parser.c: plus_value, parse_unary, no_place; documents/operators.md, structs.md, bigint.md, math.md, rational.md; README.md | tests/run/plus_value.k, tests/error/plus_no_operator.k | 2026-11-15 |
 
 Notes:
 
@@ -1196,6 +1197,39 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (563) Agreed details: "make kelvinc read +1n as #563"
+  - Asked, and the user's answers:
+    - Which values take `+x` beyond the numbers: any type with a
+      unary `-`. It is no operator to define, and nothing is written
+      in a module.
+    - `+n` of a `BigInt` variable, an owner: a new `BigInt`, as `-n`
+      is, and not `n` itself, so `let m = +n` works where `let m = n`
+      is "an owner is not copied by '='".
+  - `+x` is a value and no place, as C's is:
+    - Of a variable, a member, an element or `p^` it is a copy; an
+      owner's by its copy function, as `x.copy()`.
+    - Of what an expression gives it is that expression, with no
+      copy: `+1n` is the literal, `+(a + b)` the sum, `+ -n` is
+      `-n`.
+    - `+n = 6n` and `&+z` are errors, "what '+' gives is a value",
+      as they were of a number.
+  - A struct without a unary `-` is Kelvin's error, where it was
+    C's. Claude's wording, the user's to change:
+    - "'+' gives the value of a number, or of a type with a unary
+      '-', and no operator - takes vec: define one, as in
+      'let -(a:vec):... { ... }'".
+  - What pastes back by it: a `BigInt`'s `.hex`, `.oct` and `.bin`,
+    `+0xffn`, `+0o377n`, `+0b101n`.
+    - A bigrat's `(+0x1n/+0x3n)` is read now, and is a BigInt's
+      division, 0n, as `(1n/3n)` is: a rational's text does not
+      paste back, as before.
+  - Left as they were:
+    - A number's `+x`, C's; `+s` of a String and `+p` of a pointer,
+      C's errors, as `-s` and `-p` are.
+    - `+x` of a value whose type only C sees, C's.
+    - kc: its `+x` takes no struct (#560), so `+1n` is the C
+      compiler's error there, and tests/run/plus_value.k does not
+      build with kc. A number of its own.
 - (562) Agreed details: "make kc read 0o52 and 0o17n as #562"
   - Left by #561, which was kelvinc's alone:
     - kc handed `0o52` to the C compiler as it was written. A recent
@@ -9423,6 +9457,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P572 | Details of #560 | selfhost/parse.k: parse_unary at a `+` reads its operand by parse_unary and gives the operand itself where it is a number, N_NUM, or a `-` of one, so every place of gen.k that knows a literal or a negative one knows `+1` and `+-1`; else an N_UNARY of the `+`, which gen.k types as `-x`, promoted_int of the operand's, and writes `(+x)`; resolve_op looks for an operator of `-` and `~` alone, so `+z` of a struct is C's error, as kelvinc's; range_ends takes `+` among what begins a value after `...` | gen.k is unchanged; kc's C of kc grows from 35315 lines to 35335; a `+` that begins a line is the binary one, by operator_on_next_line, in both compilers |
 | P573 | Details of #561 | src/lexer.c: check_number passes `0o` or `0O` before one digit or more of 0 to 7 and nothing after, and says the rest malformed in words of its own; lex_number then pushes the token as C's octal, `0` and the digits, `052`, by push_text, so every reader of a literal's text (strtoull of base 0) and the C written know it with no change; big_literal takes `0o` for base 8, `BigInt("17", 8)`; the grammar of editors/vscode had `0o` for a number, and has it before an `n` now | A message that quotes the number after the lexer shows C's spelling, `017`; C2y has `0o` too, which the C written does not need |
 | P574 | Details of #562 | selfhost/lex.k: after a number's run of digits and letters, one that begins `0o` or `0O` and is no BigInt goes to octal_literal, which asks for a digit or more of 0 to 7 and nothing else, or says kelvinc's error, and appends `0` and the digits to codes for a T_NUM of C's octal, as add_made does for a literal that becomes a call; big_literal takes `0o` for base 8 and refuses a digit past 7, so `0o89n` is the number's error | gen.k is unchanged: it reads `052` as it did; kc's C of kc grows from 35335 lines to 35378 |
+| P575 | Details of #563 | src/parser.c: parse_unary hands a `+` to plus_value, as it hands `-` and `~` to resolve_operator. plus_value leaves the E_PREFIX, C's `+`, where the operand's type is no Kelvin struct or union that kelvinc sees; else it chooses among the overloads of `-` with the one operand, and says the error where none takes it; what is no place (not a name, a member, an element or `p^`) is returned as it is; a place becomes the E_CALL `element_copy` of `&x` that `xs += &x` uses (#206), its text `+`, typed the operand's type unqualified, which codegen writes as the owner's copy function, `_kv_BigInt_copy(&n)`, or `(*(&z))` of a struct that owns nothing; no_place says "what '+' gives" of it | codegen.c is unchanged; an owner the copy makes is freed as one `-n` or `n.copy()` gives is: held by the expression around it, or taken by the variable or the parameter it goes to |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

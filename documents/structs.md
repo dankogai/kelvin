@@ -356,6 +356,9 @@ let main():int32 {
     it is the complement (#502).
   - `<<` and `>>` take what their parameters say: `let <<(a:T,
     n:int64):T` shifts by an integer.
+  - The prefix `+` is not one to define: `+x` is `x`'s value where the
+    type has a unary `-`, a copy of a variable's, and an error where it
+    has none (#563, [operators.md](operators.md)).
   - `x op= y`, `+=` and the rest, is defined apart (#518), below.
   - Other operators (`!`, `&&`) cannot be defined.
   - Precedence is C's, and `**`'s Python's, as Kelvin's `**` is

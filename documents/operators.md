@@ -121,6 +121,17 @@ extend money {
 Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `!`
 and `&&` cannot be defined.
 
+- **`+x`**, the prefix, is not defined: it is `x`'s value where the type
+  has a unary `-` (#563), as a `BigInt`, a complex number and a rational
+  have.
+  - It is a value and no place: of a variable a copy, and of an owner a
+    new one, as `-x`'s is, so `let m = +n` of a `BigInt` is a new
+    `BigInt`.
+  - Of what an expression gives it is that value, so `+1n` is `1n`, and
+    a `BigInt`'s `.hex`, `+0xffn`, pastes back.
+  - A struct without a unary `-` has no `+x` either: an error.
+  - A number's `+x` is C's, as before.
+
 - **`x op= y`** is `x = x op y`, `x <<= n` too, where the type defines
   no `op=` of its own.
 - **A type may define `op=`** (#518), as `static let +=(a:Self^, b:U)`:

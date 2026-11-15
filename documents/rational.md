@@ -73,6 +73,8 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   rationals of one width, and of a rational and an integer on either
   side: `a + 1`, `2 * a`, `1 / a`.
   - `+=` and its kin follow: `acc += 1.over(i)`.
+  - `+a`, the prefix, is `a`'s value, as of any type with a unary `-`
+    (#563); of a `bigrat` variable it is a new one.
   - The result is exact, reckoned in 128 bits and brought to lowest
     terms.
 - **Comparing:** `==`, `!=`, `<`, `<=`, `>` and `>=`, by value.
@@ -139,7 +141,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | `rat64`, `rat32`, `rat16`, `rat8` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
 | | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `bigrat`, converted; a NaN where it does not fit (#539, #540) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
-| | `+`, `-`, `*`, `/`, prefix `-` | exact, of two of one width or with an integer; what does not fit is a NaN |
+| | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is `(0/0)`; `(1/0)` or `(-1/0)`; neither |
 | | `.f64` | the nearest `f64`; `inf`, `-inf` or `nan` |
@@ -148,7 +150,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | `BigInt` | `n.over(d)` | `(n/d)`, a `bigrat`, of a `BigInt` or an integer `d` (#540) |
 | `bigrat` | `bigrat(n, d)`, `bigrat(n)`, `bigrat(r)` | of `BigInt`s or integers; of a rational of integers |
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
-| | `+`, `-`, `*`, `/`, prefix `-`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too |
+| | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/+0x3n)` and its kin, a String |
