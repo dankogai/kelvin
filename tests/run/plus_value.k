@@ -38,11 +38,11 @@ let main():int32 {
     u.x = 9
     println(w.real, " ", w.imag, " ", (+z).typename, " ", (+z).hex, " ", (+c32(1.0, 2.0)).dec)
     println(u.x, " ", v.x, " ", (+v + +v).y, " ", (+b.v).y, " ", (- +v).x, " ", (+ -v).x, " ", (+v).typename)
-    // a rational's, at each width, and a bigrat's and a cbr's, owners both
+    // a rational's, at each width, and a BigRat's and a CBR's, owners both
     let r = rat64(1, 3)
-    let s = bigrat(1n, 3n)
+    let s = BigRat(1n, 3n)
     let t = +s
-    let y = cbr(bigrat(1n, 2n), bigrat(-1n, 3n))
+    let y = CBR(BigRat(1n, 2n), BigRat(-1n, 3n))
     println(+r, " ", +r + +r, " ", - +r, " ", +rat8(1, 2), " ", (+r).typename, " ", (+r).hex)
     println(t, " ", +s + +s, " ", s, " ", (+s).typename, " ", (+y).hex, " ", (+y).real)
     // a number's + is C's still
@@ -59,5 +59,5 @@ let main():int32 {
 // out: 1.5 -2.0 c64 (+0x1.8p+0-0x1p+1.i) (+1.0+2.0.i)
 // out: 9 3 8 2 -3 -3 vec
 // out: (1/3) (2/3) (-1/3) (1/2) rat64 (+0x1/0x3)
-// out: (1n/3n) (2n/3n) (1n/3n) bigrat ((+0x1n/0x2n)+(-0x1n/0x3n).i) (1n/2n)
+// out: (1n/3n) (2n/3n) (1n/3n) BigRat ((+0x1n/0x2n)+(-0x1n/0x3n).i) (1n/2n)
 // out: 200 i32 1.5 i32

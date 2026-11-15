@@ -1,8 +1,8 @@
-// a cbr's functions that are not rational, to a precision (#554), of
+// a CBR's functions that are not rational, to a precision (#554), of
 // modules/math+Rational.k, the overlay of math with Rational (#551): each
 // part of f(z, precision) is within 2^-precision of the true value's, and
-// f(z) is the same to bigrat.precision, 128 bits; abs and arg give a
-// bigrat; each a method too. The inverses take their principal values,
+// f(z) is the same to BigRat.precision, 128 bits; abs and arg give a
+// BigRat; each a method too. The inverses take their principal values,
 // with C99's branch cuts, a point on a cut on the side a float's +0 is.
 // Reckoned in BigInts alone, so every system prints the same; the values
 // here agree with another reckoning of them.
@@ -10,15 +10,15 @@
 #import <Rational>
 
 // whether each part of a and of b are within 2^-bits of each other
-let near(a:lent cbr, b:lent cbr, bits:i64):bool {
+let near(a:lent CBR, b:lent CBR, bits:i64):bool {
     let d = a - b
-    let eps = bigrat(1n, 1n << bits)
+    let eps = BigRat(1n, 1n << bits)
     return d.real < eps && -d.real < eps && d.imag < eps && -d.imag < eps
 }
 
 let main():int32 {
-    let z = cbr(1n.over(3n), 1n.over(7n))
-    let w = cbr(1, 2)
+    let z = CBR(1n.over(3n), 1n.over(7n))
+    let w = CBR(1, 2)
     // to 32 bits: each part over 2^32, or less where it is not in lowest terms
     println(abs(w, 32), " ", arg(w, 32), " ", sqrt(w, 32))
     println(exp(w, 32), " ", log(w, 32))
@@ -26,35 +26,35 @@ let main():int32 {
     println(sinh(w, 32), " ", cosh(w, 32), " ", tanh(w, 32))
     println(asin(w, 32), " ", acos(w, 32), " ", atan(w, 32))
     println(asinh(w, 32), " ", acosh(w, 32), " ", atanh(w, 32))
-    println(pow(w, z, 32), " ", pow(w, bigrat(1, 2), 32), " ", pow(bigrat(2), w, 32))
+    println(pow(w, z, 32), " ", pow(w, BigRat(1, 2), 32), " ", pow(BigRat(2), w, 32))
     // e^(i pi) is -1, to as many bits as pi has; i^i is e^(-pi/2), a real number
-    println(exp(cbr(bigrat(0), bigrat.pi(200)), 64), " ", pow(cbr(0, 1), cbr(0, 1), 64))
+    println(exp(CBR(BigRat(0), BigRat.pi(200)), 64), " ", pow(CBR(0, 1), CBR(0, 1), 64))
     // a whole power is exact, then rounded: (1 + i)^128 is 2^64
-    println(pow(cbr(1, 1), cbr(128), 0), " ", pow(cbr(1, 1), cbr(-2), 4), " ", pow(cbr(1n.over(2n), 1n.over(4n)), cbr(3), 64) == cbr(1n.over(32n), 11n.over(64n)))
+    println(pow(CBR(1, 1), CBR(128), 0), " ", pow(CBR(1, 1), CBR(-2), 4), " ", pow(CBR(1n.over(2n), 1n.over(4n)), CBR(3), 64) == CBR(1n.over(32n), 11n.over(64n)))
     // on a branch cut, the side C99 gives a +0
-    println(sqrt(cbr(-4), 8), " ", log(cbr(-1), 8), " ", arg(cbr(-1), 8))
-    println(asin(cbr(2), 8), " ", asin(cbr(-2), 8), " ", acos(cbr(2), 8))
-    println(asinh(cbr(0, 2), 8), " ", asinh(cbr(0, -2), 8), " ", atan(cbr(0, 2), 8), " ", atan(cbr(0, -2), 8))
-    println(acosh(cbr(-2), 8), " ", acosh(cbr(1n.over(2n)), 8), " ", atanh(cbr(2), 8), " ", atanh(cbr(-2), 8))
+    println(sqrt(CBR(-4), 8), " ", log(CBR(-1), 8), " ", arg(CBR(-1), 8))
+    println(asin(CBR(2), 8), " ", asin(CBR(-2), 8), " ", acos(CBR(2), 8))
+    println(asinh(CBR(0, 2), 8), " ", asinh(CBR(0, -2), 8), " ", atan(CBR(0, 2), 8), " ", atan(CBR(0, -2), 8))
+    println(acosh(CBR(-2), 8), " ", acosh(CBR(1n.over(2n)), 8), " ", atanh(CBR(2), 8), " ", atanh(CBR(-2), 8))
     // a precision is of bits after the point; a large result has more bits in all
-    println(exp(cbr(10, 1), 0), " ", exp(cbr(-100, 1), 64), " ", tan(cbr(1570796n.over(1000000n), 1n.over(1000000000n)), 0))
-    // with no precision it is bigrat.precision; each is a method too
-    println(exp(z) == exp(z, 128), " ", z.log() == log(z, bigrat.precision), " ", abs(z) == sqrt(norm(z)), " ", pow(z, z) == z.pow(z, 128))
-    println(z.exp(16), " ", z.abs(16), " ", z.arg(16), " ", z.sqrt(16), " ", z.pow(cbr(2), 16), " ", z.atanh(16))
+    println(exp(CBR(10, 1), 0), " ", exp(CBR(-100, 1), 64), " ", tan(CBR(1570796n.over(1000000n), 1n.over(1000000000n)), 0))
+    // with no precision it is BigRat.precision; each is a method too
+    println(exp(z) == exp(z, 128), " ", z.log() == log(z, BigRat.precision), " ", abs(z) == sqrt(norm(z)), " ", pow(z, z) == z.pow(z, 128))
+    println(z.exp(16), " ", z.abs(16), " ", z.arg(16), " ", z.sqrt(16), " ", z.pow(CBR(2), 16), " ", z.atanh(16))
     // what they are of each other, to 120 bits of 128
-    println(near(exp(log(z)), z, 120), " ", near(sqrt(z) * sqrt(z), z, 120), " ", near(sin(z) * sin(z) + cos(z) * cos(z), cbr(1), 120), " ",
+    println(near(exp(log(z)), z, 120), " ", near(sqrt(z) * sqrt(z), z, 120), " ", near(sin(z) * sin(z) + cos(z) * cos(z), CBR(1), 120), " ",
             near(tan(atan(z)), z, 120), " ", near(sinh(asinh(z)), z, 120), " ", near(cosh(acosh(z)), z, 120), " ", near(tanh(atanh(z)), z, 120), " ",
             near(pow(z, w), exp(w * log(z)), 120))
     // an infinity and a NaN
-    let nan = bigrat(0, 0)
-    let inf = bigrat(1, 0)
-    let ninf = bigrat(-1, 0)
-    println(sqrt(cbr(0)), " ", sqrt(cbr(inf, bigrat(1))), " ", sqrt(cbr(ninf, bigrat(-1))), " ", sqrt(cbr(nan, bigrat(1))))
-    println(exp(cbr(ninf, bigrat(1))), " ", exp(cbr(inf, bigrat(1))), " ", exp(cbr(bigrat(10000000000), bigrat(2))), " ", exp(cbr(bigrat(1), inf)))
-    println(log(cbr(0)), " ", log(cbr(inf, bigrat(1)), 8), " ", atanh(cbr(1)), " ", atanh(cbr(-1)), " ", atan(cbr(0, 1)))
-    println(sin(cbr(inf, bigrat(1))), " ", tanh(cbr(inf, bigrat(1))), " ", tanh(cbr(ninf, bigrat(1))), " ", pow(cbr(0), cbr(0)), " ", pow(cbr(0), cbr(2, 1)), " ", pow(cbr(0), cbr(-1)))
+    let nan = BigRat(0, 0)
+    let inf = BigRat(1, 0)
+    let ninf = BigRat(-1, 0)
+    println(sqrt(CBR(0)), " ", sqrt(CBR(inf, BigRat(1))), " ", sqrt(CBR(ninf, BigRat(-1))), " ", sqrt(CBR(nan, BigRat(1))))
+    println(exp(CBR(ninf, BigRat(1))), " ", exp(CBR(inf, BigRat(1))), " ", exp(CBR(BigRat(10000000000), BigRat(2))), " ", exp(CBR(BigRat(1), inf)))
+    println(log(CBR(0)), " ", log(CBR(inf, BigRat(1)), 8), " ", atanh(CBR(1)), " ", atanh(CBR(-1)), " ", atan(CBR(0, 1)))
+    println(sin(CBR(inf, BigRat(1))), " ", tanh(CBR(inf, BigRat(1))), " ", tanh(CBR(ninf, BigRat(1))), " ", pow(CBR(0), CBR(0)), " ", pow(CBR(0), CBR(2, 1)), " ", pow(CBR(0), CBR(-1)))
     // c64's own are as they were
-    println(abs(c64(3.0, 4.0)), " ", exp(c64(0.0, 0.0)), " ", abs(cbr(3, 4), 0))
+    println(abs(c64(3.0, 4.0)), " ", exp(c64(0.0, 0.0)), " ", abs(CBR(3, 4), 0))
     return 0
 }
 // out: (9603838835n/4294967296n) (4755167535n/4294967296n) {real: (5463282795n/4294967296n), imag: (3376494457n/4294967296n)}

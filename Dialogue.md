@@ -10679,3 +10679,23 @@ So with a `/` both parts are to be there. Details are provisional
 P577.
 
 There are 1351 tests, and all pass with clang and with gcc 15.
+
+### 613. bigrat is BigRat, and cbr CBR
+
+**User**, after #565, where the answer had been "bigrat only":
+
+> rename `bigrat`to `BigRat` since its elements are `BigInt`.
+
+and, before it was pushed:
+
+> rename cbr to CBR as well, same reason as BigInt. I should've told
+> you so.
+
+**Claude** renamed both everywhere: the types, their constructors,
+their attributes, and the words in the documents. No alias is left,
+which is Claude's choice; `rat8` to `rat64`, `c64`, `c32` and
+`complexBigRat` keep their names, and C's `cbrt` is no `CBR`.
+Neither compiler knew the names, so it is the modules', the tests'
+and the documents'. Details are provisional P578.
+
+There are 1351 tests, and all pass with clang and with gcc 15.

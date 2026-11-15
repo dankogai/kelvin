@@ -239,9 +239,9 @@ println(v)                      //   and its type, a speed
   - What it imports may make another pair, whose overlay is read too.
   - An overlay of an overlay, `A+B+C`, is not looked for.
 - **Written out**, `#import <A+B>` is a module as any, read once.
-- **Kelvin's own** is `math+Rational.k` (#552 to #554): `cbr`, a
-  complex number of two bigrats, and math's functions of a bigrat and
-  of a `cbr` ([math.md](math.md)).
+- **Kelvin's own** is `math+Rational.k` (#552 to #554): `CBR`, a
+  complex number of two BigRats, and math's functions of a BigRat and
+  of a `CBR` ([math.md](math.md)).
 - **kc** (selfhost/) reads overlays too.
 
 ### `modules/`
@@ -261,8 +261,8 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     BigInt.kh             the prelude's BigInt (#507, bigint.md), built by make from BigInt.k
     kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
-    Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, bigrat, n.over(d)
-    math+Rational.k       an overlay (#551-#554), where <math> and <Rational> are both imported: cbr, of two bigrats, and math's functions of a bigrat and of a cbr
+    Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, BigRat, n.over(d)
+    math+Rational.k       an overlay (#551-#554), where <math> and <Rational> are both imported: CBR, of two BigRats, and math's functions of a BigRat and of a CBR
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -293,8 +293,8 @@ the functions of `math.h` for `f64` and `f32`, each a method too,
 and `c32`, complex numbers, `complex64` and `complex32` by their
 aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
 
-- With `<Rational>` too it has `cbr`, a complex number of two bigrats
-  (#552), and its functions of a bigrat and of a `cbr`, to a precision
+- With `<Rational>` too it has `CBR`, a complex number of two BigRats
+  (#552), and its functions of a BigRat and of a `CBR`, to a precision
   (#553, #554), by the overlay `modules/math+Rational.k`.
 
 ### UnicodeData: `modules/UnicodeData.k`
@@ -326,7 +326,7 @@ grapheme cluster: see [regexp.md](regexp.md).
 `#import <Rational>` brings in rational numbers (#538): `rat64`, two
 `i64`s in lowest terms, made by `n.over(d)`, with exact arithmetic and
 a float's infinities and NaN, `rat32`, `rat16` and `rat8` of the
-narrower integers (#539), and `bigrat` of two `BigInt`s (#540): see
+narrower integers (#539), and `BigRat` of two `BigInt`s (#540): see
 [rational.md](rational.md).
 
 ### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`

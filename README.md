@@ -448,25 +448,25 @@ So far the changes from C are these, by topic.
   - `rat32`, `rat16` and `rat8` are the same of `i32`s, `i16`s and
     `i8`s; only signed integers have `.over`, and two widths do not
     mix: `rat64(r)` converts (#539)
-  - `bigrat` is of two `BigInt`s, a fraction of any precision:
+  - `BigRat` is of two `BigInt`s, a fraction of any precision:
     `1n.over(3n)` is `(1n/3n)`, and every result fits (#540)
-  - with `#import <math>` too there is `cbr`, a complex number of two
-    bigrats, exact in `+ - * /`: `1 / cbr(3, -4)` is
+  - with `#import <math>` too there is `CBR`, a complex number of two
+    BigRats, exact in `+ - * /`: `1 / CBR(3, -4)` is
     `{real: (3n/25n), imag: (4n/25n)}` (#552)
-  - and math's functions take a bigrat, each to a precision in bits,
-    128 where none is written: `sqrt(bigrat(2), 64)`, `x.exp()`,
-    `bigrat.pi(256)`; reckoned in BigInts, the same on every system
+  - and math's functions take a BigRat, each to a precision in bits,
+    128 where none is written: `sqrt(BigRat(2), 64)`, `x.exp()`,
+    `BigRat.pi(256)`; reckoned in BigInts, the same on every system
     (#553)
-  - and a `cbr` too: `exp(z, 64)`, `z.sqrt()`, `abs(z)`, each part
+  - and a `CBR` too: `exp(z, 64)`, `z.sqrt()`, `abs(z)`, each part
     within `2^-precision`, the inverses with C99's branch cuts (#554)
 - a complex number has the texts of its parts: `c64(1.5, -2.0).hex` is
   `(+0x1.8p+0-0x1p+1.i)` and its `.dec` `(+1.5-2.0.i)`, which paste
-  back as the number; a `cbr` has `.hex`, `.oct` and `.bin`, as a
-  bigrat (#559)
+  back as the number; a `CBR` has `.hex`, `.oct` and `.bin`, as a
+  BigRat (#559)
 - `+x`, the prefix, of a struct is its value where the type has a unary
   `-`: `+1n` is `1n`, so a `BigInt`'s `.hex`, `+0xffn`, pastes back, and
   `+n` of a variable is a new `BigInt`, as `-n` is (#563)
 - a rational is read from its text by its type: `rat64("8/-12")` is
-  `(-2/3)`, `bigrat("8/-12")` is `(-2n/3n)`, and `rat64(r.hex, 16)` is
+  `(-2/3)`, `BigRat("8/-12")` is `(-2n/3n)`, and `rat64(r.hex, 16)` is
   `r`; its `.hex`, `.oct` and `.bin` have the sign on the numerator
   alone, `(-0x2/0x3)` (#565)

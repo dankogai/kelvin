@@ -696,16 +696,16 @@ kc reads what it is written in, and little more.
   - sample.k prints six of them; tests/run/float_constants.k, which
     compares `f64.leastNonzeroMagnitude` with `0x1p-1074`, is built by
     kc now.
-- **`cbr`** (#552): modules/math+Rational.k, the overlay of math with
+- **`CBR`** (#552): modules/math+Rational.k, the overlay of math with
   Rational, is Kelvin alone, and kc builds it as it is: a struct of two
-  bigrats, its operators with a bigrat, a BigInt or an `i64` on either
-  side, and a bigrat's `.i`.
-  - sample.k imports both modules, so it has `cbr`: the first overlay
+  BigRats, its operators with a BigRat, a BigInt or an `i64` on either
+  side, and a BigRat's `.i`.
+  - sample.k imports both modules, so it has `CBR`: the first overlay
     kc reads in the battery.
-  - math's functions of a bigrat, to a precision (#553), are in that
+  - math's functions of a BigRat, to a precision (#553), are in that
     overlay too, Kelvin alone: kc builds them as kelvinc does, and
-    sample.k prints `bigrat.pi(64)` and three more.
-  - And a `cbr`'s (#554): sample.k prints Euler's `e^(i pi)`, a root, an
+    sample.k prints `BigRat.pi(64)` and three more.
+  - And a `CBR`'s (#554): sample.k prints Euler's `e^(i pi)`, a root, an
     `abs`, an `asin` on its branch cut and a whole power.
 - **Overlays** (#551), as kelvinc's: where the modules `<A>` and `<B>`
   are both read, `A+B.kh`, else `A+B.k`, of ./modules or of the modules
@@ -833,7 +833,7 @@ kc reads what it is written in, and little more.
       arithmetic of literals had no `<<` and `>>`.
   - **A module that names BigInt**: kc.k reads each `#import <M>` before
     it asks whether the files name `BigInt` or `RegExp`, as kelvinc's
-    with_imports, so Rational's `bigrat` has its BigInt where the
+    with_imports, so Rational's `BigRat` has its BigInt where the
     program names none.
   - Found, and not kc's: kelvinc read a number's method only after it
     was written, where a struct's may come after (#505); #543 reads

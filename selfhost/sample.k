@@ -1507,12 +1507,12 @@ on a new line`
     println(abs(ma_z), " ", ma_z.typename, " ", ma_w, " ", 1.0.i * 1.0.i, " ", 1.0 / ma_z, " ", sqrt(16.0), " ", 16.0.ma_root(), " ", 1.5.ma_twice())
     println(ma_q, " ", ma_q.ma_sum(), " ", ma_q.typename, " ", ma_apply(ma_half, 9.0), " ", sizeof(c64), " ", sizeof(ma_cx) == sizeof(complex32) * 2, " ", 2.0.pow(10.0), " ", floor(2.5))
     println(copysign(INFINITY, -1.0), " ", isnan(pow(ma_z, NAN).real) != 0, " ", fmax(NAN, 2.0), " ", f64.tau > 6.28)   // C's names, given to overloads
-    let cb_z = cbr(1n.over(2n), 1n.over(3n))            // math+Rational.k, the overlay of two modules imported above (#551, #552)
+    let cb_z = CBR(1n.over(2n), 1n.over(3n))            // math+Rational.k, the overlay of two modules imported above (#551, #552)
     let cb_w:complexBigRat = cb_z * cb_z.conj() + 1
-    println(cb_z, " ", cb_w, " ", cb_z / cbr(3, -4), " ", norm(cb_z), " ", 1n.over(7n).i, " ", c64(cbr(3, -4)), " ", cb_z.typename)
-    println(bigrat.pi(64), " ", exp(bigrat(1), 32), " ", 1n.over(3n).sin(16), " ", sqrt(bigrat(2)) == sqrt(bigrat(2), bigrat.precision))   // math's functions of a bigrat, to a precision (#553)
-    println(exp(cbr(bigrat(0), bigrat.pi(200)), 64), " ", cb_z.sqrt(16), " ", abs(cbr(3, 4), 0), " ", asin(cbr(2), 8), " ", pow(cbr(1, 1), cbr(8), 0))   // and of a cbr (#554)
-    println(ma_z.hex, " ", ma_z.dec, " ", 1.0.i.conj().hex, " ", ma_z.hex.typename, " ", 2.0.dec, " ", cb_z.hex, " ", cb_z.oct, " ", cbr(3, -4).bin)   // a complex number's text as its parts' (#559), a float's .dec with its point (#558)
+    println(cb_z, " ", cb_w, " ", cb_z / CBR(3, -4), " ", norm(cb_z), " ", 1n.over(7n).i, " ", c64(CBR(3, -4)), " ", cb_z.typename)
+    println(BigRat.pi(64), " ", exp(BigRat(1), 32), " ", 1n.over(3n).sin(16), " ", sqrt(BigRat(2)) == sqrt(BigRat(2), BigRat.precision))   // math's functions of a BigRat, to a precision (#553)
+    println(exp(CBR(BigRat(0), BigRat.pi(200)), 64), " ", cb_z.sqrt(16), " ", abs(CBR(3, 4), 0), " ", asin(CBR(2), 8), " ", pow(CBR(1, 1), CBR(8), 0))   // and of a CBR (#554)
+    println(ma_z.hex, " ", ma_z.dec, " ", 1.0.i.conj().hex, " ", ma_z.hex.typename, " ", 2.0.dec, " ", cb_z.hex, " ", cb_z.oct, " ", CBR(3, -4).bin)   // a complex number's text as its parts' (#559), a float's .dec with its point (#558)
     var up_b:u8 = 200                                   // +x, the prefix (#560): C's, a small integer's an int, and +1 the number 1
     let up_k:u8 = +200
     let up_t:i32 = 10
@@ -1528,12 +1528,12 @@ on a new line`
     var tv_xs = (0..<8).map { bool.random() }           // a body that begins with a type's word, and names no $0 (#549)
     var tv_ys = (0..<3).map { u8.max }
     println(tv_xs.count, " ", tv_xs.typename, " ", tv_ys, " ", tv_top(), " ", $[1, 2].map { 7 })
-    let rt_a = 1.over(3)                                // #import <Rational>: rat64 to rat8, and bigrat of BigInts (#542)
+    let rt_a = 1.over(3)                                // #import <Rational>: rat64 to rat8, and BigRat of BigInts (#542)
     let rt_b = 1n.over(3n)
     println(rt_a + 1.over(6), " ", rt_a * 3, " ", rt_a.f64, " ", rt_a.hex, " ", (-4).over(-8), " ", 1.over(0), " ", rt_a < 1.over(2))
     println(rat32(rt_a), " ", rat8(1, 3) + 1, " ", rat16(100, 3) * rat16(100, 3) * rat16(100, 3), " ", $[rt_a, -rt_a])
-    println(rt_b + rt_b, " ", rt_b * 3 - 1, " ", bigrat(rt_a) == rt_b, " ", rat64(rt_b), " ", rt_b.f64, " ", rt_b.hex, " ", 2n.over(4))
-    println(rat64("8/-12"), " ", bigrat("8/-12"), " ", rat64(rt_a.hex, 16) == rt_a, " ", bigrat(rt_b.hex, 16) == rt_b, " ", rat8("(1/3)"), " ", rt_a.string, " ", rat64("1/0"))   // a rational of its text, and no sign on a denominator (#565)
+    println(rt_b + rt_b, " ", rt_b * 3 - 1, " ", BigRat(rt_a) == rt_b, " ", rat64(rt_b), " ", rt_b.f64, " ", rt_b.hex, " ", 2n.over(4))
+    println(rat64("8/-12"), " ", BigRat("8/-12"), " ", rat64(rt_a.hex, 16) == rt_a, " ", BigRat(rt_b.hex, 16) == rt_b, " ", rat8("(1/3)"), " ", rt_a.string, " ", rat64("1/0"))   // a rational of its text, and no sign on a denominator (#565)
     return 0
 }
 

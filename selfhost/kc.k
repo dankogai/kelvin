@@ -408,7 +408,7 @@ let load_prelude(mods:String^):bool {
         note_module(&u, fnames.count as int64 - 1)
     }
     if !load_module_imports(mods) { return false }       // each #import <M> first, as kelvinc's with_imports: a module
-                                                         // may name BigInt, as Rational's bigrat does (#542)
+                                                         // may name BigInt, as Rational's BigRat does (#542)
     let first:int64 = toks.count as int64
     for k in 0..<2 {
         let w:cstr := k == 0 ? "RegExp" : "BigInt"

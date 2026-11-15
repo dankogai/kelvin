@@ -386,7 +386,7 @@ static char *module_name(const Token *t) {
    ./modules or in Kelvin's modules/, it is imported too, as if
    #import <A+B> stood right after the later of the two, whichever the
    program imports first. It holds what A offers of B's types, as math's
-   complex number of Rational's bigrat, which a program that imports one
+   complex number of Rational's BigRat, which a program that imports one
    of them alone neither sees nor compiles; Kelvin has no #if to ask with.
    An overlay imports what it likes, which may bring another overlay in;
    one of an overlay, A+B+C, is not looked for. Written out, #import

@@ -36,7 +36,7 @@ make vscode
 - Types: `int8` to `uint128`, `i8` to `u128`, `float32`, `float64`,
   `bool`, `cstr`, `String`, `Bytes`, `Array`, `Dictionary`, `Set`,
   `Optional`, `Result`, `IO`, and the modules' `RegExp`, `Match`, `c64`,
-  `rat64` and `bigrat`.
+  `rat64` and `BigRat`.
 - Text: `"..."` with its escapes, `"""..."""`, templates `` `a${x}b` ``
   with the code in `${...}` colored as code, `$"..."` and `` $`...` ``,
   characters `'c'`, and regular expressions `$/pattern/flags` with their

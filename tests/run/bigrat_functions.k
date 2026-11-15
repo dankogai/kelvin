@@ -1,64 +1,64 @@
-// the functions of a bigrat that are not rational, to a precision (#553),
+// the functions of a BigRat that are not rational, to a precision (#553),
 // of modules/math+Rational.k, the overlay of math with Rational (#551):
-// f(x, precision) is a bigrat of 2^precision parts within one of them of
-// the true value, and f(x) the same to bigrat.precision, 128 bits; each a
+// f(x, precision) is a BigRat of 2^precision parts within one of them of
+// the true value, and f(x) the same to BigRat.precision, 128 bits; each a
 // method too. They are reckoned in BigInts alone, so every system prints
 // the same; the values here agree with another reckoning of them.
 #import <math>
 #import <Rational>
 
 // the first digits of r after its point, cut: of r times 10^digits
-let digits(r:lent bigrat, count:i64):BigInt {
+let digits(r:lent BigRat, count:i64):BigInt {
     let scaled = r * 10n ** count
     return scaled.num / scaled.den
 }
 // whether a and b are within 2^-bits of each other
-let near(a:lent bigrat, b:lent bigrat, bits:i64):bool {
+let near(a:lent BigRat, b:lent BigRat, bits:i64):bool {
     let d = a - b
-    let eps = bigrat(1n, 1n << bits)
+    let eps = BigRat(1n, 1n << bits)
     return d < eps && -d < eps
 }
 
 let main():int32 {
     // constants, 60 digits of each from 256 bits
-    println(digits(bigrat.pi(256), 60))
-    println(digits(exp(bigrat(1), 256), 60))
-    println(digits(sqrt(bigrat(2), 256), 60))
-    println(digits(log(bigrat(2), 256), 60))
+    println(digits(BigRat.pi(256), 60))
+    println(digits(exp(BigRat(1), 256), 60))
+    println(digits(sqrt(BigRat(2), 256), 60))
+    println(digits(log(BigRat(2), 256), 60))
     // to 64 bits: over 2^64, or less where it is not in lowest terms
-    println(bigrat.pi(64), " ", sqrt(bigrat(2), 64))
-    println(exp(bigrat(1), 64), " ", log(bigrat(10), 64))
-    println(sin(bigrat(1), 64), " ", cos(bigrat(1), 64), " ", tan(bigrat(1), 64))
-    println(atan(bigrat(1), 64), " ", asin(bigrat(1, 2), 64), " ", acos(bigrat(1, 2), 64), " ", atan2(bigrat(1), bigrat(-1), 64))
-    println(sinh(bigrat(1), 64), " ", cosh(bigrat(1), 64), " ", tanh(bigrat(1), 64))
-    println(asinh(bigrat(1), 64), " ", acosh(bigrat(2), 64), " ", atanh(bigrat(1, 2), 64), " ", pow(bigrat(2), bigrat(1, 2), 64))
+    println(BigRat.pi(64), " ", sqrt(BigRat(2), 64))
+    println(exp(BigRat(1), 64), " ", log(BigRat(10), 64))
+    println(sin(BigRat(1), 64), " ", cos(BigRat(1), 64), " ", tan(BigRat(1), 64))
+    println(atan(BigRat(1), 64), " ", asin(BigRat(1, 2), 64), " ", acos(BigRat(1, 2), 64), " ", atan2(BigRat(1), BigRat(-1), 64))
+    println(sinh(BigRat(1), 64), " ", cosh(BigRat(1), 64), " ", tanh(BigRat(1), 64))
+    println(asinh(BigRat(1), 64), " ", acosh(BigRat(2), 64), " ", atanh(BigRat(1, 2), 64), " ", pow(BigRat(2), BigRat(1, 2), 64))
     // a precision is of bits after the point: few, none, and below none
-    println(bigrat.pi(0), " ", bigrat.pi(1), " ", bigrat.pi(4), " ", bigrat.pi(8), " ", exp(bigrat(1), 0), " ", exp(bigrat(1), -5), " ", exp(bigrat(10), 0))
+    println(BigRat.pi(0), " ", BigRat.pi(1), " ", BigRat.pi(4), " ", BigRat.pi(8), " ", exp(BigRat(1), 0), " ", exp(BigRat(1), -5), " ", exp(BigRat(10), 0))
     // a large argument, a small one, a large result
-    println(sin(bigrat(10n ** 20), 64), " ", sin(bigrat(1n, 10n ** 30), 100), " ", exp(bigrat(100), 0), " ", exp(bigrat(-100), 64))
-    println(tan(bigrat(11, 7), 32), " ", pow(bigrat(3, 2), bigrat(100, 7), 16), " ", pow(bigrat(2), bigrat(10), 0), " ", pow(bigrat(-3), bigrat(3), 0), " ", pow(bigrat(2), bigrat(-2), 4))
-    // with no precision it is bigrat.precision; each is a method too
-    let r = bigrat(1, 3)
-    println(bigrat.precision, " ", exp(r) == exp(r, 128), " ", r.log() == log(r, 128), " ", bigrat.pi() == bigrat.pi(128), " ", sqrt(r).den == 1n << 128)
-    println(r.exp(16), " ", r.sin(16), " ", r.atan2(bigrat(1), 16), " ", r.pow(bigrat(1, 2), 16), " ", r.sqrt(16), " ", r.cosh(16), " ", r.atanh(16))
+    println(sin(BigRat(10n ** 20), 64), " ", sin(BigRat(1n, 10n ** 30), 100), " ", exp(BigRat(100), 0), " ", exp(BigRat(-100), 64))
+    println(tan(BigRat(11, 7), 32), " ", pow(BigRat(3, 2), BigRat(100, 7), 16), " ", pow(BigRat(2), BigRat(10), 0), " ", pow(BigRat(-3), BigRat(3), 0), " ", pow(BigRat(2), BigRat(-2), 4))
+    // with no precision it is BigRat.precision; each is a method too
+    let r = BigRat(1, 3)
+    println(BigRat.precision, " ", exp(r) == exp(r, 128), " ", r.log() == log(r, 128), " ", BigRat.pi() == BigRat.pi(128), " ", sqrt(r).den == 1n << 128)
+    println(r.exp(16), " ", r.sin(16), " ", r.atan2(BigRat(1), 16), " ", r.pow(BigRat(1, 2), 16), " ", r.sqrt(16), " ", r.cosh(16), " ", r.atanh(16))
     println(r.pow(r, 16), " ", r.atan2(r, 16), " ", r)   // a method is lent its other operand, which is still r's
     // what they are of each other, to 120 bits of 128
     let s = sin(r)
     let c = cos(r)
-    println(near(s * s + c * c, bigrat(1), 120), " ", near(exp(log(r)), r, 120), " ", near(tan(atan(r)), r, 120), " ", near(sqrt(r) * sqrt(r), r, 120), " ",
-            near(atan(bigrat(1)) * 4, bigrat.pi(), 120), " ", near(cosh(r) * cosh(r) - sinh(r) * sinh(r), bigrat(1), 120), " ", near(pow(r, r), exp(r * log(r)), 120))
+    println(near(s * s + c * c, BigRat(1), 120), " ", near(exp(log(r)), r, 120), " ", near(tan(atan(r)), r, 120), " ", near(sqrt(r) * sqrt(r), r, 120), " ",
+            near(atan(BigRat(1)) * 4, BigRat.pi(), 120), " ", near(cosh(r) * cosh(r) - sinh(r) * sinh(r), BigRat(1), 120), " ", near(pow(r, r), exp(r * log(r)), 120))
     // an infinity and a NaN, as a float's functions give them
-    let nan = bigrat(0, 0)
-    let inf = bigrat(1, 0)
-    let ninf = bigrat(-1, 0)
-    println(sqrt(bigrat(-1)), " ", sqrt(inf), " ", sqrt(nan), " ", exp(inf), " ", exp(ninf), " ", exp(nan))
-    println(log(bigrat(0)), " ", log(bigrat(-2)), " ", log(inf))
-    println(sin(inf), " ", cos(nan), " ", tan(ninf), " ", atan(inf, 8), " ", atan(ninf, 8), " ", atan2(inf, inf, 8), " ", atan2(bigrat(0), bigrat(0)))
-    println(asin(bigrat(2)), " ", acos(bigrat(-2)), " ", atanh(bigrat(1)), " ", atanh(bigrat(-1)), " ", atanh(bigrat(3)), " ", acosh(bigrat(1, 2)))
+    let nan = BigRat(0, 0)
+    let inf = BigRat(1, 0)
+    let ninf = BigRat(-1, 0)
+    println(sqrt(BigRat(-1)), " ", sqrt(inf), " ", sqrt(nan), " ", exp(inf), " ", exp(ninf), " ", exp(nan))
+    println(log(BigRat(0)), " ", log(BigRat(-2)), " ", log(inf))
+    println(sin(inf), " ", cos(nan), " ", tan(ninf), " ", atan(inf, 8), " ", atan(ninf, 8), " ", atan2(inf, inf, 8), " ", atan2(BigRat(0), BigRat(0)))
+    println(asin(BigRat(2)), " ", acos(BigRat(-2)), " ", atanh(BigRat(1)), " ", atanh(BigRat(-1)), " ", atanh(BigRat(3)), " ", acosh(BigRat(1, 2)))
     println(sinh(inf), " ", sinh(ninf), " ", cosh(ninf), " ", tanh(inf), " ", tanh(ninf), " ", asinh(ninf), " ", acosh(inf))
-    println(pow(bigrat(0), bigrat(0)), " ", pow(bigrat(0), bigrat(2)), " ", pow(bigrat(0), bigrat(-1)), " ", pow(bigrat(-8), bigrat(1, 3)), " ", pow(bigrat(2), inf), " ", pow(bigrat(1, 2), inf), " ", pow(bigrat(2), ninf), " ", pow(inf, bigrat(-1)))
+    println(pow(BigRat(0), BigRat(0)), " ", pow(BigRat(0), BigRat(2)), " ", pow(BigRat(0), BigRat(-1)), " ", pow(BigRat(-8), BigRat(1, 3)), " ", pow(BigRat(2), inf), " ", pow(BigRat(1, 2), inf), " ", pow(BigRat(2), ninf), " ", pow(inf, BigRat(-1)))
     // past what is reckoned, e^(2^32) and more, an infinity; far below, 0
-    println(exp(bigrat(10000000000)), " ", exp(bigrat(-10000000000)), " ", sinh(bigrat(-10000000000)), " ", pow(bigrat(10), bigrat(100000000000, 3)))
+    println(exp(BigRat(10000000000)), " ", exp(BigRat(-10000000000)), " ", sinh(BigRat(-10000000000)), " ", pow(BigRat(10), BigRat(100000000000, 3)))
     // math's own are as they were
     println(sin(0.5) < 0.48, " ", sqrt(16.0), " ", abs(c64(3.0, 4.0)))
     return 0

@@ -18,8 +18,8 @@ let main():int32 {
     println(inf, " ", -inf, " ", nan, " ", nan == nan, " ", inf.isInfinite)   // (1/0) (-1/0) (0/0) false true
     let small = rat8(1, 3)                    // of two i8s; rat16 and rat32 too
     println(small + rat8(1, 6), " ", rat8(1, 15) + rat8(1, 14), " ", rat64(small) + a)   // (1/2) (0/0) (2/3)
-    println(rat64("8/-12"), " ", rat64(b.hex, 16), " ", bigrat("(-2n/3n)"))   // (-2/3) (1/2) (-2n/3n): of its text
-    var sum = bigrat(0)                       // of two BigInts: any precision
+    println(rat64("8/-12"), " ", rat64(b.hex, 16), " ", BigRat("(-2n/3n)"))   // (-2/3) (1/2) (-2n/3n): of its text
+    var sum = BigRat(0)                       // of two BigInts: any precision
     for i in 1...30 { sum = sum + 1n.over(i) }
     println(sum, " ", sum.f64)                // (9304682830147n/2329089562800n) 3.994987130920391
     return 0
@@ -36,7 +36,7 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 |--------|---|
 | `rat64` | `struct rat64 { int64_t num, den; }` |
 | `rat32`, `rat16`, `rat8` | the same of `int32_t`, `int16_t` and `int8_t` |
-| `bigrat` | `struct bigrat { BigInt num, den; }`, an owner |
+| `BigRat` | `struct BigRat { BigInt num, den; }`, an owner |
 | `1.over(3)` | `(struct rat64){1, 3}`, in lowest terms |
 
 - **`rat64`** is a struct of two `i64`s, `num` and `den`.
@@ -50,22 +50,22 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
     of use.
   - **Only signed integers** are a rational's parts, a bit of the
     denominator unused: an unsigned integer has no `.over`.
-- **`bigrat`** (#540) is of two `BigInt`s, a fraction of any precision:
+- **`BigRat`** (#540) is of two `BigInt`s, a fraction of any precision:
   every result fits, so none is a NaN for its size.
-  - `1n.over(3n)` makes one, and `1n.over(3)`; so do `bigrat(n, d)` and
-    `bigrat(n)`, of `BigInt`s or of integers.
+  - `1n.over(3n)` makes one, and `1n.over(3)`; so do `BigRat(n, d)` and
+    `BigRat(n)`, of `BigInt`s or of integers.
   - It has `rat64`'s arithmetic, with a `BigInt` or an integer on
     either side, its comparisons, its infinities and its NaN.
   - Its text is `(1n/3n)`, its parts as a `BigInt` shows, and
     `(+0x1n/0x3n)` its `.hex`; it is as long as its digits.
-    `bigrat(text)` reads it back (#565).
+    `BigRat(text)` reads it back (#565).
   - `r.f64` is an `f64` of any of them: `inf` or `-inf` past an `f64`'s
     range, and 0 below it.
   - It owns its `BigInt`s, as a struct that holds an owner does: a
     variable owns it, and its block frees it; see
     [bigint.md](bigint.md) and [ownership.md](ownership.md).
-  - `bigrat(r)` of a `rat64` or a narrower one is the same value, and
-    `rat64(r)` of a `bigrat` the way back, a NaN where it does not fit.
+  - `BigRat(r)` of a `rat64` or a narrower one is the same value, and
+    `rat64(r)` of a `BigRat` the way back, a NaN where it does not fit.
 - **Making one:** `n.over(d)` is `(n/d)`, a method of a signed integer:
   of two `i64`s a `rat64`, of two `i32`s a `rat32`, and so on.
   - `rat64(n, d)` is the same, and `rat64(n)` is `(n/1)`; so are
@@ -76,7 +76,7 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   side: `a + 1`, `2 * a`, `1 / a`.
   - `+=` and its kin follow: `acc += 1.over(i)`.
   - `+a`, the prefix, is `a`'s value, as of any type with a unary `-`
-    (#563); of a `bigrat` variable it is a new one.
+    (#563); of a `BigRat` variable it is a new one.
   - The result is exact, reckoned in 128 bits and brought to lowest
     terms.
 - **Comparing:** `==`, `!=`, `<`, `<=`, `>` and `>=`, by value.
@@ -100,7 +100,7 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - `9223372036854775807.over(1) + 1` is a NaN, and so is
     `1.over(3) + 1.over(5000000000000000000)`, small as it is.
   - It is no error and does not round: `r.isNaN` tells.
-  - A `bigrat` holds them all.
+  - A `BigRat` holds them all.
 - **Text:** `(num/den)`, the sign with the numerator: `(1/3)`,
   `(-1/3)`, `(1/0)`, `(0/0)`.
   - `r.hex`, `r.oct` and `r.bin` are `(num.hex/den.hex)` and its kin:
@@ -124,20 +124,20 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - Where a `/` is written, a part left out is an error, and gives a
     NaN: `rat64("1/")` and `rat64("/3")` are `(0/0)`. The denominator
     is left out only with its `/`, as in `rat64("1")`, `(1/1)`.
-  - `bigrat(text)` and `bigrat(text, base)` are the same, of any
-    size: `bigrat("8/-12")` is `(-2n/3n)`.
+  - `BigRat(text)` and `BigRat(text, base)` are the same, of any
+    size: `BigRat("8/-12")` is `(-2n/3n)`.
   - Written in a program, `(1/3)` is the integer division, 0:
     `1.over(3)` writes the value there.
 - **`r.f64`** is the nearest `f64`: 0.5 of `(1/2)`, `inf` or `-inf` of
   an infinity, `nan` of a NaN.
 - **`r.num` and `r.den`** are its members, read as any struct's.
-- **With `<math>`** a program has `cbr` too (#552), a complex number
-  of two bigrats, and `r.i` of a bigrat is `cbr(0, r)`: see
+- **With `<math>`** a program has `CBR` too (#552), a complex number
+  of two BigRats, and `r.i` of a BigRat is `CBR(0, r)`: see
   [math.md](math.md).
   - It comes with the two imports, by an overlay,
     `modules/math+Rational.k` (#551, [modules.md](modules.md)).
-  - And math's functions take a bigrat (#553), each to a precision in
-    bits: `sqrt(bigrat(2), 64)`, `x.exp()`, `bigrat.pi(256)`.
+  - And math's functions take a BigRat (#553), each to a precision in
+    bits: `sqrt(BigRat(2), 64)`, `x.exp()`, `BigRat.pi(256)`.
 
 ## Where it lives
 
@@ -146,11 +146,11 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 
 - **In C:** `a + b` is the module's `+` of two `rat64`s, a function that
   multiplies in `__int128` and divides by the greatest common divisor;
-  each width has its own. A `bigrat`'s are of `BigInt`s, the prelude's
+  each width has its own. A `BigRat`'s are of `BigInt`s, the prelude's
   ([bigint.md](bigint.md)).
 - **Written by a script:** tools/gen_rational.py writes the module.
   - Kelvin has no generic struct, so the four widths are one text, written
-    out for each; `bigrat` is written once beside them.
+    out for each; `BigRat` is written once beside them.
   - Change the script and rerun it, not the file it writes; `make` reruns
     it when the script is the newer.
 - **kc** builds a program that imports the module too (#542), and it
@@ -162,7 +162,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 |---|---|---|
 | `i64`, `i32`, `i16`, `i8` | `n.over(d)` | `(n/d)`, a `rat64`, `rat32`, `rat16` or `rat8`, in lowest terms (#539) |
 | `rat64`, `rat32`, `rat16`, `rat8` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
-| | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `bigrat`, converted; a NaN where it does not fit (#539, #540) |
+| | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `BigRat`, converted; a NaN where it does not fit (#539, #540) |
 | | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; `"1/"` and `"/3"` are NaNs (#565) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN |
@@ -171,14 +171,14 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.f64` | the nearest `f64`; `inf`, `-inf` or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(num.hex/den.hex)` and its kin, a String; the denominator has no sign (#565) |
 | | `print(r)`, `.cstr`, `${r}`, `.string` | `(num/den)`; `.string` a String (#565) |
-| `BigInt` | `n.over(d)` | `(n/d)`, a `bigrat`, of a `BigInt` or an integer `d` (#540) |
-| `bigrat` | `bigrat(n, d)`, `bigrat(n)`, `bigrat(r)` | of `BigInt`s or integers; of a rational of integers |
-| | `bigrat(text)`, `bigrat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `r.hex` with 16 (#565) |
+| `BigInt` | `n.over(d)` | `(n/d)`, a `BigRat`, of a `BigInt` or an integer `d` (#540) |
+| `BigRat` | `BigRat(n, d)`, `BigRat(n)`, `BigRat(r)` | of `BigInt`s or integers; of a rational of integers |
+| | `BigRat(text)`, `BigRat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `r.hex` with 16 (#565) |
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |
-| | `.i`, with `<math>` (#552) | `cbr(0, r)`, a complex number of two bigrats ([math.md](math.md)) |
+| | `.i`, with `<math>` (#552) | `CBR(0, r)`, a complex number of two BigRats ([math.md](math.md)) |
 | | `.sqrt()`, `.exp(p)`, `.sin()`, ..., with `<math>` (#553) | math's functions, within `2^-p`, or to 128 bits ([math.md](math.md)) |

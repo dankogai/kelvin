@@ -17,7 +17,7 @@
 // makes the rational of that type. Two widths do not mix: rat64(r) and
 // its kin convert, a NaN where the narrower does not hold it.
 //
-// bigrat is of two BigInts, a fraction of any precision, which every
+// BigRat is of two BigInts, a fraction of any precision, which every
 // result fits: 1n.over(3n) makes one, and it shows as (1n/3n).
 //
 // Written by tools/gen_rational.py, which writes the four widths out from
@@ -381,52 +381,52 @@ extend rat8 {
     static let >=(a:Self, b:Self):bool { b < a || a == b }
 }
 
-// ---------- bigrat: of two BigInts, of any size (#540) ----------
+// ---------- BigRat: of two BigInts, of any size (#540) ----------
 
-struct bigrat {
+struct BigRat {
     num: BigInt
     den: BigInt
 }
 
 // n over d in lowest terms, d 0 or more: of 0 a sign over 0, an infinity,
 // or (0/0), a NaN; every other fits, as a BigInt holds any integer
-let bigrat_lowest(n:lent BigInt, d:lent BigInt):bigrat {
-    if d.isZero { return (bigrat){BigInt(n.sign), BigInt(0)} }
-    if n.isZero { return (bigrat){BigInt(0), BigInt(1)} }
+let BigRat_lowest(n:lent BigInt, d:lent BigInt):BigRat {
+    if d.isZero { return (BigRat){BigInt(n.sign), BigInt(0)} }
+    if n.isZero { return (BigRat){BigInt(0), BigInt(1)} }
     let g = n.abs.gcd(d.abs)
-    if d.isNegative { return (bigrat){-n / g, -d / g} }
-    return (bigrat){n / g, d / g}
+    if d.isNegative { return (BigRat){-n / g, -d / g} }
+    return (BigRat){n / g, d / g}
 }
 
-let bigrat(num:lent BigInt, den:lent BigInt):bigrat { bigrat_lowest(num, den) }
-let bigrat(num:lent BigInt):bigrat { bigrat_lowest(num, BigInt(1)) }
-let bigrat(num:i64, den:i64):bigrat { bigrat_lowest(BigInt(num), BigInt(den)) }
-let bigrat(num:i64):bigrat { bigrat_lowest(BigInt(num), BigInt(1)) }
+let BigRat(num:lent BigInt, den:lent BigInt):BigRat { BigRat_lowest(num, den) }
+let BigRat(num:lent BigInt):BigRat { BigRat_lowest(num, BigInt(1)) }
+let BigRat(num:i64, den:i64):BigRat { BigRat_lowest(BigInt(num), BigInt(den)) }
+let BigRat(num:i64):BigRat { BigRat_lowest(BigInt(num), BigInt(1)) }
 // of a rational of integers, which it always holds
-let bigrat(r:rat64):bigrat { (bigrat){BigInt(r.num as i128), BigInt(r.den as i128)} }
-let bigrat(r:rat32):bigrat { (bigrat){BigInt(r.num as i128), BigInt(r.den as i128)} }
-let bigrat(r:rat16):bigrat { (bigrat){BigInt(r.num as i128), BigInt(r.den as i128)} }
-let bigrat(r:rat8):bigrat { (bigrat){BigInt(r.num as i128), BigInt(r.den as i128)} }
+let BigRat(r:rat64):BigRat { (BigRat){BigInt(r.num as i128), BigInt(r.den as i128)} }
+let BigRat(r:rat32):BigRat { (BigRat){BigInt(r.num as i128), BigInt(r.den as i128)} }
+let BigRat(r:rat16):BigRat { (BigRat){BigInt(r.num as i128), BigInt(r.den as i128)} }
+let BigRat(r:rat8):BigRat { (BigRat){BigInt(r.num as i128), BigInt(r.den as i128)} }
 
-// a rational of integers of a bigrat: the same value, or a NaN where its
+// a rational of integers of a BigRat: the same value, or a NaN where its
 // parts do not fit
-let rat64(r:lent bigrat):rat64 {
+let rat64(r:lent BigRat):rat64 {
     if let n = r.num.exactI64 {
         if let d = r.den.exactI64 { return (rat64){n, d} }
     }
     return (rat64){0, 0}
 }
-let rat32(r:lent bigrat):rat32 { rat32(rat64(r)) }
-let rat16(r:lent bigrat):rat16 { rat16(rat64(r)) }
-let rat8(r:lent bigrat):rat8 { rat8(rat64(r)) }
+let rat32(r:lent BigRat):rat32 { rat32(rat64(r)) }
+let rat16(r:lent BigRat):rat16 { rat16(rat64(r)) }
+let rat8(r:lent BigRat):rat8 { rat8(rat64(r)) }
 
-// n.over(d) of a BigInt is a bigrat: 1n.over(3n), and 1n.over(3)
+// n.over(d) of a BigInt is a BigRat: 1n.over(3n), and 1n.over(3)
 extend BigInt {
-    let over(den:lent BigInt):bigrat { bigrat_lowest(self, den) }
-    let over(den:i64):bigrat { bigrat_lowest(self, BigInt(den)) }
+    let over(den:lent BigInt):BigRat { BigRat_lowest(self, den) }
+    let over(den:i64):BigRat { BigRat_lowest(self, BigInt(den)) }
 }
 
-extend bigrat {
+extend BigRat {
     let isNaN:bool { self.num.isZero && self.den.isZero }
     let isInfinite:bool { !self.num.isZero && self.den.isZero }
     let isFinite:bool { !self.den.isZero }
@@ -511,10 +511,10 @@ let rat_digit(c:u8, base:i64):bool {
 // with 16, 8 or 2 its .hex, .oct or .bin; spaces and a ( may come first,
 // then the numerator, as BigInt(text, base) reads it, and after a / the
 // denominator, read so too, with a sign of its own or none; with no / it
-// is 1. In lowest terms, as bigrat(num, den) gives it: "1/0" is an
+// is 1. In lowest terms, as BigRat(num, den) gives it: "1/0" is an
 // infinity, "0/0" a NaN. Where a / is written, a part left out is an
 // error, a NaN: "1/" has no denominator, and "/3" no numerator
-let bigrat(text:cstr, base:i64):bigrat {
+let BigRat(text:cstr, base:i64):BigRat {
     var i:i64 = 0
     while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
     if text[i] == '(' { i += 1 }
@@ -524,68 +524,68 @@ let bigrat(text:cstr, base:i64):bigrat {
     let numbered = rat_digit(text[first], base)
     let num = BigInt(top, base)
     while text[i] != 0 && text[i] != '/' { i += 1 }
-    if text[i] == 0 { return bigrat_lowest(num, BigInt(1)) }
-    if !numbered { return (bigrat){BigInt(0), BigInt(0)} }
+    if text[i] == 0 { return BigRat_lowest(num, BigInt(1)) }
+    if !numbered { return (BigRat){BigInt(0), BigInt(0)} }
     i += 1
     while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
     let digits:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
-    if !rat_digit(text[digits], base) { return (bigrat){BigInt(0), BigInt(0)} }
+    if !rat_digit(text[digits], base) { return (BigRat){BigInt(0), BigInt(0)} }
     let bottom:cstr := &text[i]
     let den = BigInt(bottom, base)
-    return bigrat_lowest(num, den)
+    return BigRat_lowest(num, den)
 }
-let bigrat(text:cstr):bigrat { bigrat(text, 10) }
-let bigrat(text:const String^, base:i64):bigrat { bigrat(text^.cstr, base) }
-let bigrat(text:const String^):bigrat { bigrat(text^.cstr, 10) }
+let BigRat(text:cstr):BigRat { BigRat(text, 10) }
+let BigRat(text:const String^, base:i64):BigRat { BigRat(text^.cstr, base) }
+let BigRat(text:const String^):BigRat { BigRat(text^.cstr, 10) }
 
 // a rational of integers of its text: the same, or a NaN where a part
 // does not fit
-let rat64(text:cstr, base:i64):rat64 { rat64(bigrat(text, base)) }
-let rat64(text:cstr):rat64 { rat64(bigrat(text, 10)) }
-let rat64(text:const String^, base:i64):rat64 { rat64(bigrat(text^.cstr, base)) }
-let rat64(text:const String^):rat64 { rat64(bigrat(text^.cstr, 10)) }
-let rat32(text:cstr, base:i64):rat32 { rat32(bigrat(text, base)) }
-let rat32(text:cstr):rat32 { rat32(bigrat(text, 10)) }
-let rat32(text:const String^, base:i64):rat32 { rat32(bigrat(text^.cstr, base)) }
-let rat32(text:const String^):rat32 { rat32(bigrat(text^.cstr, 10)) }
-let rat16(text:cstr, base:i64):rat16 { rat16(bigrat(text, base)) }
-let rat16(text:cstr):rat16 { rat16(bigrat(text, 10)) }
-let rat16(text:const String^, base:i64):rat16 { rat16(bigrat(text^.cstr, base)) }
-let rat16(text:const String^):rat16 { rat16(bigrat(text^.cstr, 10)) }
-let rat8(text:cstr, base:i64):rat8 { rat8(bigrat(text, base)) }
-let rat8(text:cstr):rat8 { rat8(bigrat(text, 10)) }
-let rat8(text:const String^, base:i64):rat8 { rat8(bigrat(text^.cstr, base)) }
-let rat8(text:const String^):rat8 { rat8(bigrat(text^.cstr, 10)) }
+let rat64(text:cstr, base:i64):rat64 { rat64(BigRat(text, base)) }
+let rat64(text:cstr):rat64 { rat64(BigRat(text, 10)) }
+let rat64(text:const String^, base:i64):rat64 { rat64(BigRat(text^.cstr, base)) }
+let rat64(text:const String^):rat64 { rat64(BigRat(text^.cstr, 10)) }
+let rat32(text:cstr, base:i64):rat32 { rat32(BigRat(text, base)) }
+let rat32(text:cstr):rat32 { rat32(BigRat(text, 10)) }
+let rat32(text:const String^, base:i64):rat32 { rat32(BigRat(text^.cstr, base)) }
+let rat32(text:const String^):rat32 { rat32(BigRat(text^.cstr, 10)) }
+let rat16(text:cstr, base:i64):rat16 { rat16(BigRat(text, base)) }
+let rat16(text:cstr):rat16 { rat16(BigRat(text, 10)) }
+let rat16(text:const String^, base:i64):rat16 { rat16(BigRat(text^.cstr, base)) }
+let rat16(text:const String^):rat16 { rat16(BigRat(text^.cstr, 10)) }
+let rat8(text:cstr, base:i64):rat8 { rat8(BigRat(text, base)) }
+let rat8(text:cstr):rat8 { rat8(BigRat(text, 10)) }
+let rat8(text:const String^, base:i64):rat8 { rat8(BigRat(text^.cstr, base)) }
+let rat8(text:const String^):rat8 { rat8(BigRat(text^.cstr, 10)) }
 
-extend bigrat {
+extend BigRat {
     static let +(a:Self, b:Self):Self {
         if a.den.isZero && b.den.isZero {                // two infinities: the same one, else a NaN
             if a.num == b.num { return (Self){BigInt(a.num.sign), BigInt(0)} }
             return (Self){BigInt(0), BigInt(0)}
         }
-        return bigrat_lowest(a.num * b.den + b.num * a.den, a.den * b.den)
+        return BigRat_lowest(a.num * b.den + b.num * a.den, a.den * b.den)
     }
-    static let +(a:Self, b:BigInt):Self { a + bigrat(b) }
-    static let +(a:BigInt, b:Self):Self { bigrat(a) + b }
-    static let +(a:Self, b:i64):Self { a + bigrat(b) }
-    static let +(a:i64, b:Self):Self { bigrat(a) + b }
-    static let -(a:Self):Self { bigrat_lowest(-a.num, a.den) }
+    static let +(a:Self, b:BigInt):Self { a + BigRat(b) }
+    static let +(a:BigInt, b:Self):Self { BigRat(a) + b }
+    static let +(a:Self, b:i64):Self { a + BigRat(b) }
+    static let +(a:i64, b:Self):Self { BigRat(a) + b }
+    static let -(a:Self):Self { BigRat_lowest(-a.num, a.den) }
     static let -(a:Self, b:Self):Self { a + -b }
-    static let -(a:Self, b:BigInt):Self { a + -bigrat(b) }
-    static let -(a:BigInt, b:Self):Self { bigrat(a) + -b }
-    static let -(a:Self, b:i64):Self { a + -bigrat(b) }
-    static let -(a:i64, b:Self):Self { bigrat(a) + -b }
-    static let *(a:Self, b:Self):Self { bigrat_lowest(a.num * b.num, a.den * b.den) }
-    static let *(a:Self, b:BigInt):Self { a * bigrat(b) }
-    static let *(a:BigInt, b:Self):Self { bigrat(a) * b }
-    static let *(a:Self, b:i64):Self { a * bigrat(b) }
-    static let *(a:i64, b:Self):Self { bigrat(a) * b }
+    static let -(a:Self, b:BigInt):Self { a + -BigRat(b) }
+    static let -(a:BigInt, b:Self):Self { BigRat(a) + -b }
+    static let -(a:Self, b:i64):Self { a + -BigRat(b) }
+    static let -(a:i64, b:Self):Self { BigRat(a) + -b }
+    static let *(a:Self, b:Self):Self { BigRat_lowest(a.num * b.num, a.den * b.den) }
+    static let *(a:Self, b:BigInt):Self { a * BigRat(b) }
+    static let *(a:BigInt, b:Self):Self { BigRat(a) * b }
+    static let *(a:Self, b:i64):Self { a * BigRat(b) }
+    static let *(a:i64, b:Self):Self { BigRat(a) * b }
     // by 0 it is an infinity, and 0 by 0 a NaN: no division by zero
-    static let /(a:Self, b:Self):Self { bigrat_lowest(a.num * b.den, a.den * b.num) }
-    static let /(a:Self, b:BigInt):Self { a / bigrat(b) }
-    static let /(a:BigInt, b:Self):Self { bigrat(a) / b }
-    static let /(a:Self, b:i64):Self { a / bigrat(b) }
-    static let /(a:i64, b:Self):Self { bigrat(a) / b }
+    static let /(a:Self, b:Self):Self { BigRat_lowest(a.num * b.den, a.den * b.num) }
+    static let /(a:Self, b:BigInt):Self { a / BigRat(b) }
+    static let /(a:BigInt, b:Self):Self { BigRat(a) / b }
+    static let /(a:Self, b:i64):Self { a / BigRat(b) }
+    static let /(a:i64, b:Self):Self { BigRat(a) / b }
 
     // a NaN equals nothing and has no order, as a float's
     static let ==(a:Self, b:Self):bool { !a.isNaN && !b.isNaN && a.num == b.num && a.den == b.den }
