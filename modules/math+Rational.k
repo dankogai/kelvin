@@ -157,6 +157,26 @@ let CBR_by_zero(z:lent CBR, zero:lent BigRat):CBR {
     return (CBR){z.real / zero, z.imag / zero}
 }
 
+// z times a real number r (#573): each part times r, but times an infinity
+// a part that is 0 stays 0 beside one that is none, as by 0 (#571), since a
+// rational's 0 is exactly 0: CBR(1) * inf is ((1n/0n)+(0n/1n).i), where
+// the part was 0 times an infinity, a NaN. 0 times an infinity is NaNs
+// in both parts, whichever of the two is the 0, and a NaN part makes no 0
+// of the other
+let CBR_scaled(z:lent CBR, r:lent BigRat):CBR {
+    let real = z.real.isFinite && z.real.num.isZero
+    let imag = z.imag.isFinite && z.imag.num.isZero
+    if r.isInfinite {
+        if real && imag { return (CBR){BigRat(0, 0), BigRat(0, 0)} }
+        if real && !z.imag.isNaN { return (CBR){BigRat(0), z.imag * r} }
+        if imag && !z.real.isNaN { return (CBR){z.real * r, BigRat(0)} }
+    }
+    if r.isFinite && r.num.isZero && (z.real.isInfinite || z.imag.isInfinite) {
+        return (CBR){BigRat(0, 0), BigRat(0, 0)}
+    }
+    return (CBR){z.real * r, z.imag * r}
+}
+
 extend CBR {
     static let +(a:Self, b:Self):Self { (Self){a.real + b.real, a.imag + b.imag} }
     static let +(a:Self, b:BigRat):Self { (Self){a.real + b, a.imag.copy()} }
@@ -175,11 +195,26 @@ extend CBR {
     static let -(a:Self, b:i64):Self { a - BigRat(b) }
     static let -(a:i64, b:Self):Self { BigRat(a) - b }
 
+    // by a real number, one with an imaginary part of 0, it is the other
+    // scaled, CBR_scaled's, and by an imaginary one too, with a quarter
+    // turn (#573): the same where all is finite, and no 0 of the one meets
+    // an infinity of the other, so CBR(1) * CBR(inf, 0) is
+    // ((1n/0n)+(0n/1n).i), not a NaN in a part; either way round
     static let *(a:Self, b:Self):Self {
-        (Self){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
+        if b.imag.isFinite && b.imag.num.isZero { return CBR_scaled(a, b.real) }
+        if a.imag.isFinite && a.imag.num.isZero { return CBR_scaled(b, a.real) }
+        if b.real.isFinite && b.real.num.isZero {
+            let s = CBR_scaled(a, b.imag)
+            return (Self){-s.imag, s.real.copy()}
+        }
+        if a.real.isFinite && a.real.num.isZero {
+            let s = CBR_scaled(b, a.imag)
+            return (Self){-s.imag, s.real.copy()}
+        }
+        return (Self){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
     }
-    static let *(a:Self, b:BigRat):Self { (Self){a.real * b, a.imag * b} }
-    static let *(a:BigRat, b:Self):Self { (Self){a * b.real, a * b.imag} }
+    static let *(a:Self, b:BigRat):Self { CBR_scaled(a, b) }
+    static let *(a:BigRat, b:Self):Self { CBR_scaled(b, a) }
     static let *(a:Self, b:BigInt):Self { a * BigRat(b) }
     static let *(a:BigInt, b:Self):Self { BigRat(a) * b }
     static let *(a:Self, b:i64):Self { a * BigRat(b) }

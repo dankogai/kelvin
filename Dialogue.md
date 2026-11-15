@@ -10883,3 +10883,27 @@ are multiplied by the divisor's reciprocal, which keeps the sign:
 P584.
 
 There are 1355 tests, and all pass with clang and with gcc 15.
+
+### 620. A CBR times a real one, part by part
+
+**User**:
+
+> fix the products too as #573
+
+It is the other half of #572's question, whose second answer
+showed the rule and its values: times an infinity, a part that is 0
+stays 0 beside one that is none, and 0 times an infinity is NaNs
+still. **User** had chosen division only for #572, and ordered this
+before it was pushed.
+
+So a `CBR` times a real one, one with an imaginary part of 0, is
+the other scaled part by part, either way round, and times an
+imaginary one too, with a quarter turn: `CBR(1) * CBR(inf, 0)` is
+`((1n/0n)+(0n/1n).i)` and `CBR(inf, 0) * CBR(0, 2)` is
+`((0n/1n)+(1n/0n).i)`. Times a `BigRat`, a `BigInt` and an `i64` it
+is the same function. **Claude** made 0 times an infinity NaNs in
+both parts whichever is the 0, so that a product does not depend on
+its order. What is finite is as it was, and no function of a `CBR`
+gave another value. Details are provisional P585.
+
+There are 1356 tests, and all pass with clang and with gcc 15.

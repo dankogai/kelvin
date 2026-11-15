@@ -493,3 +493,7 @@ So far the changes from C are these, by topic.
   by a `BigRat`: `CBR(inf, 0) / CBR(2)`, of a BigRat's infinity, is
   `((1n/0n)+(0n/1n).i)`, where its imaginary part was 0 times an
   infinity, a NaN; what is finite is as it was (#572)
+- and times a real `CBR`, or an imaginary one, it is the other scaled,
+  part by part: `CBR(1) * CBR(inf, 0)` is `((1n/0n)+(0n/1n).i)`, a
+  part that is 0 staying 0 times an infinity; 0 times an infinity is
+  NaNs (#573)

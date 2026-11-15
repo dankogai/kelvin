@@ -21,7 +21,7 @@ let main():int32 {
     // a NaN part is one still, by 0 it is #571's, by an infinity 0, and by one neither real nor imaginary the formula's
     println(CBR(nan.copy(), o.copy()) / CBR(2), " ", CBR(1) / CBR(nan.copy(), o.copy()), " ", CBR(1) / CBR(o.copy(), nan.copy()), " ", CBR(1) / CBR(0), " ", CBR(1) / CBR(inf.copy(), o.copy()))
     println(CBR(inf.copy(), o.copy()) / CBR(1, 1), " ", CBR(inf.copy(), inf.copy()) / CBR(1, 1), " ", CBR(inf.copy(), o.copy()) / CBR(inf.copy(), o.copy()))
-    // the products are as they were
+    // the products likewise (#573)
     println(CBR(1) * CBR(inf.copy(), o.copy()), " ", CBR(inf.copy(), o.copy()) * CBR(2))
     return 0
 }
@@ -33,4 +33,4 @@ let main():int32 {
 // out: true true
 // out: ((0n/0n)+(0n/1n).i) ((0n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i) ((1n/0n)+(0n/1n).i) ((0n/1n)+(0n/1n).i)
 // out: ((1n/0n)+(-1n/0n).i) ((1n/0n)+(0n/0n).i) ((0n/0n)+(0n/0n).i)
-// out: ((1n/0n)+(0n/0n).i) ((1n/0n)+(0n/0n).i)
+// out: ((1n/0n)+(0n/1n).i) ((1n/0n)+(0n/1n).i)
