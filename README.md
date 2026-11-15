@@ -471,3 +471,7 @@ So far the changes from C are these, by topic.
   `r`; its `.hex`, `.oct` and `.bin` have the sign on the numerator
   alone, `(-0x2/0x3)` (#565); text with no number is a NaN,
   `rat64("abc")` is `(0/0)` (#567)
+- a rational reads a number as an `f64`'s text is written, and exactly:
+  `rat64("1.5")` is `(3/2)`, `rat64("2.5/1.5")` is `(5/3)`,
+  `rat64("0.1")` is `(1/10)` and `rat64("1.5e-3")` is `(3/2000)`; all
+  of the text is read, so `rat64("5x")` is a NaN (#568)

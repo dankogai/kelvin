@@ -616,6 +616,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 565 | A rational is read from its text by its type, with `<Rational>`: `rat64("8/-12")` is `(-2/3)` and `bigrat("8/-12")` `(-2n/3n)`, so `T(text)` gives the value back, as `i64("42")` does; `rat64(text, base)` reads in a base, `rat64(r.hex, 16)`; spaces and a `(` may come first, each part is read as `BigInt(text, base)` reads it, with a sign of its own or none, and with no `/` the denominator is 1; the text is a `cstr` or a `String` by reference; `"1/0"` is an infinity, `"0/0"` a NaN, and a part that does not fit `rat8` to `rat64` makes a NaN; where a `/` is written a part left out is an error, a NaN, `"1/"` and `"/3"`, the denominator being left out only with its `/`; a rational's `.hex`, `.oct` and `.bin` have the sign on the numerator alone, `(-0x2/0x3)`, `(-0x2n/0x3n)`, where the denominator had a `+`, and so a `cbr`'s; a fixed-width rational's text is its `.string`, a String, as a bigrat's, where it was a `.cstr()` method; a number's text need not be a literal of its type; kelvinc and kc, by the module | tools/gen_rational.py, modules/Rational.k: rat_text, the `string` property, bigrat's hex, oct and bin, bigrat(text), ratN(text); documents/rational.md, math.md; README.md; selfhost/sample.k | tests/run/rational_text.k; rational.k, rational_widths.k, rational_big.k, complex_text.k and plus_value.k show the new texts; sample.k's line of #565 | 2026-11-15 |
 | 566 | `bigrat` is `BigRat` and `cbr` is `CBR`: the rational of two `BigInt`s is named as its parts are, and the complex number of two `BigRat`s likewise, with `<Rational>` and `<math>`; `BigRat(n, d)`, `BigRat("8/-12")`, `1n.over(3n)` a `BigRat`, `BigRat.pi(256)`, `CBR(re, im)`, `r.i` a `CBR`, and their `.typename`s are `BigRat` and `CBR`; no `bigrat` and no `cbr` is left, a type or a function, and none is an alias; `rat8` to `rat64`, of integers, and `c64` and `c32`, of floats, keep their names, and so does `complexBigRat`, `CBR`'s alias; C's `cbrt` is as it was; in C they are `struct BigRat` and `struct CBR`; kelvinc and kc, by the modules | tools/gen_rational.py, modules/Rational.k, modules/math+Rational.k; the documents, README.md, selfhost/README.md, editors/vscode; a comment each in src/main.c and selfhost/kc.k | the tests that named them, tests/run/bigrat_functions.k, cbr_functions.k, complex_bigrat.k, rational_big.k, rational_text.k and the rest, and selfhost/sample.k; the files keep their names | 2026-11-15 |
 | 567 | Text with no number is no rational: `rat64("abc")` and `rat64("")` are `(0/0)`, a NaN, and `BigRat("abc")` `(0n/0n)`, where each was 0, `(0/1)`; so of every width, in every base, of a `cstr` or a `String` by reference, and of `"("`, spaces alone, `"-"` and `".5"`; the numerator is to be there, with a `/` (#565) or with none; a number is read as before, `rat64("5")` is `(5/1)`, `rat64("0")` `(0/1)` and `rat64("abc", 16)` `(2748/1)`, and as far as it goes, as `BigInt(text)` reads it; kelvinc and kc, by the module | tools/gen_rational.py, modules/Rational.k; documents/rational.md, README.md | tests/run/rational_text.k, three lines more, and selfhost/sample.k | 2026-11-15 |
+| 568 | A rational reads a number as an `f64`'s text is written, and exactly: `rat64("1.5")` is `(3/2)`, `rat64("2.5/1.5")` `(5/3)`, `rat64("0.1")` `(1/10)`, which no `f64` holds, and `BigRat("0.1")` `(1n/10n)`; in base 10 an exponent too, `rat64("1.5e-3")` is `(3/2000)`; a point in any base, `rat64("0x1.8", 16)` is `(3/2)`, and `e` a digit of base 16, `rat64("1e3", 16)` is `(483/1)`; nothing is rounded, so an integer past 2 to the 53 and a `BigRat` of any length read as they did; all of the text is read: `rat64("5x")`, `rat64("1/2/3")` and `rat64("1e")` are NaNs, which were `(5/1)`, `(1/2)` and `(1/1)`, a `)` ends what a `(` began, and a base that is none of 2 to 36 gives a NaN; `inf` and `nan` are no rational's text; a fixed width is a NaN where a part does not fit, and a power of 10 that no width holds is not reckoned, `rat64("1e999999999")`; kelvinc and kc, by the module | tools/gen_rational.py, modules/Rational.k; documents/rational.md, README.md | tests/run/rational_text.k, nine lines more, and selfhost/sample.k | 2026-11-15 |
 
 Notes:
 
@@ -1201,6 +1202,43 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (568) Agreed details: "`rat64("5x")` is NaN while `rat64("1.5")`is `(3/2)`. Anything without `/` is parsed as a f64 then converted to rat64. and `rat64("2.5/1.5") is `(5/3)`.`"
+  - Claude had listed, after #567, that text after a number was
+    ignored: `rat64("5x")` was `(5/1)` and `rat64("1.5")` `(1/1)`.
+  - The user's choices, of those offered:
+    - A decimal is read exactly, as written, over through an `f64`:
+      `rat64("0.1")` is `(1/10)`, where an `f64`'s value is
+      `(3602879701896397/36028797018963968)`. So an integer past 2 to
+      the 53, and a `BigRat` of any length, keep every digit.
+    - A point and an e-exponent, over a point alone and over all that
+      strtod reads: `rat64("1.5e-3")` is `(3/2000)`. `inf` and `nan`
+      are no rational's text: it writes `(1/0)` and `(0/0)`.
+  - A number is a sign, the base's mark in base 16, 8 or 2, digits, a
+    point and digits, and in base 10 an `e` or `E`, a sign and digits.
+    - A part of a `/` is a number too: `rat64("2.5/1.5")` is `(5/3)`.
+    - `"1/0.0"` is an infinity, `"0.0/0"` a NaN, `"-0.0"` 0.
+  - All of the text is read: what is left after the number, or after
+    the second one, is spaces, the `)` and spaces, or the text is a NaN.
+    `"5x"`, `"1/3x"`, `"1/2/3"`, `"1.5.5"`, `"1e"`, `"1e+"`.
+  - Claude's choices, the user's to change:
+    - A digit on either side of the point is enough, as strtod has it:
+      `rat64(".5")` is `(1/2)` and `rat64("5.")` `(5/1)`; `"."` is a
+      NaN.
+    - A point is read in any base, `rat64("0x1.8", 16)` is `(3/2)`.
+      The exponent is base 10's alone: `e` is a digit from base 15
+      up, and `p` is not read.
+    - A `BigInt`'s `n` ends a whole number only: `"5n"`, and `"1.5n"`
+      is a NaN.
+    - A `)` is read where a `(` was, and is then needed: `"(1/3"` and
+      `"1/3)"` are NaNs. Before #568 neither was looked at.
+    - A base that is none of 2 to 36 gives a NaN; it was 0.
+    - No space between a sign and its digits, nor in an exponent, as
+      before.
+  - A fixed width's NaN where a part does not fit is as it was.
+    - `rat64("1e30/1e30")` is `(1/1)`: the exponents are one power.
+    - A power no 64 bits hold is not reckoned, so
+      `rat64("1e999999999")` is a NaN at once. A `BigRat` reckons what
+      its text says, however large.
 - (567) Agreed details: "make rat64("abc") and rat64("") a NaN as #567"
   - Claude had asked it after #565: with a `/` a part left out was a
     NaN, and text with no number and no `/` was still 0, `(0/1)`.
@@ -9578,6 +9616,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P577 | Details of #565 | tools/gen_rational.py, which writes modules/Rational.k: rat_text skips a `+` at the head of the denominator's text; bigrat's hex, oct and bin write `/0x`, `/0o`, `/0b`, the denominator's `.text(base)` and `n`; each width's `rat64.cstr()` is the property `string`, a String of a template; bigrat(text:cstr, base:i64) skips spaces and one `(`, reads BigInt of the rest, walks to a `/`, and gives bigrat_lowest of the numerator and 1 where there is none; with a `/`, a NaN where rat_digit found no digit of the base at the head of the numerator, after spaces and a sign; after the `/` it skips spaces and a sign and asks rat_digit again, a NaN where none stands there, then reads BigInt of what follows the `/` and gives bigrat_lowest of the two; bigrat(text), and the two of a `const String^`, call it; rat64(text, base) and its kin are rat64(bigrat(text, base)), the conversion of #540, a NaN where a part does not fit | Rational.k grows from 518 lines to 601; no change to either compiler; kc's C of kc is 35436 lines still |
 | P578 | Details of #566 | Every `bigrat` in the tracked files but Design.md and Dialogue.md became `BigRat`, and every `cbr` that is a whole word, or the head of `cbr_...` or of `cbrs`, became `CBR`: 24 files; `cbrt` and `cbrtf` are untouched; modules/Rational.k is written by tools/gen_rational.py as before, and the script writes the file it was renamed to, byte for byte | Neither compiler knew either name: src/main.c and selfhost/kc.k say one in a comment each; the VS Code grammar lists `BigRat` among the types; kc's C of kc is 35436 lines still |
 | P579 | Details of #567 | tools/gen_rational.py: BigRat(text:cstr, base:i64) gives its NaN where rat_digit finds no digit of the base at the head of the numerator, before it looks for a `/`, where #565 gave it only with a `/`; so it is before the numerator's BigInt is made, and nothing is made to drop; the fixed widths read through BigRat(text, base), and the String ones through the cstr ones, so one line serves all; modules/Rational.k is 601 lines still | Neither compiler changed; kc's C of kc is 35436 lines still |
+| P580 | Details of #568 | tools/gen_rational.py: struct BigRat_part is m, a BigInt, k, digits and end; BigRat_part(text, at, base) reads a sign, skips the base's mark where a digit follows, counts the digits and reads them with BigInt(text, base), which stops where they do; after a point it counts more, and m is m times the base to their count plus their BigInt; in base 10 an e with a digit after its sign adds to k, which began as minus the count after the point, the exponent held at 10 to the 17; n is taken where neither a point nor an exponent was; end is -1 where no digit was; a zero's k is 0; BigRat_read(text, base, fixed) reads spaces, a `(`, a part, a `/` and a part, a `)` where a `(` was, and the end, a NaN otherwise; k is the first part's less the second's, 0 where either m is 0; fixed, a k past the digits of both and 64 is a NaN, for the numerator or the denominator in lowest terms is then past 64 bits; else BigRat_lowest of the numerator times the base to the k and the denominator, or of the numerator and the denominator times it; BigRat(text) is BigRat_read with false, and each width's with true; modules/Rational.k is 698 lines, from 601 | Neither compiler changed; kc's C of kc is 35436 lines still |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

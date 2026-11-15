@@ -294,7 +294,7 @@ extend BigRat {
     }
 }
 
-// ---------- of text (#565) ----------
+// ---------- of text (#565, #568) ----------
 
 // whether c is a digit of a base from 2 to 36
 let rat_digit(c:u8, base:i64):bool {
@@ -309,44 +309,141 @@ let rat_digit(c:u8, base:i64):bool {
     return v < base
 }
 
-// a rational of its text, in a base: "8/-12", "(-2/3)", "(-2n/3n)", and
-// with 16, 8 or 2 its .hex, .oct or .bin; spaces and a ( may come first,
-// then the numerator, as BigInt(text, base) reads it, and after a / the
-// denominator, read so too, with a sign of its own or none; with no / it
-// is 1. In lowest terms, as BigRat(num, den) gives it: "1/0" is an
-// infinity, "0/0" a NaN. Text with no number is an error, a NaN: "abc"
-// and "" have no numerator (#567), and where a / is written a part left
-// out is one too: "1/" has no denominator, and "/3" no numerator
-let BigRat(text:cstr, base:i64):BigRat {
-    var i:i64 = 0
-    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
-    if text[i] == '(' { i += 1 }
-    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
-    let top:cstr := &text[i]
-    let first:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
-    if !rat_digit(text[first], base) { return (BigRat){BigInt(0), BigInt(0)} }
-    let num = BigInt(top, base)
-    while text[i] != 0 && text[i] != '/' { i += 1 }
-    if text[i] == 0 { return BigRat_lowest(num, BigInt(1)) }
-    i += 1
-    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
-    let digits:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
-    if !rat_digit(text[digits], base) { return (BigRat){BigInt(0), BigInt(0)} }
-    let bottom:cstr := &text[i]
-    let den = BigInt(bottom, base)
-    return BigRat_lowest(num, den)
+// a number of a rational's text (#568): m times the base to the k, of
+// so many digits, and where it ends in the text; end is -1 where no
+// number is
+struct BigRat_part {
+    m: BigInt
+    k: i64
+    digits: i64
+    end: i64
 }
-let BigRat(text:cstr):BigRat { BigRat(text, 10) }
-let BigRat(text:const String^, base:i64):BigRat { BigRat(text^.cstr, base) }
-let BigRat(text:const String^):BigRat { BigRat(text^.cstr, 10) }
+
+// the number at text[at], read exactly, as an f64's text is written: a
+// sign, 0x, 0o or 0b in base 16, 8 or 2, digits, a point and digits,
+// with a digit on either side of it at least, and in base 10 an e and
+// an exponent; a whole number may end in a BigInt's n. 1.5 is 15 times
+// 10 to the -1, and nothing is rounded
+let BigRat_part(text:cstr, at:i64, base:i64):BigRat_part {
+    var i:i64 = at
+    var negative = false
+    if text[i] == '+' as u8 || text[i] == '-' as u8 {
+        negative = text[i] == '-' as u8
+        i += 1
+    }
+    let mark:u8 = base == 16 ? 'x' as u8 : base == 8 ? 'o' as u8 : base == 2 ? 'b' as u8 : 0
+    if mark != 0 && text[i] == '0' as u8 && (text[i + 1] == mark || text[i + 1] == mark - 32) && rat_digit(text[i + 2], base) {
+        i += 2
+    }
+    let whole:i64 = i
+    while rat_digit(text[i], base) { i += 1 }
+    let wholes:i64 = i - whole
+    let head:cstr := &text[whole]
+    var m = wholes > 0 ? BigInt(head, base) : BigInt(0)
+    var fracs:i64 = 0
+    var plain = true                                     // a whole number, which may end in n
+    if text[i] == '.' as u8 {
+        var j:i64 = i + 1
+        while rat_digit(text[j], base) { j += 1 }
+        fracs = j - i - 1
+        if wholes + fracs > 0 {
+            if fracs > 0 {
+                let tail:cstr := &text[i + 1]
+                m = m * BigInt(base).pow(fracs) + BigInt(tail, base)
+            }
+            i = j
+            plain = false
+        }
+    }
+    if wholes + fracs == 0 { return (BigRat_part){BigInt(0), 0, 0, 0 - 1} }
+    var k:i64 = 0 - fracs
+    if base == 10 && (text[i] == 'e' as u8 || text[i] == 'E' as u8) {
+        var j:i64 = i + 1
+        var down = false
+        if text[j] == '+' as u8 || text[j] == '-' as u8 {
+            down = text[j] == '-' as u8
+            j += 1
+        }
+        if text[j] >= '0' as u8 && text[j] <= '9' as u8 {
+            var x:i64 = 0
+            while text[j] >= '0' as u8 && text[j] <= '9' as u8 {
+                if x < 100000000000000000 { x = x * 10 + (text[j] as i64 - 48) }   // past any size that is held
+                j += 1
+            }
+            k += down ? 0 - x : x
+            i = j
+            plain = false
+        }
+    }
+    if plain && text[i] == 'n' as u8 { i += 1 }
+    if m.isZero { k = 0 }
+    if negative { m = -m }
+    return (BigRat_part){m, k, wholes + fracs, i}
+}
+
+// a rational of its text, in a base: "8/-12", "(-2/3)", "(-2n/3n)",
+// "1.5", "2.5/1.5", "1.5e-3", and with 16, 8 or 2 its .hex, .oct or
+// .bin. Spaces and a ( may come first, then a number, and after a / a
+// second one, with a sign of its own or none; with no / the denominator
+// is 1; then a ) where a ( was, spaces, and the end. Each number is read
+// exactly, as BigRat_part reads it, and the value is in lowest terms, as
+// BigRat(num, den) gives it: "1/0" is an infinity, "0/0" a NaN. Text
+// that is no such thing is an error, a NaN: "abc" and "" have no number
+// (#567), "1/" and "/3" lack a part, and "5x" has more than a number
+// (#568). fixed says that the parts are to fit 64 bits, so a power of
+// the base that cannot is not reckoned
+let BigRat_read(text:cstr, base:i64, fixed:bool):BigRat {
+    if base < 2 || base > 36 { return (BigRat){BigInt(0), BigInt(0)} }
+    var i:i64 = 0
+    while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    var open = false
+    if text[i] == '(' as u8 {
+        open = true
+        i += 1
+        while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    }
+    let top = BigRat_part(text, i, base)
+    if top.end < 0 { return (BigRat){BigInt(0), BigInt(0)} }
+    i = top.end
+    while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    var den = BigInt(1)
+    var k:i64 = top.k
+    var digits:i64 = top.digits
+    if text[i] == '/' as u8 {
+        i += 1
+        while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+        let bottom = BigRat_part(text, i, base)
+        if bottom.end < 0 { return (BigRat){BigInt(0), BigInt(0)} }
+        i = bottom.end
+        while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+        den = bottom.m.copy()
+        k -= bottom.k
+        digits += bottom.digits
+    }
+    if open {
+        if text[i] != ')' as u8 { return (BigRat){BigInt(0), BigInt(0)} }
+        i += 1
+        while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    }
+    if text[i] != 0 { return (BigRat){BigInt(0), BigInt(0)} }
+    if top.m.isZero || den.isZero { k = 0 }
+    if fixed && (k > digits + 64 || 0 - k > digits + 64) { return (BigRat){BigInt(0), BigInt(0)} }
+    if k > 0 { return BigRat_lowest(top.m * BigInt(base).pow(k), den) }
+    if k < 0 { return BigRat_lowest(top.m, den * BigInt(base).pow(0 - k)) }
+    return BigRat_lowest(top.m, den)
+}
+let BigRat(text:cstr, base:i64):BigRat { BigRat_read(text, base, false) }
+let BigRat(text:cstr):BigRat { BigRat_read(text, 10, false) }
+let BigRat(text:const String^, base:i64):BigRat { BigRat_read(text^.cstr, base, false) }
+let BigRat(text:const String^):BigRat { BigRat_read(text^.cstr, 10, false) }
 
 // a rational of integers of its text: the same, or a NaN where a part
 // does not fit''')
 for b in reversed(widths):
-    w(f'''let rat{b}(text:cstr, base:i64):rat{b} {{ rat{b}(BigRat(text, base)) }}
-let rat{b}(text:cstr):rat{b} {{ rat{b}(BigRat(text, 10)) }}
-let rat{b}(text:const String^, base:i64):rat{b} {{ rat{b}(BigRat(text^.cstr, base)) }}
-let rat{b}(text:const String^):rat{b} {{ rat{b}(BigRat(text^.cstr, 10)) }}''')
+    w(f'''let rat{b}(text:cstr, base:i64):rat{b} {{ rat{b}(BigRat_read(text, base, true)) }}
+let rat{b}(text:cstr):rat{b} {{ rat{b}(BigRat_read(text, 10, true)) }}
+let rat{b}(text:const String^, base:i64):rat{b} {{ rat{b}(BigRat_read(text^.cstr, base, true)) }}
+let rat{b}(text:const String^):rat{b} {{ rat{b}(BigRat_read(text^.cstr, 10, true)) }}''')
 w('''
 extend BigRat {
     static let +(a:Self, b:Self):Self {

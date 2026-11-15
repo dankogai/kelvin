@@ -10719,3 +10719,34 @@ as it was. A number is still read as far as it goes, as
 compiler changed. Details are provisional P579.
 
 There are 1351 tests, and all pass with clang and with gcc 15.
+
+### 615. A rational reads a number exactly, and all of its text
+
+**Claude** had said, after #567, that text after a number was still
+ignored: `rat64("5x")` was `(5/1)` and `rat64("1.5")` `(1/1)`.
+
+**User**:
+
+> `rat64("5x")` is NaN while `rat64("1.5")`is `(3/2)`. Anything
+> without `/` is parsed as a f64 then converted to rat64. and
+> `rat64("2.5/1.5") is `(5/3)`.`
+
+**Claude** asked two things, as an `f64` holds neither 0.1 nor every
+integer:
+
+- How `"0.1"` is read. **User** chose exactly, as written, so
+  `rat64("0.1")` is `(1/10)`, over an `f64`'s own value,
+  `(3602879701896397/36028797018963968)`.
+- Which forms. **User** chose a point and an e-exponent, over a point
+  alone and over all that strtod reads, `inf` and `nan` too.
+
+So a part is a number as an `f64`'s text is written, and no `f64` is
+made of it: `rat64("1.5")` is `(3/2)`, `rat64("2.5/1.5")` `(5/3)`,
+`rat64("1.5e-3")` `(3/2000)`. All of the text is read, so `"5x"`,
+`"1/2/3"` and `"1e"` are NaNs, and a `)` ends what a `(` began. A
+point is read in any base, and the exponent in base 10 alone. A
+fixed width does not reckon a power of 10 that no width holds, so
+`rat64("1e999999999")` is a NaN at once. It is the module's, and
+neither compiler changed. Details are provisional P580.
+
+There are 1351 tests, and all pass with clang and with gcc 15.

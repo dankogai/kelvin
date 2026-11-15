@@ -19,6 +19,7 @@ let main():int32 {
     let small = rat8(1, 3)                    // of two i8s; rat16 and rat32 too
     println(small + rat8(1, 6), " ", rat8(1, 15) + rat8(1, 14), " ", rat64(small) + a)   // (1/2) (0/0) (2/3)
     println(rat64("8/-12"), " ", rat64(b.hex, 16), " ", BigRat("(-2n/3n)"))   // (-2/3) (1/2) (-2n/3n): of its text
+    println(rat64("1.5"), " ", rat64("2.5/1.5"), " ", rat64("0.1"), " ", rat64("5x"))   // (3/2) (5/3) (1/10) (0/0): read exactly, and all of it
     var sum = BigRat(0)                       // of two BigInts: any precision
     for i in 1...30 { sum = sum + 1n.over(i) }
     println(sum, " ", sum.f64)                // (9304682830147n/2329089562800n) 3.994987130920391
@@ -112,20 +113,32 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   `rat64("(1/3)")` is `(1/3)`, as `i64("42")` is 42.
   - `rat64("8/-12")` is `(-2/3)`: a sign on either part, and the
     value in lowest terms, as `rat64(8, -12)` is.
-  - Spaces and a `(` may come first; each part is read as
-    `BigInt(text)` reads it, a `BigInt`'s `n` or none after it; with
-    no `/` the denominator is 1, so `rat64("5")` is `(5/1)`.
+  - Spaces and a `(` may come first, and a `)` ends what a `(`
+    began; a whole number may end in a `BigInt`'s `n`; with no `/`
+    the denominator is 1, so `rat64("5")` is `(5/1)`.
+  - A part is a number as an `f64`'s text is written, read exactly
+    (#568):
+    - A point: `rat64("1.5")` is `(3/2)`, `rat64("2.5/1.5")` is
+      `(5/3)`, and `rat64("0.1")` is `(1/10)`, which no `f64` holds.
+    - An exponent, in base 10: `rat64("1.5e-3")` is `(3/2000)`.
+    - Nothing is rounded: `rat64("9007199254740993")` is that
+      integer, and a `BigRat` reads digits without end.
   - `rat64(text, base)` reads in a base from 2 to 36:
     `rat64(r.hex, 16)`, `rat64(r.oct, 8)` and `rat64(r.bin, 2)` are
     `r`.
+    - A point is read in any base: `rat64("0x1.8", 16)` is `(3/2)`.
+    - An exponent is base 10's alone, as `e` is a digit of base 16:
+      `rat64("1e3", 16)` is `(483/1)`.
   - The text is a `cstr`, or a `String` by reference, `rat64(&s)`.
   - `"1/0"` is an infinity and `"0/0"` a NaN; a part that does not
     fit the width makes a NaN, as elsewhere.
-  - Text with no number is an error, and gives a NaN: `rat64("abc")`
-    and `rat64("")` are `(0/0)` (#567).
-  - Where a `/` is written, a part left out is an error too, a NaN:
-    `rat64("1/")` and `rat64("/3")` are `(0/0)`. The denominator is
-    left out only with its `/`, as in `rat64("1")`, `(1/1)`.
+  - Text that is no rational is an error, and gives a NaN, `(0/0)`:
+    - With no number: `rat64("abc")` and `rat64("")` (#567).
+    - With more than a number: `rat64("5x")` and `rat64("1/2/3")`
+      (#568). All of the text is read; spaces may end it.
+    - With a `/` and a part left out: `rat64("1/")` and
+      `rat64("/3")`. The denominator is left out only with its `/`,
+      as in `rat64("1")`, `(1/1)`.
   - `BigRat(text)` and `BigRat(text, base)` are the same, of any
     size: `BigRat("8/-12")` is `(-2n/3n)`.
   - Written in a program, `(1/3)` is the integer division, 0:
@@ -165,7 +178,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | `i64`, `i32`, `i16`, `i8` | `n.over(d)` | `(n/d)`, a `rat64`, `rat32`, `rat16` or `rat8`, in lowest terms (#539) |
 | `rat64`, `rat32`, `rat16`, `rat8` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
 | | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `BigRat`, converted; a NaN where it does not fit (#539, #540) |
-| | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; `"abc"`, `""`, `"1/"` and `"/3"` are NaNs (#565, #567) |
+| | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; a part may have a point, `"1.5"`, `"2.5/1.5"`, and in base 10 an exponent, `"1.5e-3"`, read exactly; `"abc"`, `""`, `"5x"`, `"1/"` and `"/3"` are NaNs (#565, #567, #568) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
@@ -175,7 +188,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `print(r)`, `.cstr`, `${r}`, `.string` | `(num/den)`; `.string` a String (#565) |
 | `BigInt` | `n.over(d)` | `(n/d)`, a `BigRat`, of a `BigInt` or an integer `d` (#540) |
 | `BigRat` | `BigRat(n, d)`, `BigRat(n)`, `BigRat(r)` | of `BigInt`s or integers; of a rational of integers |
-| | `BigRat(text)`, `BigRat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `r.hex` with 16; text with no number is a NaN (#565, #567) |
+| | `BigRat(text)`, `BigRat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `"0.1"`, `r.hex` with 16; text that is no rational is a NaN (#565, #567, #568) |
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |
