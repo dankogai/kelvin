@@ -36,6 +36,107 @@ let CBR(real:lent BigInt):CBR { (CBR){BigRat(real), BigRat(0)} }
 let CBR(real:i64, imag:i64):CBR { (CBR){BigRat(real), BigRat(imag)} }
 let CBR(real:i64):CBR { (CBR){BigRat(real), BigRat(0)} }
 
+// ---------- of text (#569) ----------
+
+// a part of a CBR's text at text[at]: a BigRat's ratio, bare, or in
+// parentheses of its own, which a sign may come before, as in
+// +(-1n/3n); end is -1 where none is
+let CBR_part(text:cstr, at:i64, base:i64):BigRat_ratio {
+    var i:i64 = at
+    var negative = false
+    if (text[i] == '+' as u8 || text[i] == '-' as u8) && text[i + 1] == '(' as u8 {
+        negative = text[i] == '-' as u8
+        i += 1
+    }
+    if text[i] != '(' as u8 { return BigRat_ratio(text, at, base, false) }
+    i = complex_spaces(text, i + 1)
+    let r = BigRat_ratio(text, i, base, false)
+    if r.end < 0 { return (BigRat_ratio){fx_nan(), -1} }
+    i = complex_spaces(text, r.end)
+    if text[i] != ')' as u8 { return (BigRat_ratio){fx_nan(), -1} }
+    if negative { return (BigRat_ratio){-r.value, i + 1} }
+    return (BigRat_ratio){r.value.copy(), i + 1}
+}
+
+// the parts of a CBR's text, and where it ends; end is -1 where the
+// text is none
+struct CBR_parts {
+    real: BigRat
+    imag: BigRat
+    end: i64
+}
+
+// a+b.i at text[at]: a part, the sign that joins, a second part and
+// .i, with spaces about the sign or none; or the first alone, the real
+// part, or with .i the imaginary one
+let CBR_body(text:cstr, at:i64, base:i64):CBR_parts {
+    let a = CBR_part(text, at, base)
+    if a.end < 0 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    let alone = complex_mark(text, a.end)
+    if alone >= 0 { return (CBR_parts){BigRat(0), a.value.copy(), alone} }
+    let sign:i64 = complex_spaces(text, a.end)
+    if text[sign] != '+' as u8 && text[sign] != '-' as u8 { return (CBR_parts){a.value.copy(), BigRat(0), a.end} }
+    let second:i64 = complex_spaces(text, sign + 1)
+    if text[second] == '+' as u8 || text[second] == '-' as u8 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    let b = CBR_part(text, second, base)
+    if b.end < 0 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    let both = complex_mark(text, b.end)
+    if both < 0 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    if text[sign] == '-' as u8 { return (CBR_parts){a.value.copy(), -b.value, both} }
+    return (CBR_parts){a.value.copy(), b.value.copy(), both}
+}
+
+// what print writes at text[at], after its {: real: a part, imag: a
+// part, and the }
+let CBR_record(text:cstr, at:i64, base:i64):CBR_parts {
+    var i:i64 = complex_spaces(text, at)
+    if !complex_word(text, i, "real", false) { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    i = complex_spaces(text, i + 4)
+    if text[i] != ':' as u8 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    let a = CBR_part(text, complex_spaces(text, i + 1), base)
+    if a.end < 0 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    i = complex_spaces(text, a.end)
+    if text[i] != ',' as u8 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    i = complex_spaces(text, i + 1)
+    if !complex_word(text, i, "imag", false) { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    i = complex_spaces(text, i + 4)
+    if text[i] != ':' as u8 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    let b = CBR_part(text, complex_spaces(text, i + 1), base)
+    if b.end < 0 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    i = complex_spaces(text, b.end)
+    if text[i] != '}' as u8 { return (CBR_parts){fx_nan(), fx_nan(), -1} }
+    return (CBR_parts){a.value.copy(), b.value.copy(), i + 1}
+}
+
+// a CBR of its text, in a base, all of it: ((1n/2n)+(-1n/3n).i), with
+// 16, 8 or 2 its .hex, .oct or .bin, with the outer parentheses or with
+// none; a part alone, (1n/2n) or (1n/3n).i; or what print writes,
+// {real: (1n/2n), imag: (1n/3n)}. A part is a BigRat's text, as
+// BigRat(text, base) reads it, in parentheses of its own or bare, 1.5
+// and 1/2, and a part left out is 0. Text that is no such thing is an
+// error, a NaN in both parts
+let CBR_read(text:cstr, base:i64):CBR {
+    if base < 2 || base > 36 { return (CBR){fx_nan(), fx_nan()} }
+    var i:i64 = complex_spaces(text, 0)
+    if text[i] == '{' as u8 {
+        let named = CBR_record(text, i + 1, base)
+        if named.end < 0 || text[complex_spaces(text, named.end)] != 0 { return (CBR){fx_nan(), fx_nan()} }
+        return (CBR){named.real.copy(), named.imag.copy()}
+    }
+    let bare = CBR_body(text, i, base)
+    if bare.end >= 0 && text[complex_spaces(text, bare.end)] == 0 { return (CBR){bare.real.copy(), bare.imag.copy()} }
+    if text[i] != '(' as u8 { return (CBR){fx_nan(), fx_nan()} }
+    let inner = CBR_body(text, complex_spaces(text, i + 1), base)
+    if inner.end < 0 { return (CBR){fx_nan(), fx_nan()} }
+    i = complex_spaces(text, inner.end)
+    if text[i] != ')' as u8 || text[complex_spaces(text, i + 1)] != 0 { return (CBR){fx_nan(), fx_nan()} }
+    return (CBR){inner.real.copy(), inner.imag.copy()}
+}
+let CBR(text:cstr, base:i64):CBR { CBR_read(text, base) }
+let CBR(text:cstr):CBR { CBR_read(text, 10) }
+let CBR(text:const String^, base:i64):CBR { CBR_read(text^.cstr, base) }
+let CBR(text:const String^):CBR { CBR_read(text^.cstr, 10) }
+
 // the nearest c64, each part the f64 of its BigRat
 let c64(z:lent CBR):c64 { (c64){z.real.f64, z.imag.f64} }
 

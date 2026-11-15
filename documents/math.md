@@ -71,7 +71,8 @@ turn on the Gaussian plane.
   the whole.
   - `c128` waits for `f128`.
 - **Making one**: `c64(re, im)`, `c64(re)`, `polar(r, theta)`,
-  `(c64){re, im}`, and `c64(z)` of a `c32` (or `c32(z)` of a `c64`).
+  `(c64){re, im}`, and `c64(z)` of a `c32` (or `c32(z)` of a `c64`);
+  `c64(text)` of its text, below.
 - **Arithmetic**: `+ - * /` between two of one kind, or one and a real
   number of its parts' type (either way round), unary `-`, `==` and
   `!=`. `c32` and `c64` do not mix: convert one.
@@ -112,6 +113,26 @@ turn on the Gaussian plane.
     - `inf` and `nan` are no names of Kelvin's.
   - A `c32`'s is of its `f32` parts, `(+0.100000001-2.0.i)`.
   - There is no `z.oct` or `z.bin`, as a float has none.
+  - Each writes both parts, a zero and its sign too:
+    `c64(1.5, -0.0).dec` is `(+1.5-0.0.i)`.
+- **From text** (#569): the type reads its own text back, so
+  `c64(z.dec)`, `c64(z.hex)` and `c64(z.cstr)` are `z`, as
+  `f64("1.5")` is 1.5.
+  - It reads `(+1.5-2.0.i)`, with its parentheses or with none, and
+    what `print` writes, `{real: 1.5, imag: -2.0}`.
+  - Each part is read as `f64(text)` reads it, so a hex float, `inf`
+    and `nan` are read, and the sign of a zero is kept:
+    `c64("(-0.0+2.0.i)")` is `c64(-0.0, 2.0)`.
+  - A part alone is read, and the other is 0: `c64("1.5")` is
+    `c64(1.5, 0.0)` and `c64("2.0.i")` is `c64(0.0, 2.0)`.
+  - Spaces may come first and last, inside the parentheses or the
+    braces, and about the sign that joins the parts:
+    `c64("1.5 - 2.0.i")` is `c64(1.5, -2.0)`.
+  - Text that is no complex number is an error, and gives a NaN in
+    both parts: `c64("abc")`, `c64("")`, `c64("1.5+2.0")`, with no
+    `.i`, and `c64("1.5x")`. All of the text is read.
+  - `c32(text)` is the same, of `f32` parts; the text is a `cstr`, or
+    a `String` by reference, `c64(&s)`.
 - C99's special values for infinities and NaNs are not attempted,
   except for `sqrt` and division by an infinity *(provisional P54)*.
 - kelvinc compiles with `-ffp-contract=off`, so clang computes `a * b +
@@ -162,11 +183,27 @@ let main():int32 {
   - No `CBR` is made of a `c64`: Rational makes no fraction of a float.
 - **The text** of one is its parts', as a struct's:
   `{real: (1n/2n), imag: (1n/3n)}`; each part's is a BigRat's, which
-  `BigRat(text)` reads back (#565), and nothing reads the whole yet.
+  `BigRat(text)` reads back (#565), and `CBR(text)` the whole (#569).
 - **`z.hex`, `z.oct` and `z.bin`** are `(real.hex+imag.hex.i)` and its
   kin, a `String` (#559): `((+0x1n/0x2n)+(-0x1n/0x3n).i)`.
   - Each part is a BigRat's text, in its own parentheses
     ([rational.md](rational.md)), so a `+` is always between them.
+- **From text** (#569): `CBR(text)` reads what `print` writes, and
+  `CBR(text, base)` in a base, so `CBR(z.cstr)`, `CBR(z.hex, 16)`,
+  `CBR(z.oct, 8)` and `CBR(z.bin, 2)` are `z`.
+  - It reads `((1n/2n)+(-1n/3n).i)`, with the outer parentheses or
+    with none, and `{real: (1n/2n), imag: (-1n/3n)}`.
+  - A part is a BigRat's text, as `BigRat(text, base)` reads it,
+    exactly: in parentheses of its own, which a sign may come before,
+    or bare, so `CBR("(1.5+2.5.i)")` and `CBR("1/2-1/3.i")` are read.
+  - Spaces may be about the sign that joins the parts, as a `c64`'s:
+    `CBR("(1/2) - (1/3).i")`.
+  - A part alone is read, and the other is 0: `CBR("(1/2)")`,
+    `CBR("3")` and `CBR("(1/3).i")`.
+  - Text that is no `CBR` is an error, and gives a NaN in both parts,
+    each `(0n/0n)`: `CBR("abc")`, `CBR("1+2")`, `CBR("1x")`.
+  - From base 19 up `i` is a digit, so there `2.i` is a number and
+    `(2).i` the imaginary one.
 
 ### Functions of a `BigRat` and of a `CBR`, to a precision, with `<Rational>`
 
@@ -242,6 +279,7 @@ pow(x:float64, y:float64):float64, pow(z:c64, w:c64):c64, pow(z:c64, x:float64):
 abs(x:float64):float64, abs(x:float32):float32, abs(n:int64):int64, abs(z:c64):float64, abs(z:c32):float32
 conj(z:c64):c64, arg(z:c64):float64, norm(z:c64):float64                   // and of a c32
 c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, polar(r:float64, theta:float64):c64
+c64(text:cstr):c64, c32(text:cstr):c32                                      // and of a String by reference (#569)
 ```
 
 With `<Rational>` (#552):
@@ -250,6 +288,7 @@ With `<Rational>` (#552):
 ```swift
 CBR(real:BigRat, imag:BigRat):CBR, CBR(real:BigRat):CBR                    // and of BigInts, and of i64s
 c64(z:CBR):c64, conj(z:CBR):CBR, norm(z:CBR):BigRat
+CBR(text:cstr):CBR, CBR(text:cstr, base:int64):CBR                         // and of a String by reference (#569)
 sin(x:BigRat):BigRat, sin(x:BigRat, precision:int64):BigRat                // and so for each function of a BigRat (#553)
 sin(z:CBR):CBR, sin(z:CBR, precision:int64):CBR                            // and of a CBR (#554)
 abs(z:CBR):BigRat, abs(z:CBR, precision:int64):BigRat, arg(z:CBR):BigRat, arg(z:CBR, precision:int64):BigRat
@@ -276,6 +315,7 @@ atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):Big
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: 1.0, imag: 2.0}` |
 | | `.hex`, `.dec` | `(+0x1.8p+0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
+| | `c64(text)`, `c32(text)` | of its text: `(+1.5-2.0.i)`, `{real: 1.5, imag: -2.0}`, or a part alone, `1.5`, `2.0.i`; a `cstr` or a `String` by reference; text that is none is a NaN in both parts (#569) |
 | `CBR`, with `<Rational>` (#552) | `.real`, `.imag` | the parts, fields, each a `BigRat` |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, `==`, `!=` | exact, of two, or with a `BigRat`, a `BigInt` or an `i64` on either side |
 | | `.conj()` | the conjugate, a `CBR` |
@@ -283,6 +323,7 @@ atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):Big
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: (1n/2n), imag: (1n/3n)}` |
 | | `.hex`, `.oct`, `.bin` | `((+0x1n/0x2n)+(-0x1n/0x3n).i)` and its kin, a `String` (#559) |
+| | `CBR(text)`, `CBR(text, base)` | of its text: `((1n/2n)+(-1n/3n).i)`, `{real: (1n/2n), imag: (-1n/3n)}`, `z.hex` with 16, or a part alone; text that is none is a NaN in both parts (#569) |
 | | `.abs()`, `.arg()`, `.abs(p)`, `.arg(p)` | to 128 bits, or within `2^-p`, a `BigRat` (#554) |
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to 128 bits, a `CBR` (#554) |
 | | `.sqrt(p)`, `.exp(p)`, ..., `.pow(w)`, `.pow(w, p)` | the same, each part within `2^-p` |

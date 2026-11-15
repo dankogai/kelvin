@@ -10750,3 +10750,50 @@ fixed width does not reckon a power of 10 that no width holds, so
 neither compiler changed. Details are provisional P580.
 
 There are 1351 tests, and all pass with clang and with gcc 15.
+
+### 616. A complex number of its text
+
+**User**:
+
+> add c64(text), c32(text) and CBR(text) as #569
+
+These had waited since #565, where the user chose the rationals
+only. A complex number has two texts, `(+1.5-2.0.i)` of `z.dec` and
+`z.hex`, and `{real: 1.5, imag: -2.0}` of print, so **Claude** asked
+which is read, and what text with one part gives.
+
+- **User** chose both forms, over the `(a+b.i)` form alone with
+  print changed later, now, or never. So `c64(z.cstr)` is `z` at
+  once, and print is as it was.
+- Of a part alone, **User** wrote:
+
+> real or imag alone, but with .hex, .dec, oct, or dec it prints zero
+> part, too.  and if both real and imag are zero, print both
+> regardless of the flavor of stringification (reflecting negative
+> zero!)
+
+So `c64("1.5")` is `c64(1.5, 0.0)` and `c64("2.0.i")` is
+`c64(0.0, 2.0)`. **Claude** read the rest as of the writers, which
+leave no part out: each wrote both parts already, a zero and its
+sign too, so none was changed, and the reader keeps the sign of a
+zero.
+
+A `c64`'s part is read as `f64(text)` reads it, and a `CBR`'s as
+`BigRat(text, base)` does, exactly, in parentheses of its own or
+bare; `CBR(z.hex, 16)` is `z`. Text that is no complex number gives
+a NaN in both parts.
+
+**Claude** had let no space between the two parts, so
+`"1.5 -2.0.i"` was a NaN.
+
+**User**, after the order to push:
+
+> Second thought. make `"1.5 -2.0.i"` okay since
+> `c64("1.5 ")+c64("2.0.i\t")` is okay.  spaces between real and
+> imag is acceptable
+
+So spaces may be on either side of the sign that joins the parts,
+`c64("1.5 - 2.0.i")`, and a `CBR`'s too. It is the modules', and
+neither compiler changed. Details are provisional P581.
+
+There are 1352 tests, and all pass with clang and with gcc 15.

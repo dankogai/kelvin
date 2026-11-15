@@ -381,17 +381,52 @@ let BigRat_part(text:cstr, at:i64, base:i64):BigRat_part {
     return (BigRat_part){m, k, wholes + fracs, i}
 }
 
+// a ratio of a rational's text (#569): its value, and where it ends in
+// the text; end is -1 where none is
+struct BigRat_ratio {
+    value: BigRat
+    end: i64
+}
+
+// the ratio at text[at]: a number, and after a /, with spaces about it
+// or none, a second one, with a sign of its own or none; with no / the
+// denominator is 1. Each number is read exactly, as BigRat_part reads
+// it, and the value is in lowest terms, as BigRat(num, den) gives it:
+// "1/0" is an infinity, "0/0" a NaN. fixed says that the parts are to
+// fit 64 bits, so a power of the base that cannot is not reckoned, and
+// the value is a NaN
+let BigRat_ratio(text:cstr, at:i64, base:i64, fixed:bool):BigRat_ratio {
+    let top = BigRat_part(text, at, base)
+    if top.end < 0 { return (BigRat_ratio){(BigRat){BigInt(0), BigInt(0)}, 0 - 1} }
+    var end:i64 = top.end
+    var i:i64 = end
+    while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    var den = BigInt(1)
+    var k:i64 = top.k
+    var digits:i64 = top.digits
+    if text[i] == '/' as u8 {
+        i += 1
+        while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+        let bottom = BigRat_part(text, i, base)
+        if bottom.end < 0 { return (BigRat_ratio){(BigRat){BigInt(0), BigInt(0)}, 0 - 1} }
+        end = bottom.end
+        den = bottom.m.copy()
+        k -= bottom.k
+        digits += bottom.digits
+    }
+    if top.m.isZero || den.isZero { k = 0 }
+    if fixed && (k > digits + 64 || 0 - k > digits + 64) { return (BigRat_ratio){(BigRat){BigInt(0), BigInt(0)}, end} }
+    if k > 0 { return (BigRat_ratio){BigRat_lowest(top.m * BigInt(base).pow(k), den), end} }
+    if k < 0 { return (BigRat_ratio){BigRat_lowest(top.m, den * BigInt(base).pow(0 - k)), end} }
+    return (BigRat_ratio){BigRat_lowest(top.m, den), end}
+}
+
 // a rational of its text, in a base: "8/-12", "(-2/3)", "(-2n/3n)",
 // "1.5", "2.5/1.5", "1.5e-3", and with 16, 8 or 2 its .hex, .oct or
-// .bin. Spaces and a ( may come first, then a number, and after a / a
-// second one, with a sign of its own or none; with no / the denominator
-// is 1; then a ) where a ( was, spaces, and the end. Each number is read
-// exactly, as BigRat_part reads it, and the value is in lowest terms, as
-// BigRat(num, den) gives it: "1/0" is an infinity, "0/0" a NaN. Text
-// that is no such thing is an error, a NaN: "abc" and "" have no number
-// (#567), "1/" and "/3" lack a part, and "5x" has more than a number
-// (#568). fixed says that the parts are to fit 64 bits, so a power of
-// the base that cannot is not reckoned
+// .bin. Spaces and a ( may come first, then a ratio, as BigRat_ratio
+// reads it, then a ) where a ( was, spaces, and the end. Text that is
+// no such thing is an error, a NaN: "abc" and "" have no number (#567),
+// "1/" and "/3" lack a part, and "5x" has more than a number (#568)
 let BigRat_read(text:cstr, base:i64, fixed:bool):BigRat {
     if base < 2 || base > 36 { return (BigRat){BigInt(0), BigInt(0)} }
     var i:i64 = 0
@@ -402,35 +437,17 @@ let BigRat_read(text:cstr, base:i64, fixed:bool):BigRat {
         i += 1
         while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
     }
-    let top = BigRat_part(text, i, base)
-    if top.end < 0 { return (BigRat){BigInt(0), BigInt(0)} }
-    i = top.end
+    let r = BigRat_ratio(text, i, base, fixed)
+    if r.end < 0 { return (BigRat){BigInt(0), BigInt(0)} }
+    i = r.end
     while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
-    var den = BigInt(1)
-    var k:i64 = top.k
-    var digits:i64 = top.digits
-    if text[i] == '/' as u8 {
-        i += 1
-        while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
-        let bottom = BigRat_part(text, i, base)
-        if bottom.end < 0 { return (BigRat){BigInt(0), BigInt(0)} }
-        i = bottom.end
-        while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
-        den = bottom.m.copy()
-        k -= bottom.k
-        digits += bottom.digits
-    }
     if open {
         if text[i] != ')' as u8 { return (BigRat){BigInt(0), BigInt(0)} }
         i += 1
         while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
     }
     if text[i] != 0 { return (BigRat){BigInt(0), BigInt(0)} }
-    if top.m.isZero || den.isZero { k = 0 }
-    if fixed && (k > digits + 64 || 0 - k > digits + 64) { return (BigRat){BigInt(0), BigInt(0)} }
-    if k > 0 { return BigRat_lowest(top.m * BigInt(base).pow(k), den) }
-    if k < 0 { return BigRat_lowest(top.m, den * BigInt(base).pow(0 - k)) }
-    return BigRat_lowest(top.m, den)
+    return r.value.copy()
 }
 let BigRat(text:cstr, base:i64):BigRat { BigRat_read(text, base, false) }
 let BigRat(text:cstr):BigRat { BigRat_read(text, 10, false) }

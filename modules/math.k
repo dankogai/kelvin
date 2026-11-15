@@ -195,6 +195,195 @@ let complex_text(real:cstr, imag:cstr):String {
     return s
 }
 
+// ---------- of text (#569) ----------
+
+// past the spaces at text[at]
+let complex_spaces(text:cstr, at:i64):i64 {
+    var i:i64 = at
+    while text[i] == ' ' as u8 || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    return i
+}
+
+// whether the word, of small letters, is at text[at]; in either case
+// where loose is true
+let complex_word(text:cstr, at:i64, word:cstr, loose:bool):bool {
+    var i:i64 = 0
+    while word[i] != 0 {
+        if text[at + i] != word[i] && !(loose && text[at + i] == word[i] - 32) { return false }
+        i += 1
+    }
+    return true
+}
+
+// whether c is a digit, of base 16 where hex is true
+let complex_digit(c:u8, hex:bool):bool {
+    if c >= '0' as u8 && c <= '9' as u8 { return true }
+    return hex && ((c >= 'a' as u8 && c <= 'f' as u8) || (c >= 'A' as u8 && c <= 'F' as u8))
+}
+
+// where the float at text[at] ends, as strtod reads one, so that
+// f64(text) of it reads as far: a sign, then inf, infinity or nan, or 0x
+// and hex digits with a point and a p exponent, or digits with a point
+// and an e exponent; -1 where none is
+let complex_float(text:cstr, at:i64):i64 {
+    var i:i64 = at
+    if text[i] == '+' as u8 || text[i] == '-' as u8 { i += 1 }
+    if complex_word(text, i, "infinity", true) { return i + 8 }
+    if complex_word(text, i, "inf", true) { return i + 3 }
+    if complex_word(text, i, "nan", true) { return i + 3 }
+    var hex = false
+    if text[i] == '0' as u8 && (text[i + 1] == 'x' as u8 || text[i + 1] == 'X' as u8) {
+        if complex_digit(text[i + 2], true) || (text[i + 2] == '.' as u8 && complex_digit(text[i + 3], true)) {
+            hex = true
+            i += 2
+        }
+    }
+    var digits:i64 = 0
+    while complex_digit(text[i], hex) {
+        i += 1
+        digits += 1
+    }
+    if text[i] == '.' as u8 {
+        var j:i64 = i + 1
+        while complex_digit(text[j], hex) { j += 1 }
+        if digits + j - i - 1 > 0 {
+            digits += j - i - 1
+            i = j
+        }
+    }
+    if digits == 0 { return -1 }
+    let mark:u8 = hex ? 'p' as u8 : 'e' as u8
+    if text[i] == mark || text[i] == mark - 32 {
+        var j:i64 = i + 1
+        if text[j] == '+' as u8 || text[j] == '-' as u8 { j += 1 }
+        if text[j] >= '0' as u8 && text[j] <= '9' as u8 {
+            while text[j] >= '0' as u8 && text[j] <= '9' as u8 { j += 1 }
+            i = j
+        }
+    }
+    return i
+}
+
+// past the .i at text[at], or -1 where none is; the point may be the
+// number's own, which ends before at, as in 2.i
+let complex_mark(text:cstr, at:i64):i64 {
+    if text[at] == '.' as u8 && text[at + 1] == 'i' as u8 { return at + 2 }
+    if text[at] == 'i' as u8 && text[at - 1] == '.' as u8 { return at + 1 }
+    return -1
+}
+
+// where the parts of a complex number's text begin, -1 for one left
+// out, whether the sign that joins them is a -, and where the text
+// ends; end is -1 where the text is none
+struct complex_layout {
+    real: i64
+    imag: i64
+    negative: bool
+    end: i64
+}
+
+// a+b.i at text[at]: a number, the sign that joins, a second number
+// and .i, with spaces about the sign or none, 1.5 - 2.0.i; or the first
+// alone, the real part, or with .i the imaginary one
+let complex_body(text:cstr, at:i64):complex_layout {
+    let a = complex_float(text, at)
+    if a < 0 { return (complex_layout){-1, -1, false, -1} }
+    let alone = complex_mark(text, a)
+    if alone >= 0 { return (complex_layout){-1, at, false, alone} }
+    let sign:i64 = complex_spaces(text, a)
+    if text[sign] != '+' as u8 && text[sign] != '-' as u8 { return (complex_layout){at, -1, false, a} }
+    let second:i64 = complex_spaces(text, sign + 1)
+    if text[second] == '+' as u8 || text[second] == '-' as u8 { return (complex_layout){-1, -1, false, -1} }
+    let b = complex_float(text, second)
+    if b < 0 { return (complex_layout){-1, -1, false, -1} }
+    let both = complex_mark(text, b)
+    if both < 0 { return (complex_layout){-1, -1, false, -1} }
+    return (complex_layout){at, second, text[sign] == '-' as u8, both}
+}
+
+// the text of a complex number, all of it: z.dec's and z.hex's,
+// (+1.5-2.0.i), with its parentheses or with none, a part alone, 1.5 or
+// 2.0.i, or what print writes, {real: 1.5, imag: -2.0}; spaces may come
+// first and last, inside the parentheses and the braces, and about the
+// sign that joins the parts
+let complex_layout(text:cstr):complex_layout {
+    var i:i64 = complex_spaces(text, 0)
+    if text[i] == '{' as u8 {
+        i = complex_spaces(text, i + 1)
+        if !complex_word(text, i, "real", false) { return (complex_layout){-1, -1, false, -1} }
+        i = complex_spaces(text, i + 4)
+        if text[i] != ':' as u8 { return (complex_layout){-1, -1, false, -1} }
+        let real:i64 = complex_spaces(text, i + 1)
+        i = complex_float(text, real)
+        if i < 0 { return (complex_layout){-1, -1, false, -1} }
+        i = complex_spaces(text, i)
+        if text[i] != ',' as u8 { return (complex_layout){-1, -1, false, -1} }
+        i = complex_spaces(text, i + 1)
+        if !complex_word(text, i, "imag", false) { return (complex_layout){-1, -1, false, -1} }
+        i = complex_spaces(text, i + 4)
+        if text[i] != ':' as u8 { return (complex_layout){-1, -1, false, -1} }
+        let imag:i64 = complex_spaces(text, i + 1)
+        i = complex_float(text, imag)
+        if i < 0 { return (complex_layout){-1, -1, false, -1} }
+        i = complex_spaces(text, i)
+        if text[i] != '}' as u8 { return (complex_layout){-1, -1, false, -1} }
+        i = complex_spaces(text, i + 1)
+        if text[i] != 0 { return (complex_layout){-1, -1, false, -1} }
+        return (complex_layout){real, imag, false, i}
+    }
+    var open = false
+    if text[i] == '(' as u8 {
+        open = true
+        i = complex_spaces(text, i + 1)
+    }
+    let at = complex_body(text, i)
+    if at.end < 0 { return (complex_layout){-1, -1, false, -1} }
+    i = complex_spaces(text, at.end)
+    if open {
+        if text[i] != ')' as u8 { return (complex_layout){-1, -1, false, -1} }
+        i = complex_spaces(text, i + 1)
+    }
+    if text[i] != 0 { return (complex_layout){-1, -1, false, -1} }
+    return (complex_layout){at.real, at.imag, at.negative, i}
+}
+
+// a complex number of its text (#569): c64(z.dec), c64(z.hex) and
+// c64 of what print writes are z, the sign of a zero too; each part is
+// read as f64(text) reads it, and a part left out is 0. Text that is no
+// complex number is an error, a NaN in both parts
+let c64(text:cstr):c64 {
+    let at = complex_layout(text)
+    if at.end < 0 { return (c64){f64.nan, f64.nan} }
+    var z = (c64){0.0, 0.0}
+    if at.real >= 0 {
+        let real:cstr := &text[at.real]
+        z.real = f64(real)
+    }
+    if at.imag >= 0 {
+        let imag:cstr := &text[at.imag]
+        z.imag = at.negative ? -f64(imag) : f64(imag)
+    }
+    return z
+}
+let c64(text:const String^):c64 { c64(text^.cstr) }
+
+// and a c32's, each part read as f32(text) reads it
+let c32(text:cstr):c32 {
+    let at = complex_layout(text)
+    if at.end < 0 { return (c32){f32.nan, f32.nan} }
+    var z = (c32){0.0:f32, 0.0:f32}
+    if at.real >= 0 {
+        let real:cstr := &text[at.real]
+        z.real = f32(real)
+    }
+    if at.imag >= 0 {
+        let imag:cstr := &text[at.imag]
+        z.imag = at.negative ? -f32(imag) : f32(imag)
+    }
+    return z
+}
+let c32(text:const String^):c32 { c32(text^.cstr) }
+
 // ---------- arithmetic ----------
 
 extend c64 {

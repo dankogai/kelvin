@@ -617,6 +617,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 566 | `bigrat` is `BigRat` and `cbr` is `CBR`: the rational of two `BigInt`s is named as its parts are, and the complex number of two `BigRat`s likewise, with `<Rational>` and `<math>`; `BigRat(n, d)`, `BigRat("8/-12")`, `1n.over(3n)` a `BigRat`, `BigRat.pi(256)`, `CBR(re, im)`, `r.i` a `CBR`, and their `.typename`s are `BigRat` and `CBR`; no `bigrat` and no `cbr` is left, a type or a function, and none is an alias; `rat8` to `rat64`, of integers, and `c64` and `c32`, of floats, keep their names, and so does `complexBigRat`, `CBR`'s alias; C's `cbrt` is as it was; in C they are `struct BigRat` and `struct CBR`; kelvinc and kc, by the modules | tools/gen_rational.py, modules/Rational.k, modules/math+Rational.k; the documents, README.md, selfhost/README.md, editors/vscode; a comment each in src/main.c and selfhost/kc.k | the tests that named them, tests/run/bigrat_functions.k, cbr_functions.k, complex_bigrat.k, rational_big.k, rational_text.k and the rest, and selfhost/sample.k; the files keep their names | 2026-11-15 |
 | 567 | Text with no number is no rational: `rat64("abc")` and `rat64("")` are `(0/0)`, a NaN, and `BigRat("abc")` `(0n/0n)`, where each was 0, `(0/1)`; so of every width, in every base, of a `cstr` or a `String` by reference, and of `"("`, spaces alone, `"-"` and `".5"`; the numerator is to be there, with a `/` (#565) or with none; a number is read as before, `rat64("5")` is `(5/1)`, `rat64("0")` `(0/1)` and `rat64("abc", 16)` `(2748/1)`, and as far as it goes, as `BigInt(text)` reads it; kelvinc and kc, by the module | tools/gen_rational.py, modules/Rational.k; documents/rational.md, README.md | tests/run/rational_text.k, three lines more, and selfhost/sample.k | 2026-11-15 |
 | 568 | A rational reads a number as an `f64`'s text is written, and exactly: `rat64("1.5")` is `(3/2)`, `rat64("2.5/1.5")` `(5/3)`, `rat64("0.1")` `(1/10)`, which no `f64` holds, and `BigRat("0.1")` `(1n/10n)`; in base 10 an exponent too, `rat64("1.5e-3")` is `(3/2000)`; a point in any base, `rat64("0x1.8", 16)` is `(3/2)`, and `e` a digit of base 16, `rat64("1e3", 16)` is `(483/1)`; nothing is rounded, so an integer past 2 to the 53 and a `BigRat` of any length read as they did; all of the text is read: `rat64("5x")`, `rat64("1/2/3")` and `rat64("1e")` are NaNs, which were `(5/1)`, `(1/2)` and `(1/1)`, a `)` ends what a `(` began, and a base that is none of 2 to 36 gives a NaN; `inf` and `nan` are no rational's text; a fixed width is a NaN where a part does not fit, and a power of 10 that no width holds is not reckoned, `rat64("1e999999999")`; kelvinc and kc, by the module | tools/gen_rational.py, modules/Rational.k; documents/rational.md, README.md | tests/run/rational_text.k, nine lines more, and selfhost/sample.k | 2026-11-15 |
+| 569 | A complex number is read from its text by its type, with `<math>`: `c64(text)` and `c32(text)`, and with `<Rational>` too `CBR(text)` and `CBR(text, base)`; each reads both texts its type writes, `z.dec`'s and `z.hex`'s `(+1.5-2.0.i)`, with its parentheses or with none, and what print writes, `{real: 1.5, imag: -2.0}`, so `c64(z.dec)`, `c64(z.hex)`, `c64(z.cstr)`, `CBR(z.cstr)` and `CBR(z.hex, 16)` are `z`; a `c64`'s part is read as `f64(text)` reads it, a hex float, `inf` and `nan` too, and the sign of a zero is kept, `c64("(-0.0+2.0.i)")` is `c64(-0.0, 2.0)`; a `CBR`'s part is a `BigRat`'s text, read exactly, in parentheses of its own or bare, `CBR("(1.5+2.5.i)")`, `CBR("1/2-1/3.i")`; a part alone is read and the other is 0, `c64("1.5")`, `c64("2.0.i")`, `CBR("(1/3).i")`; spaces may be about the sign that joins the parts, `c64("1.5 - 2.0.i")`; the text is a `cstr` or a `String` by reference; all of it is read, and text that is none is a NaN in both parts, `c64("abc")`, `c64("1.5+2.0")`, `CBR("1x")`; the writers are as they were, each with both parts, a zero and its sign too; kelvinc and kc, by the modules | modules/math.k, modules/math+Rational.k; tools/gen_rational.py, modules/Rational.k, whose reader gives a ratio at a place; documents/math.md, README.md | tests/run/complex_of_text.k, and selfhost/sample.k | 2026-11-15 |
 
 Notes:
 
@@ -1202,6 +1203,60 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (569) Agreed details: "add c64(text), c32(text) and CBR(text) as #569"
+  - The user had chosen the rationals only in #565; these are the
+    complex ones, which waited.
+  - Which text is read was the user's choice, of four: both forms.
+    - `z.dec`'s and `z.hex`'s, `(+1.5-2.0.i)`, and what print writes,
+      `{real: 1.5, imag: -2.0}`, so `c64(z.cstr)` is `z` at once and
+      print is unchanged.
+    - The others were the `(a+b.i)` form alone, with print to change
+      in a later number, in this one, or never.
+  - A part alone: "real or imag alone, but with .hex, .dec, oct, or dec
+    it prints zero part, too.  and if both real and imag are zero,
+    print both regardless of the flavor of stringification (reflecting
+    negative zero!)"
+    - So `c64("1.5")` is `c64(1.5, 0.0)` and `c64("2.0.i")` is
+      `c64(0.0, 2.0)`; the part left out is 0.
+    - Claude's reading of the rest, the user's to change: the writers
+      leave no part out. `.hex`, `.dec`, `.oct`, `.bin` and print each
+      wrote both parts before #569, a zero and its sign too, so none
+      was changed. Had the user meant that print should leave a zero
+      part out where the other is none, that is another number.
+    - The reader keeps the sign of a zero in each form:
+      `c64("(-0.0-0.0.i)")` and `c64("{real: -0.0, imag: -0.0}")`.
+  - Spaces between the parts: "Second thought. make `"1.5 -2.0.i"`
+    okay since `c64("1.5 ")+c64("2.0.i\t")` is okay.  spaces between
+    real and imag is acceptable"
+    - Claude had made `"1.5 -2.0.i"` a NaN, with no space between the
+      parts, and listed it as a choice of its own.
+    - Spaces may be on either side of the sign that joins the parts:
+      `"1.5 -2.0.i"`, `"1.5 - 2.0.i"`, `"1.5- 2.0.i"`, and a `CBR`'s
+      `"(1/2) - (1/3).i"`.
+    - Claude's choice, the user's to change: the sign is still
+      needed, `"1.5 2.0.i"` is a NaN, and one sign only, so is
+      `"1.5 - -2.0.i"`.
+  - A `c64`'s part is read as `f64(text)` reads it, strtod's way: a
+    hex float, `inf`, `infinity` and `nan`. A `c32`'s as `f32(text)`.
+    - No base: a float has none, and `z.hex`'s parts say their own.
+  - A `CBR`'s part is a `BigRat`'s text, as `BigRat(text, base)` reads
+    it (#568), exactly.
+    - In parentheses of its own, `(1n/2n)`, which a sign may come
+      before, `+(-1n/3n).i`, as `z.hex` writes it; or bare, `1.5`,
+      `1/2`.
+    - `CBR(text, base)` reads `z.hex`, `z.oct` and `z.bin`.
+  - Claude's choices, the user's to change:
+    - The parentheses about the whole may be left out, and a `)` is
+      read where a `(` was, as a rational's (#568).
+    - Spaces may come first and last, and inside the parentheses and
+      the braces.
+    - The mark is `.i`, and the point may be the number's own: `2.i`.
+      `2i` is a NaN.
+    - In `{real: a, imag: b}` both are needed, in that order.
+    - Text that is none gives a NaN in both parts, as a rational's
+      gives a NaN: `c64(nan, nan)`, and a `CBR` of two `(0n/0n)`.
+    - From base 19 up `i` is a digit: `CBR("2.i", 36)` is 5/2, and
+      `CBR("(2).i", 36)` the imaginary 2.
 - (568) Agreed details: "`rat64("5x")` is NaN while `rat64("1.5")`is `(3/2)`. Anything without `/` is parsed as a f64 then converted to rat64. and `rat64("2.5/1.5") is `(5/3)`.`"
   - Claude had listed, after #567, that text after a number was
     ignored: `rat64("5x")` was `(5/1)` and `rat64("1.5")` `(1/1)`.
@@ -9617,6 +9672,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P578 | Details of #566 | Every `bigrat` in the tracked files but Design.md and Dialogue.md became `BigRat`, and every `cbr` that is a whole word, or the head of `cbr_...` or of `cbrs`, became `CBR`: 24 files; `cbrt` and `cbrtf` are untouched; modules/Rational.k is written by tools/gen_rational.py as before, and the script writes the file it was renamed to, byte for byte | Neither compiler knew either name: src/main.c and selfhost/kc.k say one in a comment each; the VS Code grammar lists `BigRat` among the types; kc's C of kc is 35436 lines still |
 | P579 | Details of #567 | tools/gen_rational.py: BigRat(text:cstr, base:i64) gives its NaN where rat_digit finds no digit of the base at the head of the numerator, before it looks for a `/`, where #565 gave it only with a `/`; so it is before the numerator's BigInt is made, and nothing is made to drop; the fixed widths read through BigRat(text, base), and the String ones through the cstr ones, so one line serves all; modules/Rational.k is 601 lines still | Neither compiler changed; kc's C of kc is 35436 lines still |
 | P580 | Details of #568 | tools/gen_rational.py: struct BigRat_part is m, a BigInt, k, digits and end; BigRat_part(text, at, base) reads a sign, skips the base's mark where a digit follows, counts the digits and reads them with BigInt(text, base), which stops where they do; after a point it counts more, and m is m times the base to their count plus their BigInt; in base 10 an e with a digit after its sign adds to k, which began as minus the count after the point, the exponent held at 10 to the 17; n is taken where neither a point nor an exponent was; end is -1 where no digit was; a zero's k is 0; BigRat_read(text, base, fixed) reads spaces, a `(`, a part, a `/` and a part, a `)` where a `(` was, and the end, a NaN otherwise; k is the first part's less the second's, 0 where either m is 0; fixed, a k past the digits of both and 64 is a NaN, for the numerator or the denominator in lowest terms is then past 64 bits; else BigRat_lowest of the numerator times the base to the k and the denominator, or of the numerator and the denominator times it; BigRat(text) is BigRat_read with false, and each width's with true; modules/Rational.k is 698 lines, from 601 | Neither compiler changed; kc's C of kc is 35436 lines still |
+| P581 | Details of #569 | modules/math.k: complex_spaces, complex_word and complex_digit; complex_float gives where a float ends, as strtod reads one, a sign, inf, infinity or nan in either case, 0x and hex digits with a point and a p exponent, or digits with a point and an e exponent, so that f64(text) at its start reads as far; complex_mark is past `.i`, or past an `i` after the number's own point; struct complex_layout is where each part begins, -1 for one left out, and the end, -1 for no text; complex_body reads a+b.i or a part alone, with spaces about the sign that joins, which the layout holds as `negative`, the second number read with no sign of its own and negated, complex_layout(text) the braces or the parentheses and the end; c64(text) and c32(text) read each part with f64(text) and f32(text) at its place. tools/gen_rational.py: BigRat_read's middle is BigRat_ratio(text, at, base, fixed), a struct of the value and the end, and BigRat_read the spaces, the parentheses and the end about it. modules/math+Rational.k: CBR_part is a ratio, bare or in parentheses with a sign before them; CBR_body, which negates the second part where the sign is a `-`, and CBR_record give struct CBR_parts; CBR_read tries the text with no outer parentheses, then within them. math.k is 916 lines, the overlay 1060, Rational.k 715 | Neither compiler changed; kc's C of kc is 35436 lines still; `any` is a word of the language, and no parameter's name |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

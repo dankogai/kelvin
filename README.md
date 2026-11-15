@@ -475,3 +475,8 @@ So far the changes from C are these, by topic.
   `rat64("1.5")` is `(3/2)`, `rat64("2.5/1.5")` is `(5/3)`,
   `rat64("0.1")` is `(1/10)` and `rat64("1.5e-3")` is `(3/2000)`; all
   of the text is read, so `rat64("5x")` is a NaN (#568)
+- a complex number is read from its text by its type: `c64(z.dec)`,
+  `c64(z.hex)` and `c64("{real: 1.5, imag: -2.0}")` are `z`, the sign
+  of a zero too, and `c64("1.5")` and `c64("2.0.i")` a part alone;
+  `c32(text)` likewise, and with `<Rational>` `CBR(text)` and
+  `CBR(z.hex, 16)` (#569)
