@@ -1534,6 +1534,7 @@ on a new line`
     println(rat32(rt_a), " ", rat8(1, 3) + 1, " ", rat16(100, 3) * rat16(100, 3) * rat16(100, 3), " ", $[rt_a, -rt_a])
     println(rt_b + rt_b, " ", rt_b * 3 - 1, " ", BigRat(rt_a) == rt_b, " ", rat64(rt_b), " ", rt_b.f64, " ", rt_b.hex, " ", 2n.over(4))
     println(rat64("8/-12"), " ", BigRat("8/-12"), " ", rat64(rt_a.hex, 16) == rt_a, " ", BigRat(rt_b.hex, 16) == rt_b, " ", rat8("(1/3)"), " ", rt_a.string, " ", rat64("1/0"))   // a rational of its text, and no sign on a denominator (#565)
+    println(rat64("abc"), " ", BigRat(""), " ", rat8("("), " ", rat64("abc", 16), " ", rat64("5"), " ", rat64("abc").isNaN)   // text with no number is a NaN (#567)
     return 0
 }
 

@@ -20,9 +20,15 @@ let main():int32 {
     let t = b.string
     let h = b.hex
     println(rat64(&s), " ", BigRat(&t), " ", BigRat(&h, 16), " ", rat64(&s, 10), " ", rat64(&s) == r, " ", BigRat(&t) == b)
-    // no denominator is 1; an infinity, a NaN, and what is no number
+    // no denominator is 1; an infinity, a NaN, and what is no number, a NaN too (#567)
     println(rat64("5"), " ", BigRat("5n"), " ", rat64("1/0"), " ", rat64("-1/0"), " ", rat64("0/0"), " ", rat64("0/5"), " ", rat64("abc"), " ", rat64(""))
     println(rat64("(1/0)").isInfinite, " ", rat64("(0/0)").isNaN, " ", BigRat("(-1n/0n)"), " ", BigRat("(0n/0n)").isNaN)
+    // text with no number is an error, a NaN (#567): there is no numerator to read, in any width or base
+    println(rat64("abc"), " ", BigRat("abc"), " ", rat8(""), " ", BigRat(""), " ", rat64("("), " ", rat64("  "), " ", rat64("-"), " ", rat64("n"))
+    println(rat64("abc").isNaN, " ", BigRat("").isNaN, " ", rat64("abc", 16), " ", rat64("z", 36), " ", rat64("z"), " ", rat64(".5"), " ", rat64("()"))
+    let none = $""
+    let word = $"abc"
+    println(rat64(&none), " ", BigRat(&word), " ", rat64(&word, 16), " ", rat64("0"), " ", rat64("-0"), " ", rat64("+7"), " ", BigRat("0n"))
     // where a / is written, a part left out is an error, a NaN: the denominator is left out only with its /
     println(rat64("1/"), " ", BigRat("1/"), " ", rat8("(1/)"), " ", rat64("1/x"), " ", rat64("1/-"), " ", BigRat("7/", 16), " ", rat64("1/").isNaN, " ", BigRat("1/").isNaN)
     println(rat64("1"), " ", rat64("1/1"), " ", rat64("1/ 3"), " ", rat64("1/+3"), " ", rat64("1/0x3", 16), " ", rat64("1/z", 36), " ", rat64("1/z"), " ", rat64("1/8", 8))
@@ -45,8 +51,11 @@ let main():int32 {
 // out: true true true true (-2/3)
 // out: true true true (-2n/3n)
 // out: (-2/3) (-2n/3n) (-2n/3n) (-2/3) true true
-// out: (5/1) (5n/1n) (1/0) (-1/0) (0/0) (0/1) (0/1) (0/1)
+// out: (5/1) (5n/1n) (1/0) (-1/0) (0/0) (0/1) (0/0) (0/0)
 // out: true true (-1n/0n) true
+// out: (0/0) (0n/0n) (0/0) (0n/0n) (0/0) (0/0) (0/0) (0/0)
+// out: true true (2748/1) (35/1) (0/0) (0/0) (0/0)
+// out: (0/0) (0n/0n) (2748/1) (0/1) (0/1) (7/1) (0n/1n)
 // out: (0/0) (0n/0n) (0/0) (0/0) (0/0) (0n/0n) true true
 // out: (1/1) (1/1) (1/3) (1/3) (1/3) (1/35) (0/0) (0/0)
 // out: (0/0) (0n/0n) (0/0) (0/0) (0/0) (0/0) true true

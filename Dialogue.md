@@ -10699,3 +10699,23 @@ Neither compiler knew the names, so it is the modules', the tests'
 and the documents'. Details are provisional P578.
 
 There are 1351 tests, and all pass with clang and with gcc 15.
+
+### 614. Text with no number is no rational
+
+**Claude** had asked, when `"1/"` and `"/3"` became NaNs in #565,
+whether text with no number and no `/` should be one too:
+`rat64("abc")` and `rat64("")` were 0, `(0/1)`.
+
+**User**:
+
+> make rat64("abc") and rat64("") a NaN as #567
+
+So the numerator is to be there, with a `/` or with none:
+`rat64("abc")` and `rat64("")` are `(0/0)`, and `BigRat("abc")`
+`(0n/0n)`, in every width and base. `rat64("abc", 16)` is
+`(2748/1)`, for there `abc` is a number, and `rat64("0")` is `(0/1)`
+as it was. A number is still read as far as it goes, as
+`BigInt(text)` reads it. It is one line of the module's, and neither
+compiler changed. Details are provisional P579.
+
+There are 1351 tests, and all pass with clang and with gcc 15.

@@ -469,4 +469,5 @@ So far the changes from C are these, by topic.
 - a rational is read from its text by its type: `rat64("8/-12")` is
   `(-2/3)`, `BigRat("8/-12")` is `(-2n/3n)`, and `rat64(r.hex, 16)` is
   `r`; its `.hex`, `.oct` and `.bin` have the sign on the numerator
-  alone, `(-0x2/0x3)` (#565)
+  alone, `(-0x2/0x3)` (#565); text with no number is a NaN,
+  `rat64("abc")` is `(0/0)` (#567)

@@ -121,9 +121,11 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - The text is a `cstr`, or a `String` by reference, `rat64(&s)`.
   - `"1/0"` is an infinity and `"0/0"` a NaN; a part that does not
     fit the width makes a NaN, as elsewhere.
-  - Where a `/` is written, a part left out is an error, and gives a
-    NaN: `rat64("1/")` and `rat64("/3")` are `(0/0)`. The denominator
-    is left out only with its `/`, as in `rat64("1")`, `(1/1)`.
+  - Text with no number is an error, and gives a NaN: `rat64("abc")`
+    and `rat64("")` are `(0/0)` (#567).
+  - Where a `/` is written, a part left out is an error too, a NaN:
+    `rat64("1/")` and `rat64("/3")` are `(0/0)`. The denominator is
+    left out only with its `/`, as in `rat64("1")`, `(1/1)`.
   - `BigRat(text)` and `BigRat(text, base)` are the same, of any
     size: `BigRat("8/-12")` is `(-2n/3n)`.
   - Written in a program, `(1/3)` is the integer division, 0:
@@ -163,7 +165,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | `i64`, `i32`, `i16`, `i8` | `n.over(d)` | `(n/d)`, a `rat64`, `rat32`, `rat16` or `rat8`, in lowest terms (#539) |
 | `rat64`, `rat32`, `rat16`, `rat8` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
 | | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `BigRat`, converted; a NaN where it does not fit (#539, #540) |
-| | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; `"1/"` and `"/3"` are NaNs (#565) |
+| | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; `"abc"`, `""`, `"1/"` and `"/3"` are NaNs (#565, #567) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
@@ -173,7 +175,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `print(r)`, `.cstr`, `${r}`, `.string` | `(num/den)`; `.string` a String (#565) |
 | `BigInt` | `n.over(d)` | `(n/d)`, a `BigRat`, of a `BigInt` or an integer `d` (#540) |
 | `BigRat` | `BigRat(n, d)`, `BigRat(n)`, `BigRat(r)` | of `BigInt`s or integers; of a rational of integers |
-| | `BigRat(text)`, `BigRat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `r.hex` with 16 (#565) |
+| | `BigRat(text)`, `BigRat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `r.hex` with 16; text with no number is a NaN (#565, #567) |
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |

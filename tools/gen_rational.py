@@ -314,8 +314,9 @@ let rat_digit(c:u8, base:i64):bool {
 // then the numerator, as BigInt(text, base) reads it, and after a / the
 // denominator, read so too, with a sign of its own or none; with no / it
 // is 1. In lowest terms, as BigRat(num, den) gives it: "1/0" is an
-// infinity, "0/0" a NaN. Where a / is written, a part left out is an
-// error, a NaN: "1/" has no denominator, and "/3" no numerator
+// infinity, "0/0" a NaN. Text with no number is an error, a NaN: "abc"
+// and "" have no numerator (#567), and where a / is written a part left
+// out is one too: "1/" has no denominator, and "/3" no numerator
 let BigRat(text:cstr, base:i64):BigRat {
     var i:i64 = 0
     while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
@@ -323,11 +324,10 @@ let BigRat(text:cstr, base:i64):BigRat {
     while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
     let top:cstr := &text[i]
     let first:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
-    let numbered = rat_digit(text[first], base)
+    if !rat_digit(text[first], base) { return (BigRat){BigInt(0), BigInt(0)} }
     let num = BigInt(top, base)
     while text[i] != 0 && text[i] != '/' { i += 1 }
     if text[i] == 0 { return BigRat_lowest(num, BigInt(1)) }
-    if !numbered { return (BigRat){BigInt(0), BigInt(0)} }
     i += 1
     while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
     let digits:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
