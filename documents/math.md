@@ -202,6 +202,18 @@ let main():int32 {
     - A `c64`'s is C's, of floats: `c64(1.0) / c64(0.0)` is
       `(inf+nan.i)`, a float's `0.0 / 0.0` being a `nan`.
   - By an infinity it is 0, as a `c64`'s.
+  - By a real `CBR`, one with an imaginary part of 0, it is part by
+    part, as by a `BigRat`, and by an imaginary one too, with a
+    quarter turn (#572).
+    - What is finite is the same, exact.
+    - An infinite `z` keeps a part that is 0: with `inf` a BigRat's
+      infinity, `CBR(inf, 0) / CBR(2)` is `((1n/0n)+(0n/1n).i)`, where
+      its imaginary part was 0 times an infinity, a NaN, and
+      `CBR(inf, 0) / CBR(0, 2)` is `((0n/1n)+(-1n/0n).i)`.
+    - The sign is the quotient's: `CBR(inf, 0) / CBR(-2)` is
+      `((-1n/0n)+(0n/1n).i)`.
+    - The products are not so: `CBR(1) * CBR(inf, 0)` is
+      `((1n/0n)+(0n/0n).i)`.
 - **What stays rational**: `conj(z)` and `norm(z)`, a `BigRat`, each a
   method too; `z.i` is `z` times `i`, and `r.i` of a BigRat is
   `CBR(0, r)`.
@@ -357,7 +369,7 @@ atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):Big
 | | `.hex`, `.dec` | `(+0x1.8p+0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
 | | `c64(text)`, `c32(text)` | of its text: `(1.5-2.0.i)`, `(+1.5-2.0.i)`, `{real: 1.5, imag: -2.0}`, or a part alone, `1.5`, `2.0.i`; a `cstr` or a `String` by reference; text that is none is a NaN in both parts (#569) |
 | `CBR`, with `<Rational>` (#552) | `.real`, `.imag` | the parts, fields, each a `BigRat` |
-| | `+`, `-`, `*`, `/`, prefix `-` and `+`, `==`, `!=` | exact, of two, or with a `BigRat`, a `BigInt` or an `i64` on either side; `z / 0` is infinite, a part that is 0 staying 0, `((1n/0n)+(0n/1n).i)` (#571) |
+| | `+`, `-`, `*`, `/`, prefix `-` and `+`, `==`, `!=` | exact, of two, or with a `BigRat`, a `BigInt` or an `i64` on either side; `z / 0` is infinite, a part that is 0 staying 0, `((1n/0n)+(0n/1n).i)` (#571); by a real or an imaginary `CBR` it is part by part (#572) |
 | | `.conj()` | the conjugate, a `CBR` |
 | | `.norm()` | `real² + imag²`, a `BigRat` |
 | | `.i` | `z` times `i` |

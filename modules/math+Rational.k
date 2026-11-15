@@ -186,7 +186,13 @@ extend CBR {
     static let *(a:i64, b:Self):Self { BigRat(a) * b }
 
     // a times b's conjugate, over b's norm, a BigRat; by 0 it is infinite,
-    // CBR_by_zero's, and by an infinity 0, as c64's is
+    // CBR_by_zero's, and by an infinity 0, as c64's is. By a real number, b
+    // with an imaginary part of 0, it is part by part, each of a's times
+    // the reciprocal of b's, and by an imaginary one too, with a quarter
+    // turn (#572): the same where all is finite, and no 0 of b's meets an
+    // infinity of a's, so CBR(inf, 0) / CBR(2) is ((1n/0n)+(0n/1n).i), not
+    // a NaN in a part. The reciprocal has b's sign, which an infinity
+    // divided by b would lose
     static let /(a:Self, b:Self):Self {
         if b.real.isFinite && b.real.num.isZero && b.imag.isFinite && b.imag.num.isZero {
             return CBR_by_zero(a, b.real)
@@ -194,6 +200,14 @@ extend CBR {
         if b.real.isInfinite || b.imag.isInfinite {
             if !a.real.isFinite || !a.imag.isFinite { return (Self){BigRat(0, 0), BigRat(0, 0)} }
             return (Self){BigRat(0), BigRat(0)}
+        }
+        if b.imag.isFinite && b.imag.num.isZero {
+            let r = BigRat(1) / b.real
+            return (Self){a.real * r, a.imag * r}
+        }
+        if b.real.isFinite && b.real.num.isZero {
+            let r = BigRat(1) / b.imag
+            return (Self){a.imag * r, -(a.real * r)}
         }
         let d = b.real * b.real + b.imag * b.imag
         return (Self){(a.real * b.real + a.imag * b.imag) / d, (a.imag * b.real - a.real * b.imag) / d}

@@ -10855,3 +10855,31 @@ of an infinite `CBR` and a real one has the like NaN, of 0 times an
 infinity, and was left. Details are provisional P583.
 
 There are 1354 tests, and all pass with clang and with gcc 15.
+
+### 619. A CBR by a real one, part by part
+
+**User**:
+
+> fix CBR(inf, 0) / CBR(2) as #572
+
+**Claude** had reported it with #571: an infinite `CBR` over a real
+one was `((1n/0n)+(0n/0n).i)`, since the formula multiplies the
+infinity by the divisor's part that is 0. **Claude** proposed to
+divide part by part where the divisor is real or imaginary, as
+`z / BigRat(2)` does, and asked whether the products, which have
+the same fault, are fixed too.
+
+- **User** chose division only, and then ordered the products as
+  #573.
+
+So `CBR(inf, 0) / CBR(2)` is `((1n/0n)+(0n/1n).i)` and
+`CBR(inf, 0) / CBR(0, 2)` is `((0n/1n)+(-1n/0n).i)`; what is finite
+is as it was. While testing, **Claude** found that `<Rational>`
+gives an infinity divided by a negative number the positive
+infinity, `BigRat(1, 0) / BigRat(-2)` is `(1n/0n)`, so the parts
+are multiplied by the divisor's reciprocal, which keeps the sign:
+`CBR(inf, 0) / CBR(-2)` is `((-1n/0n)+(0n/1n).i)`. The fault of
+`<Rational>` itself was left, and reported. Details are provisional
+P584.
+
+There are 1355 tests, and all pass with clang and with gcc 15.

@@ -489,3 +489,7 @@ So far the changes from C are these, by topic.
   `((1n/0n)+(0n/1n).i)`, where its imaginary part was `0 / 0`, a NaN;
   each part that is not 0 is an infinity by its sign, and `0 / 0` is
   NaNs still; a `c64`'s is C's, `(inf+nan.i)` (#571)
+- a `CBR` by a real `CBR`, or by an imaginary one, is part by part, as
+  by a `BigRat`: `CBR(inf, 0) / CBR(2)`, of a BigRat's infinity, is
+  `((1n/0n)+(0n/1n).i)`, where its imaginary part was 0 times an
+  infinity, a NaN; what is finite is as it was (#572)

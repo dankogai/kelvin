@@ -1541,6 +1541,8 @@ on a new line`
     println(c64(ct_z.dec) == ct_z, " ", c64(ct_z.cstr) == ct_z, " ", c64("2.0.i"), " ", c32("0.5").typename, " ", CBR(ct_q.hex, 16) == ct_q, " ", CBR("1/2-1/3.i") == ct_q, " ", c64("x").real.isnan)   // a complex number of its text (#569)
     println(ct_z, " ", ct_z.conj(), " ", c64(-0.0, 0.0), " ", c32(0.5:f32, -1.0:f32), " ", ct_z.string.typename, " ", ct_q, " ", `${ct_z}`, " ", CBR(ct_q.cstr) == ct_q)   // print of a complex number writes (a+b.i) (#570)
     println(CBR(1) / CBR(0), " ", CBR(0, 1) / 0, " ", CBR(1, -1) / CBR(0), " ", CBR(0) / CBR(0), " ", 1 / CBR(0), " ", c64(1.0) / c64(0.0))   // a CBR by 0: a part that is 0 stays 0 (#571)
+    let br_inf = BigRat(1, 0)
+    println(CBR(br_inf.copy(), BigRat(0)) / CBR(2), " ", CBR(br_inf.copy(), BigRat(0)) / CBR(-2), " ", CBR(br_inf.copy(), BigRat(3)) / CBR(0, 2), " ", CBR(1, 2) / CBR(2), " ", CBR(1, 2) / CBR(0, 2))   // a CBR by a real one or an imaginary one, part by part (#572)
     return 0
 }
 
