@@ -466,3 +466,7 @@ So far the changes from C are these, by topic.
 - `+x`, the prefix, of a struct is its value where the type has a unary
   `-`: `+1n` is `1n`, so a `BigInt`'s `.hex`, `+0xffn`, pastes back, and
   `+n` of a variable is a new `BigInt`, as `-n` is (#563)
+- a rational is read from its text by its type: `rat64("8/-12")` is
+  `(-2/3)`, `bigrat("8/-12")` is `(-2n/3n)`, and `rat64(r.hex, 16)` is
+  `r`; its `.hex`, `.oct` and `.bin` have the sign on the numerator
+  alone, `(-0x2/0x3)` (#565)

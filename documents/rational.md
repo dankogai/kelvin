@@ -12,12 +12,13 @@ let main():int32 {
     let a = 1.over(3)                         // a rat64: (1/3)
     let b = a + 1.over(6)                     // (1/2), in lowest terms
     println(a, " ", b, " ", a * b, " ", a / b, " ", -a)   // (1/3) (1/2) (1/6) (2/3) (-1/3)
-    println(b.f64, " ", b.hex, " ", a < b, " ", a + 1)    // 0.5 (+0x1/+0x2) true (4/3)
+    println(b.f64, " ", b.hex, " ", a < b, " ", a + 1)    // 0.5 (+0x1/0x2) true (4/3)
     let inf = 1.over(0)                       // no division by zero: an infinity
     let nan = 0.over(0)                       // and a NaN
     println(inf, " ", -inf, " ", nan, " ", nan == nan, " ", inf.isInfinite)   // (1/0) (-1/0) (0/0) false true
     let small = rat8(1, 3)                    // of two i8s; rat16 and rat32 too
     println(small + rat8(1, 6), " ", rat8(1, 15) + rat8(1, 14), " ", rat64(small) + a)   // (1/2) (0/0) (2/3)
+    println(rat64("8/-12"), " ", rat64(b.hex, 16), " ", bigrat("(-2n/3n)"))   // (-2/3) (1/2) (-2n/3n): of its text
     var sum = bigrat(0)                       // of two BigInts: any precision
     for i in 1...30 { sum = sum + 1n.over(i) }
     println(sum, " ", sum.f64)                // (9304682830147n/2329089562800n) 3.994987130920391
@@ -56,7 +57,8 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - It has `rat64`'s arithmetic, with a `BigInt` or an integer on
     either side, its comparisons, its infinities and its NaN.
   - Its text is `(1n/3n)`, its parts as a `BigInt` shows, and
-    `(+0x1n/+0x3n)` its `.hex`; it is as long as its digits.
+    `(+0x1n/0x3n)` its `.hex`; it is as long as its digits.
+    `bigrat(text)` reads it back (#565).
   - `r.f64` is an `f64` of any of them: `inf` or `-inf` past an `f64`'s
     range, and 0 below it.
   - It owns its `BigInt`s, as a struct that holds an owner does: a
@@ -102,9 +104,30 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 - **Text:** `(num/den)`, the sign with the numerator: `(1/3)`,
   `(-1/3)`, `(1/0)`, `(0/0)`.
   - `r.hex`, `r.oct` and `r.bin` are `(num.hex/den.hex)` and its kin:
-    `(+0x1/+0x3)`.
-  - Its text does not paste back: `(1/3)` written in a program is the
-    integer division, 0. `1.over(3)` writes the value.
+    `(+0x1/0x3)`.
+    - The sign is the numerator's alone: the denominator, 0 or more,
+      has none (#565).
+  - `r.string` is the text, a String; print and `.cstr` show it.
+- **From text** (#565): the type reads its own text back, so
+  `rat64("(1/3)")` is `(1/3)`, as `i64("42")` is 42.
+  - `rat64("8/-12")` is `(-2/3)`: a sign on either part, and the
+    value in lowest terms, as `rat64(8, -12)` is.
+  - Spaces and a `(` may come first; each part is read as
+    `BigInt(text)` reads it, a `BigInt`'s `n` or none after it; with
+    no `/` the denominator is 1, so `rat64("5")` is `(5/1)`.
+  - `rat64(text, base)` reads in a base from 2 to 36:
+    `rat64(r.hex, 16)`, `rat64(r.oct, 8)` and `rat64(r.bin, 2)` are
+    `r`.
+  - The text is a `cstr`, or a `String` by reference, `rat64(&s)`.
+  - `"1/0"` is an infinity and `"0/0"` a NaN; a part that does not
+    fit the width makes a NaN, as elsewhere.
+  - Where a `/` is written, a part left out is an error, and gives a
+    NaN: `rat64("1/")` and `rat64("/3")` are `(0/0)`. The denominator
+    is left out only with its `/`, as in `rat64("1")`, `(1/1)`.
+  - `bigrat(text)` and `bigrat(text, base)` are the same, of any
+    size: `bigrat("8/-12")` is `(-2n/3n)`.
+  - Written in a program, `(1/3)` is the integer division, 0:
+    `1.over(3)` writes the value there.
 - **`r.f64`** is the nearest `f64`: 0.5 of `(1/2)`, `inf` or `-inf` of
   an infinity, `nan` of a NaN.
 - **`r.num` and `r.den`** are its members, read as any struct's.
@@ -140,20 +163,22 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | `i64`, `i32`, `i16`, `i8` | `n.over(d)` | `(n/d)`, a `rat64`, `rat32`, `rat16` or `rat8`, in lowest terms (#539) |
 | `rat64`, `rat32`, `rat16`, `rat8` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
 | | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `bigrat`, converted; a NaN where it does not fit (#539, #540) |
+| | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; `"1/"` and `"/3"` are NaNs (#565) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is `(0/0)`; `(1/0)` or `(-1/0)`; neither |
 | | `.f64` | the nearest `f64`; `inf`, `-inf` or `nan` |
-| | `.hex`, `.oct`, `.bin` | `(num.hex/den.hex)` and its kin, a String |
-| | `print(r)`, `.cstr`, `${r}` | `(num/den)` |
+| | `.hex`, `.oct`, `.bin` | `(num.hex/den.hex)` and its kin, a String; the denominator has no sign (#565) |
+| | `print(r)`, `.cstr`, `${r}`, `.string` | `(num/den)`; `.string` a String (#565) |
 | `BigInt` | `n.over(d)` | `(n/d)`, a `bigrat`, of a `BigInt` or an integer `d` (#540) |
 | `bigrat` | `bigrat(n, d)`, `bigrat(n)`, `bigrat(r)` | of `BigInt`s or integers; of a rational of integers |
+| | `bigrat(text)`, `bigrat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `r.hex` with 16 (#565) |
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
-| | `.hex`, `.oct`, `.bin` | `(+0x1n/+0x3n)` and its kin, a String |
+| | `.hex`, `.oct`, `.bin` | `(+0x1n/0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |
 | | `.i`, with `<math>` (#552) | `cbr(0, r)`, a complex number of two bigrats ([math.md](math.md)) |
 | | `.sqrt()`, `.exp(p)`, `.sin()`, ..., with `<math>` (#553) | math's functions, within `2^-p`, or to 128 bits ([math.md](math.md)) |

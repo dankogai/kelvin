@@ -1533,6 +1533,7 @@ on a new line`
     println(rt_a + 1.over(6), " ", rt_a * 3, " ", rt_a.f64, " ", rt_a.hex, " ", (-4).over(-8), " ", 1.over(0), " ", rt_a < 1.over(2))
     println(rat32(rt_a), " ", rat8(1, 3) + 1, " ", rat16(100, 3) * rat16(100, 3) * rat16(100, 3), " ", $[rt_a, -rt_a])
     println(rt_b + rt_b, " ", rt_b * 3 - 1, " ", bigrat(rt_a) == rt_b, " ", rat64(rt_b), " ", rt_b.f64, " ", rt_b.hex, " ", 2n.over(4))
+    println(rat64("8/-12"), " ", bigrat("8/-12"), " ", rat64(rt_a.hex, 16) == rt_a, " ", bigrat(rt_b.hex, 16) == rt_b, " ", rat8("(1/3)"), " ", rt_a.string, " ", rat64("1/0"))   // a rational of its text, and no sign on a denominator (#565)
     return 0
 }
 

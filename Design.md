@@ -613,6 +613,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 562 | kc reads `0o52`, an octal number, and `0o17n`, a BigInt, as kelvinc does (#561): `0o` or `0O` and digits of 0 to 7, the same number as C's `052`; kc had handed `0o52` to the C compiler as written, which a recent one reads and an older one does not, and `0o17n` was C's "invalid suffix"; `0o18`, `0o` alone and `0o1.5` are kelvinc's error, word for word, and the message of `017n` names `0o` as kelvinc's; kelvinc is unchanged | selfhost/lex.k: octal_literal, big_literal, the number's branch of lex; selfhost/sample.k; selfhost/README.md | tests/run/octal_literals.k builds with kc and prints what kelvinc's build prints; sample.k's line of #562 | 2026-11-15 |
 | 563 | kelvinc reads `+1n`: the prefix `+` of a Kelvin struct or union is its value where the type has a unary `-`, as a `BigInt`, `c64`, `c32`, a rational, a `bigrat` and a `cbr` have, and a struct of the program with one; a value and no place, so of a variable, a member, an element or `p^` it is a copy, and an owner's a new one, as `-x`'s is: `let m = +n` of a `BigInt` is a new `BigInt`; of what an expression gives, `+1n`, `+(a + b)`, it is that value; so a `BigInt`'s `.hex`, `.oct` and `.bin`, `+0xffn`, paste back, which were C's "invalid argument type"; a struct without a unary `-` is "'+' gives the value of a number, or of a type with a unary '-', and no operator - takes vec: ..."; `+` is no operator to define; a number's `+x` is C's, as before, and so is that of a String or a pointer, C's error; kelvinc alone | src/parser.c: plus_value, parse_unary, no_place; documents/operators.md, structs.md, bigint.md, math.md, rational.md; README.md | tests/run/plus_value.k, tests/error/plus_no_operator.k | 2026-11-15 |
 | 564 | kc reads `+1n`, as kelvinc does (#563): the prefix `+` of a Kelvin struct, a union or an enum with values is its value where the type has a unary `-`; a value and no place, so of a variable, a member, an element or `p^` that owns it is a copy, a new owner as `-x`'s is, and of a struct that owns nothing, and of what an expression gives, `+1n`, the value as it is; kc's `+x` (#560) took no struct, so `+1n` and `+z` were the C compiler's "invalid argument type"; a type with no unary `-` is kelvinc's error, word for word; so a `BigInt`'s `.hex`, `+0xffn`, pastes back into kc too; kelvinc is unchanged | selfhost/gen.k: plus_value, gen_plus_value, gen_expr_of; selfhost/sample.k; selfhost/README.md | tests/run/plus_value.k builds with kc and prints what kelvinc's build prints; tests/error/plus_no_operator.k's error is kc's too; sample.k's lines of #564 | 2026-11-15 |
+| 565 | A rational is read from its text by its type, with `<Rational>`: `rat64("8/-12")` is `(-2/3)` and `bigrat("8/-12")` `(-2n/3n)`, so `T(text)` gives the value back, as `i64("42")` does; `rat64(text, base)` reads in a base, `rat64(r.hex, 16)`; spaces and a `(` may come first, each part is read as `BigInt(text, base)` reads it, with a sign of its own or none, and with no `/` the denominator is 1; the text is a `cstr` or a `String` by reference; `"1/0"` is an infinity, `"0/0"` a NaN, and a part that does not fit `rat8` to `rat64` makes a NaN; where a `/` is written a part left out is an error, a NaN, `"1/"` and `"/3"`, the denominator being left out only with its `/`; a rational's `.hex`, `.oct` and `.bin` have the sign on the numerator alone, `(-0x2/0x3)`, `(-0x2n/0x3n)`, where the denominator had a `+`, and so a `cbr`'s; a fixed-width rational's text is its `.string`, a String, as a bigrat's, where it was a `.cstr()` method; a number's text need not be a literal of its type; kelvinc and kc, by the module | tools/gen_rational.py, modules/Rational.k: rat_text, the `string` property, bigrat's hex, oct and bin, bigrat(text), ratN(text); documents/rational.md, math.md; README.md; selfhost/sample.k | tests/run/rational_text.k; rational.k, rational_widths.k, rational_big.k, complex_text.k and plus_value.k show the new texts; sample.k's line of #565 | 2026-11-15 |
 
 Notes:
 
@@ -1198,6 +1199,56 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (565) Agreed details: "So long as `T(stringified_value)` restores the value"
+  - The user, on the faults Claude had listed, that a rational's
+    text does not paste back:
+    - "numeric value -> string does not have to round-trip exactly.
+      take i8(1).cstr. It is simply `1` which is a literal i64. So
+      long as `T(stringified_value)` restores the value."
+    - "So `BigRat("8/-12")` is `(-2n/3n)`. Oh, when you stringify
+      rationals, drop sign of the denominator, leaving just that of
+      the numerator."
+  - So the test of a number's text is that its type reads it back,
+    not that it is a literal of the type. `(1/3)` was never a fault.
+  - Asked, and the user's answers:
+    - The name: `bigrat` only, as the type is spelled; no `BigRat`.
+    - Which types: the rationals only; `c64(text)`, `c32(text)` and
+      `cbr(text)` wait for a number of their own.
+  - Claude's choices, the user's to change:
+    - The fixed widths read text too, `rat8(text)` to `rat64(text)`.
+    - A base, `rat64(text, base)`, as `i64(s, 16)` and
+      `BigInt(text, base)` have, for `.hex`, `.oct` and `.bin`.
+    - The text is a `cstr` or a `String` by reference, as
+      `BigInt(text)` takes it.
+    - What is read: spaces, a `(`, the numerator, and after a `/`
+      the denominator, each as `BigInt(text, base)` reads it; no `/`
+      is a denominator of 1.
+      - So what is no number is `(0/1)`, as `i64("abc")` is 0.
+  - `"1/"`, a `/` with no denominator: Claude's first reading made it
+    `(1/0)`, the denominator read as 0. The user set it right:
+    - "`rat("1/")`is error for any type of rationals. You cannot
+      omit the denominator if `/` is present. If absent, however,
+      denominator is `1` like `rat("1")` is `(1/1)`."
+    - Asked what the error is at run time, the user chose a NaN,
+      `(0/0)`, over ending the program.
+    - A denominator is there where, after spaces and a sign, a
+      digit of the base stands: `"1/x"` and `"1/-"` are NaNs too,
+      and `"1/0"` is the infinity it was.
+    - A numerator left out, `"/3"`, Claude had left as 0, `(0/1)`,
+      and said so. The user: "Make `rat("/3")` as `NaN` as well."
+      So with a `/` both parts are to be there, `"x/3"` and `"-/3"`
+      NaNs too; with none, what is no number is `(0/1)` still.
+  - The fixed widths' text became a `string` property, a String,
+    where it was the method `rat64.cstr()`:
+    - `rat64(text:cstr)` and the method would both be `rat64__cstr`
+      in C, kelvinc's error. A BigInt has `string` and
+      `BigInt(text)` so, and bigrat too.
+    - print, `.cstr` and a template show it as before; `r.string` is
+      new.
+  - kc: the module says `let top:cstr := &text[i]` and passes `top`,
+    as kc's choice of an overload does not take `&text[i]` for a
+    `cstr`, which kelvinc's does. A fault of kc, for a number of its
+    own.
 - (564) Agreed details: "make kc read +1n as #564"
   - Left by #563, which was kelvinc's alone: kc's `+x` (#560) took no
     struct, so `+1n` and `+z` of a `c64` were the C compiler's
@@ -9485,6 +9536,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P574 | Details of #562 | selfhost/lex.k: after a number's run of digits and letters, one that begins `0o` or `0O` and is no BigInt goes to octal_literal, which asks for a digit or more of 0 to 7 and nothing else, or says kelvinc's error, and appends `0` and the digits to codes for a T_NUM of C's octal, as add_made does for a literal that becomes a call; big_literal takes `0o` for base 8 and refuses a digit past 7, so `0o89n` is the number's error | gen.k is unchanged: it reads `052` as it did; kc's C of kc grows from 35335 lines to 35378 |
 | P575 | Details of #563 | src/parser.c: parse_unary hands a `+` to plus_value, as it hands `-` and `~` to resolve_operator. plus_value leaves the E_PREFIX, C's `+`, where the operand's type is no Kelvin struct or union that kelvinc sees; else it chooses among the overloads of `-` with the one operand, and says the error where none takes it; what is no place (not a name, a member, an element or `p^`) is returned as it is; a place becomes the E_CALL `element_copy` of `&x` that `xs += &x` uses (#206), its text `+`, typed the operand's type unqualified, which codegen writes as the owner's copy function, `_kv_BigInt_copy(&n)`, or `(*(&z))` of a struct that owns nothing; no_place says "what '+' gives" of it | codegen.c is unchanged; an owner the copy makes is freed as one `-n` or `n.copy()` gives is: held by the expression around it, or taken by the variable or the parameter it goes to |
 | P576 | Details of #564 | selfhost/gen.k: plus_value(n) is true of an N_UNARY whose token is `+` and whose operand's type is op_record's, a Kelvin struct, a union or an enum with values; gen_expr_of asks it before the prefix's own branch and calls gen_plus_value, which makes an N_CALL of an N_ID with the operand for its one argument, asks choose_overload of `-` for it, plainly and then with wraps, and says the error where none takes it; then writes put_owner_prefix and `_copy(&(x))` where the type is an owner's and the operand is_place, else `(x)` | type_of is unchanged: a prefix's type is its operand's, promoted where a small integer, so a struct's is the struct; parse.k is unchanged; kc's C of kc grows from 35378 lines to 35436 |
+| P577 | Details of #565 | tools/gen_rational.py, which writes modules/Rational.k: rat_text skips a `+` at the head of the denominator's text; bigrat's hex, oct and bin write `/0x`, `/0o`, `/0b`, the denominator's `.text(base)` and `n`; each width's `rat64.cstr()` is the property `string`, a String of a template; bigrat(text:cstr, base:i64) skips spaces and one `(`, reads BigInt of the rest, walks to a `/`, and gives bigrat_lowest of the numerator and 1 where there is none; with a `/`, a NaN where rat_digit found no digit of the base at the head of the numerator, after spaces and a sign; after the `/` it skips spaces and a sign and asks rat_digit again, a NaN where none stands there, then reads BigInt of what follows the `/` and gives bigrat_lowest of the two; bigrat(text), and the two of a `const String^`, call it; rat64(text, base) and its kin are rat64(bigrat(text, base)), the conversion of #540, a NaN where a part does not fit | Rational.k grows from 518 lines to 601; no change to either compiler; kc's C of kc is 35436 lines still |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

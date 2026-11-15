@@ -10628,3 +10628,54 @@ word. kc builds tests/run/plus_value.k, and prints what kelvinc's
 build prints. kelvinc is unchanged. Details are provisional P576.
 
 There are 1350 tests, and all pass with clang and with gcc 15.
+
+### 612. A rational of its text
+
+**Claude** had listed, after #563 and #564, that a rational's text
+does not paste back: `(+0x1n/+0x3n)` is BigInt division.
+
+**User** set the test right:
+
+> * numeric value -> string does not have to round-trip exactly.
+>   `take i8(1).cstr`. It is simply `1` which is a literal i64. So
+>   long as `T(stringified_value)`restores the value.
+> * So `BigRat("8/-12")` is `(-2n/3n)`. Oh, when you stringify
+>   rationals, drop sign of the denominator, leaving just that of
+>   the numerator.
+
+So a number's text need not be a literal of its type: its type reads
+it back. Two choices were the user's:
+
+- The name. **User** chose `bigrat` only, as the type is spelled,
+  over an alias `BigRat` and over a rename.
+- Which types. **User** chose the rationals only; the complex ones
+  wait.
+
+`bigrat("8/-12")` is `(-2n/3n)` now and `rat64("8/-12")` `(-2/3)`,
+with a base for `.hex`, `.oct` and `.bin`, whose denominator has no
+sign. The fixed widths' text became a `string` property, since
+`rat64(text)` of a `cstr` and the method `rat64.cstr()` would have
+one name in C. Neither compiler changed: it is the module's.
+
+**Claude** had read `"1/"` as `(1/0)`, its denominator 0.
+
+**User** set that right too:
+
+> `rat("1/")`is error for any type of rationals. You cannot omit the
+> denominator if `/` is present. If absent, however, denominator is
+> `1` like `rat("1")` is `(1/1)`.
+
+Asked what the error is at run time, **User** chose a NaN, `(0/0)`,
+over ending the program.
+
+**Claude** said that a numerator left out, `"/3"`, was still read as
+0.
+
+**User**:
+
+> Make `rat("/3")` as `NaN` as well.
+
+So with a `/` both parts are to be there. Details are provisional
+P577.
+
+There are 1351 tests, and all pass with clang and with gcc 15.

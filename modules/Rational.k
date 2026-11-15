@@ -132,12 +132,17 @@ extend i8 {
 
 // ---------- what it is, and its text ----------
 
-// (num/den) of two texts
+// (num/den) of two texts, the sign the numerator's alone (#565): the
+// denominator, 0 or more, is written without its +
 let rat_text(num:cstr, den:cstr):String {
     var s = $"("
     s += num
     s += "/"
-    s += den
+    if den[0] == '+' {
+        s += &den[1]
+    } else {
+        s += den
+    }
     s += ")"
     return s
 }
@@ -150,14 +155,17 @@ extend rat64 {
     // the nearest f64: an infinity's is inf or -inf, a NaN's nan
     let f64:f64 { self.num as f64 / self.den as f64 }
 
-    // (num.hex/den.hex), and the same in base 8 and base 2
+    // (num.hex/den.hex), and the same in base 8 and base 2; the
+    // denominator's has no sign
     let hex:String { rat_text(self.num.hex, self.den.hex) }
     let oct:String { rat_text(self.num.oct, self.den.oct) }
     let bin:String { rat_text(self.num.bin, self.den.bin) }
-}
 
-// its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN
-let rat64.cstr():cstr { `(${.num}/${.den})` }
+    // its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN; a
+    // String, which print shows and .cstr gives, as a BigInt's (#506), so
+    // that rat64(text) of a cstr has its name in C (#565)
+    let string:String { $`(${self.num}/${self.den})` }
+}
 
 extend rat32 {
     let isNaN:bool { self.num == 0 && self.den == 0 }
@@ -167,14 +175,17 @@ extend rat32 {
     // the nearest f64: an infinity's is inf or -inf, a NaN's nan
     let f64:f64 { self.num as f64 / self.den as f64 }
 
-    // (num.hex/den.hex), and the same in base 8 and base 2
+    // (num.hex/den.hex), and the same in base 8 and base 2; the
+    // denominator's has no sign
     let hex:String { rat_text(self.num.hex, self.den.hex) }
     let oct:String { rat_text(self.num.oct, self.den.oct) }
     let bin:String { rat_text(self.num.bin, self.den.bin) }
-}
 
-// its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN
-let rat32.cstr():cstr { `(${.num}/${.den})` }
+    // its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN; a
+    // String, which print shows and .cstr gives, as a BigInt's (#506), so
+    // that rat32(text) of a cstr has its name in C (#565)
+    let string:String { $`(${self.num}/${self.den})` }
+}
 
 extend rat16 {
     let isNaN:bool { self.num == 0 && self.den == 0 }
@@ -184,14 +195,17 @@ extend rat16 {
     // the nearest f64: an infinity's is inf or -inf, a NaN's nan
     let f64:f64 { self.num as f64 / self.den as f64 }
 
-    // (num.hex/den.hex), and the same in base 8 and base 2
+    // (num.hex/den.hex), and the same in base 8 and base 2; the
+    // denominator's has no sign
     let hex:String { rat_text(self.num.hex, self.den.hex) }
     let oct:String { rat_text(self.num.oct, self.den.oct) }
     let bin:String { rat_text(self.num.bin, self.den.bin) }
-}
 
-// its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN
-let rat16.cstr():cstr { `(${.num}/${.den})` }
+    // its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN; a
+    // String, which print shows and .cstr gives, as a BigInt's (#506), so
+    // that rat16(text) of a cstr has its name in C (#565)
+    let string:String { $`(${self.num}/${self.den})` }
+}
 
 extend rat8 {
     let isNaN:bool { self.num == 0 && self.den == 0 }
@@ -201,14 +215,17 @@ extend rat8 {
     // the nearest f64: an infinity's is inf or -inf, a NaN's nan
     let f64:f64 { self.num as f64 / self.den as f64 }
 
-    // (num.hex/den.hex), and the same in base 8 and base 2
+    // (num.hex/den.hex), and the same in base 8 and base 2; the
+    // denominator's has no sign
     let hex:String { rat_text(self.num.hex, self.den.hex) }
     let oct:String { rat_text(self.num.oct, self.den.oct) }
     let bin:String { rat_text(self.num.bin, self.den.bin) }
-}
 
-// its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN
-let rat8.cstr():cstr { `(${.num}/${.den})` }
+    // its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN; a
+    // String, which print shows and .cstr gives, as a BigInt's (#506), so
+    // that rat8(text) of a cstr has its name in C (#565)
+    let string:String { $`(${self.num}/${self.den})` }
+}
 
 // ---------- arithmetic ----------
 
@@ -447,32 +464,98 @@ extend bigrat {
         s += ")"
         return s
     }
-    // (num.hex/den.hex), and the same in base 8 and base 2
+    // (num.hex/den.hex), and the same in base 8 and base 2; the
+    // denominator's has no sign (#565), its digits after the base's mark
     let hex:String {
         var s = $"("
         s += self.num.hex
-        s += "/"
-        s += self.den.hex
-        s += ")"
+        s += "/0x"
+        s += self.den.text(16)
+        s += "n)"
         return s
     }
     let oct:String {
         var s = $"("
         s += self.num.oct
-        s += "/"
-        s += self.den.oct
-        s += ")"
+        s += "/0o"
+        s += self.den.text(8)
+        s += "n)"
         return s
     }
     let bin:String {
         var s = $"("
         s += self.num.bin
-        s += "/"
-        s += self.den.bin
-        s += ")"
+        s += "/0b"
+        s += self.den.text(2)
+        s += "n)"
         return s
     }
 }
+
+// ---------- of text (#565) ----------
+
+// whether c is a digit of a base from 2 to 36
+let rat_digit(c:u8, base:i64):bool {
+    var v:i64 = 36
+    if c >= '0' && c <= '9' {
+        v = c as i64 - 48
+    } else if c >= 'a' && c <= 'z' {
+        v = c as i64 - 87
+    } else if c >= 'A' && c <= 'Z' {
+        v = c as i64 - 55
+    }
+    return v < base
+}
+
+// a rational of its text, in a base: "8/-12", "(-2/3)", "(-2n/3n)", and
+// with 16, 8 or 2 its .hex, .oct or .bin; spaces and a ( may come first,
+// then the numerator, as BigInt(text, base) reads it, and after a / the
+// denominator, read so too, with a sign of its own or none; with no / it
+// is 1. In lowest terms, as bigrat(num, den) gives it: "1/0" is an
+// infinity, "0/0" a NaN. Where a / is written, a part left out is an
+// error, a NaN: "1/" has no denominator, and "/3" no numerator
+let bigrat(text:cstr, base:i64):bigrat {
+    var i:i64 = 0
+    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    if text[i] == '(' { i += 1 }
+    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    let top:cstr := &text[i]
+    let first:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
+    let numbered = rat_digit(text[first], base)
+    let num = BigInt(top, base)
+    while text[i] != 0 && text[i] != '/' { i += 1 }
+    if text[i] == 0 { return bigrat_lowest(num, BigInt(1)) }
+    if !numbered { return (bigrat){BigInt(0), BigInt(0)} }
+    i += 1
+    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    let digits:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
+    if !rat_digit(text[digits], base) { return (bigrat){BigInt(0), BigInt(0)} }
+    let bottom:cstr := &text[i]
+    let den = BigInt(bottom, base)
+    return bigrat_lowest(num, den)
+}
+let bigrat(text:cstr):bigrat { bigrat(text, 10) }
+let bigrat(text:const String^, base:i64):bigrat { bigrat(text^.cstr, base) }
+let bigrat(text:const String^):bigrat { bigrat(text^.cstr, 10) }
+
+// a rational of integers of its text: the same, or a NaN where a part
+// does not fit
+let rat64(text:cstr, base:i64):rat64 { rat64(bigrat(text, base)) }
+let rat64(text:cstr):rat64 { rat64(bigrat(text, 10)) }
+let rat64(text:const String^, base:i64):rat64 { rat64(bigrat(text^.cstr, base)) }
+let rat64(text:const String^):rat64 { rat64(bigrat(text^.cstr, 10)) }
+let rat32(text:cstr, base:i64):rat32 { rat32(bigrat(text, base)) }
+let rat32(text:cstr):rat32 { rat32(bigrat(text, 10)) }
+let rat32(text:const String^, base:i64):rat32 { rat32(bigrat(text^.cstr, base)) }
+let rat32(text:const String^):rat32 { rat32(bigrat(text^.cstr, 10)) }
+let rat16(text:cstr, base:i64):rat16 { rat16(bigrat(text, base)) }
+let rat16(text:cstr):rat16 { rat16(bigrat(text, 10)) }
+let rat16(text:const String^, base:i64):rat16 { rat16(bigrat(text^.cstr, base)) }
+let rat16(text:const String^):rat16 { rat16(bigrat(text^.cstr, 10)) }
+let rat8(text:cstr, base:i64):rat8 { rat8(bigrat(text, base)) }
+let rat8(text:cstr):rat8 { rat8(bigrat(text, 10)) }
+let rat8(text:const String^, base:i64):rat8 { rat8(bigrat(text^.cstr, base)) }
+let rat8(text:const String^):rat8 { rat8(bigrat(text^.cstr, 10)) }
 
 extend bigrat {
     static let +(a:Self, b:Self):Self {

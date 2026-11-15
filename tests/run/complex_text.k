@@ -34,5 +34,5 @@ let main():int32 {
 // out: true true true true
 // out: {real: 1.5, imag: -2.0} c64 {real: 0.0, imag: -0.0} {real: -0.0, imag: -0.0}
 // out: (+1.5-2.0.i)! 20 (+0x1.8p+0-0x1p+1.i) true
-// out: ((+0x1n/+0x2n)+(-0x1n/+0x3n).i) ((+0o1n/+0o2n)+(-0o1n/+0o3n).i) ((+0b1n/+0b10n)+(-0b1n/+0b11n).i) String
-// out: ((+0xffn/+0x1n)+(+0x10n/+0x1n).i) ((+0b100n/+0b1n)+(+0b11n/+0b1n).i) ((+0o1n/+0o0n)+(-0o1n/+0o0n).i) ((+0x0n/+0x1n)+(+0x1n/+0x7n).i)
+// out: ((+0x1n/0x2n)+(-0x1n/0x3n).i) ((+0o1n/0o2n)+(-0o1n/0o3n).i) ((+0b1n/0b10n)+(-0b1n/0b11n).i) String
+// out: ((+0xffn/0x1n)+(+0x10n/0x1n).i) ((+0b100n/0b1n)+(+0b11n/0b1n).i) ((+0o1n/0o0n)+(-0o1n/0o0n).i) ((+0x0n/0x1n)+(+0x1n/0x7n).i)

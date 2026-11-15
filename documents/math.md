@@ -161,10 +161,10 @@ let main():int32 {
   - `c64(z)` is the nearest `c64`, where 53 bits will do.
   - No `cbr` is made of a `c64`: Rational makes no fraction of a float.
 - **The text** of one is its parts', as a struct's:
-  `{real: (1n/2n), imag: (1n/3n)}`; it does not paste back, as a
-  rational's does not.
+  `{real: (1n/2n), imag: (1n/3n)}`; each part's is a bigrat's, which
+  `bigrat(text)` reads back (#565), and nothing reads the whole yet.
 - **`z.hex`, `z.oct` and `z.bin`** are `(real.hex+imag.hex.i)` and its
-  kin, a `String` (#559): `((+0x1n/+0x2n)+(-0x1n/+0x3n).i)`.
+  kin, a `String` (#559): `((+0x1n/0x2n)+(-0x1n/0x3n).i)`.
   - Each part is a bigrat's text, in its own parentheses
     ([rational.md](rational.md)), so a `+` is always between them.
 
@@ -282,7 +282,7 @@ atan2(y:bigrat, x:bigrat):bigrat, atan2(y:bigrat, x:bigrat, precision:int64):big
 | | `.norm()` | `real² + imag²`, a `bigrat` |
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: (1n/2n), imag: (1n/3n)}` |
-| | `.hex`, `.oct`, `.bin` | `((+0x1n/+0x2n)+(-0x1n/+0x3n).i)` and its kin, a `String` (#559) |
+| | `.hex`, `.oct`, `.bin` | `((+0x1n/0x2n)+(-0x1n/0x3n).i)` and its kin, a `String` (#559) |
 | | `.abs()`, `.arg()`, `.abs(p)`, `.arg(p)` | to 128 bits, or within `2^-p`, a `bigrat` (#554) |
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to 128 bits, a `cbr` (#554) |
 | | `.sqrt(p)`, `.exp(p)`, ..., `.pow(w)`, `.pow(w, p)` | the same, each part within `2^-p` |

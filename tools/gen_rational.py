@@ -108,12 +108,17 @@ for b in reversed(widths):
 w('''
 // ---------- what it is, and its text ----------
 
-// (num/den) of two texts
+// (num/den) of two texts, the sign the numerator's alone (#565): the
+// denominator, 0 or more, is written without its +
 let rat_text(num:cstr, den:cstr):String {
     var s = $"("
     s += num
     s += "/"
-    s += den
+    if den[0] == '+' {
+        s += &den[1]
+    } else {
+        s += den
+    }
     s += ")"
     return s
 }
@@ -127,14 +132,17 @@ for b in reversed(widths):
     // the nearest f64: an infinity's is inf or -inf, a NaN's nan
     let f64:f64 {{ self.num as f64 / self.den as f64 }}
 
-    // (num.hex/den.hex), and the same in base 8 and base 2
+    // (num.hex/den.hex), and the same in base 8 and base 2; the
+    // denominator's has no sign
     let hex:String {{ rat_text(self.num.hex, self.den.hex) }}
     let oct:String {{ rat_text(self.num.oct, self.den.oct) }}
     let bin:String {{ rat_text(self.num.bin, self.den.bin) }}
-}}
 
-// its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN
-let rat{b}.cstr():cstr {{ `(${{.num}}/${{.den}})` }}
+    // its text: (1/3), (-1/3), (1/0) of an infinity, (0/0) of a NaN; a
+    // String, which print shows and .cstr gives, as a BigInt's (#506), so
+    // that rat{b}(text) of a cstr has its name in C (#565)
+    let string:String {{ $`(${{self.num}}/${{self.den}})` }}
+}}
 ''')
 w('''// ---------- arithmetic ----------
 ''')
@@ -258,33 +266,88 @@ extend bigrat {
         s += ")"
         return s
     }
-    // (num.hex/den.hex), and the same in base 8 and base 2
+    // (num.hex/den.hex), and the same in base 8 and base 2; the
+    // denominator's has no sign (#565), its digits after the base's mark
     let hex:String {
         var s = $"("
         s += self.num.hex
-        s += "/"
-        s += self.den.hex
-        s += ")"
+        s += "/0x"
+        s += self.den.text(16)
+        s += "n)"
         return s
     }
     let oct:String {
         var s = $"("
         s += self.num.oct
-        s += "/"
-        s += self.den.oct
-        s += ")"
+        s += "/0o"
+        s += self.den.text(8)
+        s += "n)"
         return s
     }
     let bin:String {
         var s = $"("
         s += self.num.bin
-        s += "/"
-        s += self.den.bin
-        s += ")"
+        s += "/0b"
+        s += self.den.text(2)
+        s += "n)"
         return s
     }
 }
 
+// ---------- of text (#565) ----------
+
+// whether c is a digit of a base from 2 to 36
+let rat_digit(c:u8, base:i64):bool {
+    var v:i64 = 36
+    if c >= '0' && c <= '9' {
+        v = c as i64 - 48
+    } else if c >= 'a' && c <= 'z' {
+        v = c as i64 - 87
+    } else if c >= 'A' && c <= 'Z' {
+        v = c as i64 - 55
+    }
+    return v < base
+}
+
+// a rational of its text, in a base: "8/-12", "(-2/3)", "(-2n/3n)", and
+// with 16, 8 or 2 its .hex, .oct or .bin; spaces and a ( may come first,
+// then the numerator, as BigInt(text, base) reads it, and after a / the
+// denominator, read so too, with a sign of its own or none; with no / it
+// is 1. In lowest terms, as bigrat(num, den) gives it: "1/0" is an
+// infinity, "0/0" a NaN. Where a / is written, a part left out is an
+// error, a NaN: "1/" has no denominator, and "/3" no numerator
+let bigrat(text:cstr, base:i64):bigrat {
+    var i:i64 = 0
+    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    if text[i] == '(' { i += 1 }
+    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    let top:cstr := &text[i]
+    let first:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
+    let numbered = rat_digit(text[first], base)
+    let num = BigInt(top, base)
+    while text[i] != 0 && text[i] != '/' { i += 1 }
+    if text[i] == 0 { return bigrat_lowest(num, BigInt(1)) }
+    if !numbered { return (bigrat){BigInt(0), BigInt(0)} }
+    i += 1
+    while text[i] == ' ' || (text[i] >= 9 && text[i] <= 13) { i += 1 }
+    let digits:i64 = text[i] == '+' || text[i] == '-' ? i + 1 : i
+    if !rat_digit(text[digits], base) { return (bigrat){BigInt(0), BigInt(0)} }
+    let bottom:cstr := &text[i]
+    let den = BigInt(bottom, base)
+    return bigrat_lowest(num, den)
+}
+let bigrat(text:cstr):bigrat { bigrat(text, 10) }
+let bigrat(text:const String^, base:i64):bigrat { bigrat(text^.cstr, base) }
+let bigrat(text:const String^):bigrat { bigrat(text^.cstr, 10) }
+
+// a rational of integers of its text: the same, or a NaN where a part
+// does not fit''')
+for b in reversed(widths):
+    w(f'''let rat{b}(text:cstr, base:i64):rat{b} {{ rat{b}(bigrat(text, base)) }}
+let rat{b}(text:cstr):rat{b} {{ rat{b}(bigrat(text, 10)) }}
+let rat{b}(text:const String^, base:i64):rat{b} {{ rat{b}(bigrat(text^.cstr, base)) }}
+let rat{b}(text:const String^):rat{b} {{ rat{b}(bigrat(text^.cstr, 10)) }}''')
+w('''
 extend bigrat {
     static let +(a:Self, b:Self):Self {
         if a.den.isZero && b.den.isZero {                // two infinities: the same one, else a NaN

@@ -26,7 +26,7 @@ let main():int32 {
     return 0
 }
 // out: (1n/3n) (1n/6n) (1n/2n) (1n/6n) (1n/18n) (2n/1n) (-1n/3n) bigrat
-// out: (9304682830147n/2329089562800n) 3.994987130920391 0.33333333333333331 (+0x1n/+0x3n) (-0o5n/+0o2n) (+0b101n/+0b10n)
+// out: (9304682830147n/2329089562800n) 3.994987130920391 0.33333333333333331 (+0x1n/0x3n) (-0o5n/0o2n) (+0b101n/0b10n)
 // out: (1n/0n) (-1n/0n) (0n/0n) (-1n/0n) inf -inf nan
 // out: (1n/0n) (1n/0n) (0n/0n) (0n/0n) (1n/0n) (0n/1n) (0n/0n)
 // out: true true false true true false true true
