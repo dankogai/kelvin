@@ -497,3 +497,7 @@ So far the changes from C are these, by topic.
   part by part: `CBR(1) * CBR(inf, 0)` is `((1n/0n)+(0n/1n).i)`, a
   part that is 0 staying 0 times an infinity; 0 times an infinity is
   NaNs (#573)
+- an infinity of a rational divided by a negative number is the other
+  infinity, with `<Rational>`: `BigRat(1, 0) / BigRat(-2)` is
+  `(-1n/0n)`, where it was `(1n/0n)`, and `rat64(1, 0) / -2` is
+  `(-1/0)`; so a `CBR`'s part, `CBR(inf, 0) / -2` (#574)

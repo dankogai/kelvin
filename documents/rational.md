@@ -92,6 +92,12 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - `0.over(0)` is `(0/0)`, a NaN.
   - They reckon as a float's do: `inf + 1` is `inf`, `inf - inf` and
     `inf * 0` are NaN, `1 / inf` is 0, and `a / 0` is an infinity.
+  - An infinity divided has the quotient's sign (#574): `inf / -2`
+    is `(-1/0)` and `-inf / -2` is `(1/0)`.
+    - So of every width and of a `BigRat`, by a rational or an
+      integer, and of `r /= d`.
+    - By an infinity it is a NaN, and by 0 itself, `inf / 0` is
+      `(1/0)`: a rational's 0 has no sign.
   - A NaN equals nothing, itself included, and has no order:
     `nan == nan` is `false` and `nan != nan` is `true`.
   - `r.isNaN`, `r.isInfinite` and `r.isFinite` tell them, as a
@@ -180,7 +186,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `BigRat`, converted; a NaN where it does not fit (#539, #540) |
 | | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; a part may have a point, `"1.5"`, `"2.5/1.5"`, and in base 10 an exponent, `"1.5e-3"`, read exactly; `"abc"`, `""`, `"5x"`, `"1/"` and `"/3"` are NaNs (#565, #567, #568) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
-| | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN |
+| | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN; an infinity by a negative number is the other infinity, `(1/0) / -2` is `(-1/0)` (#574) |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is `(0/0)`; `(1/0)` or `(-1/0)`; neither |
 | | `.f64` | the nearest `f64`; `inf`, `-inf` or `nan` |
@@ -190,7 +196,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | `BigRat` | `BigRat(n, d)`, `BigRat(n)`, `BigRat(r)` | of `BigInt`s or integers; of a rational of integers |
 | | `BigRat(text)`, `BigRat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `"0.1"`, `r.hex` with 16; text that is no rational is a NaN (#565, #567, #568) |
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
-| | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too |
+| | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too; `BigRat(1, 0) / BigRat(-2)` is `(-1n/0n)` (#574) |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/0x3n)` and its kin, a String |

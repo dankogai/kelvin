@@ -165,9 +165,15 @@ for b in reversed(widths):
     }}
     static let *(a:Self, b:i{b}):Self {{ a * rat{b}(b) }}
     static let *(a:i{b}, b:Self):Self {{ rat{b}(a) * b }}
-    // by 0 it is an infinity, and 0 by 0 a NaN: no division by zero
+    // by 0 it is an infinity, and 0 by 0 a NaN: no division by zero. By a
+    // negative b both products are negated (#574), so that the sign is the
+    // numerator's where the denominator is 0, which has none: an infinity
+    // by a negative number is the other infinity, (1/0) / -2 is (-1/0)
     static let /(a:Self, b:Self):Self {{
-        rat{b}_lowest(a.num as i128 * b.den as i128, a.den as i128 * b.num as i128)
+        if b.num < 0 {{
+            return rat{b}_lowest(-(a.num as i128 * b.den as i128), -(a.den as i128 * b.num as i128))
+        }}
+        return rat{b}_lowest(a.num as i128 * b.den as i128, a.den as i128 * b.num as i128)
     }}
     static let /(a:Self, b:i{b}):Self {{ a / rat{b}(b) }}
     static let /(a:i{b}, b:Self):Self {{ rat{b}(a) / b }}
@@ -485,8 +491,14 @@ extend BigRat {
     static let *(a:BigInt, b:Self):Self { BigRat(a) * b }
     static let *(a:Self, b:i64):Self { a * BigRat(b) }
     static let *(a:i64, b:Self):Self { BigRat(a) * b }
-    // by 0 it is an infinity, and 0 by 0 a NaN: no division by zero
-    static let /(a:Self, b:Self):Self { BigRat_lowest(a.num * b.den, a.den * b.num) }
+    // by 0 it is an infinity, and 0 by 0 a NaN: no division by zero. By a
+    // negative b both products are negated (#574), so that the sign is the
+    // numerator's where the denominator is 0, which has none: an infinity
+    // by a negative number is the other infinity, (1n/0n) / -2 is (-1n/0n)
+    static let /(a:Self, b:Self):Self {
+        if b.num.isNegative { return BigRat_lowest(-(a.num * b.den), -(a.den * b.num)) }
+        return BigRat_lowest(a.num * b.den, a.den * b.num)
+    }
     static let /(a:Self, b:BigInt):Self { a / BigRat(b) }
     static let /(a:BigInt, b:Self):Self { BigRat(a) / b }
     static let /(a:Self, b:i64):Self { a / BigRat(b) }

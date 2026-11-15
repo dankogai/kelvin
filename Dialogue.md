@@ -10907,3 +10907,28 @@ its order. What is finite is as it was, and no function of a `CBR`
 gave another value. Details are provisional P585.
 
 There are 1356 tests, and all pass with clang and with gcc 15.
+
+### 621. An infinity by a negative number
+
+**User**:
+
+> fix BigRat(1, 0) / BigRat(-2) as #574
+
+It is the fault **Claude** found while testing #572 and left, and
+reported with each number since: `(1n/0n)`, the positive infinity,
+and `rat64(1, 0) / rat64(-2)` `(1/0)`. A quotient was
+`a.num * b.den` over `a.den * b.num`, with the divisor's sign in
+the denominator alone, and a denominator of 0 has no sign to keep.
+
+It is a fault and no choice, so no question was put. By a negative
+divisor both products are now negated, which is the same fraction
+where it is finite and puts the sign in the numerator where it is
+not: `BigRat(1, 0) / BigRat(-2)` is `(-1n/0n)` and
+`BigRat(-1, 0) / BigRat(-2)` is `(1n/0n)`, of all four widths and
+of a `BigRat`, by a rational, a `BigInt` or an integer. A `CBR` by
+a negative `BigRat` has it too, `CBR(inf, 0) / -2` is
+`((-1n/0n)+(0n/1n).i)`, as by a `CBR` since #572, whose reciprocal
+is kept. By 0 an infinity is itself still, a rational's 0 having no
+sign, which is **Claude**'s choice. Details are provisional P586.
+
+There are 1357 tests, and all pass with clang and with gcc 15.

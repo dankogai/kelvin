@@ -1544,6 +1544,7 @@ on a new line`
     let br_inf = BigRat(1, 0)
     println(CBR(br_inf.copy(), BigRat(0)) / CBR(2), " ", CBR(br_inf.copy(), BigRat(0)) / CBR(-2), " ", CBR(br_inf.copy(), BigRat(3)) / CBR(0, 2), " ", CBR(1, 2) / CBR(2), " ", CBR(1, 2) / CBR(0, 2))   // a CBR by a real one or an imaginary one, part by part (#572)
     println(CBR(1) * CBR(br_inf.copy(), BigRat(0)), " ", CBR(br_inf.copy(), BigRat(0)) * CBR(0, 2), " ", CBR(0, 1) * br_inf, " ", CBR(0) * br_inf, " ", CBR(1, 2) * CBR(2), " ", CBR(1, 2) * CBR(0, 2))   // and times one, a 0 part staying 0 times an infinity (#573)
+    println(br_inf / BigRat(-2), " ", -br_inf / BigRat(-2), " ", br_inf / -2, " ", rat64(1, 0) / rat64(-2), " ", rat8(1, 0) / -2, " ", br_inf / 2, " ", CBR(br_inf.copy(), BigRat(0)) / -2)   // an infinity by a negative number is the other infinity (#574)
     return 0
 }
 

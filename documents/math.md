@@ -212,6 +212,9 @@ let main():int32 {
       `CBR(inf, 0) / CBR(0, 2)` is `((0n/1n)+(-1n/0n).i)`.
     - The sign is the quotient's: `CBR(inf, 0) / CBR(-2)` is
       `((-1n/0n)+(0n/1n).i)`.
+    - So by a negative `BigRat`, `BigInt` or `i64` (#574), as a
+      BigRat's infinity divided by one has its sign:
+      `CBR(inf, 0) / -2` is `((-1n/0n)+(0n/1n).i)`.
   - Times a real `CBR`, or an imaginary one, it is the other scaled,
     part by part, as times a `BigRat`, either way round (#573).
     - What is finite is the same, exact.
@@ -382,7 +385,7 @@ atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):Big
 | | `.hex`, `.dec` | `(+0x1.8p+0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
 | | `c64(text)`, `c32(text)` | of its text: `(1.5-2.0.i)`, `(+1.5-2.0.i)`, `{real: 1.5, imag: -2.0}`, or a part alone, `1.5`, `2.0.i`; a `cstr` or a `String` by reference; text that is none is a NaN in both parts (#569) |
 | `CBR`, with `<Rational>` (#552) | `.real`, `.imag` | the parts, fields, each a `BigRat` |
-| | `+`, `-`, `*`, `/`, prefix `-` and `+`, `==`, `!=` | exact, of two, or with a `BigRat`, a `BigInt` or an `i64` on either side; `z / 0` is infinite, a part that is 0 staying 0, `((1n/0n)+(0n/1n).i)` (#571); by a real or an imaginary `CBR` it is part by part (#572), and times one (#573) |
+| | `+`, `-`, `*`, `/`, prefix `-` and `+`, `==`, `!=` | exact, of two, or with a `BigRat`, a `BigInt` or an `i64` on either side; `z / 0` is infinite, a part that is 0 staying 0, `((1n/0n)+(0n/1n).i)` (#571); by a real or an imaginary `CBR` it is part by part (#572), and times one (#573); an infinite part by a negative number has the quotient's sign (#574) |
 | | `.conj()` | the conjugate, a `CBR` |
 | | `.norm()` | `real² + imag²`, a `BigRat` |
 | | `.i` | `z` times `i` |

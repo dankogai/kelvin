@@ -226,8 +226,8 @@ extend CBR {
     // the reciprocal of b's, and by an imaginary one too, with a quarter
     // turn (#572): the same where all is finite, and no 0 of b's meets an
     // infinity of a's, so CBR(inf, 0) / CBR(2) is ((1n/0n)+(0n/1n).i), not
-    // a NaN in a part. The reciprocal has b's sign, which an infinity
-    // divided by b would lose
+    // a NaN in a part. The reciprocal has b's sign, as an infinity
+    // divided by b has too (#574)
     static let /(a:Self, b:Self):Self {
         if b.real.isFinite && b.real.num.isZero && b.imag.isFinite && b.imag.num.isZero {
             return CBR_by_zero(a, b.real)
