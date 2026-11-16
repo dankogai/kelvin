@@ -1568,6 +1568,7 @@ on a new line`
     println(exp(CBF(1, 2), 32), " ", sqrt(CBF(-9)), " ", abs(CBF(3, 4)), " ", CBF(1, 2).arg(16), " ", pow(CBF(-4), BigFloat("0.5")), " ", asin(CBF(2), 24), " ", exp(CBF(-1000000, 1), 16).hex, " ", log(CBF(0)))   // math's functions of a CBF, each part to its bits (#582)
     let bf_tiny = BigFloat("0x1p-1000000000000")
     println(cos(bf_tiny), " ", sin(bf_tiny).hex, " ", atan(BigFloat("0x1p+1000000000000")) * 2 == BigFloat.pi(), " ", atan2(bf_tiny, bf_tiny) * 4 == BigFloat.pi(), " ", asin(BigFloat(4)), " ", sin(BigFloat("0x1p+1000000000000")), " ", pow(BigFloat(0), bf_tiny))   // a BigFloat far from 1: no rational is made of it (#583)
+    println(bf_tiny, " ", BigFloat(bf_tiny.string) == bf_tiny, " ", BigFloat("1e1000000000").hex, " ", BigFloat("-2.5e-123456789012"), " ", BigFloat("1e2777000000000000000"), " ", BigFloat("1e1000000000x"))   // its text, and the reading of one, as soon as any (#584)
     return 0
 }
 

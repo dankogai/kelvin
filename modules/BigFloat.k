@@ -378,6 +378,224 @@ let BigFloat_digits(v:lent BigRat, lo:lent BigRat, hi:lent BigRat, closed:bool, 
     return (BigFloat_decimal){best.copy(), k, found}
 }
 
+// ---------- the text of a number far from 1 (#584) ----------
+
+// a number far from 1, 2^1000000000000, is no rational: its text, and
+// the reading of it, are of 5^k to as many bits as tell, and no more
+
+// m * 2^e, which is 5^k or below it, by less than one part in
+// 2^(bits - 65): 5^k of k from 0 up, by squarings, each cut to bits
+// bits; cut is whether any was, and where none it is 5^k itself
+struct BigFloat_power {
+    m: BigInt
+    e: i128
+    cut: bool
+}
+let BigFloat_five(k:i64, bits:i64):BigFloat_power {
+    var m = BigInt(1)
+    var e:i128 = 0
+    var cut = false
+    var i:i64 = 62
+    while i >= 0 {
+        m = m * m
+        e = e * 2
+        if (k >> i) % 2 == 1 { m = m * 5 }
+        let over:i64 = BigFloat_length(m) - bits
+        if over > 0 {
+            m = m >> over
+            e += over as i128
+            cut = true
+        }
+        i -= 1
+    }
+    return (BigFloat_power){m.copy(), e, cut}
+}
+
+// a * 2^s over p.m where down, and a * p.m * 2^s otherwise, cut to a
+// whole number
+let BigFloat_scaled(a:lent BigInt, p:lent BigFloat_power, s:i128, down:bool):BigInt {
+    if down {
+        if s >= 0 { return (a << (s as i64)) / p.m }
+        return a / (p.m << ((0 - s) as i64))
+    }
+    let t = a * p.m
+    if s >= 0 { return t << (s as i64) }
+    return t >> ((0 - s) as i64)
+}
+
+// whether d is within by of 0
+let BigFloat_near(d:lent BigInt, by:i64):bool { (d.abs - by).isNegative }
+
+// what a probe finds: state is 0 where no multiple is between, 1 where
+// digits is the one, and 2 where the bits are too few to tell
+struct BigFloat_probe {
+    digits: BigInt
+    state: i64
+}
+
+// the multiple of step nearest v that is between lo and hi, as
+// BigFloat_digits finds it, of whole numbers: v, lo and hi are each
+// within 2 of what they stand for, so a multiple that near one of them,
+// and two as near v as that, are not told
+let BigFloat_far_digits(v:lent BigInt, lo:lent BigInt, hi:lent BigInt, step:lent BigInt):BigFloat_probe {
+    let c = v / step
+    let r = v - c * step
+    if BigFloat_near(r, 2) || BigFloat_near(step - r, 2) { return (BigFloat_probe){BigInt(0), 2} }
+    var found = false
+    var best = BigInt(0)
+    for j in 0..<2 {
+        let w = (c + j) * step
+        let below = w - lo
+        let above = hi - w
+        if BigFloat_near(below, 2) || BigFloat_near(above, 2) { return (BigFloat_probe){BigInt(0), 2} }
+        if below.isNegative || above.isNegative { continue }
+        if found {
+            let t = r + r - step                         // above 0 where v is nearer the second
+            if BigFloat_near(t, 4) { return (BigFloat_probe){BigInt(0), 2} }
+            if !t.isNegative { best = c + j }
+        } else {
+            best = c + j
+        }
+        found = true
+    }
+    return (BigFloat_probe){best.copy(), found ? 1 : 0}
+}
+
+// the fewest digits of a number far from 1, as BigFloat_shortest finds
+// them of any: |x|, and the two ends of what rounds to it, are divided
+// by a power of 10 that leaves digits enough before the point, to guard
+// bits after it, and each multiple of a power of 10 is tried against
+// those. So far out no multiple is one of the three, nor midway between
+// two that are tried: with bits enough every one is told, and they are
+// added until it is
+let BigFloat_far_shortest(x:lent BigFloat, q:i64):BigFloat_decimal {
+    let a = x.mantissa.abs
+    let n = BigFloat_length(a)
+    let top:i128 = x.exponent as i128 + n as i128
+    let unit:i128 = top - q as i128 - 2                  // |x|, and the ends, are whole numbers of 2^unit
+    let av = a << (q + 2 - n)
+    let alo = av - (n == 1 ? 1 : 2)
+    let ahi = av + 2
+    let two32:i128 = 4294967296
+    var e10:i64 = ((top - 1) * 5553023288523357132 / (two32 * two32)) as i64   // the power of 10 of its first digit, or one off: log10(2) is 5553023288523357132 / 2^64
+    var most:i64 = q * 30103 / 100000 + 3                // digits that are enough
+    var guard:i64 = 64
+    var result = (BigFloat_decimal){BigInt(0), 0, false}
+    while !result.found {
+        let k:i64 = e10 - most
+        let width:i64 = (most + 3) * 10 / 3 + 8 + guard  // the bits of the three, divided, at the most
+        let p = BigFloat_five(k < 0 ? 0 - k : k, width + 72)
+        let s:i128 = k >= 0 ? unit + guard as i128 - k as i128 - p.e : unit + guard as i128 - k as i128 + p.e
+        let v = BigFloat_scaled(av, p, s, k >= 0)
+        let ten = BigInt(10)
+        if v < (ten.pow(most - 1) << guard) {            // the first digit is one lower
+            e10 -= 1
+            continue
+        }
+        if v >= (ten.pow(most + 2) << guard) {
+            e10 += 1
+            continue
+        }
+        let lo = BigFloat_scaled(alo, p, s, k >= 0)
+        let hi = BigFloat_scaled(ahi, p, s, k >= 0)
+        var r = BigFloat_far_digits(v, lo, hi, BigInt(1) << guard)
+        if r.state == 0 {
+            most += 8
+            continue
+        }
+        var least:i64 = 0                                // the powers of 10 a multiple of which is between
+        var last:i64 = most + 2
+        while r.state == 1 && least < last {
+            let mid:i64 = (least + last + 1) / 2
+            let t = BigFloat_far_digits(v, lo, hi, ten.pow(mid) << guard)
+            if t.state == 1 {
+                least = mid
+                r = (BigFloat_probe){t.digits.copy(), 1}
+            } else if t.state == 0 {
+                last = mid - 1
+            } else {
+                r = (BigFloat_probe){BigInt(0), 2}
+            }
+        }
+        if r.state != 1 {                                // not told: with more bits
+            guard += 64
+            continue
+        }
+        var digits = r.digits.copy()
+        var exponent:i64 = k + least
+        while (digits % ten).isZero {
+            digits = digits / ten
+            exponent += 1
+        }
+        result = (BigFloat_decimal){digits.copy(), exponent, true}
+    }
+    return result
+}
+
+// m / d * 10^k to precision bits, the nearest, neither m nor d 0 and
+// both of digits digits together, k so far from 0 that it is no number
+// of that many bits, nor midway between two: of 5^|k| and of what it is
+// below, and where the two do not round to one number, of more bits; of
+// 5^|k| itself where that is no longer
+let BigFloat_far_read(m:lent BigInt, d:lent BigInt, k:i128, digits:i64, precision:i64):BigFloat {
+    let edge:i128 = 4000000000000000000 + digits as i128 // 10 to this is past any exponent
+    if k > edge { return BigFloat_inf(m.isNegative != d.isNegative ? -1 : 1) }
+    if 0 - k > edge { return BigFloat_zero() }
+    let size:i64 = (k < 0 ? 0 - k : k) as i64
+    var bits:i64 = precision + 130
+    var result = BigFloat_nan()
+    var done = false
+    while !done {
+        let p = BigFloat_five(size, bits)
+        var more = p.m.copy()                            // what 5^|k| is below, or itself
+        if p.cut { more = p.m + (p.m >> (bits - 65)) + 1 }
+        if k > 0 {
+            let lo = BigFloat_quotient(m * p.m, d, p.e + k, precision, 0)
+            let hi = BigFloat_quotient(m * more, d, p.e + k, precision, 0)
+            done = lo.special == hi.special && lo.exponent == hi.exponent && lo.mantissa == hi.mantissa
+            result = lo.copy()
+        } else {
+            let hi = BigFloat_quotient(m, d * p.m, k - p.e, precision, 0)
+            let lo = BigFloat_quotient(m, d * more, k - p.e, precision, 0)
+            done = lo.special == hi.special && lo.exponent == hi.exponent && lo.mantissa == hi.mantissa
+            result = lo.copy()
+        }
+        bits += 64
+    }
+    return result
+}
+
+// the power of 10 of the number at text[at], which BigRat_part read: its
+// exponent less its digits after the point, the exponent in full, where
+// a rational's is cut at what it can hold
+let BigFloat_tens(text:cstr, at:i64):i128 {
+    var p:i64 = at
+    if text[p] == '+' as u8 || text[p] == '-' as u8 { p += 1 }
+    while rat_digit(text[p], 10) { p += 1 }
+    var fracs:i64 = 0
+    if text[p] == '.' as u8 {
+        var t:i64 = p + 1
+        while rat_digit(text[t], 10) { t += 1 }
+        fracs = t - p - 1
+        p = t
+    }
+    var x:i128 = 0
+    if text[p] == 'e' as u8 || text[p] == 'E' as u8 {
+        var t:i64 = p + 1
+        var down = false
+        if text[t] == '+' as u8 || text[t] == '-' as u8 {
+            down = text[t] == '-' as u8
+            t += 1
+        }
+        while rat_digit(text[t], 10) {
+            if x < 1000000000000000000 { x = x * 10 + (text[t] - '0' as u8) as i128 }
+            t += 1
+        }
+        if down { x = 0 - x }
+    }
+    return x - fracs as i128
+}
+
 // the fewest digits that read back as |x| at q bits, q no fewer than
 // its own; x is finite and not 0. What rounds to x is between the
 // halves of the gaps to its neighbours of q bits, the one below half as
@@ -387,6 +605,8 @@ let BigFloat_digits(v:lent BigRat, lo:lent BigRat, hi:lent BigRat, closed:bool, 
 let BigFloat_shortest(x:lent BigFloat, q:i64):BigFloat_decimal {
     let a = x.mantissa.abs
     let n = BigFloat_length(a)
+    let far:i128 = x.exponent as i128 + n as i128
+    if far > 8 * q as i128 + 256 || 0 - far > 8 * q as i128 + 256 { return BigFloat_far_shortest(x, q) }
     let top:i64 = x.exponent + n
     let v = x.exponent >= 0 ? (BigRat){a << x.exponent, BigInt(1)} : (BigRat){a.copy(), BigInt(1) << (0 - x.exponent)}
     let up = BigFloat_two(top - q - 1)
@@ -443,8 +663,8 @@ let BigFloat_text(x:lent BigFloat, plus:bool):String {
     var count:i64 = 0
     while rat_digit(d[count], 10) { count += 1 }         // a BigInt's text ends in n
     let e:i64 = count - 1 + r.exponent                   // the power of 10 of the first digit
-    let top:i64 = x.exponent + n
-    if e < 0 - 4 || top > q + 1 || (top == q + 1 && n > 1) {
+    let top:i128 = x.exponent as i128 + n as i128
+    if e < 0 - 4 || top > q as i128 + 1 || (top == q as i128 + 1 && n > 1) {
         s += d[0]
         if count > 1 {
             s += '.'
@@ -485,7 +705,9 @@ let BigFloat_blank(c:u8):bool { c == ' ' as u8 || (c >= 9 && c <= 13) }
 // and what else a BigRat is read from, 1/3, read exactly and then
 // rounded; a hex float, 0x1.8p+1, C's; inf and nan, with a sign or
 // none. All of the text is read, blanks at its ends aside, and text
-// that is none is a NaN
+// that is none is a NaN. A rational's text whose power of 10 is far
+// from 0, 1e1000000000, is no rational: it is laid out as BigRat_read
+// lays it out, and BigFloat_far_read has the nearest (#584)
 let BigFloat_read(text:cstr, precision:i64):BigFloat {
     var i:i64 = 0
     while BigFloat_blank(text[i]) { i += 1 }
@@ -542,6 +764,39 @@ let BigFloat_read(text:cstr, precision:i64):BigFloat {
         if negative { m = 0 - m }
         return BigFloat_make(m, e - 4 * fracs as i128, precision, 0)
     }
+    var a:i64 = i                                        // a rational's text, as BigRat_read lays it out
+    var open = false
+    if text[a] == '(' as u8 {
+        open = true
+        a += 1
+        while BigFloat_blank(text[a]) { a += 1 }
+    }
+    let up = BigRat_part(text, a, 10)
+    if up.end < 0 { return BigFloat_nan() }
+    var k:i128 = BigFloat_tens(text, a)
+    var digits:i64 = up.digits
+    var den = BigInt(1)
+    var b:i64 = up.end
+    while BigFloat_blank(text[b]) { b += 1 }
+    if text[b] == '/' as u8 {
+        b += 1
+        while BigFloat_blank(text[b]) { b += 1 }
+        let down = BigRat_part(text, b, 10)
+        if down.end < 0 { return BigFloat_nan() }
+        k -= BigFloat_tens(text, b)
+        digits += down.digits
+        den = down.m.copy()
+        b = down.end
+        while BigFloat_blank(text[b]) { b += 1 }
+    }
+    if open {
+        if text[b] != ')' as u8 { return BigFloat_nan() }
+        b += 1
+        while BigFloat_blank(text[b]) { b += 1 }
+    }
+    if text[b] != 0 { return BigFloat_nan() }
+    let far:i128 = precision as i128 + 4 * digits as i128 + 64
+    if !up.m.isZero && !den.isZero && (k > far || 0 - k > far) { return BigFloat_far_read(up.m, den, k, digits, precision) }   // too far from 1 to be read exactly (#584)
     return BigFloat(BigRat(text), precision)
 }
 let BigFloat(text:cstr, precision:i64):BigFloat { BigFloat_read(text, precision < 1 ? 1 : precision) }

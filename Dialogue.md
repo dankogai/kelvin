@@ -11184,3 +11184,37 @@ checked 10800 values across the thresholds against a BigRat's
 functions. Details are provisional P595.
 
 There are 1366 tests, and all pass with clang and with gcc 15.
+
+### 631. The text of a BigFloat far from 1
+
+**User**: "fix the slow text of a huge exponent as #584". The fault
+was found with #580 and #582 and left, as told.
+
+A BigFloat's text was reckoned in rationals, and the rational of
+`2^-1000000000000` has a million million bits: the text of `2^1000000`
+took 4 seconds, of `2^10000000` more than 100, and the reading of
+`"1e1000000"` 53. **Claude** mended both ways, the reading being as
+slow and a text that cannot be read back half a text.
+
+Far from 1 the fewest digits are found among whole numbers: the
+number and the two ends of what rounds to it are divided by a power
+of 10, of `5^k` cut to the bits that tell, with 64 below the point.
+So far out no decimal that is tried is one of the three, or midway
+between two, so each is told with bits enough, and they are added
+to where it is not. A decimal whose power of 10 is far from 0 is
+rounded between its product by `5^k` cut and by what that is below,
+with more bits where the two round apart; a ratio too,
+`"1e1000000000/3"`. The exponent is read in full, so the largest
+number there is reads back, and a decimal past it is an infinity.
+
+Two faults were met in the checking and mended before any battery.
+`"4.9e-72"` at 200 bits did not end: `5^73` was whole in the bits
+kept, and the margin allowed for a cut never shrank. And
+`"1e1000000000x"` made the power before it saw the `x`: the layout
+is now read first. **Claude** checked 48000 numbers and as many
+decimals against the text and the reading of before, 20000 ratios,
+all again with margins so small that every retry is taken, and
+40000 numbers of any exponent that read back. Details are
+provisional P596.
+
+There are 1367 tests, and all pass with clang and with gcc 15.

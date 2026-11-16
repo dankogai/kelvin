@@ -139,6 +139,12 @@ and no part of the core.
     exact, with a point, `1.0`, `100000000000000000000.0`; and with an
     exponent otherwise, `1e+40`, `1.234e-05`.
     - `inf`, `-inf` and `nan` are an `f64`'s.
+  - A number far from 1 has its text as soon as any (#584):
+    `BigFloat("0x1p-1000000000000")` prints
+    `1.044250726930468202952436781310171121576e-301029995664`.
+    - Up to the largest exponent there is: `2^9223372036854775807`
+      is `6.90466148990027132480002997655809470257e+2776511644261678565`.
+    - And it reads back, as any.
   - It is `x.string`, a String (#506), so `` `${x}` `` and `x.cstr`
     give it, and a member, an element and an Optional's value show it:
     `{name: "t", x: 0.1}`, `[1.5, 0.1, inf]`, `some(2.5)`.
@@ -153,6 +159,12 @@ and no part of the core.
     - And what else a `BigRat` is read from
       ([rational.md](rational.md)): `BigFloat("1/3")` is a third to
       128 bits.
+    - An exponent far from 0 is read as soon as any (#584):
+      `BigFloat("1e1000000000")` is the nearest to it still, and
+      `BigFloat("1e1000000000/3")` to a third of it.
+      - A decimal past the largest exponent is an infinity,
+        `BigFloat("1e2777000000000000000")`, and one below the
+        least 0.
   - A hex float, C's: `"0x1.8p+1"` is 3, `"0x.8"` a half; so
     `BigFloat(x.hex)` is `x`.
   - `"inf"` and `"nan"`, with a sign or none.
@@ -170,6 +182,19 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
   number lies between the halves of the gaps to its neighbours, and
   the fewest digits with a decimal between them are found by halving.
   - A decimal is read by `<Rational>`'s reader.
+  - A number far from 1 is no rational (#584), which would be as long
+    as its exponent is large: past `2^(8 * bits + 256)`, or as far
+    below 1, its text is reckoned in whole numbers.
+    - The number and the two ends are divided by a power of 10, of
+      `5^k` cut to the bits that tell, with 64 below the point.
+    - So far out no decimal that is tried is the number, an end, or
+      midway between two: where one is too near to tell, the bits are
+      added to until it is told.
+  - A decimal whose power of 10 is far from 0 is read so too: between
+    the product by `5^k` cut and by what that is below, and with more
+    bits where the two round apart.
+    - No such decimal is a number of the precision, nor midway
+      between two.
 - **In C:** `a * b` is the module's `*`, which multiplies two
   `BigInt`s, the prelude's ([bigint.md](bigint.md)), adds the
   exponents and rounds.

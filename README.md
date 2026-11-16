@@ -559,3 +559,11 @@ So far the changes from C are these, by topic.
   `atan` half of pi and `asinh` `ln(2x)`, and `atan2` is of the
   quotient; a sine, a cosine and a tangent of a number of `2^67108864`
   and more are NaNs (#583)
+- The text of a `BigFloat` far from 1 is had as soon as any other's:
+  `BigFloat("0x1p-1000000000000")` prints
+  `1.044250726930468202952436781310171121576e-301029995664`, and
+  `BigFloat("1e1000000000")` reads one, where each made a rational as
+  long as the exponent is large, minutes of a million places and no
+  end of more; the fewest digits still, which read back, and the
+  nearest number, up to the largest exponent there is; a decimal past
+  that is an infinity or 0 (#584)
