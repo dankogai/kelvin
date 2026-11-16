@@ -109,6 +109,9 @@ and no part of the core.
   [math.md](math.md).
   - A result has `BigFloat.precision` significant bits, whatever its
     size, or the precision written: `exp(x, 256)`, `x.sin(64)`.
+  - A number far from 1 is taken as any (#583): `cos` of
+    `2^-1000000000000` is 1, and `atan` of `2^1000000000000` half of
+    pi.
   - They come with the two imports, by an overlay,
     `modules/math+BigFloat.k` (#551, [modules.md](modules.md)).
   - And `CBF`, `complexBigFloat` by its alias, is a complex number of

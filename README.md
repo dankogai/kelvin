@@ -552,3 +552,10 @@ So far the changes from C are these, by topic.
   a part that is 0 is exactly 0, `pow(CBF(-4), BigFloat("0.5"))` is
   `(0.0+2.0.i)`; a part past `2^67108864` in size or below
   `2^-67108864` gives NaNs (#582)
+- math's functions of a `BigFloat` take a number far from 1:
+  `cos(BigFloat("0x1p-1000000000000"))` is 1, where it was killed for
+  want of memory, a rational as long as the exponent is large being
+  made of it; near 0 a function is its first term, far out its limit,
+  `atan` half of pi and `asinh` `ln(2x)`, and `atan2` is of the
+  quotient; a sine, a cosine and a tangent of a number of `2^67108864`
+  and more are NaNs (#583)

@@ -1566,6 +1566,8 @@ on a new line`
     let cf_e = BigFloat("0x1p-100")
     println(CBF(1, 2) / CBF(3, 4), " ", (CBF(BigFloat(1) + cf_e, BigFloat(1)) * CBF(BigFloat(1) - cf_e, BigFloat(1))).hex, " ", CBF("(0.1-0.2.i)").dec, " ", CBF(1) / CBF(0), " ", norm(CBF(3, 4)), " ", BigFloat(2).i, " ", CBF(1, 1).typename)   // CBF, a complex number of two BigFloats, each part of a result the exact one's rounded once (#581)
     println(exp(CBF(1, 2), 32), " ", sqrt(CBF(-9)), " ", abs(CBF(3, 4)), " ", CBF(1, 2).arg(16), " ", pow(CBF(-4), BigFloat("0.5")), " ", asin(CBF(2), 24), " ", exp(CBF(-1000000, 1), 16).hex, " ", log(CBF(0)))   // math's functions of a CBF, each part to its bits (#582)
+    let bf_tiny = BigFloat("0x1p-1000000000000")
+    println(cos(bf_tiny), " ", sin(bf_tiny).hex, " ", atan(BigFloat("0x1p+1000000000000")) * 2 == BigFloat.pi(), " ", atan2(bf_tiny, bf_tiny) * 4 == BigFloat.pi(), " ", asin(BigFloat(4)), " ", sin(BigFloat("0x1p+1000000000000")), " ", pow(BigFloat(0), bf_tiny))   // a BigFloat far from 1: no rational is made of it (#583)
     return 0
 }
 

@@ -11160,3 +11160,27 @@ of memory; that was left, and reported. Details are provisional
 P594.
 
 There are 1365 tests, and all pass with clang and with gcc 15.
+
+### 630. A BigFloat far from 1
+
+**User**: "fix cos(BigFloat("0x1p-1000000000000")) as #583". It was
+killed for want of memory, found with #582.
+
+A BigFloat's function is a BigRat's of `BigRat(x)`, and the rational
+of that number has a million million bits. It was so of every
+function that goes that way, so **Claude** mended them all: no
+function makes a rational of a number far from 1. Near 0 a function
+is its first term, `cos` and `cosh` 1 and `acos` half of pi, as `sin`
+and its kin were `x` already. Far out it is its limit: `atan` half
+of pi, `asinh` and `acosh` `ln(2x)`. Out of its domain it is a NaN
+with nothing reckoned. `atan2` is of the quotient, so two numbers
+as far as any give a quarter of pi; beside a 0 or an infinity it
+and `pow` read the other's sign and size alone.
+
+A sine, a cosine and a tangent have no limit, and pi to as many
+bits as the number has is not to be had: of a number of `2^67108864`
+and more they are NaNs, the bound #582's parts have. **Claude**
+checked 10800 values across the thresholds against a BigRat's
+functions. Details are provisional P595.
+
+There are 1366 tests, and all pass with clang and with gcc 15.

@@ -99,6 +99,51 @@ let BigFloat_odd(f:i64, x:lent BigFloat, bits:i64):BigFloat {
     return BigFloat_by(f, x, x, bits, x.special != 0)
 }
 
+// ---------- numbers no rational is made of (#583) ----------
+//
+// A function is a BigRat's of BigRat(x), which is as long as x's
+// exponent is large: of 2^-1000000000000 it has that many bits. So no
+// function makes one of a number far from 1. Near 0 a function is its
+// first term, x or 1, and far out its limit, half of pi, or a log; out
+// of its domain it is a NaN. A sine, a cosine and a tangent have no
+// limit, and pi is not had to as many bits as the number has: of a
+// number of 2^67108864 and more they are NaNs, past reckoning.
+
+// whether x is 2^67108864 and more in size
+let BigFloat_past(x:lent BigFloat):bool {
+    return x.special == 0 && !x.mantissa.isZero && BigFloat_top(x) > 67108864
+}
+
+// whether |x| is 2 and more
+let BigFloat_two_up(x:lent BigFloat):bool {
+    return x.special == 0 && !x.mantissa.isZero && BigFloat_top(x) > 1
+}
+
+// a number that stands for x where only its sign, whether it is above
+// 1 in size and whether it is whole matter, as beside a 0 or an
+// infinity: 2 or a half with x's sign, of an x past 2^64 or below 2^-64
+let BigFloat_stand(x:lent BigFloat):BigFloat {
+    if x.special != 0 || x.mantissa.isZero { return x.copy() }
+    let top:i128 = BigFloat_top(x)
+    if top > 64 { return (BigFloat){BigInt(x.mantissa.sign), 1, 0} }
+    if top < 0 - 64 { return (BigFloat){BigInt(x.mantissa.sign), 0 - 1, 0} }
+    return x.copy()
+}
+
+// pi times 2^shift to bits bits, or less it
+let BigFloat_pi_times(shift:i64, bits:i64, minus:bool):BigFloat {
+    let p = BigFloat(BigRat.pi(bits + 8), bits)
+    let r:BigFloat = (BigFloat){p.mantissa.copy(), p.exponent + shift, 0}
+    if minus { return -r }
+    return r
+}
+
+// ln(2|x|), which asinh and acosh of a large x are, less or more a
+// part below 1 / x^2
+let BigFloat_log_twice(x:lent BigFloat, bits:i64):BigFloat {
+    return BigFloat_log((BigFloat){x.mantissa.abs, x.exponent + 1, 0}, bits)
+}
+
 // ---------- sqrt, exp, log and pow ----------
 
 // the square root, the nearest: the mantissa shifted so that the
@@ -150,7 +195,8 @@ let BigFloat_exp(x:lent BigFloat, bits:i64):BigFloat {
 // ln x: x is s * 2^t, s from 1 up to 2, so ln x is ln s and t times
 // ln 2; near 1 the two all but cancel, and more bits are taken
 let BigFloat_log(x:lent BigFloat, bits:i64):BigFloat {
-    if x.special != 0 || x.mantissa.sign <= 0 { return BigFloat_by(2, x, x, bits, true) }
+    if x.special == 0 && x.mantissa.isNegative { return BigFloat_nan() }
+    if x.special != 0 || x.mantissa.isZero { return BigFloat_by(2, x, x, bits, true) }
     let n = BigFloat_length(x.mantissa)
     let t:i128 = x.exponent as i128 + n as i128 - 1
     if n == 1 && t == 0 { return BigFloat_zero() }
@@ -170,9 +216,12 @@ let BigFloat_log(x:lent BigFloat, bits:i64):BigFloat {
 
 // x to the y: e^(y ln x) of an x above 0; of a negative x and a whole
 // y it is of |x|, with the sign where y is odd, and of one not whole a
-// NaN; of a 0, an infinity or a NaN, a BigRat's
+// NaN; of a 0, an infinity or a NaN, a BigRat's, which reads no more of
+// the other than its sign, its size beside 1 and whether it is whole
 let BigFloat_pow(x:lent BigFloat, y:lent BigFloat, bits:i64):BigFloat {
-    if x.special != 0 || y.special != 0 || x.mantissa.isZero || y.mantissa.isZero { return BigFloat_by(16, x, y, bits, true) }
+    if x.special != 0 || y.special != 0 || x.mantissa.isZero || y.mantissa.isZero {
+        return BigFloat_by(16, BigFloat_stand(x), BigFloat_stand(y), bits, true)
+    }
     if x.mantissa.isNegative {
         if y.exponent < 0 { return BigFloat_nan() }         // a mantissa is odd: whole is an exponent of 0 or more
         let r = BigFloat_pow(-x, y, bits)
@@ -192,7 +241,10 @@ let BigFloat_pow(x:lent BigFloat, y:lent BigFloat, bits:i64):BigFloat {
 let BigFloat_hyper(f:i64, x:lent BigFloat, bits:i64):BigFloat {
     if x.special != 0 { return BigFloat_by(f, x, x, bits, true) }
     if x.mantissa.isZero || BigFloat_top(x) < 1 {
-        if f == 11 { return BigFloat_by(f, x, x, bits, false) }
+        if f == 11 {
+            if BigFloat_small(x, bits) { return BigFloat(1, bits) }     // cosh x is 1 and a part below x^2
+            return BigFloat_by(f, x, x, bits, false)
+        }
         return BigFloat_odd(f, x, bits)
     }
     let negative = x.mantissa.isNegative
@@ -223,28 +275,87 @@ let sqrt(x:lent BigFloat, precision:i64):BigFloat { BigFloat_sqrt(x, precision <
 let exp(x:lent BigFloat, precision:i64):BigFloat { BigFloat_exp(x, precision < 1 ? 1 : precision) }
 let log(x:lent BigFloat, precision:i64):BigFloat { BigFloat_log(x, precision < 1 ? 1 : precision) }
 let pow(x:lent BigFloat, y:lent BigFloat, precision:i64):BigFloat { BigFloat_pow(x, y, precision < 1 ? 1 : precision) }
-let sin(x:lent BigFloat, precision:i64):BigFloat { BigFloat_odd(3, x, precision < 1 ? 1 : precision) }
-let cos(x:lent BigFloat, precision:i64):BigFloat { BigFloat_by(4, x, x, precision < 1 ? 1 : precision, x.special != 0) }
-let tan(x:lent BigFloat, precision:i64):BigFloat { BigFloat_odd(5, x, precision < 1 ? 1 : precision) }
-let asin(x:lent BigFloat, precision:i64):BigFloat { BigFloat_odd(6, x, precision < 1 ? 1 : precision) }
-// acos(1) is 0, and so is acosh(1)
-let acos(x:lent BigFloat, precision:i64):BigFloat {
-    BigFloat_by(7, x, x, precision < 1 ? 1 : precision, x.special != 0 || x == BigFloat(1))
+let sin(x:lent BigFloat, precision:i64):BigFloat {
+    if BigFloat_past(x) { return BigFloat_nan() }
+    return BigFloat_odd(3, x, precision < 1 ? 1 : precision)
 }
-let atan(x:lent BigFloat, precision:i64):BigFloat { BigFloat_odd(8, x, precision < 1 ? 1 : precision) }
-// of a y that is 0 it is 0 or pi, by the sign of x
+// cos x is 1 and a part below x^2
+let cos(x:lent BigFloat, precision:i64):BigFloat {
+    let bits:i64 = precision < 1 ? 1 : precision
+    if BigFloat_past(x) { return BigFloat_nan() }
+    if BigFloat_small(x, bits) { return BigFloat(1, bits) }
+    return BigFloat_by(4, x, x, bits, x.special != 0)
+}
+let tan(x:lent BigFloat, precision:i64):BigFloat {
+    if BigFloat_past(x) { return BigFloat_nan() }
+    return BigFloat_odd(5, x, precision < 1 ? 1 : precision)
+}
+// asin, acos and atanh are of -1 to 1
+let asin(x:lent BigFloat, precision:i64):BigFloat {
+    if BigFloat_two_up(x) { return BigFloat_nan() }
+    return BigFloat_odd(6, x, precision < 1 ? 1 : precision)
+}
+// acos(1) is 0, and so is acosh(1); acos of an x near 0 is half of pi
+// less x
+let acos(x:lent BigFloat, precision:i64):BigFloat {
+    let bits:i64 = precision < 1 ? 1 : precision
+    if BigFloat_two_up(x) { return BigFloat_nan() }
+    if x.special == 0 && !x.mantissa.isZero && BigFloat_top(x) < 0 - bits as i128 - 8 { return BigFloat_pi_times(0 - 1, bits, false) }
+    return BigFloat_by(7, x, x, bits, x.special != 0 || x == BigFloat(1))
+}
+// atan of a large x is half of pi, with its sign, less 1 / x
+let atan(x:lent BigFloat, precision:i64):BigFloat {
+    let bits:i64 = precision < 1 ? 1 : precision
+    if x.special == 0 && !x.mantissa.isZero && BigFloat_top(x) > bits as i128 + 8 { return BigFloat_pi_times(0 - 1, bits, x.mantissa.isNegative) }
+    return BigFloat_odd(8, x, bits)
+}
+// of a y that is 0 it is 0 or pi, by the sign of x. It is of y over
+// x: where that is far below 1 it is the quotient, right of 0, and pi
+// with y's sign left of it; where far above, half of pi; else the two
+// are brought near 1 together, which the angle does not see. Beside a
+// 0, an infinity or a NaN the other is read for its sign alone
 let atan2(y:lent BigFloat, x:lent BigFloat, precision:i64):BigFloat {
-    let exact = y.special != 0 || x.special != 0 || (y.mantissa.isZero && !x.mantissa.isNegative)
-    return BigFloat_by(9, y, x, precision < 1 ? 1 : precision, exact)
+    let bits:i64 = precision < 1 ? 1 : precision
+    if y.special != 0 || x.special != 0 || y.mantissa.isZero || x.mantissa.isZero {
+        let exact = y.special != 0 || x.special != 0 || (y.mantissa.isZero && !x.mantissa.isNegative)
+        return BigFloat_by(9, BigFloat_stand(y), BigFloat_stand(x), bits, exact)
+    }
+    let apart:i128 = BigFloat_top(y) - BigFloat_top(x)
+    if apart > bits as i128 + 8 { return BigFloat_pi_times(0 - 1, bits, y.mantissa.isNegative) }
+    if apart < 0 - bits as i128 - 8 {
+        if x.mantissa.isNegative { return BigFloat_pi_times(0, bits, y.mantissa.isNegative) }
+        return BigFloat_quotient(y.mantissa, x.mantissa, y.exponent as i128 - x.exponent as i128, bits, 0)
+    }
+    let yy:BigFloat = (BigFloat){y.mantissa.copy(), (y.exponent as i128 - x.exponent as i128) as i64, 0}
+    let xx:BigFloat = (BigFloat){x.mantissa.copy(), 0, 0}
+    return BigFloat_by(9, yy, xx, bits, false)
 }
 let sinh(x:lent BigFloat, precision:i64):BigFloat { BigFloat_hyper(10, x, precision < 1 ? 1 : precision) }
 let cosh(x:lent BigFloat, precision:i64):BigFloat { BigFloat_hyper(11, x, precision < 1 ? 1 : precision) }
 let tanh(x:lent BigFloat, precision:i64):BigFloat { BigFloat_hyper(12, x, precision < 1 ? 1 : precision) }
-let asinh(x:lent BigFloat, precision:i64):BigFloat { BigFloat_odd(13, x, precision < 1 ? 1 : precision) }
-let acosh(x:lent BigFloat, precision:i64):BigFloat {
-    BigFloat_by(14, x, x, precision < 1 ? 1 : precision, x.special != 0 || x == BigFloat(1))
+// asinh of a large x is ln(2|x|), with its sign
+let asinh(x:lent BigFloat, precision:i64):BigFloat {
+    let bits:i64 = precision < 1 ? 1 : precision
+    if x.special == 0 && !x.mantissa.isZero && 2 * BigFloat_top(x) > bits as i128 + 8 {
+        let l = BigFloat_log_twice(x, bits)
+        if x.mantissa.isNegative { return -l }
+        return l
+    }
+    return BigFloat_odd(13, x, bits)
 }
-let atanh(x:lent BigFloat, precision:i64):BigFloat { BigFloat_odd(15, x, precision < 1 ? 1 : precision) }
+// acosh is of 1 and more, and of a large x ln(2x)
+let acosh(x:lent BigFloat, precision:i64):BigFloat {
+    let bits:i64 = precision < 1 ? 1 : precision
+    if x.special == 0 && !x.mantissa.isZero {
+        if x.mantissa.isNegative || BigFloat_top(x) < 1 { return BigFloat_nan() }
+        if 2 * BigFloat_top(x) > bits as i128 + 8 { return BigFloat_log_twice(x, bits) }
+    }
+    return BigFloat_by(14, x, x, bits, x.special != 0 || x == BigFloat(1))
+}
+let atanh(x:lent BigFloat, precision:i64):BigFloat {
+    if BigFloat_two_up(x) { return BigFloat_nan() }
+    return BigFloat_odd(15, x, precision < 1 ? 1 : precision)
+}
 
 // each with BigFloat.precision where none is written
 let sqrt(x:lent BigFloat):BigFloat { sqrt(x, BigFloat.precision) }

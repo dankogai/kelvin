@@ -376,6 +376,23 @@ let main():int32 {
   `atan` of an infinity half of pi, `tanh` of one 1.
   - `exp` of a number past `2^62` is an infinity, or 0: its exponent
     is past an `i64`.
+- **A number far from 1** is taken as any (#583): no rational is made
+  of it, which would be as long as its exponent is large.
+  - Near 0 a function is its first term: `cos` and `cosh` of
+    `2^-1000000000000` are 1, `sin` and its kin the number itself, and
+    `acos` half of pi.
+  - Far out it is its limit: `atan` is half of pi, with the number's
+    sign, and `asinh` and `acosh` are `ln(2x)`.
+  - Out of its domain it is a NaN: `asin`, `acos` and `atanh` past 1,
+    `acosh` below it, `log` of a negative number.
+  - `atan2(y, x)` is of the quotient: the quotient itself where that
+    is far below 1, half of pi where far above, and of two as far as
+    any, `atan2(huge, huge)`, a quarter of pi.
+  - `pow` beside a 0 or an infinity reads the other's sign and size
+    alone: `pow(BigFloat(0), huge)` is 0.
+  - A sine, a cosine and a tangent have no limit: of a number of
+    `2^67108864` and more they are NaNs, past reckoning, pi not being
+    had to as many bits.
 - **How**: by a BigRat's function, with as many bits after the point
   as make the bits asked for good, and 8 more.
   - `exp` takes the multiple of `ln 2` out first and `log` the power
