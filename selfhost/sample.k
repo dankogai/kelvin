@@ -1569,6 +1569,8 @@ on a new line`
     let bf_tiny = BigFloat("0x1p-1000000000000")
     println(cos(bf_tiny), " ", sin(bf_tiny).hex, " ", atan(BigFloat("0x1p+1000000000000")) * 2 == BigFloat.pi(), " ", atan2(bf_tiny, bf_tiny) * 4 == BigFloat.pi(), " ", asin(BigFloat(4)), " ", sin(BigFloat("0x1p+1000000000000")), " ", pow(BigFloat(0), bf_tiny))   // a BigFloat far from 1: no rational is made of it (#583)
     println(bf_tiny, " ", BigFloat(bf_tiny.string) == bf_tiny, " ", BigFloat("1e1000000000").hex, " ", BigFloat("-2.5e-123456789012"), " ", BigFloat("1e2777000000000000000"), " ", BigFloat("1e1000000000x"))   // its text, and the reading of one, as soon as any (#584)
+    let bf_huge = BigFloat("0x1p+1000000000000")
+    println(exp(CBF(BigFloat(1), bf_tiny)).hex, " ", sin(CBF(bf_tiny, bf_tiny)).hex, " ", exp(CBF(bf_huge, BigFloat(2))), " ", exp(CBF(BigFloat(1), bf_huge)), " ", sinh(CBF(BigFloat(0), bf_huge)), " ", tanh(CBF(bf_tiny, BigFloat(1)), 16).hex, " ", log(CBF(bf_tiny, BigFloat(1))))   // exp and the sines of a CBF take a part of any size (#585)
     return 0
 }
 

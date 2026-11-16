@@ -842,7 +842,9 @@ extend BigFloat {
 let CBF_nan():CBF { (CBF){BigFloat_nan(), BigFloat_nan()} }
 
 // whether a part is past reckoning: 2^67108864 and more in size, or
-// below 2^-67108864, where a rational of it is too long to make
+// below 2^-67108864, where a rational of it is too long to make. exp,
+// the sines, the cosines and the tangents make none, and ask nothing of
+// it (#585)
 let CBF_past_part(x:lent BigFloat):bool {
     if x.special != 0 || x.mantissa.isZero { return false }
     let top:i128 = BigFloat_top(x)
@@ -890,6 +892,13 @@ let CBF_div(a:lent BigFloat, b:lent BigFloat, bits:i64):BigFloat {
 let CBF_signed(x:lent BigFloat, minus:bool):BigFloat {
     if minus { return -x }
     return x.copy()
+}
+
+// a times b to bits bits, b a sine or a cosine: 0 where a is, though b
+// is of a number past reckoning and is not known, being 1 at the most
+let CBF_turned(a:lent BigFloat, b:lent BigFloat, bits:i64):BigFloat {
+    if CBF_zero(a) { return BigFloat_zero() }
+    return CBF_mul(a, b, bits)
 }
 
 // half of x
@@ -1026,38 +1035,41 @@ let CBF_log(z:lent CBF, bits:i64):CBF {
 
 // ---------- exp, the sines and the cosines ----------
 
+// These are of a BigFloat's functions, which take a number of any size
+// (#583), so a part of any size is taken (#585): near 0 a function is
+// its first term, exp(CBF(1, tiny)) is (e + e tiny i); far out e^x is an
+// infinity or 0, and sinh and cosh infinities; and the sine and the
+// cosine of a number of 2^67108864 and more are NaNs, which a part that
+// has one in it is, but where the other factor is 0
+
 // e^x (cos y + i sin y)
 let CBF_exp(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(9, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.imag) { return (CBF){exp(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
     let e = exp(z.real, p)
-    return (CBF){CBF_mul(e, cos(z.imag, p), bits), CBF_mul(e, sin(z.imag, p), bits)}
+    return (CBF){CBF_turned(e, cos(z.imag, p), bits), CBF_turned(e, sin(z.imag, p), bits)}
 }
 
 // sinh(a + ib) = sinh a cos b + i cosh a sin b
 let CBF_sinh(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(14, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.imag) { return (CBF){sinh(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
-    return (CBF){CBF_mul(sinh(z.real, p), cos(z.imag, p), bits), CBF_mul(cosh(z.real, p), sin(z.imag, p), bits)}
+    return (CBF){CBF_turned(sinh(z.real, p), cos(z.imag, p), bits), CBF_mul(cosh(z.real, p), sin(z.imag, p), bits)}
 }
 
 // cosh(a + ib) = cosh a cos b + i sinh a sin b
 let CBF_cosh(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(15, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.imag) { return (CBF){cosh(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
-    return (CBF){CBF_mul(cosh(z.real, p), cos(z.imag, p), bits), CBF_mul(sinh(z.real, p), sin(z.imag, p), bits)}
+    return (CBF){CBF_mul(cosh(z.real, p), cos(z.imag, p), bits), CBF_turned(sinh(z.real, p), sin(z.imag, p), bits)}
 }
 
 // sin(x + iy) = sin x cosh y + i cos x sinh y
 let CBF_sin(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(11, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.imag) { return (CBF){sin(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
     return (CBF){CBF_mul(sin(z.real, p), cosh(z.imag, p), bits), CBF_mul(cos(z.real, p), sinh(z.imag, p), bits)}
@@ -1066,7 +1078,6 @@ let CBF_sin(z:lent CBF, bits:i64):CBF {
 // cos(x + iy) = cos x cosh y - i sin x sinh y
 let CBF_cos(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(12, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.imag) { return (CBF){cos(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
     return (CBF){CBF_mul(cos(z.real, p), cosh(z.imag, p), bits), -CBF_mul(sin(z.real, p), sinh(z.imag, p), bits)}
@@ -1083,9 +1094,15 @@ let CBF_tanh_of(z:lent CBF, bits:i64):CBF {
     let size:BigFloat = (BigFloat){z.real.mantissa.abs, z.real.exponent, 0}
     if size >= BigFloat(p) {
         let e = exp(-(size * 2), p)
+        if e.mantissa.isZero { return (CBF){BigFloat(z.real.mantissa.sign), BigFloat_zero()} }
+        if s.special != 0 { return (CBF){BigFloat(z.real.mantissa.sign), BigFloat_nan()} }   // b is past reckoning, and its part not 0
         let t = CBF_mul(CBF_mul(s, c, p), e, bits)
         if t.special != 0 || t.mantissa.isZero { return (CBF){BigFloat(z.real.mantissa.sign), BigFloat_zero()} }
         return (CBF){BigFloat(z.real.mantissa.sign), (BigFloat){t.mantissa.copy(), t.exponent + 2, 0}}
+    }
+    if s.special != 0 {                                  // b is past reckoning: i tan b of an imaginary z, and else nothing
+        if CBF_zero(z.real) { return (CBF){BigFloat_zero(), BigFloat_nan()} }
+        return CBF_nan()
     }
     let sh = sinh(z.real, p)
     let ch = cosh(z.real, p)
@@ -1095,7 +1112,6 @@ let CBF_tanh_of(z:lent CBF, bits:i64):CBF {
 
 let CBF_tanh(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(16, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.imag) { return (CBF){tanh(z.real, bits), BigFloat_zero()} }
     return CBF_tanh_of(z, bits)
 }
@@ -1103,7 +1119,6 @@ let CBF_tanh(z:lent CBF, bits:i64):CBF {
 // tan z = -i tanh(iz)
 let CBF_tan(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(13, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.imag) { return (CBF){tan(z.real, bits), BigFloat_zero()} }
     let w = CBF_tanh_of((CBF){-z.imag, z.real.copy()}, bits)
     return (CBF){w.imag.copy(), -w.real}

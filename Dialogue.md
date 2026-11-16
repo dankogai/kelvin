@@ -11218,3 +11218,29 @@ all again with margins so small that every retry is taken, and
 provisional P596.
 
 There are 1367 tests, and all pass with clang and with gcc 15.
+
+### 632. exp and the sines of a CBF, of a part of any size
+
+**User**: "push", and then, the battery of #584 still running, "relax
+CBF_past for exp and the sines as #585"; and "push and go on with
+#585". **Claude** pushed #584 when its battery was clean, and CI
+passed.
+
+The battery's script was gone from its scratch directory, cleared
+with what was old there: **Claude** wrote it again from the session's
+record, the same twelve steps, and keeps its text in a memory now.
+
+A part of `2^67108864` and more, or below `2^-67108864`, was past
+reckoning for every function of a CBF but `abs` and `sqrt`. `exp`,
+the sines, the cosines and the tangents never made a rational of a
+part: they are products and quotients of a BigFloat's functions, and
+those take any number since #583. So the bound is taken away for
+the seven. Near 0 a function is its first term, `exp(CBF(1, tiny))`
+is `e + e tiny i`. Far out `e^x` is an infinity or 0. An angle of
+`2^67108864` and more has no sine, and a part it is in is a NaN, but
+where its other factor is 0: `sinh(CBF(0, huge))` is `(0.0+nan.i)`.
+`tan` and `tanh` with the rest is Claude's choice, the user's to
+change; `log`, `pow`, `arg` and the inverses keep the bound. Details
+are provisional P597.
+
+There are 1368 tests, and all pass with clang and with gcc 15.

@@ -567,3 +567,12 @@ So far the changes from C are these, by topic.
   end of more; the fewest digits still, which read back, and the
   nearest number, up to the largest exponent there is; a decimal past
   that is an infinity or 0 (#584)
+- `exp`, the sines, the cosines and the tangents of a `CBF` take a
+  part of any size: `exp(CBF(1, tiny))`, `tiny` being
+  `2^-1000000000000`, is `e + e tiny i`, where it was NaNs, a part
+  below `2^-67108864` or of `2^67108864` and more being past
+  reckoning (#582); they are made of a BigFloat's functions, which
+  take any number (#583); far out `e^x` is an infinity or 0, and an
+  angle of `2^67108864` and more gives NaNs, but where its other
+  factor is 0; `log`, `pow`, `arg` and the inverses are as they were
+  (#585)

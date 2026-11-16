@@ -541,9 +541,23 @@ let main():int32 {
   gives: `exp(CBF(inf))` is `(inf+0.0.i)`, `log(CBF(0))`
   `(-inf+0.0.i)`, and `sin` of an infinity NaNs.
 - **A part past reckoning**, `2^67108864` and more in size or below
-  `2^-67108864`, gives NaNs in both parts: a rational of it is too
-  long to make.
+  `2^-67108864`, gives NaNs in both parts of `log`, `pow` and the
+  inverses, and a NaN of `arg`: a rational of it is too long to make.
   - `abs` and `sqrt` take any.
+  - `exp`, the sines, the cosines and the tangents take any too
+    (#585): they are made of a BigFloat's functions, which do (#583),
+    and of no rational.
+    - Near 0 a function is its first term: with `tiny` of
+      `2^-1000000000000`, `exp(CBF(1, tiny))` is `e + e tiny i`, and
+      `sin(CBF(tiny, 1))` `tiny cosh 1 + i sinh 1`.
+    - Far out `e^x` is an infinity or 0, and `sinh` and `cosh`
+      infinities, each part with its other factor's sign:
+      `exp(CBF(huge, 2))` is `(-inf+inf.i)`, and `exp(CBF(-huge, 2))`
+      `(0.0+0.0.i)`.
+    - An angle of `2^67108864` and more has no sine, and a part it is
+      in is a NaN: `exp(CBF(1, huge))` is `(nan+nan.i)`.
+      - But where its other factor is 0: `sinh(CBF(0, huge))` is
+        `(0.0+nan.i)`, and `tanh(CBF(huge, huge))` `(1.0+0.0.i)`.
 - **How**: `exp`, the sines, the cosines and `tanh` are products and
   quotients of a BigFloat's functions, which lose nothing.
   - `sqrt` and `log` are of the norm, exactly; `pow` is `exp` of `w`
