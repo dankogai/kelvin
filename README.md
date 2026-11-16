@@ -524,3 +524,7 @@ So far the changes from C are these, by topic.
   `c ? -f64.infinity : f64.infinity` and `c ? x : i64.max`, which
   kelvinc and kc refused, the `:` and the type's word read as an
   annotation of the first arm (#578)
+- an overlay may use another's: two that stand at one place, right
+  after the module both are of, are in the order found, where the
+  second was put before the first and saw none of what it imports
+  (#579)

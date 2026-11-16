@@ -438,6 +438,18 @@ static Token *with_overlays(Token *toks, int n, int *out_n, const char *argv0) {
                     continue;
                 int ea = (int)(intptr_t)ends.data[a], eb = (int)(intptr_t)ends.data[b];
                 int at = (ea > eb ? ea : eb) + 1; /* after the later of the two */
+                /* and after an overlay put there before (#579): those of one
+                   place stand in the order found, so that one may use
+                   another's, which it imports */
+                while (at < n && toks[at].kind == TK_IMPORT_K && toks[at].implied && strchr(toks[at].text, '+')) {
+                    char *put = import_path(&toks[at], argv0);
+                    int j = at + 1;
+                    while (j < n && !(toks[j].kind == TK_FILE_END && !strcmp(toks[j].text, put)))
+                        j++;
+                    if (j >= n)
+                        break;
+                    at = j + 1;
+                }
                 Token imp = {TK_IMPORT_K, toks[at - 1].pos, strfmt("<%s>", name), toks[at - 1].pos.line, false, false,
                              false, false, true, false}; /* implied, as the prelude's: a module's header does not write it */
                 int m;

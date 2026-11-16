@@ -232,6 +232,9 @@ println(v)                      //   and its type, a speed
   first.
   - The two need not be imported by one file: one may come through
     another module.
+  - Overlays that stand at one place are in the order found (#579),
+    so one may be written with another's, which it imports:
+    `#import <A+B>` in `A+C.k`.
   - A prelude's module counts: `BigInt`, where the program names it.
 - **What it holds:** anything a module does.
   - It imports `<A>` and `<B>` itself, so that it reads alone too;

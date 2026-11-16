@@ -11058,3 +11058,21 @@ battery ran, so the fix was made after #577 was pushed. Details are
 provisional P590.
 
 There are 1361 tests, and all pass with clang and with gcc 15.
+
+### 626. An overlay that uses another's
+
+The third part of `BigFloat` is math's functions of one, an overlay,
+`math+BigFloat.k`, written with the functions of a `BigRat` that
+`math+Rational.k` has, as **User**'s order allows. Its test built,
+and selfhost/sample.k did not: "exp(...) fits none of its 6
+overloads", the BigRat's not among them.
+
+Both overlays stand right after `<math>` where a program imports it
+last, and kelvinc put the one found second before the first, so the
+new overlay was read before the one it imports. **Claude** took
+**User**'s answer of §622, to fix the naming first, as the way here
+too, and made the fault a number of its own: overlays of one place
+stand in the order found. kc was right already. The functions follow
+as the next number. Details are provisional P591.
+
+There are 1362 tests, and all pass with clang and with gcc 15.
