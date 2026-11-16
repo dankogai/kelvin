@@ -1563,6 +1563,8 @@ on a new line`
     let ta_no = argc > 99
     println(ta_no ? -f64.infinity : f64.infinity, " ", ta_no ? 1 : i64.max, " ", ta_no ? 1:i8 : 2:i8, " ", ta_no ? 0.0 : f64.pi * 2.0)   // the else arm begins with a type's attribute (#578)
     println(sqrt(BigFloat(2)), " ", exp(BigFloat(1), 64), " ", BigFloat.pi(32), " ", BigFloat("0.7").sin(16), " ", exp(BigFloat(-1000)), " ", pow(BigFloat(2), BigFloat(10)), " ", log(BigFloat(0)))   // math's functions of a BigFloat, by the overlay math+BigFloat.k (#580)
+    let cf_e = BigFloat("0x1p-100")
+    println(CBF(1, 2) / CBF(3, 4), " ", (CBF(BigFloat(1) + cf_e, BigFloat(1)) * CBF(BigFloat(1) - cf_e, BigFloat(1))).hex, " ", CBF("(0.1-0.2.i)").dec, " ", CBF(1) / CBF(0), " ", norm(CBF(3, 4)), " ", BigFloat(2).i, " ", CBF(1, 1).typename)   // CBF, a complex number of two BigFloats, each part of a result the exact one's rounded once (#581)
     return 0
 }
 

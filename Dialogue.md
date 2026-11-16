@@ -11102,3 +11102,32 @@ exact rationals; that was left, and reported. Details are
 provisional P592.
 
 There are 1363 tests, and all pass with clang and with gcc 15.
+
+### 628. CBF, a complex number of two BigFloats
+
+The fourth part of **User**'s `BigFloat`: "Like CBR, `math` should
+define `complexBigFloat` which is `CBF`."
+
+`CBF` is the overlay's, with `<math>` and `<BigFloat>`: two BigFloats,
+`real` and `imag`, with what a `CBR` has. `CBF(1, 2) / CBF(3, 4)` is
+`(0.44+0.08.i)`. **Claude** made each part of `+ - * /` the exact
+one's, rounded once to `BigFloat.precision` bits, as **User**'s
+answer for a BigFloat's arithmetic was: a product of two is a sum of
+two products, and rounding each loses every bit where they cancel.
+With `e` of `2^-100` the real part of `CBF(1 + e, 1) * CBF(1 - e, 1)`
+is `-0x1p-200`, where the parts' own arithmetic has 0. So a `CBF`'s
+arithmetic is a `CBR`'s, rounded, an infinity and a NaN too.
+
+A sum of products is added from the greatest down, and what is far
+below the rest tells only its sign, so parts as far apart as
+`2^1000000000000` and 1 are no more work. A quotient is found within
+a unit and then put right by signs that are exact.
+
+Its text is a `c64`'s layout, `(0.1-0.2.i)`, each part a BigFloat's
+text, with `.dec` and `.hex`, and `CBF(text)` reads each back.
+`CBF(z)` is of a `c64` or a `CBR`, and `CBR(z)` and `c64(z)` are
+back. **Claude** checked 40000 pairs at seven precisions against a
+`CBR`'s arithmetic. math's functions of a `CBF` are the part left.
+Details are provisional P593.
+
+There are 1364 tests, and all pass with clang and with gcc 15.

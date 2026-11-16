@@ -1,4 +1,4 @@
-// math's functions of a BigFloat (#579), with <math> and <BigFloat>:
+// math's functions of a BigFloat (#580), with <math> and <BigFloat>:
 // sqrt, exp, log, pow, the trigonometric and hyperbolic functions and
 // their inverses, each a method too, and BigFloat.pi(). A result has
 // BigFloat.precision significant bits, or the precision written, whatever

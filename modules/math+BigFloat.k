@@ -1,4 +1,4 @@
-// modules/math+BigFloat.k - the overlay of math with BigFloat (#579): read
+// modules/math+BigFloat.k - the overlay of math with BigFloat (#580): read
 // where <math> and <BigFloat> are both imported, and by no program that
 // imports one of them alone. math's functions take a BigFloat:
 //
@@ -18,6 +18,10 @@
 // asked for are good, and 8 more, whatever the size of the result. An
 // infinity and a NaN come where a BigRat's function gives one, which is
 // where a float's does: log(0) is -inf, sqrt(-1) a NaN.
+//
+// And CBF, a complex number of two BigFloats, also complexBigFloat by
+// its alias (#581), below: its + - * /, each part the exact one's rounded
+// once, conj, norm, z.i and x.i, z.round, and its text, a c64's.
 #import <math>
 #import <Rational>
 #import <math+Rational>         // a BigRat's functions, read before this whichever import a program writes first
@@ -303,4 +307,400 @@ extend BigFloat {
     let atanh(precision:i64):Self { atanh(self, precision) }
     let pow(y:lent Self):Self { pow(self, y) }
     let pow(y:lent Self, precision:i64):Self { pow(self, y, precision) }
+}
+
+// ---------- CBF, a complex number of BigFloats (#581) ----------
+//
+// CBF is a complex number whose parts are BigFloats, also
+// complexBigFloat by its alias, as CBR is complexBigRat:
+//
+//     let z = CBF(1, 2) / CBF(3, 4)        // (0.44+0.08.i), each part to 128 bits
+//
+// Each part of a result of + - * / is the exact one's, rounded to
+// BigFloat.precision bits, the nearest and of two as near the even one,
+// as a BigFloat's is: nothing is lost where the products all but cancel,
+// and z * w is CBF(CBR(z) * CBR(w)). An infinity and a NaN in a part are
+// as a CBR's (#571 to #574): z / 0 is infinite, a part that is 0 staying 0.
+struct CBF {
+    real: BigFloat
+    imag: BigFloat
+}
+
+// the same by what it is of, as an alias, as complexBigRat is CBR's
+typealias complexBigFloat = CBF
+
+// ---------- making one ----------
+
+let CBF(real:lent BigFloat, imag:lent BigFloat):CBF { (CBF){real.copy(), imag.copy()} }
+let CBF(real:lent BigFloat):CBF { (CBF){real.copy(), BigFloat_zero()} }
+let CBF(real:lent BigInt, imag:lent BigInt):CBF { (CBF){BigFloat(real), BigFloat(imag)} }
+let CBF(real:lent BigInt):CBF { (CBF){BigFloat(real), BigFloat_zero()} }
+let CBF(real:i64, imag:i64):CBF { (CBF){BigFloat(real), BigFloat(imag)} }
+let CBF(real:i64):CBF { (CBF){BigFloat(real), BigFloat_zero()} }
+let CBF(real:f64, imag:f64):CBF { (CBF){BigFloat(real), BigFloat(imag)} }
+let CBF(real:f64):CBF { (CBF){BigFloat(real), BigFloat_zero()} }
+
+// of a c64 and of a CBR, each part the nearest of BigFloat.precision bits,
+// or of the precision written
+let CBF(z:c64, precision:i64):CBF { (CBF){BigFloat(z.real, precision), BigFloat(z.imag, precision)} }
+let CBF(z:c64):CBF { (CBF){BigFloat(z.real), BigFloat(z.imag)} }
+let CBF(z:lent CBR, precision:i64):CBF { (CBF){BigFloat(z.real, precision), BigFloat(z.imag, precision)} }
+let CBF(z:lent CBR):CBF { (CBF){BigFloat(z.real), BigFloat(z.imag)} }
+
+// a CBF as a CBR, exactly, and the nearest c64
+let CBR(z:lent CBF):CBR { (CBR){BigRat(z.real), BigRat(z.imag)} }
+let c64(z:lent CBF):c64 { (c64){z.real.f64, z.imag.f64} }
+
+// ---------- of text ----------
+
+// the part at text[at], which complex_float found: inf, infinity or
+// nan in either case, with a sign or none, or what BigFloat(text) reads,
+// a decimal or a hex float
+let CBF_piece(text:cstr, at:i64, precision:i64):BigFloat {
+    var i:i64 = at
+    var negative = false
+    if text[i] == '+' as u8 || text[i] == '-' as u8 {
+        negative = text[i] == '-' as u8
+        i += 1
+    }
+    if complex_word(text, i, "inf", true) { return BigFloat_inf(negative ? -1 : 1) }
+    if complex_word(text, i, "nan", true) { return BigFloat_nan() }
+    let end = complex_float(text, at)
+    var s = $""
+    for j in at..<end { s += text[j] }
+    return BigFloat_read(s.cstr, precision)
+}
+
+// whether the part at text[at] is a nan written so
+let CBF_nan_at(text:cstr, at:i64):bool {
+    var i:i64 = at
+    if text[i] == '+' as u8 || text[i] == '-' as u8 { i += 1 }
+    return complex_word(text, i, "nan", true)
+}
+
+// a CBF of its text, to precision bits in each part: what print writes,
+// (0.1-0.2.i), z.dec's, (+0.1-0.2.i), and z.hex's, (+0x1.8p+0-0x1p+1.i), as
+// a c64's is laid out and read (#569): with the parentheses or with none,
+// a part alone, 1.5 or 2.0.i, spaces about the sign that joins. A part is
+// read as BigFloat(text) reads it. Text that is none is an error, a NaN
+// in both parts
+let CBF_read(text:cstr, precision:i64):CBF {
+    let at = complex_layout(text)
+    if at.end < 0 { return (CBF){BigFloat_nan(), BigFloat_nan()} }
+    var real = BigFloat_zero()
+    var imag = BigFloat_zero()
+    if at.real >= 0 {
+        real = CBF_piece(text, at.real, precision)
+        if real.special == 2 && !CBF_nan_at(text, at.real) { return (CBF){BigFloat_nan(), BigFloat_nan()} }
+    }
+    if at.imag >= 0 {
+        let v = CBF_piece(text, at.imag, precision)
+        if v.special == 2 && !CBF_nan_at(text, at.imag) { return (CBF){BigFloat_nan(), BigFloat_nan()} }
+        if at.negative {
+            imag = -v
+        } else {
+            imag = v.copy()
+        }
+    }
+    return (CBF){real.copy(), imag.copy()}
+}
+let CBF(text:cstr, precision:i64):CBF { CBF_read(text, precision < 1 ? 1 : precision) }
+let CBF(text:cstr):CBF { CBF_read(text, BigFloat_bits()) }
+let CBF(text:const String^, precision:i64):CBF { CBF_read(text^.cstr, precision < 1 ? 1 : precision) }
+let CBF(text:const String^):CBF { CBF_read(text^.cstr, BigFloat_bits()) }
+
+// ---------- sums of products, exactly ----------
+
+// m * 2^e, exactly: a product of two parts, which no BigFloat need hold
+struct CBF_term {
+    m: BigInt
+    e: i128
+}
+
+let CBF_none():CBF_term { (CBF_term){BigInt(0), 0} }
+
+// x times y, or less it
+let CBF_times(x:lent BigFloat, y:lent BigFloat, minus:bool):CBF_term {
+    let m = x.mantissa * y.mantissa
+    if minus { return (CBF_term){0 - m, x.exponent as i128 + y.exponent as i128} }
+    return (CBF_term){m.copy(), x.exponent as i128 + y.exponent as i128}
+}
+
+// the one numbered i of four
+let CBF_pick(i:i64, a:lent CBF_term, b:lent CBF_term, c:lent CBF_term, d:lent CBF_term):CBF_term {
+    if i == 0 { return (CBF_term){a.m.copy(), a.e} }
+    if i == 1 { return (CBF_term){b.m.copy(), b.e} }
+    if i == 2 { return (CBF_term){c.m.copy(), c.e} }
+    return (CBF_term){d.m.copy(), d.e}
+}
+
+// a + b + c + d, exactly where they are near in size: the greatest
+// first, each next one added to the sum. Where all that is left is below
+// the sum's last bit by keep places and more, it tells only which side of
+// the sum the whole is: a bit below those places stands for its sign,
+// which is found the same way, so that no shift is as long as the
+// exponents are apart. What is given rounds to keep - 2 bits and fewer
+// as the whole does, and has its sign
+let CBF_total(a:lent CBF_term, b:lent CBF_term, c:lent CBF_term, d:lent CBF_term, keep:i64):CBF_term {
+    var m = BigInt(0)                    // what is summed, m * 2^e
+    var e:i128 = 0
+    var held = BigInt(0)                 // the sum above, once what is left is far below it
+    var held_e:i128 = 0
+    var cut = false
+    var used:i64 = 0
+    while true {
+        var j:i64 = 0 - 1
+        var top:i128 = 0
+        for i in 0..<4 {
+            if (used >> i) % 2 == 1 { continue }
+            let t = CBF_pick(i, a, b, c, d)
+            if t.m.isZero {
+                used += 1 << i
+                continue
+            }
+            let ti:i128 = t.e + BigFloat_length(t.m) as i128
+            if j < 0 || ti > top {
+                j = i
+                top = ti
+            }
+        }
+        if j < 0 { break }
+        if !m.isZero && top + 2 < e - (cut ? 0 : keep) as i128 {
+            if cut { break }             // what is left is below the last bit of m: m has the sign
+            held = m.copy()
+            held_e = e
+            cut = true
+            m = BigInt(0)
+        }
+        let t = CBF_pick(j, a, b, c, d)
+        used += 1 << j
+        if m.isZero {
+            m = t.m.copy()
+            e = t.e
+        } else {
+            let low:i128 = t.e < e ? t.e : e
+            m = (m << (e - low) as i64) + (t.m << (t.e - low) as i64)
+            e = low
+        }
+    }
+    if !cut { return (CBF_term){m.copy(), e} }
+    return (CBF_term){(held << (keep + 1)) + m.sign, held_e - keep as i128 - 1}
+}
+
+// (n1 + n2) / (d1 + d2) to bits bits, the nearest: the quotient of the
+// two sums, each to 64 bits more, cut to bits + 2 bits is t, within a
+// unit of the true one; t is then put where |n| - t d is 0 or more and
+// |n| - (t + 1) d less than 0, each sign found exactly, and a bit below t
+// says whether anything is left, which the rounding reads. d1 + d2 is
+// above 0
+let CBF_ratio(n1:lent CBF_term, n2:lent CBF_term, d1:lent CBF_term, d2:lent CBF_term, bits:i64):BigFloat {
+    let none = CBF_none()
+    let n = CBF_total(n1, n2, none, none, bits + 64)
+    if n.m.isZero { return BigFloat_zero() }
+    let d = CBF_total(d1, d2, none, none, bits + 64)
+    let negative = n.m.isNegative
+    let a = n.m.abs
+    var s:i64 = bits + 3 + BigFloat_length(d.m) - BigFloat_length(a)
+    if s < 0 { s = 0 }
+    var t = (a << s) / d.m
+    var x:i128 = n.e - d.e - s as i128
+    let over:i64 = BigFloat_length(t) - bits - 2
+    if over > 0 {
+        t = t >> over
+        x += over as i128
+    }
+    // |n| as two terms, and the sign of |n| - t * 2^x * (d1 + d2)
+    let p1:CBF_term = (CBF_term){negative ? 0 - n1.m : n1.m.copy(), n1.e}
+    let p2:CBF_term = (CBF_term){negative ? 0 - n2.m : n2.m.copy(), n2.e}
+    var left:i64 = CBF_total(p1, p2, (CBF_term){0 - t * d1.m, x + d1.e}, (CBF_term){0 - t * d2.m, x + d2.e}, 0).m.sign
+    while left < 0 {
+        t = t - 1
+        left = CBF_total(p1, p2, (CBF_term){0 - t * d1.m, x + d1.e}, (CBF_term){0 - t * d2.m, x + d2.e}, 0).m.sign
+    }
+    while left > 0 {
+        let u = t + 1
+        let next:i64 = CBF_total(p1, p2, (CBF_term){0 - u * d1.m, x + d1.e}, (CBF_term){0 - u * d2.m, x + d2.e}, 0).m.sign
+        if next < 0 { break }
+        t = u.copy()
+        left = next
+    }
+    var q = t.copy()
+    if left > 0 {
+        q = (t << 1) + 1
+        x -= 1
+    }
+    if negative { return BigFloat_make(0 - q, x, bits, 0) }
+    return BigFloat_make(q, x, bits, 0)
+}
+
+// ---------- arithmetic ----------
+
+// whether x is 0, and whether a part of z is an infinity or a NaN
+let CBF_zero(x:lent BigFloat):bool { x.special == 0 && x.mantissa.isZero }
+let CBF_wild(z:lent CBF):bool { z.real.special != 0 || z.imag.special != 0 }
+
+// z / 0, as a CBR's (#571): each part an infinity of the part's sign,
+// but a part that is 0 stays 0 beside one that is none; 0 / 0 is NaNs,
+// and a NaN part makes no 0 of the other
+let CBF_by_zero(z:lent CBF, zero:lent BigFloat):CBF {
+    let real = CBF_zero(z.real)
+    let imag = CBF_zero(z.imag)
+    if real && !imag && z.imag.special != 2 { return (CBF){BigFloat_zero(), z.imag / zero} }
+    if imag && !real && z.real.special != 2 { return (CBF){z.real / zero, BigFloat_zero()} }
+    return (CBF){z.real / zero, z.imag / zero}
+}
+
+// z times a real number r, as a CBR's (#573): each part times r, but
+// times an infinity a part that is 0 stays 0 beside one that is none; 0
+// times an infinity is NaNs in both parts, whichever of the two is the 0
+let CBF_scaled(z:lent CBF, r:lent BigFloat):CBF {
+    let real = CBF_zero(z.real)
+    let imag = CBF_zero(z.imag)
+    if r.special == 1 {
+        if real && imag { return (CBF){BigFloat_nan(), BigFloat_nan()} }
+        if real && z.imag.special != 2 { return (CBF){BigFloat_zero(), z.imag * r} }
+        if imag && z.real.special != 2 { return (CBF){z.real * r, BigFloat_zero()} }
+    }
+    if CBF_zero(r) && (z.real.special == 1 || z.imag.special == 1) {
+        return (CBF){BigFloat_nan(), BigFloat_nan()}
+    }
+    return (CBF){z.real * r, z.imag * r}
+}
+
+extend CBF {
+    static let +(a:Self, b:Self):Self { (Self){a.real + b.real, a.imag + b.imag} }
+    // with a real number the imaginary part is rounded too, as every result
+    static let +(a:Self, b:BigFloat):Self { (Self){a.real + b, a.imag.round(BigFloat_bits())} }
+    static let +(a:BigFloat, b:Self):Self { (Self){a + b.real, b.imag.round(BigFloat_bits())} }
+    static let +(a:Self, b:BigInt):Self { a + BigFloat(b) }
+    static let +(a:BigInt, b:Self):Self { BigFloat(a) + b }
+    static let +(a:Self, b:i64):Self { a + BigFloat(b) }
+    static let +(a:i64, b:Self):Self { BigFloat(a) + b }
+
+    static let -(a:Self):Self { (Self){-a.real, -a.imag} }
+    static let -(a:Self, b:Self):Self { (Self){a.real - b.real, a.imag - b.imag} }
+    static let -(a:Self, b:BigFloat):Self { (Self){a.real - b, a.imag.round(BigFloat_bits())} }
+    static let -(a:BigFloat, b:Self):Self { (Self){a - b.real, (-b.imag).round(BigFloat_bits())} }
+    static let -(a:Self, b:BigInt):Self { a - BigFloat(b) }
+    static let -(a:BigInt, b:Self):Self { BigFloat(a) - b }
+    static let -(a:Self, b:i64):Self { a - BigFloat(b) }
+    static let -(a:i64, b:Self):Self { BigFloat(a) - b }
+
+    // by a real number, one with an imaginary part of 0, it is the other
+    // scaled, and by an imaginary one too, with a quarter turn, as a
+    // CBR's; else each part is a sum of two products, exactly, rounded
+    // once. With an infinity or a NaN in a part it is by the parts'
+    // arithmetic
+    static let *(a:Self, b:Self):Self {
+        if CBF_zero(b.imag) { return CBF_scaled(a, b.real) }
+        if CBF_zero(a.imag) { return CBF_scaled(b, a.real) }
+        if CBF_zero(b.real) {
+            let s = CBF_scaled(a, b.imag)
+            return (Self){-s.imag, s.real.copy()}
+        }
+        if CBF_zero(a.real) {
+            let s = CBF_scaled(b, a.imag)
+            return (Self){-s.imag, s.real.copy()}
+        }
+        if CBF_wild(a) || CBF_wild(b) {
+            return (Self){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
+        }
+        let bits = BigFloat_bits()
+        let none = CBF_none()
+        let re = CBF_total(CBF_times(a.real, b.real, false), CBF_times(a.imag, b.imag, true), none, none, bits + 4)
+        let im = CBF_total(CBF_times(a.real, b.imag, false), CBF_times(a.imag, b.real, false), none, none, bits + 4)
+        return (Self){BigFloat_make(re.m, re.e, bits, 0), BigFloat_make(im.m, im.e, bits, 0)}
+    }
+    static let *(a:Self, b:BigFloat):Self { CBF_scaled(a, b) }
+    static let *(a:BigFloat, b:Self):Self { CBF_scaled(b, a) }
+    static let *(a:Self, b:BigInt):Self { a * BigFloat(b) }
+    static let *(a:BigInt, b:Self):Self { BigFloat(a) * b }
+    static let *(a:Self, b:i64):Self { a * BigFloat(b) }
+    static let *(a:i64, b:Self):Self { BigFloat(a) * b }
+
+    // a times b's conjugate, over b's norm: each part the quotient of two
+    // sums of products, exactly, rounded once. By 0 it is infinite,
+    // CBF_by_zero's, and by an infinity 0; by a real number it is part
+    // by part, and by an imaginary one too, with a quarter turn, as a
+    // CBR's (#572)
+    static let /(a:Self, b:Self):Self {
+        if CBF_zero(b.real) && CBF_zero(b.imag) { return CBF_by_zero(a, b.real) }
+        if b.real.special == 1 || b.imag.special == 1 {
+            if CBF_wild(a) { return (Self){BigFloat_nan(), BigFloat_nan()} }
+            return (Self){BigFloat_zero(), BigFloat_zero()}
+        }
+        if CBF_zero(b.imag) { return (Self){a.real / b.real, a.imag / b.real} }
+        if CBF_zero(b.real) { return (Self){a.imag / b.imag, -(a.real / b.imag)} }
+        if CBF_wild(a) || CBF_wild(b) {
+            let d = b.real * b.real + b.imag * b.imag
+            return (Self){(a.real * b.real + a.imag * b.imag) / d, (a.imag * b.real - a.real * b.imag) / d}
+        }
+        let bits = BigFloat_bits()
+        let d1 = CBF_times(b.real, b.real, false)
+        let d2 = CBF_times(b.imag, b.imag, false)
+        let re = CBF_ratio(CBF_times(a.real, b.real, false), CBF_times(a.imag, b.imag, false), d1, d2, bits)
+        let im = CBF_ratio(CBF_times(a.imag, b.real, false), CBF_times(a.real, b.imag, true), d1, d2, bits)
+        return (Self){re.copy(), im.copy()}
+    }
+    static let /(a:Self, b:BigFloat):Self {
+        if CBF_zero(b) { return CBF_by_zero(a, b) }
+        return (Self){a.real / b, a.imag / b}
+    }
+    static let /(a:BigFloat, b:Self):Self { CBF(a) / b }
+    static let /(a:Self, b:BigInt):Self { a / BigFloat(b) }
+    static let /(a:BigInt, b:Self):Self { CBF(BigFloat(a)) / b }
+    static let /(a:Self, b:i64):Self { a / BigFloat(b) }
+    static let /(a:i64, b:Self):Self { CBF(BigFloat(a)) / b }
+
+    // a part that is a NaN equals nothing, as a BigFloat's
+    static let ==(a:Self, b:Self):bool { a.real == b.real && a.imag == b.imag }
+    static let !=(a:Self, b:Self):bool { !(a == b) }
+}
+
+// ---------- parts ----------
+
+let conj(z:lent CBF):CBF { (CBF){z.real.copy(), -z.imag} }
+
+// |z|², a BigFloat: the sum of the two squares, exactly, rounded once
+let norm(z:lent CBF):BigFloat {
+    if CBF_wild(z) { return z.real * z.real + z.imag * z.imag }
+    let none = CBF_none()
+    let bits = BigFloat_bits()
+    let n = CBF_total(CBF_times(z.real, z.real, false), CBF_times(z.imag, z.imag, false), none, none, bits + 4)
+    return BigFloat_make(n.m, n.e, bits, 0)
+}
+
+extend CBF {
+    let conj():Self { conj(self) }
+    let norm():BigFloat { norm(self) }
+    let i:Self { (Self){-self.imag, self.real.copy()} }   // z rotated a quarter turn: z times i
+
+    // each part at precision significant bits, by a rule or to the
+    // nearest and the even one, as x.round of a BigFloat
+    let round(precision:i64, rule:RoundingRule):Self { (Self){self.real.round(precision, rule), self.imag.round(precision, rule)} }
+    let round(precision:i64):Self { (Self){self.real.round(precision), self.imag.round(precision)} }
+
+    // its text, which print shows whole and .cstr gives: (0.1-0.2.i), each
+    // part a BigFloat's text, the imaginary part's sign joining the two,
+    // as a c64's (#570); .dec has the real part's sign too, (+0.1-0.2.i),
+    // and .hex is of the parts' .hex, (+0x1.8p+0-0x1p+1.i), exact
+    let string:String {
+        let real = self.real.string
+        let imag = self.imag.string
+        return complex_text(real.cstr, imag.cstr)
+    }
+    let dec:String {
+        let real = self.real.dec
+        let imag = self.imag.dec
+        return complex_text(real.cstr, imag.cstr)
+    }
+    let hex:String {
+        let real = self.real.hex
+        let imag = self.imag.hex
+        return complex_text(real.cstr, imag.cstr)
+    }
+}
+
+extend BigFloat {
+    let i:CBF { (CBF){BigFloat_zero(), self.copy()} }     // x rotated a quarter turn: CBF(0, x)
 }

@@ -536,3 +536,11 @@ So far the changes from C are these, by topic.
   bits whatever its size, `exp(BigFloat(-1000))` is
   `5.0759588975494567652918094795743369193e-435`, or the precision
   written, `exp(x, 256)` (#580)
+- with `<math>` and `<BigFloat>` there is `CBF`, `complexBigFloat` by
+  its alias, a complex number of two BigFloats: `CBF(1, 2) / CBF(3, 4)`
+  is `(0.44+0.08.i)`; each part of `+ - * /` is the exact one's,
+  rounded once to `BigFloat.precision` bits, so nothing is lost where
+  products all but cancel; `conj`, `norm`, `z.i`, `z.round(precision)`;
+  its text is a `c64`'s, `(0.1-0.2.i)`, which `CBF(text)` reads back,
+  with `.dec` and `.hex`; `CBF(z)` of a `c64` and of a `CBR`, and
+  `CBR(z)` and `c64(z)` back (#581)

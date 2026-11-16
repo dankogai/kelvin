@@ -111,6 +111,12 @@ and no part of the core.
     size, or the precision written: `exp(x, 256)`, `x.sin(64)`.
   - They come with the two imports, by an overlay,
     `modules/math+BigFloat.k` (#551, [modules.md](modules.md)).
+  - And `CBF`, `complexBigFloat` by its alias, is a complex number of
+    two BigFloats (#581), as a `c64` is of two `f64`s: `CBF(1, 2) /
+    CBF(3, 4)` is `(0.44+0.08.i)`.
+    - Each part of `+ - * /` is the exact one's, rounded once to
+      `BigFloat.precision` bits.
+    - `x.i` is `CBF(0, x)`.
 - **Its text** (#577) is the fewest digits that read back:
   `BigFloat("0.1")` prints `0.1`, and `BigFloat(1) / 3`
   `0.333333333333333333333333333333333333334`, 39 digits.
@@ -192,4 +198,5 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()`, with `<math>` (#580) | the function to `BigFloat.precision` significant bits; `.exp(p)` to `p` |
 | | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)`, with `<math>` | the two-argument ones |
 | | `BigFloat.pi()`, `BigFloat.pi(p)`, with `<math>` | pi to `BigFloat.precision` bits, or to `p` |
+| | `.i`, with `<math>` (#581) | `CBF(0, x)`, a complex number of two BigFloats: the value rotated a quarter turn ([math.md](math.md)) |
 | `BigRat` | `BigRat(x)` | the value of a `BigFloat`, exactly |

@@ -96,7 +96,8 @@ the design decisions, numbered `#N` throughout, are in
 - [modules.md](modules.md): `#import` of Kelvin files, `modules/`, a
   module as `M.kh` and `libkM`, `kelvinc --lib`.
 - [math.md](math.md): `#import <math>`, math.h for `f64` and `f32`,
-  `c64` and `c32`.
+  `c64` and `c32`; with `<Rational>` `CBR`, and with `<BigFloat>`
+  `CBF`, complex numbers of two BigRats and of two BigFloats.
 - [rational.md](rational.md): `#import <Rational>`, `rat64`, a
   numerator over a denominator, `1.over(3)`, exact arithmetic, with
   infinities and a NaN as a float has (#538); `rat32`, `rat16` and

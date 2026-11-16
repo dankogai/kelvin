@@ -1,4 +1,4 @@
-// modules/BigFloat.k - a floating-point number of any precision (#575): a
+// modules/BigFloat.k - a floating-point number of any precision (#576): a
 // mantissa, a BigInt, times a power of 2,
 //
 //     #import <BigFloat>

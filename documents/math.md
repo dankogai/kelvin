@@ -1,6 +1,6 @@
 # Math: `#import <math>`
 
-The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision; with `<BigFloat>`, the functions of a `BigFloat`.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision; with `<BigFloat>`, the functions of a `BigFloat`, and `CBF`, a complex number of two.
 
 ## Synopsis
 
@@ -385,9 +385,91 @@ let main():int32 {
   - `sin`, `tan`, `asin`, `atan`, `sinh`, `tanh`, `asinh` and `atanh`
     of an `x` so near 0 that its square is below the last bit are `x`.
 
+### Complex numbers of any precision: `CBF`, with `<BigFloat>`
+
+With `<BigFloat>` there is `CBF` too (#581): a complex number whose
+parts are `BigFloat`s, as a `c64`'s are `f64`s, of as many bits as a
+program asks.
+
+```swift
+#import <math>
+#import <BigFloat>
+
+let main():int32 {
+    let z = CBF(1, 2) / CBF(3, 4)                // or complexBigFloat(1, 2), by the alias
+    println(z, " ", z * CBF(3, 4), " ", norm(CBF(3, 4)))   // (0.44+0.08.i) (1.0+2.0.i) 25.0
+    println(CBF(1, 1) / 3)                       // (0.333333333333333333333333333333333333334+0.333333333333333333333333333333333333334.i)
+    let e = BigFloat("0x1p-100")                 // 2^-100: (1 + e)(1 - e) - 1 is -e², exactly
+    println((CBF(BigFloat(1) + e, BigFloat(1)) * CBF(BigFloat(1) - e, BigFloat(1))).hex)   // (-0x1p-200+0x1p+1.i)
+    let w = CBF("(0.1-0.2.i)")                   // of its text, each part a BigFloat's
+    println(w, " ", w.dec, " ", w.round(8), " ", c64(w), " ", CBF(1) / CBF(0))   // (0.1-0.2.i) (+0.1-0.2.i) (0.10009765625-0.2001953125.i) (0.10000000000000001-0.20000000000000001.i) (inf+0.0.i)
+    println(complexBigFloat(1, 2) == CBF(1, 2), " ", CBF(c64(0.5, 0.25)), " ", CBR(CBF(1, 2) / 4))   // true (0.5+0.25.i) ((1n/4n)+(1n/2n).i)
+    return 0
+}
+```
+
+- **The type**: `CBF`, with `real` and `imag` of `BigFloat`, a struct;
+  `complexBigFloat` is its alias, as `complexBigRat` is `CBR`'s.
+  - It comes with the two imports, `<math>` and `<BigFloat>`, by the
+    overlay `modules/math+BigFloat.k` ([modules.md](modules.md)).
+- **Making one**: `CBF(re, im)` and `CBF(re)` of BigFloats, of BigInts,
+  of `i64`s or of `f64`s, and `(CBF){re, im}` of two BigFloats.
+  - Two BigFloats are kept as they are; a part of another kind is a
+    `BigFloat` of it, so `CBF(0.1, 0.2)` has an `f64`'s tenth and
+    `CBF(BigFloat("0.1"), BigFloat("0.2"))` the nearest to a tenth.
+  - Both parts are of one kind: `CBF(1.5, 2.0)`, and `CBF(1.5, 2)` is
+    an error that says to convert one.
+  - `CBF(z)` of a `c64` and of a `CBR` has the nearest to each part,
+    and `CBF(z, precision)` at a precision.
+- **`+`, `-`, `*`, `/`**, prefix `-`, `==` and `!=`, of two, or with a
+  `BigFloat`, a `BigInt` or an `i64` on either side.
+  - Each part of a result is the exact one's, rounded once to
+    `BigFloat.precision` bits: the nearest, and of two as near the even
+    one, as a BigFloat's result.
+    - So `z * w` is `CBF(CBR(z) * CBR(w))`, and `z / w` likewise.
+    - Nothing is lost where products all but cancel: with `e` of
+      `2^-100`, `CBF(1 + e, 1) * CBF(1 - e, 1)` has a real part of
+      `-0x1p-200`, where `(1 + e) * (1 - e) - 1` of BigFloats is 0.
+    - Parts as far apart as any are no more work: of `2^1000000000000`
+      and 1 a product takes no longer.
+  - A `BigInt` or an `i64` is a `BigFloat` of it first, as with a
+    BigFloat.
+  - An infinity and a NaN in a part are as a `CBR`'s, above.
+    - `z / 0` is infinite, a part that is 0 staying 0: `CBF(1) /
+      CBF(0)` is `(inf+0.0.i)`, and `CBF(0) / CBF(0)` NaNs, which equal
+      nothing.
+    - By an infinity it is 0; times a real or an imaginary one it is
+      scaled, `CBF(1) * CBF(inf, 0)` is `(inf+0.0.i)`.
+- **`conj(z)`** and **`norm(z)`**, each a method too: `norm` is `real²
+  + imag²`, a `BigFloat`, the sum exactly, rounded once.
+  - `z.i` is `z` times `i`, and `x.i` of a `BigFloat` `CBF(0, x)`.
+- **`z.round(precision)`** is `z` with each part at that many bits,
+  and `z.round(precision, rule)` by a rule, as `x.round` of a BigFloat.
+- **Back**: `CBR(z)` is its value exactly, and `c64(z)` the nearest
+  `c64`.
+- **Its text** is laid out as a `c64`'s: `(0.1-0.2.i)`, each part a
+  BigFloat's text, the fewest digits that read back, the imaginary
+  part's sign joining the two.
+  - `print`, a template and `.cstr` give it, and `.string` a String;
+    a struct's member, an Optional's value and an element show it.
+  - `z.dec` has the real part's sign too, `(+0.1-0.2.i)`, and `z.hex`
+    is of the parts' `.hex`, `(+0x1.8p+0-0x1p+1.i)`, its value exactly.
+- **From text**: `CBF(text)` reads what `print` writes, and `z.dec`'s
+  and `z.hex`'s, so `CBF(&z.string)` is `z`; `CBF(text, precision)` has
+  each part at a precision.
+  - As a `c64`'s text is read: with the parentheses or with none, a
+    part alone, `1.5` or `2.0.i`, the other 0, spaces about the sign
+    that joins, and `{real: 0.1, imag: -0.2}`.
+  - A part is a decimal, `1.5e-05`, a hex float, `inf` or `nan`, with a
+    sign or none.
+  - Text that is none is an error, and gives a NaN in both parts:
+    `CBF("x")`, `CBF("(1+2)")`.
+- **math's functions** take no `CBF`: `exp`, `sqrt`, `abs` and the
+  rest are a `CBR`'s, of `CBR(z)`, and a `c64`'s, of `c64(z)`.
+
 ## Where it lives
 
-The functions of a `BigFloat` are `modules/math+BigFloat.k`'s, an overlay read where `<math>` and `<BigFloat>` are both imported; it imports `<math+Rational>`, whose functions it is written with (#579). `CBR` and the functions of a `BigRat` and of a `CBR` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+The functions of a `BigFloat` and `CBF` are `modules/math+BigFloat.k`'s, an overlay read where `<math>` and `<BigFloat>` are both imported; it imports `<math+Rational>`, whose functions it is written with (#579). `CBR` and the functions of a `BigRat` and of a `CBR` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
 ## Functions
 
@@ -416,10 +498,14 @@ pow(x:BigRat, y:BigRat):BigRat, pow(x:BigRat, y:BigRat, precision:int64):BigRat
 atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):BigRat
 ```
 
-With `<BigFloat>` (#580):
+With `<BigFloat>` (#580, #581):
 
 <!-- fragment -->
 ```swift
+CBF(real:BigFloat, imag:BigFloat):CBF, CBF(real:BigFloat):CBF              // and of BigInts, of i64s and of f64s
+CBF(z:c64):CBF, CBF(z:CBR):CBF, CBF(z:c64, precision:int64):CBF, CBF(z:CBR, precision:int64):CBF
+CBR(z:CBF):CBR, c64(z:CBF):c64, conj(z:CBF):CBF, norm(z:CBF):BigFloat
+CBF(text:cstr):CBF, CBF(text:cstr, precision:int64):CBF                    // and of a String by reference
 sin(x:BigFloat):BigFloat, sin(x:BigFloat, precision:int64):BigFloat        // and so for each function of a BigFloat
 pow(x:BigFloat, y:BigFloat):BigFloat, pow(x:BigFloat, y:BigFloat, precision:int64):BigFloat
 atan2(y:BigFloat, x:BigFloat):BigFloat, atan2(y:BigFloat, x:BigFloat, precision:int64):BigFloat
@@ -467,3 +553,16 @@ atan2(y:BigFloat, x:BigFloat):BigFloat, atan2(y:BigFloat, x:BigFloat, precision:
 | | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
 | `BigFloat.` | `.pi()`, `.pi(p)` | pi to `BigFloat.precision` bits, or to `p` |
 | | `.precision` | 128, the precision where none is written |
+| `CBF`, with `<BigFloat>` (#581) | `.real`, `.imag` | the parts, fields, each a `BigFloat` |
+| | `+`, `-`, `*`, `/`, prefix `-`, `==`, `!=` | each part the exact one's, rounded once to `BigFloat.precision` bits; of two, or with a `BigFloat`, a `BigInt` or an `i64` on either side; `z / 0` is infinite, a part that is 0 staying 0, `(inf+0.0.i)` |
+| | `.conj()` | the conjugate, a `CBF` |
+| | `.norm()` | `real² + imag²`, a `BigFloat`, rounded once |
+| | `.i` | `z` times `i` |
+| | `.round(precision)`, `.round(precision, rule)` | each part at `precision` bits, to the nearest and the even one, or by a rule |
+| | `.string`, `${z}`, `println(z)` | `(0.1-0.2.i)`: each part a `BigFloat`'s text, the imaginary part's sign joining them; a `String` |
+| | `.cstr` | the same text, a `cstr` |
+| | `.dec`, `.hex` | `(+0.1-0.2.i)` and `(+0x1.8p+0-0x1p+1.i)`, exact: its parts' texts and `.i`, a `String` |
+| | `CBF(text)`, `CBF(text, precision)` | of its text: `(0.1-0.2.i)`, `z.dec`, `z.hex`, `{real: 0.1, imag: -0.2}`, or a part alone, `1.5`, `2.0.i`; a `cstr` or a `String` by reference; text that is none is a NaN in both parts |
+| | `CBF(z)`, `CBF(z, precision)` | of a `c64` or a `CBR`: each part the nearest |
+| `CBR`, `c64` | `CBR(z)`, `c64(z)` | of a `CBF`: its value exactly, and the nearest `c64` |
+| `BigFloat`, with `<BigFloat>` (#581) | `.i` | `CBF(0, x)`: the value rotated a quarter turn |
