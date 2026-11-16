@@ -2895,6 +2895,7 @@ var fn_sigs:Dictionary<String, int64>       // each function's name and signatur
 var fn_bodies:Dictionary<String, int64>     // those of them a declaration defines
 var fn_overloads:Dictionary<String, int64>  // how many signatures a name has
 var kh_fns:Dictionary<String, int64>        // the names a module's header declares, each named by its types, as kelvinc's imported ones (#515)
+var fn_renamed:Dictionary<String, int64>    // a function named by its types as a member of a type is: _kv_fn_T__f64 (#575)
 var targets:Dictionary<int64, int64>        // the overload each call of an overloaded name chose
 
 // a type in a C name, as kelvinc's mangled_type: i64, String, vecp,
@@ -3190,6 +3191,37 @@ let name_methods() {
     }
 }
 
+// whether a function is named by its parameters' types in C, as
+// kelvinc's: an overload that is defined, or a module's header's
+let fn_by_types(d:int64):bool {
+    var name = tok_text(nodes[d].t)
+    var key = sig_key(d)
+    return (fn_overloads.get(name, 0) > 1 || kh_fns.has(name)) && fn_bodies.has(key) && !tok_is(nodes[d].t, "main")
+}
+
+// a function named by its types as a member of a type is named, T(x:f64)
+// and T's f64, each T__f64: the function is _kv_fn_T__f64, as kelvinc's
+// (#575), where it is defined here or declared in the member's file, a
+// module's header
+let name_clashes() {
+    var members:Dictionary<String, int64> = ${:}
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c < 0 { continue }
+        var name:String = tok_text(nodes[d].c)
+        name += "__"
+        var m:String = tok_text(method_names_of.get(d, nodes[d].t))
+        name += &m
+        if !members.has(name) { members[name] = d }
+    }
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 || is_operator(d) || !fn_by_types(d) { continue }
+        var key = sig_key(d)
+        if !members.has(key) { continue }
+        let e:int64 = members.get(key, 0 - 1)
+        if nodes[d].b >= 0 || toks[nodes[d].t].file == toks[nodes[e].t].file { fn_renamed[key] = 1 }
+    }
+}
+
 let count_overloads() {
     name_subscripts(&sub_getters)
     name_subscripts(&sub_setters)
@@ -3208,6 +3240,7 @@ let count_overloads() {
         if nodes[d].b >= 0 || kh { fn_bodies[key] = 1 }
         if kh { kh_fns[tok_text(nodes[d].t)] = 1 }
     }
+    name_clashes()
     for d in variadic_fns {                              // kc's error: kelvinc tells them apart by _Generic (#453)
         if nodes[d].c < 0 && fn_overloads.get(tok_text(nodes[d].t), 0) > 1 {
             gen_error(d, "kc reads a variadic function of a name of its own; not yet one of several overloads")
@@ -3271,13 +3304,15 @@ let put_fn_name(d:int64) {
         out += &types_of
         return
     }
-    put_tok(nodes[d].t)
-    var name = tok_text(nodes[d].t)
-    var key = sig_key(d)
-    if (fn_overloads.get(name, 0) > 1 || kh_fns.has(name)) && fn_bodies.has(key) && !tok_is(nodes[d].t, "main") {
+    if fn_by_types(d) {
+        var key = sig_key(d)
+        if fn_renamed.has(key) { put("_kv_fn_") }       // a member of a type has its name (#575)
+        put_tok(nodes[d].t)
         var types_of = params_key(d)
         out += &types_of
+        return
     }
+    put_tok(nodes[d].t)
 }
 
 // a number to choose overloads by, as kelvinc's numeric_type: bool too, as C's _Bool

@@ -13,9 +13,11 @@ let main():int32 {
     let c:struct geo_cache = {0}
     println(geo_area(s), " ", geo_calls, " ", GEO_UNIT, " ", geo_unit.h, " ", c.hits)
     println(q.sum(), " ", halved(q.sum()), " ", q.swapped())   // inline, from geo.kh's bodies (#392)
+    println(point(2.5), " ", point(2.5).f64)     // a function named in C as a member is (#575)
     return 0
 }
 // out: (3.0, 4.0) 7.0 4.0 3.0 (6.0, 8.0) 5.0 1
 // out: (1.0, 2.0) (2.0, 3.0) true 12.0 0.0 3
 // out: 12.0 1 2 1.0 0
 // out: 5.0 2.5 (3.0, 2.0)
+// out: (2.5, 2.5) 5.0

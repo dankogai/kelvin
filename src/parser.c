@@ -8970,6 +8970,37 @@ static void name_functions(void) {
                                                                                 : d->name + strlen(d->recv_name) + 1);
         d->cname = by_types ? strfmt("%s%s", base, types.buf) : (char *)base;
     }
+    /* A function named by its types as a member of a type is named, T(x:f64)
+       and T's f64, each T__f64: the function is _kv_fn_T__f64 (#575), so that
+       both are. It is where the function is defined here, or declared in the
+       file that declares the member, a module's header: a library and what
+       imports it then name it alike; a prototype of it has its name. */
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (d->recv || d->op || d->nested_in || d->type_fn || !d->cname || !strcmp(d->cname, d->name))
+            continue;
+        bool member = false;
+        for (int j = 0; j < functions.len && !member; j++) {
+            Decl *e = functions.data[j];
+            if (e->recv) {
+                size_t n = strlen(e->recv_name);
+                const char *rest = d->cname + n + 2 + (e->setter ? 4 : 0);
+                member = !strncmp(d->cname, e->recv_name, n) && !strncmp(d->cname + n, e->setter ? "__set_" : "__", e->setter ? 6 : 2) &&
+                         !strcmp(rest, e->name);
+            } else if (e->type_fn && e->cname) {
+                member = !strcmp(d->cname, e->cname);
+            }
+            member = member && (d->body || !strcmp(d->pos.file, e->pos.file));
+        }
+        if (!member)
+            continue;
+        const char *was = d->cname;
+        for (int j = 0; j < functions.len; j++) {
+            Decl *e = functions.data[j];
+            if (!e->recv && !e->op && !e->nested_in && !e->type_fn && e->cname && !strcmp(e->cname, was))
+                e->cname = strfmt("_kv_fn_%s", was);
+        }
+    }
     for (int i = 0; i + 1 < proto_copies.len; i += 2) /* the hoisted prototypes take their originals' names (#180) */
         ((Decl *)proto_copies.data[i])->cname = ((Decl *)proto_copies.data[i + 1])->cname;
     for (int i = 0; i < functions.len; i++) {

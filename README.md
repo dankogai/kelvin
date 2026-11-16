@@ -501,3 +501,7 @@ So far the changes from C are these, by topic.
   infinity, with `<Rational>`: `BigRat(1, 0) / BigRat(-2)` is
   `(-1n/0n)`, where it was `(1n/0n)`, and `rat64(1, 0) / -2` is
   `(-1/0)`; so a `CBR`'s part, `CBR(inf, 0) / -2` (#574)
+- a function may be named by its types as a member of a type is:
+  `meters(x:f64)` beside the attribute `meters.f64`, which kelvinc
+  refused, both being `meters__f64` in C; the function is
+  `_kv_fn_meters__f64` there (#575)

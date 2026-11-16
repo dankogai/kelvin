@@ -555,6 +555,16 @@ extend f64 {
     let ma_root():Self { sqrt(self) }
     let ma_twice():Self { Self(2) * self }
 }
+// a function named by its types as a member of its type is in C (#575):
+// nm_len(x:f64) and the attribute f64 would both be nm_len__f64
+struct nm_len { v: f64 }
+let nm_len(x:f64):nm_len { (nm_len){x} }
+let nm_len(n:i64):nm_len { (nm_len){n as f64} }
+extend nm_len {
+    let f64:f64 { .v }
+    let i64:i64 { .v as i64 }
+}
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1545,6 +1555,7 @@ on a new line`
     println(CBR(br_inf.copy(), BigRat(0)) / CBR(2), " ", CBR(br_inf.copy(), BigRat(0)) / CBR(-2), " ", CBR(br_inf.copy(), BigRat(3)) / CBR(0, 2), " ", CBR(1, 2) / CBR(2), " ", CBR(1, 2) / CBR(0, 2))   // a CBR by a real one or an imaginary one, part by part (#572)
     println(CBR(1) * CBR(br_inf.copy(), BigRat(0)), " ", CBR(br_inf.copy(), BigRat(0)) * CBR(0, 2), " ", CBR(0, 1) * br_inf, " ", CBR(0) * br_inf, " ", CBR(1, 2) * CBR(2), " ", CBR(1, 2) * CBR(0, 2))   // and times one, a 0 part staying 0 times an infinity (#573)
     println(br_inf / BigRat(-2), " ", -br_inf / BigRat(-2), " ", br_inf / -2, " ", rat64(1, 0) / rat64(-2), " ", rat8(1, 0) / -2, " ", br_inf / 2, " ", CBR(br_inf.copy(), BigRat(0)) / -2)   // an infinity by a negative number is the other infinity (#574)
+    println(nm_len(1.5).f64, " ", nm_len(2).f64, " ", nm_len(2.75).i64, " ", nm_len(nm_len(3).i64).f64)   // a function and a member of one C name (#575)
     return 0
 }
 

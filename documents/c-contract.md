@@ -238,6 +238,7 @@ functions, by one rule.
 |---|---|
 | `let f(x:i64)`, alone | `f` |
 | `let f(x:i64)` overloaded, imported from a Kelvin file, or sharing a name with a C function the program calls before `f` is declared | `f__i64`, by its parameters' types; `f__void` of none; `__va` for `...` |
+| `let T(x:f64)` named by its types, where `T` has a member `f64` (#575) | `_kv_fn_T__f64`: `_kv_fn_` before its name, the member being `T__f64` |
 | `let T.m()`, a method | `T__m`; `T__m__i64` where methods of the name on `T` differ |
 | a setter of `T.x` | `T__set_x` |
 | `let T.cstr()` | `_kv_T_cstr`, `static inline` in each file |

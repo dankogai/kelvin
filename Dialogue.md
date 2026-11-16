@@ -10932,3 +10932,53 @@ is kept. By 0 an infinity is itself still, a rational's 0 having no
 sign, which is **Claude**'s choice. Details are provisional P586.
 
 There are 1357 tests, and all pass with clang and with gcc 15.
+
+### 622. A function and a member of one C name
+
+**User**:
+
+> Another big one.  Let's implement `BigFloat`:
+>
+> * as a module
+> * covers basic arithmetics + with <math>, math functions like sin(), cos(), exp(), log()....  like CBR default precision is 128.
+> * To implement elementary function, use BigRat and convert to BigFloat if that's the easiest way.
+> * Like CBR, `math` should define `complexBigFloat` which is `CBF`.
+> * Add `.round(precision, roundingrule?) where rounding rule is optional
+
+**Claude** asked four things of it, and **User** chose the first of
+each:
+
+- **Arithmetic:** every result of `+ - * /` and of the functions is
+  rounded to `BigFloat.precision` bits, 128, which a program may set;
+  not exact, as a BigRat's is.
+- **Precision:** significant bits, a float's, not bits after the
+  point, as a BigRat's functions count.
+- **Text:** print writes the shortest decimal that `BigFloat(text)`
+  reads back, and `x.hex` the exact hex float.
+- **Rounding:** Swift's six rules, to the nearest and the even one
+  where none is written, named on the type, `BigFloat.up`.
+
+**Claude** split it in five, as `<Rational>` was in three: the type
+with its arithmetic and `.round`; its text; math's functions of it;
+`CBF`; and math's functions of a `CBF`.
+
+The first draft of the module did not build: `BigFloat(x:f64)` and
+the attribute `x.f64` are both `BigFloat__f64` in C, and kelvinc
+said to rename one. `BigInt` had avoided it by taking an `i128`, and
+`<Rational>` by having no `.cstr`. **Claude** asked whether to fix
+the naming first, to keep `x.f64` alone or to keep `BigFloat(0.1)`
+alone.
+
+- **User** chose the fix, as a number of its own.
+
+So this number is that, and `BigFloat` follows from #576. A function
+named by its types as a member of a type is named is `_kv_fn_` and
+that name in C, `_kv_fn_meters__f64`, in kelvinc and in kc, which
+had no check and wrote two functions of one name. It is where the
+function is defined in what is compiled or declared in the member's
+file, so a library and the reader of its header agree; two functions
+of one C name are an error still. While writing the draft **Claude**
+found that kelvinc does not read `c ? -f64.infinity : f64.infinity`,
+which was left, and reported. Details are provisional P587.
+
+There are 1358 tests, and all pass with clang and with gcc 15.

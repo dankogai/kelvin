@@ -43,8 +43,10 @@ extend point {
     static let +(a:Self, b:Self):Self { return {a.x + b.x, a.y + b.y} }
     static let ==(a:Self, b:Self):bool { a.x == b.x && a.y == b.y }
     let cstr():cstr { `(${.x}, ${.y})` }                  // its text
+    let f64:float64 { .x + .y }                           // point__f64 in C, as point(v:float64) below would be (#575)
 }
 let point.dist(to:Self):float64 { hypot(to.x - .x, to.y - .y) }   // alone
+let point(v:float64):point { return {v, v} }             // point__f64 in C as the attribute f64 is: _kv_fn_point__f64, to geo.kh's reader too (#575)
 inline let point.sum():float64 { .x + .y }               // inline (#392): its body in geo.kh too
 inline let halved(v:float64):float64 { v / 2.0 }
 let shape.area():float64 {

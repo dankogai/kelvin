@@ -482,6 +482,14 @@ let main():int32 {
     calls as C's nor declares keeps its name, which conflicts with the
     C header's, as in C.
   - Two functions that would have one C name are an error.
+  - A function and a member of a type may (#575): `meters(x:f64)` and
+    the attribute `meters.f64` would both be `meters__f64`, so the
+    function is `_kv_fn_meters__f64`, and both are there.
+    - So where the function is defined in what is compiled, or
+      declared in the file that declares the member, a module's
+      header, which its library is named by too.
+    - A library's function and a member another file gives its type
+      are the error still: the library has its name already.
 - **A call sees every overload**, before or after it (#505).
 - **Methods overload too** (#158): `let box.add(n:int64)` and `let
   box.add(t:cstr)` are two methods, and `b.add(1)` and `b.add("x")`
