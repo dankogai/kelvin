@@ -587,3 +587,8 @@ So far the changes from C are these, by topic.
   reckoning, and an infinite power has its signs of an angle of
   `2^64` and more, which were wrong; the inverses are as they were
   (#586)
+- `abs` and `sqrt` of a `CBF` take a part of any exponent:
+  `abs(CBF(top, top))`, `top` being `2^9000000000000000000`, is the
+  root of 2 times `top`, where it was an infinity, and
+  `sqrt(CBF(top, 1))` was wrong by the root of 2; the norm's exponent
+  is twice a part's, past an `i64`'s there, and is held no more (#587)

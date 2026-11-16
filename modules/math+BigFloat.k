@@ -146,21 +146,20 @@ let BigFloat_log_twice(x:lent BigFloat, bits:i64):BigFloat {
 
 // ---------- sqrt, exp, log and pow ----------
 
-// the square root, the nearest: the mantissa shifted so that the
-// exponent is even and its whole root has bits + 2 bits, and one bit more
-// below them where the root is not whole, which the rounding reads
-let BigFloat_sqrt(x:lent BigFloat, bits:i64):BigFloat {
-    if x.special == 2 || x.mantissa.isNegative { return BigFloat_nan() }
-    if x.special == 1 { return BigFloat_inf(1) }
-    if x.mantissa.isZero { return BigFloat_zero() }
-    var s:i64 = 2 * bits + 4 - BigFloat_length(x.mantissa)
+// the square root of m * 2^x, m above 0, the nearest: m shifted so
+// that the exponent is even and its whole root has bits + 2 bits, and
+// one bit more below them where the root is not whole, which the
+// rounding reads. x is of any size, as a norm's is, which is of the
+// square of a part (#587)
+let BigFloat_sqrt_of(m:lent BigInt, x:i128, bits:i64):BigFloat {
+    var s:i64 = 2 * bits + 4 - BigFloat_length(m)
     if s < 0 { s = 0 }
-    var e:i128 = x.exponent as i128 - s as i128
+    var e:i128 = x - s as i128
     if e % 2 != 0 {
         s += 1
         e -= 1
     }
-    let big = x.mantissa << s
+    let big = m << s
     var r = big.isqrt()
     var half:i128 = e / 2
     if r * r != big {
@@ -168,6 +167,14 @@ let BigFloat_sqrt(x:lent BigFloat, bits:i64):BigFloat {
         half -= 1
     }
     return BigFloat_make(r, half, bits, 0)
+}
+
+// the square root, the nearest
+let BigFloat_sqrt(x:lent BigFloat, bits:i64):BigFloat {
+    if x.special == 2 || x.mantissa.isNegative { return BigFloat_nan() }
+    if x.special == 1 { return BigFloat_inf(1) }
+    if x.mantissa.isZero { return BigFloat_zero() }
+    return BigFloat_sqrt_of(x.mantissa, x.exponent as i128, bits)
 }
 
 // e^x: x is k times ln 2 and a rest of no more than half of ln 2, so
@@ -914,6 +921,11 @@ let CBF_half(x:lent BigFloat):BigFloat {
     return (BigFloat){x.mantissa.copy(), x.exponent - 1, 0}
 }
 
+// each part of a finite c times 2^s: past an exponent an infinity, or 0
+let CBF_shifted(c:lent CBF, s:i128, bits:i64):CBF {
+    return (CBF){BigFloat_make(c.real.mantissa, c.real.exponent as i128 + s, bits, 0), BigFloat_make(c.imag.mantissa, c.imag.exponent as i128 + s, bits, 0)}
+}
+
 // ---------- by a CBR's function ----------
 
 // the function numbered f of a CBR, each part within 2^-w
@@ -975,11 +987,14 @@ let CBF_by(f:i64, z:lent CBF, bits:i64, real_zero:bool, imag_zero:bool):CBF {
 // ---------- abs, arg, sqrt and log ----------
 
 // |z| of a finite z, the nearest: the root of the norm, which is exact
-// to twice the bits and has a bit below for the rest
+// to twice the bits and has a bit below for the rest. The norm's
+// exponent is twice a part's and may be past an i64's, which no BigFloat
+// holds: the root is of the term itself (#587)
 let CBF_abs(z:lent CBF, bits:i64):BigFloat {
     let none = CBF_none()
     let n = CBF_total(CBF_times(z.real, z.real, false), CBF_times(z.imag, z.imag, false), none, none, 2 * bits + 8)
-    return BigFloat_sqrt(BigFloat_make(n.m, n.e, 1000000000000, 0), bits)
+    if n.m.isZero { return BigFloat_zero() }
+    return BigFloat_sqrt_of(n.m, n.e, bits)
 }
 
 let abs(z:lent CBF, precision:i64):BigFloat {
@@ -993,14 +1008,9 @@ let abs(z:lent CBF, precision:i64):BigFloat {
 let arg(z:lent CBF, precision:i64):BigFloat { atan2(z.imag, z.real, precision) }
 
 // the principal square root, whose real part is never negative:
-// sqrt((|z| + |x|) / 2), the larger part, and |y| over twice it; of a
-// real number its root, on the real axis or the imaginary one
-let CBF_sqrt(z:lent CBF, bits:i64):CBF {
-    if CBF_wild(z) { return CBF_wild_by(8, z, bits) }
-    if CBF_zero(z.imag) {
-        if z.real.mantissa.isNegative { return (CBF){BigFloat_zero(), sqrt(-z.real, bits)} }
-        return (CBF){sqrt(z.real, bits), BigFloat_zero()}
-    }
+// sqrt((|z| + |x|) / 2), the larger part, and |y| over twice it. z is
+// finite, its imaginary part is not 0, and it is near 1 in size
+let CBF_sqrt_of(z:lent CBF, bits:i64):CBF {
     let p:i64 = bits + 16
     let m = CBF_abs(z, p)
     let a:BigFloat = (BigFloat){z.real.mantissa.abs, z.real.exponent, 0}
@@ -1010,6 +1020,41 @@ let CBF_sqrt(z:lent CBF, bits:i64):CBF {
     let minus = z.imag.mantissa.isNegative
     if z.real.mantissa.isNegative { return (CBF){t.round(bits), CBF_signed(s.round(bits), minus)} }
     return (CBF){s.round(bits), CBF_signed(t.round(bits), minus)}
+}
+
+// of a real number its root, on the real axis or the imaginary one;
+// else of z over 4^k, whose greater part is near 1, times 2^k: so |z|
+// and the sum it is in are had where a part is 2^(2^62) and more in
+// size, or as far below 1, and their square past any exponent (#587).
+// Parts further apart than 2^(2^40) are no parts of one BigFloat's
+// arithmetic, and the root is of the greater alone: sqrt|x| and |y| over
+// twice it, or sqrt(|y| / 2) in both
+let CBF_sqrt(z:lent CBF, bits:i64):CBF {
+    if CBF_wild(z) { return CBF_wild_by(8, z, bits) }
+    if CBF_zero(z.imag) {
+        if z.real.mantissa.isNegative { return (CBF){BigFloat_zero(), sqrt(-z.real, bits)} }
+        return (CBF){sqrt(z.real, bits), BigFloat_zero()}
+    }
+    let minus = z.imag.mantissa.isNegative
+    var top:i128 = BigFloat_top(z.imag)
+    if !CBF_zero(z.real) {
+        let apart:i128 = BigFloat_top(z.real) - top
+        if apart > 1099511627776 {
+            let s = BigFloat_sqrt_of(z.real.mantissa.abs, z.real.exponent as i128, bits)
+            let wide = BigFloat_sqrt_of(z.real.mantissa.abs, z.real.exponent as i128, bits + 16)
+            let t = BigFloat_quotient(z.imag.mantissa.abs, wide.mantissa, z.imag.exponent as i128 - wide.exponent as i128 - 1, bits, 0)
+            if z.real.mantissa.isNegative { return (CBF){t.copy(), CBF_signed(s, minus)} }
+            return (CBF){s.copy(), CBF_signed(t, minus)}
+        }
+        if apart < 0 - 1099511627776 {
+            let s = BigFloat_sqrt_of(z.imag.mantissa.abs, z.imag.exponent as i128 - 1, bits)
+            return (CBF){s.copy(), CBF_signed(s, minus)}
+        }
+        if apart > 0 { top = BigFloat_top(z.real) }
+    }
+    let k:i128 = top / 2
+    let r = CBF_sqrt_of(CBF_shifted(z, 0 - 2 * k, 1000000000000), bits)
+    return CBF_shifted(r, k, bits)
 }
 
 // ln|z|, of the greater part and the lesser: half the log of the norm,
@@ -1215,11 +1260,6 @@ let CBF_mod4(m:lent BigInt, e:i64):i64 {
     r = (r << e) % 4
     if m.isNegative { r = (4 - r) % 4 }
     return r
-}
-
-// each part of c times 2^s
-let CBF_shifted(c:lent CBF, s:i128, bits:i64):CBF {
-    return (CBF){BigFloat_make(c.real.mantissa, c.real.exponent as i128 + s, bits, 0), BigFloat_make(c.imag.mantissa, c.imag.exponent as i128 + s, bits, 0)}
 }
 
 // z to the n, n whole and 65536 at the most, or 1 over it: the power

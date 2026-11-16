@@ -11287,3 +11287,31 @@ asked.
 The inverses keep the bound. Details are provisional P598.
 
 There are 1369 tests, and all pass with clang and with gcc 15.
+
+### 634. abs and sqrt of a CBF, of a part of any exponent
+
+**User**: "push", for #586, and then "fix abs and sqrt of a far CBF
+as #587". **Claude** pushed #586.
+
+The comparison of #586 with the module before it had been void at
+first: the copy of the compiler read the new module from the
+directory it was run in. Run where the old module is, it found one
+more fault of the old `pow`, an infinite power with wrong signs,
+which #586 has right; that was amended before the push.
+
+The fault of #587 is one line's. The norm of `z` was summed exactly,
+its exponent in full, and then put in a BigFloat for its root. The
+exponent is twice a part's, so of a part past `2^(2^62)` either way
+that BigFloat was an infinity or 0. `abs` gave it back, and `sqrt`
+went on with it and was wrong by the root of 2.
+
+`abs` takes the root of the norm as it is summed now. `sqrt` is of
+`z` over `4^k`, whose greater part is near 1, times `2^k`: a power
+of 2 changes no rounding, so every root that was right is the same
+to the bit. Parts further apart than `2^(2^40)` are not scaled
+together, and the root is of the greater alone. Details are
+provisional P599.
+
+`exp` of a BigFloat from `2^62` to `6.39e18` is left, not ordered.
+
+There are 1370 tests, and all pass with clang and with gcc 15.

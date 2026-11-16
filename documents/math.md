@@ -550,6 +550,11 @@ let main():int32 {
   `2^-67108864`, gives NaNs in both parts of the inverses: a rational
   of it is too long to make.
   - `abs` and `sqrt` take any.
+    - Of any exponent too (#587): the norm's is twice a part's, and
+      is not held where it is past an `i64`'s.
+      - With `top` of `2^9000000000000000000`, `abs(CBF(top, top))` is
+        the root of 2 times `top`, and `sqrt(CBF(top, 1))` has a real
+        part of `2^4500000000000000000`.
   - `log`, `arg` and `pow` take any too (#586).
     - `arg`, and the imaginary part of `log`, is a BigFloat's `atan2`;
       the real part is half the log of the norm, whose exponent may be
@@ -590,6 +595,8 @@ let main():int32 {
   quotients of a BigFloat's functions, which lose nothing.
   - `sqrt` and `log` are of the norm, exactly; `pow` is `exp` of `w`
     times `log`, with as many more bits as a part of it is small.
+    - `sqrt` is of `z` over `4^k`, whose greater part is near 1, times
+      `2^k`.
     - The whole quarter turns that `w` makes of the angle are taken
       out of it exactly, and the sine and the cosine are of what is
       left.
