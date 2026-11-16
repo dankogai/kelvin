@@ -117,6 +117,8 @@ and no part of the core.
     - Each part of `+ - * /` is the exact one's, rounded once to
       `BigFloat.precision` bits.
     - `x.i` is `CBF(0, x)`.
+    - math's functions take a `CBF` too (#582), `exp(z)`, `abs(z)`,
+      each part to `BigFloat.precision` significant bits.
 - **Its text** (#577) is the fewest digits that read back:
   `BigFloat("0.1")` prints `0.1`, and `BigFloat(1) / 3`
   `0.333333333333333333333333333333333333334`, 39 digits.

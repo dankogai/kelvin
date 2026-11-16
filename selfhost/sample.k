@@ -1565,6 +1565,7 @@ on a new line`
     println(sqrt(BigFloat(2)), " ", exp(BigFloat(1), 64), " ", BigFloat.pi(32), " ", BigFloat("0.7").sin(16), " ", exp(BigFloat(-1000)), " ", pow(BigFloat(2), BigFloat(10)), " ", log(BigFloat(0)))   // math's functions of a BigFloat, by the overlay math+BigFloat.k (#580)
     let cf_e = BigFloat("0x1p-100")
     println(CBF(1, 2) / CBF(3, 4), " ", (CBF(BigFloat(1) + cf_e, BigFloat(1)) * CBF(BigFloat(1) - cf_e, BigFloat(1))).hex, " ", CBF("(0.1-0.2.i)").dec, " ", CBF(1) / CBF(0), " ", norm(CBF(3, 4)), " ", BigFloat(2).i, " ", CBF(1, 1).typename)   // CBF, a complex number of two BigFloats, each part of a result the exact one's rounded once (#581)
+    println(exp(CBF(1, 2), 32), " ", sqrt(CBF(-9)), " ", abs(CBF(3, 4)), " ", CBF(1, 2).arg(16), " ", pow(CBF(-4), BigFloat("0.5")), " ", asin(CBF(2), 24), " ", exp(CBF(-1000000, 1), 16).hex, " ", log(CBF(0)))   // math's functions of a CBF, each part to its bits (#582)
     return 0
 }
 

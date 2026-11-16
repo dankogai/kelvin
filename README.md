@@ -544,3 +544,11 @@ So far the changes from C are these, by topic.
   its text is a `c64`'s, `(0.1-0.2.i)`, which `CBF(text)` reads back,
   with `.dec` and `.hex`; `CBF(z)` of a `c64` and of a `CBR`, and
   `CBR(z)` and `c64(z)` back (#581)
+- math's functions take a `CBF`: `abs` and `arg`, `sqrt`, `exp`, `log`,
+  `pow`, the trigonometric and hyperbolic functions and their
+  inverses, each a method too; each part of a result has
+  `BigFloat.precision` significant bits whatever its size and however
+  far below the other it is, or the precision written, `exp(z, 256)`;
+  a part that is 0 is exactly 0, `pow(CBF(-4), BigFloat("0.5"))` is
+  `(0.0+2.0.i)`; a part past `2^67108864` in size or below
+  `2^-67108864` gives NaNs (#582)

@@ -11131,3 +11131,32 @@ back. **Claude** checked 40000 pairs at seven precisions against a
 Details are provisional P593.
 
 There are 1364 tests, and all pass with clang and with gcc 15.
+
+### 629. math's functions of a CBF
+
+The last part of **User**'s `BigFloat`: math's functions of a `CBF`,
+as a `CBR` has them.
+
+`abs` and `arg` give a BigFloat, and `sqrt`, `exp`, `log`, `pow`, the
+trigonometric and hyperbolic functions and their inverses a `CBF`,
+each a method too. By **User**'s answer a precision is significant
+bits, and **Claude** took that of each part: of `exp(CBF(1,
+1e-300))` the imaginary part, `2.718...e-300`, is good to 128 bits. A
+part that is 0 by what the function is, is exactly 0, so
+`pow(CBF(-4), BigFloat("0.5"))` is `(0.0+2.0.i)`.
+
+A BigRat's function was the easiest way for the inverses alone.
+`exp`, the sines, the cosines and `tanh` are products and quotients
+of a BigFloat's functions; `sqrt` and `log` are of the norm, which is
+exact; `pow` is `exp` of `w` times `log`, so `pow(CBF(10),
+CBF(1000000000, 1))` is a number of `2^3321928094`, at once. **Claude**
+checked 7200 values against a `CBR`'s functions at 400 bits more.
+
+A part past `2^67108864` in size, or below `2^-67108864`, gives
+NaNs: a rational of it is too long to make. A BigFloat's own
+function refuses no such number, and
+`cos(BigFloat("0x1p-1000000000000"))` was found to be killed for want
+of memory; that was left, and reported. Details are provisional
+P594.
+
+There are 1365 tests, and all pass with clang and with gcc 15.

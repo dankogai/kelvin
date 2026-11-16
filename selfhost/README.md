@@ -810,7 +810,8 @@ kc reads what it is written in, and little more.
     - And of its overlay with math, modules/math+BigFloat.k (#580),
       which imports the overlay math+Rational.k.
     - And of `CBF` (#581), the overlay's complex number of two
-      BigFloats: kc builds it as it is.
+      BigFloats, and of math's functions of one (#582): kc builds
+      them as they are.
   - **A type's own text, `T.cstr()`**, as kelvinc's #53: `let
     T.cstr():cstr { `...` }` of a struct, a union or an enum with
     values, one template or one text.
