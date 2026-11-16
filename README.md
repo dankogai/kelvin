@@ -520,3 +520,7 @@ So far the changes from C are these, by topic.
   `f64`'s; `x.dec` has a sign and `x.hex` is C's `%a`,
   `+0x1.8p+0`, exact; `BigFloat(text)` reads a decimal, a fraction,
   a hex float, `inf` and `nan`, and text that is none is a NaN (#577)
+- the else arm of `c ? a : b` may begin with a type's attribute:
+  `c ? -f64.infinity : f64.infinity` and `c ? x : i64.max`, which
+  kelvinc and kc refused, the `:` and the type's word read as an
+  annotation of the first arm (#578)

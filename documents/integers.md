@@ -103,6 +103,11 @@ C's `(T)v` does not exist in Kelvin. There are two ways to convert:
   - In the middle of a ternary (`c ? a : b`) and in a `case` label, a
     bare name after `:` is the separator, so annotate with a typedef
     there by using parentheses or `as`.
+    - A type's word there is the separator too where a `(`, a `<` or
+      a `.` follows it, which makes the other arm's value: `c ? x :
+      u8(y)`, `c ? x : i64.max`, `c ? -f64.infinity : f64.infinity`
+      (#35, #116, #578).
+    - Else it annotates: `c ? 1:i8 : 2:i8`.
 - **`v as T`**, for any type, including pointers and C typedef names:
   `malloc(n) as i32^`, `p as any^`, `n as size_t`. It is C's
   conversion, which wraps: `300 as u8` is 44, the way to the low bits.

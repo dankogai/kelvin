@@ -1560,6 +1560,8 @@ on a new line`
     let bf_third = BigFloat(1) / 3
     println(bf_third.f64, " ", BigRat(bf_third.round(8)), " ", BigRat(bf_third.round(4, BigFloat.up)), " ", bf_third * 3 == BigFloat(1), " ", (BigFloat(1) / 0).f64, " ", bf_third.mantissa.bits.count - 1, " ", BigRat(BigFloat(1.5) * 3 - 1))   // BigFloat, rounded to 128 bits (#576)
     println(bf_third, " ", BigFloat("0.1"), " ", BigFloat(0.1), " ", bf_third.round(8), " ", bf_third.hex, " ", BigFloat(1.5).dec, " ", BigFloat(bf_third.string) == bf_third, " ", BigFloat("1.5x"))   // its text, the fewest digits that read back (#577)
+    let ta_no = argc > 99
+    println(ta_no ? -f64.infinity : f64.infinity, " ", ta_no ? 1 : i64.max, " ", ta_no ? 1:i8 : 2:i8, " ", ta_no ? 0.0 : f64.pi * 2.0)   // the else arm begins with a type's attribute (#578)
     return 0
 }
 

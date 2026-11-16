@@ -311,12 +311,14 @@ let number_word(t:int64):int64 {
 
 // whether the : at the cursor annotates a value with a type, 0.1:float32,
 // as kelvinc's x:T (#264): a type's word follows, and no ( or <, which
-// would make the value of the other arm of c ? a : b, or a case's body;
+// would make the value of the other arm of c ? a : b, or a case's body,
+// nor in those a ., which reads the type's attribute, f64.infinity (#578);
 // a struct's name or a C typedef's, p:point, n:size_t (#265), but where
 // the : is ?:'s or a case's
 let annotation_ahead():bool {
     if !at_word(":") || pos + 2 >= toks.count as int64 || toks[pos + 1].kind != T_ID { return false }
     if tok_is(pos + 2, "(") || tok_is(pos + 2, "<") { return false }
+    if !name_annotation && tok_is(pos + 2, ".") { return false }   // c ? x : f64.infinity, the type's attribute (#578)
     let t:int64 = pos + 1
     if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") {
         return true

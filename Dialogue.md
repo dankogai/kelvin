@@ -11037,3 +11037,24 @@ kc refuses a template appended to a String, which kelvinc reads;
 both were left, and reported. Details are provisional P589.
 
 There are 1360 tests, and all pass with clang and with gcc 15.
+
+### 625. A type's attribute in the else arm
+
+**User**:
+
+> fix c ? -f64.infinity : f64.infinity as #578
+
+It is the first of the faults **Claude** found while writing
+`BigFloat` and reported: kelvinc said "expected ':', found '.'", and
+kc refused it too. In the middle of `c ? a : b` a name after `:` is
+the separator, but a number type's word there was an annotation of
+the first arm, `-f64.infinity:f64`, unless a `(` or a `<` followed.
+
+It is a fault and no choice. A `.` after the type's word now says
+what a `(` does, that the word begins the other arm's value: so
+`c ? x : i64.max` and `c ? 0.0 : f64.pi * 2.0`. An annotation in an
+arm is one still, `c ? 1:i8 : 2:i8`. The order came while #577's
+battery ran, so the fix was made after #577 was pushed. Details are
+provisional P590.
+
+There are 1361 tests, and all pass with clang and with gcc 15.

@@ -5385,6 +5385,8 @@ static bool annotation_ahead(void) {
         return false; /* c ? x : u8(y), but not 7:i64 before a `(` line (#35) */
     if (!ident_annotation_ok && (is_base_word(n) || is_kw(n, "String")) && (is_p(peek_at(2), "<") || is_p(peek_at(2), "(")))
         return false; /* c ? x : Optional<i64>(y), c ? x : Bytes(s): the else arm makes a value (#116) */
+    if (!ident_annotation_ok && (is_base_word(n) || is_kw(n, "String")) && is_p(peek_at(2), "."))
+        return false; /* c ? x : f64.infinity, c ? x : i64.max: the else arm is the type's attribute (#578) */
     if (is_base_word(n) || is_qualifier(n) || kelvin_for_c_word(n) || is_kw(n, "struct") || is_kw(n, "union") ||
         is_kw(n, "enum") || is_kw(n, "String"))
         return true;
