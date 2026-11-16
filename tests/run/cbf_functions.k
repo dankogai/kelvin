@@ -106,9 +106,9 @@ let main():int32 {
     let inf = BigFloat(1) / 0
     println(exp(CBF(inf)), " ", exp(CBF(-inf)), " ", log(CBF(0)), " ", sqrt(CBF(inf)), " ", sqrt(CBF(-inf)), " ", tanh(CBF(inf)), " ", sin(CBF(inf)), " ", abs(CBF(inf, inf)))
     println(pow(CBF(0), CBF(2)), " ", pow(CBF(0), CBF(-1)), " ", pow(CBF(0), CBF(0)), " ", pow(CBF(inf), CBF(2)), " ", log(CBF(inf)), " ", asin(CBF(inf)), " ", arg(CBF(-inf)) == BigFloat.pi())
-    // a part past 2^67108864 in size, or below 2^-67108864, is past reckoning; abs and sqrt take any, and exp and its kin (#585)
+    // a part past 2^67108864 in size, or below 2^-67108864, is past reckoning for the inverses; abs and sqrt take any, and exp and its kin (#585), and log, arg and pow (#586)
     let past = BigFloat("0x1p-1000000000")
-    println(log(CBF(BigFloat(1), past)), " ", asin(CBF(BigFloat(1), past)), " ", pow(CBF(BigFloat(1), past), z), " ", sqrt(CBF(BigFloat(1), past)).hex, " ", abs(CBF(BigFloat("0x1p+1000000000"), BigFloat(1))).hex)
+    println(acos(CBF(BigFloat(1), past)), " ", asin(CBF(BigFloat(1), past)), " ", atan(CBF(BigFloat(1), past)), " ", sqrt(CBF(BigFloat(1), past)).hex, " ", abs(CBF(BigFloat("0x1p+1000000000"), BigFloat(1))).hex)
     // each of the eighteen is a CBR's function of 400 bits more, rounded: 60 values at three precisions
     let precisions = $[8, 53, 128]
     let spans = $[2, 12, 60]

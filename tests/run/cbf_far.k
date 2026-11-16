@@ -7,7 +7,8 @@
 // 0 a function is its first term; far out e^x is an infinity or 0, and
 // sinh and cosh infinities; the sine and the cosine of a number of
 // 2^67108864 and more are NaNs, and so is a part one is in, but where
-// its other factor is 0. log, pow, arg and the inverses are as they were
+// its other factor is 0. The inverses are as they were; log, arg and pow
+// take a part of any size too (#586, cbf_far_log.k)
 #import <math>
 #import <BigFloat>
 let main():int32 {
@@ -34,10 +35,10 @@ let main():int32 {
     println(exp(CBF(one, huge)), " ", exp(CBF(huge, huge)), " ", exp(CBF(-huge, huge)), " ", sin(CBF(huge, one)), " ", sin(CBF(huge, zero)), " ", cos(CBF(huge, one)))
     println(sinh(CBF(one, huge)), " ", sinh(CBF(zero, huge)), " ", cosh(CBF(zero, huge)), " ", cosh(CBF(one, huge)))
     println(tanh(CBF(one, huge)), " ", tanh(CBF(zero, huge)), " ", tanh(CBF(BigFloat(200), huge)), " ", tanh(CBF(-huge, huge)), " ", tan(CBF(huge, one)), " ", tan(CBF(huge, zero)), " ", tan(CBF(huge, -huge)))
-    // as they were: at the bound of old, and log, pow, arg and the inverses of a part past it
+    // as they were: at the bound of old, and the inverses of a part past it
     let edge = BigFloat("0x1p-67108866")
     println(exp(CBF(one, edge)).hex, " ", exp(CBF(one, edge * 4)).hex, " ", sin(CBF(edge, one)).real == (edge * cosh(one, 144)).round(128))
-    println(log(CBF(tiny, one)), " ", pow(CBF(tiny, one), CBF(2)), " ", asin(CBF(tiny, one)), " ", atanh(CBF(one, huge)), " ", arg(CBF(tiny, one)), " ", abs(CBF(tiny, tiny)).hex, " ", sqrt(CBF(huge, zero)).hex)
+    println(acos(CBF(tiny, one)), " ", atan(CBF(huge, one)), " ", asin(CBF(tiny, one)), " ", atanh(CBF(one, huge)), " ", acosh(CBF(tiny, tiny)).real, " ", abs(CBF(tiny, tiny)).hex, " ", sqrt(CBF(huge, zero)).hex)
     return 0
 }
 // out: (+0x1.5bf0a8b1457695355fb8ac404e7a79e4p+1+0x1.5bf0a8b1457695355fb8ac404e7a79e4p-999999999999.i) true true (+0x1p+0+0x1p-1000000000000.i)

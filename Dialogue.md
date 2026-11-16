@@ -11244,3 +11244,46 @@ change; `log`, `pow`, `arg` and the inverses keep the bound. Details
 are provisional P597.
 
 There are 1368 tests, and all pass with clang and with gcc 15.
+
+### 633. log, arg and pow of a CBF, of a part of any size
+
+**User**: "push", for #585, and then "relax CBF_past for log and pow
+as #586". **Claude** pushed #585. Of CI's nine jobs eight passed and
+one was cancelled: GitHub had no macOS runner for it. Run again, it
+passed.
+
+`log` wanted little. Its angle is a BigFloat's `atan2`, which takes
+any two numbers since #583, and `arg` is that angle, so `arg` is
+relaxed with it: Claude's choice. Its real part is half the log of
+the norm, and the norm's exponent is twice a part's: it is had in
+full now, so a part of `2^9000000000000000000` has its log.
+
+`pow` wanted more. It is `e^(w log z)`, and with the angle of `z` as
+one number, `(tiny + i)^3` would want a quarter turn to
+`1000000000000` bits for its real part, `-3 tiny`. So the angle is
+kept as quarter turns and what is left of them. The turns a whole
+`w` makes are taken out exactly, and the sine and the cosine are of
+what is left. Where nothing is left a part is 0 exactly: that is the
+rule for a `z` on an axis that was, and it holds on a diagonal too.
+
+A whole power is the power itself where the parts of `z` are level,
+of `z` over a power of 2. A `w` near 0 makes 1 and `w log z`. A `w`
+far out makes an infinity or 0, or NaNs where the angle is past
+reckoning, which is what would take 1048576 bits more than are
+asked.
+
+**Claude** found four things on the way.
+
+- `pow(CBF(1, 1), CBF(131072))` did not end: its sine is 0 exactly,
+  and bits were added without end. The new rule settles it.
+- An infinite power had wrong signs where its angle is `2^64` and
+  more: the angle's bits were cut to 64 wherever the real part was
+  the larger. The new rule settles this too.
+- `abs` and `sqrt` of a CBF with a part past `2^(2^62)` are wrong,
+  the norm's exponent being past an `i64`. Left, not ordered.
+- `exp` of a BigFloat from `2^62` to `6.39e18` is an infinity, where
+  the result has an exponent that fits. Left, not ordered.
+
+The inverses keep the bound. Details are provisional P598.
+
+There are 1369 tests, and all pass with clang and with gcc 15.

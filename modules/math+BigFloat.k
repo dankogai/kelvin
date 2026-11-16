@@ -192,15 +192,15 @@ let BigFloat_exp(x:lent BigFloat, bits:i64):BigFloat {
     return BigFloat_make(m.mantissa, m.exponent as i128 + k.i64 as i128, bits, 0)
 }
 
-// ln x: x is s * 2^t, s from 1 up to 2, so ln x is ln s and t times
-// ln 2; near 1 the two all but cancel, and more bits are taken
-let BigFloat_log(x:lent BigFloat, bits:i64):BigFloat {
-    if x.special == 0 && x.mantissa.isNegative { return BigFloat_nan() }
-    if x.special != 0 || x.mantissa.isZero { return BigFloat_by(2, x, x, bits, true) }
-    let n = BigFloat_length(x.mantissa)
-    let t:i128 = x.exponent as i128 + n as i128 - 1
+// ln of m * 2^e, m above 0 and odd: it is s * 2^t, s from 1 up to 2,
+// so its log is ln s and t times ln 2; near 1 the two all but cancel, and
+// more bits are taken. e is of any size, as a norm's is, which is of the
+// square of a part (#586)
+let BigFloat_log_of(m:lent BigInt, e:i128, bits:i64):BigFloat {
+    let n = BigFloat_length(m)
+    let t:i128 = e + n as i128 - 1
     if n == 1 && t == 0 { return BigFloat_zero() }
-    let s:BigRat = (BigRat){x.mantissa.copy(), BigInt(1) << (n - 1)}
+    let s:BigRat = (BigRat){m.copy(), BigInt(1) << (n - 1)}
     var w:i64 = bits + 32
     var again:i64 = 0
     var r = BigFloat_zero()
@@ -212,6 +212,13 @@ let BigFloat_log(x:lent BigFloat, bits:i64):BigFloat {
         w = again
     }
     return r
+}
+
+// ln x
+let BigFloat_log(x:lent BigFloat, bits:i64):BigFloat {
+    if x.special == 0 && x.mantissa.isNegative { return BigFloat_nan() }
+    if x.special != 0 || x.mantissa.isZero { return BigFloat_by(2, x, x, bits, true) }
+    return BigFloat_log_of(x.mantissa, x.exponent as i128, bits)
 }
 
 // x to the y: e^(y ln x) of an x above 0; of a negative x and a whole
@@ -842,9 +849,9 @@ extend BigFloat {
 let CBF_nan():CBF { (CBF){BigFloat_nan(), BigFloat_nan()} }
 
 // whether a part is past reckoning: 2^67108864 and more in size, or
-// below 2^-67108864, where a rational of it is too long to make. exp,
-// the sines, the cosines and the tangents make none, and ask nothing of
-// it (#585)
+// below 2^-67108864, where a rational of it is too long to make, as the
+// inverses do. exp, the sines, the cosines and the tangents make none,
+// and ask nothing of it (#585), nor do log, arg and pow (#586)
 let CBF_past_part(x:lent BigFloat):bool {
     if x.special != 0 || x.mantissa.isZero { return false }
     let top:i128 = BigFloat_top(x)
@@ -981,11 +988,9 @@ let abs(z:lent CBF, precision:i64):BigFloat {
     return CBF_abs(z, bits)
 }
 
-// the angle from the positive real axis, from -pi to pi
-let arg(z:lent CBF, precision:i64):BigFloat {
-    if CBF_past(z) { return BigFloat_nan() }
-    return atan2(z.imag, z.real, precision)
-}
+// the angle from the positive real axis, from -pi to pi: a BigFloat's
+// atan2, of parts of any size
+let arg(z:lent CBF, precision:i64):BigFloat { atan2(z.imag, z.real, precision) }
 
 // the principal square root, whose real part is never negative:
 // sqrt((|z| + |x|) / 2), the larger part, and |y| over twice it; of a
@@ -1018,13 +1023,15 @@ let CBF_log_size(big:lent BigFloat, small:lent BigFloat, bits:i64):BigFloat {
     let none = CBF_none()
     let keep:i64 = bits + 2 * (BigFloat_length(big.mantissa) + BigFloat_length(small.mantissa)) + 32
     let n = CBF_total(CBF_times(big, big, false), CBF_times(small, small, false), none, none, keep)
-    return CBF_half(BigFloat_log(BigFloat_make(n.m, n.e, 1000000000000, 0), bits))
+    let odd = BigFloat_make(n.m, 0, 1000000000000, 0)      // the norm's exponent may be past an i64
+    return CBF_half(BigFloat_log_of(odd.mantissa, n.e + odd.exponent as i128, bits))
 }
 
-// the principal value, ln|z| + i arg z
+// the principal value, ln|z| + i arg z, of a z of any size (#586): the
+// angle is a BigFloat's atan2, which takes any two numbers (#583), and
+// the norm is had with an exponent of any size
 let CBF_log(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(10, z, bits) }
-    if CBF_past(z) { return CBF_nan() }
     if CBF_zero(z.real) && CBF_zero(z.imag) { return (CBF){BigFloat_inf(0 - 1), BigFloat_zero()} }
     let im = atan2(z.imag, z.real, bits)
     if CBF_zero(z.imag) || (!CBF_zero(z.real) && BigFloat_top(z.real) >= BigFloat_top(z.imag)) {
@@ -1172,99 +1179,255 @@ let CBF_atanh(z:lent CBF, bits:i64):CBF {
 
 // ---------- pow ----------
 
-// how far below 1 a sine or a cosine is, in bits: 0 of one that is not
-let CBF_under(x:lent BigFloat):i64 {
-    if x.special != 0 || x.mantissa.isZero { return 0 }
-    let t:i128 = BigFloat_top(x)
-    if t < 0 { return (0 - t) as i64 }
-    return 0
+// z to the w is e^(w log z), and w log z is made of the parts of w
+// times ln|z| and the angle of z, which is kept as k quarter turns and
+// what is left of them, rho, an eighth of a turn at the most: so of a z
+// beside an axis, (tiny + i), what is left is known to its own bits, not
+// to those of a quarter turn (#586). The turns that w's real part makes of
+// the k are whole where it is whole, or a whole and a half with k of 2,
+// and are then taken out of the angle exactly, j of them; on a diagonal,
+// rho being an eighth of a turn, those of an even whole w are too. What is
+// left of the angle, phi, is w's real part times rho and its imaginary
+// part times ln|z|: where it is nothing a part of the power is 0 exactly
+
+// a number that stands for each part of z, as beside a 0 (#583)
+let CBF_stand(z:lent CBF):CBF { (CBF){BigFloat_stand(z.real), BigFloat_stand(z.imag)} }
+
+// the power of 2 above a term, and of none one far below any
+let CBF_top(t:lent CBF_term):i128 {
+    if t.m.isZero { return 0 - ((1 as i128) << 100) }
+    return t.e + BigFloat_length(t.m) as i128
 }
 
-// the bits of x above its point, 0 at the least
-let CBF_over(x:lent BigFloat):i128 {
-    if x.special != 0 || x.mantissa.isZero { return 0 }
-    let t:i128 = BigFloat_top(x)
-    return t > 0 ? t : 0
+// x times hp times k, k from -2 to 2
+let CBF_turns(x:lent BigFloat, hp:lent BigFloat, k:i64):CBF_term {
+    if k == 0 { return CBF_none() }
+    let t = CBF_times(x, hp, k < 0)
+    if k == 2 || k == 0 - 2 { return (CBF_term){t.m.copy(), t.e + 1} }
+    return (CBF_term){t.m.copy(), t.e}
 }
 
-// e^(w log z): w log z to as many bits as leave bits + 32 after its
-// point, and to as many more as a sine or a cosine of its imaginary part
-// is small, so that each part's bits are good. Its real part past an
-// exponent is an infinity or 0, exp's; its imaginary part past 2^1048576
-// is past reckoning. A part that is 0 exactly is said so
-let CBF_power(z:lent CBF, w:lent CBF, bits:i64, real_zero:bool, imag_zero:bool):CBF {
-    let rough = CBF_product(w, CBF_log(z, 64), 64)
-    var size:i128 = CBF_over(rough.imag)
-    if size > 1048576 { return CBF_nan() }
-    let above:i128 = CBF_over(rough.real)
-    if above > size { size = above > 64 ? 64 : above }
-    var extra:i64 = 0
-    while true {
-        let q:i64 = bits + 40 + extra + size as i64
-        let t = CBF_product(w, CBF_log(z, q), q)
-        let c = cos(t.imag, bits + 16)
-        let s = sin(t.imag, bits + 16)
-        var need:i64 = 0
-        if !real_zero { need = CBF_under(c) }
-        if !imag_zero && CBF_under(s) > need { need = CBF_under(s) }
-        if need <= extra + 22 || extra > 1048576 {
-            let e = exp(t.real, bits + 16)
-            var re = BigFloat_zero()
-            var im = BigFloat_zero()
-            if !real_zero { re = CBF_mul(e, c, bits) }
-            if !imag_zero { im = CBF_mul(e, s, bits) }
-            return (CBF){re.copy(), im.copy()}
+// m * 2^e, a whole number, e being 0 or more: what it is over 4s, 0 to 3
+let CBF_mod4(m:lent BigInt, e:i64):i64 {
+    if m.isZero || e >= 2 { return 0 }
+    let a = m.abs
+    var r:i64 = (a - ((a >> 2) << 2)).i64
+    r = (r << e) % 4
+    if m.isNegative { r = (4 - r) % 4 }
+    return r
+}
+
+// each part of c times 2^s
+let CBF_shifted(c:lent CBF, s:i128, bits:i64):CBF {
+    return (CBF){BigFloat_make(c.real.mantissa, c.real.exponent as i128 + s, bits, 0), BigFloat_make(c.imag.mantissa, c.imag.exponent as i128 + s, bits, 0)}
+}
+
+// z to the n, n whole and 65536 at the most, or 1 over it: the power
+// itself, rounded, of z over 2^k, whose parts are whole numbers, times
+// 2^(k n). The parts of z are no further apart than 2^67108864, or one
+// is 0
+let CBF_whole_power(z:lent CBF, n:i64, minus:bool, bits:i64):CBF {
+    var k:i64 = z.real.exponent
+    if z.real.mantissa.isZero || (!z.imag.mantissa.isZero && z.imag.exponent < k) { k = z.imag.exponent }
+    var re = BigRat(0)
+    var im = BigRat(0)
+    if !z.real.mantissa.isZero { re = BigRat(z.real.mantissa << (z.real.exponent - k)) }
+    if !z.imag.mantissa.isZero { im = BigRat(z.imag.mantissa << (z.imag.exponent - k)) }
+    let up = CBR_power((CBR){re.copy(), im.copy()}, n)
+    if minus { return CBF_shifted(CBF(1 / up, bits), 0 - k as i128 * n as i128, bits) }
+    return CBF_shifted(CBF(up, bits), k as i128 * n as i128, bits)
+}
+
+// whether the parts of z are no further apart than 2^67108864, or one
+// is 0: a whole power of it is then made exactly
+let CBF_level(z:lent CBF):bool {
+    if z.real.mantissa.isZero || z.imag.mantissa.isZero { return true }
+    let apart:i128 = z.real.exponent as i128 - z.imag.exponent as i128
+    return apart <= 67108864 && apart >= 0 - 67108864
+}
+
+// e^(w log z) of a finite z and w, neither 0. Each of ln|z|, rho and
+// half of pi is had to q bits, so a sum of their products is within
+// 2^(top + 3 - q), top being the greatest product's; e^x wants its x
+// within 2^-(bits + 19), and a sine or a cosine what is left of the angle
+// within that of its own size: q is raised until they are, and what would
+// take 1048576 bits more than are asked is past reckoning, a NaN. An x
+// that is past any exponent whatever its error makes an infinity or 0, and
+// 0 times a sine not known is 0
+let CBF_power(z:lent CBF, w:lent CBF, bits:i64):CBF {
+    // the angle of z: k quarter turns and atan2(num, den), den above 0 and num no more than it in size
+    let ax:BigFloat = (BigFloat){z.real.mantissa.abs, z.real.exponent, 0}
+    let ay:BigFloat = (BigFloat){z.imag.mantissa.abs, z.imag.exponent, 0}
+    var k:i64 = 0
+    var num = z.imag.copy()
+    var den = z.real.copy()
+    if ax >= ay {
+        if z.real.mantissa.isNegative {
+            k = z.imag.mantissa.isNegative ? 0 - 2 : 2
+            num = -z.imag
+            den = -z.real
         }
-        extra = need
+    } else if z.imag.mantissa.isNegative {
+        k = 0 - 1
+        num = z.real.copy()
+        den = -z.imag
+    } else {
+        k = 1
+        num = -z.real
+        den = z.imag.copy()
     }
-    return CBF_nan()
+    let unit = num.mantissa.isZero && CBF_is_one(den)       // |z| is 1, and its log 0
+    let diagonal = num.exponent == den.exponent && num.mantissa.abs == den.mantissa
+    // j, the whole quarter turns of w's real part times the angle
+    var j:i64 = 0
+    var turned = true                    // those of the k are in j
+    var skew = false                     // and those of rho, an eighth of a turn
+    let ae:i64 = w.real.exponent
+    if w.real.mantissa.isZero || (k == 0 && !(diagonal && ae >= 1)) {
+        j = 0
+    } else if diagonal && ae >= 1 {
+        let eighths:i64 = 2 * k + (num.mantissa.isNegative ? 0 - 1 : 1)
+        j = ((CBF_mod4(w.real.mantissa, ae - 1) * eighths) % 4 + 4) % 4
+        skew = true
+    } else if ae >= 0 {
+        j = ((CBF_mod4(w.real.mantissa, ae) * k) % 4 + 4) % 4
+    } else if ae == 0 - 1 && (k == 2 || k == 0 - 2) {
+        j = ((CBF_mod4(w.real.mantissa, 0) * (k / 2)) % 4 + 4) % 4
+    } else {
+        turned = false
+    }
+    let none = CBF_none()
+    let far:i128 = 0 - ((1 as i128) << 100)
+    let limit:i128 = bits as i128 + 1048576 + 64
+    var q:i64 = bits + 40
+    var e = BigFloat(1)                  // e^(the real part of w log z)
+    var c = BigFloat(1)                  // the cosine and the sine of phi
+    var s = BigFloat_zero()
+    var still = true                     // phi is nothing: the sine is 0 exactly
+    var lost_e = false                   // past reckoning
+    var lost_c = false
+    var lost_s = false
+    while true {
+        var l = BigFloat_zero()
+        if !unit { l = CBF_log_size(den, num, q) }
+        var rho = BigFloat_zero()
+        if !num.mantissa.isZero { rho = atan2(num, den, q) }
+        let hp = BigFloat_pi_times(0 - 1, q, false)
+        var need:i128 = 0
+        // the real part: w.real ln|z| - w.imag (k hp + rho)
+        let r1 = CBF_times(w.real, l, false)
+        let r2 = CBF_turns(w.imag, hp, 0 - k)
+        let r3 = CBF_times(w.imag, rho, true)
+        var tre:i128 = CBF_top(r1)
+        if CBF_top(r2) > tre { tre = CBF_top(r2) }
+        if CBF_top(r3) > tre { tre = CBF_top(r3) }
+        if tre != far && !lost_e {
+            let tr = CBF_total(r1, r2, r3, none, q + 8)
+            let top:i128 = CBF_top(tr)
+            if !tr.m.isZero && top > 66 && top > tre + 12 - q as i128 {
+                if tr.m.isNegative { return (CBF){BigFloat_zero(), BigFloat_zero()} }
+                e = BigFloat_inf(1)
+            } else {
+                var want:i128 = bits as i128 + 22 + tre
+                if tr.m.isZero && want <= q as i128 { want = 2 * q as i128 + 8 }
+                if want > limit {
+                    lost_e = true
+                } else if want > q as i128 {
+                    need = want
+                } else {
+                    e = exp(BigFloat_make(tr.m, tr.e, q, 0), bits + 16)
+                    if CBF_zero(e) { return (CBF){BigFloat_zero(), BigFloat_zero()} }
+                }
+            }
+        }
+        // what is left of the angle: w.real rho + w.imag ln|z|, and w.real k hp where its turns are not whole
+        var p1 = CBF_none()
+        if !skew { p1 = CBF_times(w.real, rho, false) }
+        let p2 = CBF_times(w.imag, l, false)
+        var p3 = CBF_none()
+        if !turned { p3 = CBF_turns(w.real, hp, k) }
+        var tphi:i128 = CBF_top(p1)
+        if CBF_top(p2) > tphi { tphi = CBF_top(p2) }
+        if CBF_top(p3) > tphi { tphi = CBF_top(p3) }
+        if tphi != far && !(lost_c && lost_s) {
+            still = false
+            let base:i128 = bits as i128 + 22 + tphi
+            if base > limit {
+                lost_c = true
+                lost_s = true
+            } else if base > q as i128 {
+                if base > need { need = base }
+            } else {
+                let ph = CBF_total(p1, p2, p3, none, q + 8)
+                let phi = BigFloat_make(ph.m, ph.e, q, 0)
+                var want_c:i128 = 0
+                var want_s:i128 = 0
+                if ph.m.isZero {
+                    want_s = 2 * q as i128 + 8      // the products cancel to the last bit had
+                    c = BigFloat(1)
+                } else if phi.mantissa.isZero {
+                    c = BigFloat(1)                 // below the least number: its sine is 0
+                    s = BigFloat_zero()
+                } else {
+                    c = cos(phi, bits + 16)
+                    s = sin(phi, bits + 16)
+                    want_c = c.mantissa.isZero ? 2 * q as i128 + 8 : base - BigFloat_top(c)
+                    want_s = s.mantissa.isZero ? 2 * q as i128 + 8 : base - BigFloat_top(s)
+                }
+                if want_c > limit { lost_c = true }
+                if want_s > limit { lost_s = true }
+                if !lost_c && want_c > need { need = want_c }
+                if !lost_s && want_s > need { need = want_s }
+            }
+        }
+        if need <= q as i128 { break }
+        q = (need + 8) as i64
+    }
+    if lost_e { e = BigFloat_nan() }
+    if lost_c { c = BigFloat_nan() }
+    if lost_s { s = BigFloat_nan() }
+    // the j quarter turns: (c, s), (-s, c), (-c, -s) and (s, -c)
+    var re = BigFloat_zero()
+    var im = BigFloat_zero()
+    if j == 0 || j == 2 {
+        re = CBF_turned(e, c, bits)
+        if !still { im = CBF_turned(e, s, bits) }
+    } else {
+        if !still { re = CBF_turned(e, s, bits) }
+        im = CBF_turned(e, c, bits)
+    }
+    if j == 1 || j == 2 { re = -re }
+    if j == 2 || j == 3 { im = -im }
+    return (CBF){re.copy(), im.copy()}
 }
 
 // z to the w: of a whole real w, 65536 at the most, the power itself,
-// exactly, rounded; of a real z above 0 and a real w a BigFloat's; else
+// exactly, rounded, where the parts of z are no further apart than
+// 2^67108864; of a real z above 0 and a real w a BigFloat's; else
 // e^(w log z). A part of it is 0 exactly where the angle, w's real part
 // times arg z and its imaginary part times ln|z|, is a whole number of
 // quarter turns: of a negative z, half a turn, and a real part of w
 // that is whole or a whole and a half; of an imaginary z, a quarter, and
-// one that is whole; with a real w, or a z of size 1, whose log is 0. 1
-// to any w is 1; 0 to a w and a z to 0 are a CBR's
+// one that is whole; of a z on a diagonal, an eighth, and one that is
+// whole and even; with a real w, or a z of size 1, whose log is 0. 1 to
+// any w is 1; 0 to a w and a z to 0 are a CBR's, which reads no more of
+// the other than the signs of its parts
 let CBF_pow(z:lent CBF, w:lent CBF, bits:i64):CBF {
     if CBF_wild(z) || CBF_wild(w) { return CBF_nan() }
     if (CBF_zero(z.real) && CBF_zero(z.imag)) || (CBF_zero(w.real) && CBF_zero(w.imag)) {
-        return CBF(pow(CBR(z), CBR(w), 8), bits)
+        return CBF(pow(CBR(CBF_stand(z)), CBR(CBF_stand(w)), 8), bits)
     }
-    if CBF_past(z) || CBF_past(w) { return CBF_nan() }
     let real = CBF_zero(w.imag)
     let whole = w.real.mantissa.isZero || w.real.exponent >= 0      // of w's real part
-    if real && whole && BigFloat_top(w.real) <= 17 {
+    if real && whole && BigFloat_top(w.real) <= 17 && CBF_level(z) {
         let n:i64 = (w.real.mantissa.abs << w.real.exponent).i64
-        if n <= 65536 {
-            let up = CBR_power(CBR(z), n)
-            if w.real.mantissa.isNegative { return CBF(1 / up, bits) }
-            return CBF(up, bits)
-        }
+        if n <= 65536 { return CBF_whole_power(z, n, w.real.mantissa.isNegative, bits) }
     }
     if CBF_zero(z.imag) && !z.real.mantissa.isNegative {
         if CBF_is_one(z.real) { return (CBF){BigFloat(1), BigFloat_zero()} }
         if real { return (CBF){pow(z.real, w.real, bits), BigFloat_zero()} }
     }
-    var real_zero = false
-    var imag_zero = false
-    if CBF_zero(z.imag) && z.real.mantissa.isNegative && (real || CBF_is_one(z.real)) {
-        if whole {
-            imag_zero = true
-        } else if w.real.exponent == 0 - 1 {
-            real_zero = true
-        }
-    }
-    if CBF_zero(z.real) && whole && (real || CBF_is_one(z.imag)) {
-        if !w.real.mantissa.isZero && w.real.exponent == 0 {
-            real_zero = true
-        } else {
-            imag_zero = true
-        }
-    }
-    return CBF_power(z, w, bits, real_zero, imag_zero)
+    return CBF_power(z, w, bits)
 }
 
 // ---------- the functions, to a precision ----------

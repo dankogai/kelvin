@@ -537,13 +537,41 @@ let main():int32 {
     of `2^3321928094`.
   - 0 to a `w` and a `z` to 0 are a `CBR`'s: `pow(CBF(0), CBF(0))` is
     1.
+    - No more is read of the other than the signs of its parts.
+  - A part is 0 exactly where the angle is a whole number of quarter
+    turns: of a `z` on an axis, and of one on a diagonal with an even
+    whole `w`, however large.
+    - `pow(CBF(1, 1), CBF(131072))` is `2^65536`, and its imaginary
+      part 0.
 - **An infinity and a NaN** in a part give what a `CBR`'s function
   gives: `exp(CBF(inf))` is `(inf+0.0.i)`, `log(CBF(0))`
   `(-inf+0.0.i)`, and `sin` of an infinity NaNs.
 - **A part past reckoning**, `2^67108864` and more in size or below
-  `2^-67108864`, gives NaNs in both parts of `log`, `pow` and the
-  inverses, and a NaN of `arg`: a rational of it is too long to make.
+  `2^-67108864`, gives NaNs in both parts of the inverses: a rational
+  of it is too long to make.
   - `abs` and `sqrt` take any.
+  - `log`, `arg` and `pow` take any too (#586).
+    - `arg`, and the imaginary part of `log`, is a BigFloat's `atan2`;
+      the real part is half the log of the norm, whose exponent may be
+      past an `i64`'s.
+      - With `tiny` of `2^-1000000000000`, `log(CBF(1, tiny))` is
+        `tiny^2 / 2 + tiny i`.
+    - `pow` keeps the angle of `z` as quarter turns and what is left
+      of them, so beside an axis each part's bits are good:
+      `pow(CBF(tiny, 1), CBF(3))` is `-3 tiny - i`.
+    - A whole power is the power itself where the parts of `z` are no
+      further apart than `2^67108864`: with `huge` of
+      `2^1000000000000`, `pow(CBF(huge, huge), CBF(2))` is
+      `2 huge^2 i`.
+    - A `w` near 0 makes 1 and `w log z`: `pow(CBF(1, 1), CBF(tiny))`
+      is `1 + tiny pi / 4 i`.
+    - A `w` far out makes an infinity or 0, and NaNs where the angle
+      is past reckoning: `pow(CBF(1, 2), CBF(-huge))` is
+      `(0.0+0.0.i)`, and `pow(CBF(1, 2), CBF(huge))` `(nan+nan.i)`.
+      - But `pow(CBF(1, tiny), CBF(huge))` is `e^i`, the two being 1
+        over each other.
+      - Past reckoning is what would take 1048576 bits more than are
+        asked.
   - `exp`, the sines, the cosines and the tangents take any too
     (#585): they are made of a BigFloat's functions, which do (#583),
     and of no rational.
@@ -562,6 +590,9 @@ let main():int32 {
   quotients of a BigFloat's functions, which lose nothing.
   - `sqrt` and `log` are of the norm, exactly; `pow` is `exp` of `w`
     times `log`, with as many more bits as a part of it is small.
+    - The whole quarter turns that `w` makes of the angle are taken
+      out of it exactly, and the sine and the cosine are of what is
+      left.
   - The inverses are a `CBR`'s, with as many bits after the point as
     make each part's bits good.
 

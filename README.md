@@ -576,3 +576,14 @@ So far the changes from C are these, by topic.
   angle of `2^67108864` and more gives NaNs, but where its other
   factor is 0; `log`, `pow`, `arg` and the inverses are as they were
   (#585)
+- `log`, `arg` and `pow` of a `CBF` take a part of any size too:
+  `log(CBF(1, tiny))` is `tiny^2 / 2 + tiny i`, and
+  `pow(CBF(tiny, 1), CBF(3))` `-3 tiny - i`; the norm's exponent may
+  be past an `i64`'s; `pow` keeps the angle of `z` as quarter turns
+  and what is left of them, so that each part's bits are good beside
+  an axis, and a part is 0 exactly on a diagonal too,
+  `pow(CBF(1, 1), CBF(131072))` is `2^65536`, where it did not end; a
+  `w` far out makes an infinity or 0, or NaNs where the angle is past
+  reckoning, and an infinite power has its signs of an angle of
+  `2^64` and more, which were wrong; the inverses are as they were
+  (#586)
