@@ -805,6 +805,8 @@ kc reads what it is written in, and little more.
 - **Programs that import Rational** (#542): kc builds what
   `#import <Rational>` needs, and the module's programs print what
   kelvinc's builds print.
+  - So of `<BigFloat>` (#576), modules/BigFloat.k, which imports
+    Rational: kc builds it as it is, and sample.k has a line of it.
   - **A type's own text, `T.cstr()`**, as kelvinc's #53: `let
     T.cstr():cstr { `...` }` of a struct, a union or an enum with
     values, one template or one text.

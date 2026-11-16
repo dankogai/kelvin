@@ -1,0 +1,335 @@
+// modules/BigFloat.k - a floating-point number of any precision (#575): a
+// mantissa, a BigInt, times a power of 2,
+//
+//     #import <BigFloat>
+//     let x = BigFloat(1) / 3                    // a third, to 128 bits
+//     println(x.f64, " ", (x * 3).f64, " ", BigRat(x.round(8)))   // 0.33333333333333331 1.0 (171n/512n)
+//
+// It is a float of BigFloat.precision bits, 128 where a program sets no
+// other: every result, of + - * / and of the making of one, is rounded to
+// that many significant bits, the bits of the mantissa wherever the point
+// is, to the nearest and of two as near to the even one, as an f64's are
+// to its 53. So it never grows, as a BigRat does, and is seldom exact.
+//
+// x.round(precision) is x at another count of bits, and
+// x.round(precision, rule) by one of six rules: BigFloat.nearestEven,
+// which is the one where none is written, BigFloat.nearestAway,
+// BigFloat.up, BigFloat.down, BigFloat.towardZero and
+// BigFloat.awayFromZero.
+//
+// As an f64 it has infinities and a NaN, which equals nothing, and never
+// divides by zero; it has one 0, with no sign, as a rational. BigRat(x) is
+// its value exactly, and x.f64 the nearest f64.
+#import <Rational>
+
+// mantissa * 2^exponent, the mantissa odd, or 0 with an exponent of 0, so
+// that a value has one form; special is 1 of an infinity, whose mantissa
+// is 1 or -1 for its sign, 2 of a NaN, and 0 of every other
+struct BigFloat {
+    mantissa: BigInt
+    exponent: i64
+    special: i64
+}
+
+// how a number is rounded to fewer bits: one of BigFloat's six
+struct RoundingRule {
+    rule: i64
+}
+
+extend BigFloat {
+    // the significant bits of every result; a program may set it, and
+    // one below 1 is 1
+    static var precision:i64 = 128
+
+    // to the nearest, and of two as near: to the one whose last bit is
+    // 0, IEEE 754's and the one where none is written; or to the one
+    // away from 0
+    static let nearestEven:RoundingRule = {0}
+    static let nearestAway:RoundingRule = {1}
+    // toward the greater, toward the less, toward 0 and away from it
+    static let up:RoundingRule = {2}
+    static let down:RoundingRule = {3}
+    static let towardZero:RoundingRule = {4}
+    static let awayFromZero:RoundingRule = {5}
+}
+
+// ---------- making one ----------
+
+let BigFloat_nan():BigFloat { (BigFloat){BigInt(0), 0, 2} }
+let BigFloat_inf(sign:i64):BigFloat { (BigFloat){BigInt(sign < 0 ? -1 : 1), 0, 1} }
+let BigFloat_zero():BigFloat { (BigFloat){BigInt(0), 0, 0} }
+
+// the precision of a result: BigFloat.precision, 1 at the least
+let BigFloat_bits():i64 { BigFloat.precision < 1 ? 1 : BigFloat.precision }
+
+// the bits of |x|: 0 of 0
+let BigFloat_length(x:lent BigInt):i64 { x.abs.bits.count as i64 - 1 }
+
+// m * 2^e rounded to precision significant bits by a rule, its mantissa
+// made odd: every finite BigFloat is made here. A precision below 1 is
+// taken as it is, for x.f64 of a number below an f64's: the bits above
+// 2^(e + length - precision) are kept, which may be none. An exponent
+// past an i64 is an infinity, and one below it 0
+let BigFloat_make(m:lent BigInt, e:i128, precision:i64, rule:i64):BigFloat {
+    if m.isZero { return BigFloat_zero() }
+    let negative = m.isNegative
+    var a = m.abs
+    var x:i128 = e
+    let n = BigFloat_length(a)
+    if n > precision {
+        let shift:i64 = n - precision
+        let q = a >> shift
+        let r = a - (q << shift)                         // what is cut off, less than 2^shift
+        var more = false                                 // whether the magnitude goes up by one
+        if !r.isZero {
+            let half = BigInt(1) << (shift - 1)
+            if rule == 0 {
+                more = r > half || (r == half && !(q & BigInt(1)).isZero)
+            } else if rule == 1 {
+                more = r >= half
+            } else if rule == 2 {
+                more = !negative
+            } else if rule == 3 {
+                more = negative
+            } else if rule == 5 {
+                more = true
+            }
+        }
+        a = more ? q + 1 : q.copy()
+        x += shift as i128
+        if a.isZero { return BigFloat_zero() }
+    }
+    let bits = a.bits                                    // the low bits that are 0 go to the exponent
+    var low:i64 = 0
+    while !bits[low] { low += 1 }
+    if low > 0 {
+        a = a >> low
+        x += low as i128
+    }
+    if x > 9223372036854775807 { return BigFloat_inf(negative ? -1 : 1) }
+    if x < -9223372036854775807 { return BigFloat_zero() }
+    if negative { return (BigFloat){0 - a, x as i64, 0} }
+    return (BigFloat){a.copy(), x as i64, 0}
+}
+
+// n / d * 2^e to precision bits by a rule, neither n nor d 0: the
+// quotient to two bits more, and one below them that says whether
+// anything is left, which the rounding reads
+let BigFloat_quotient(n:lent BigInt, d:lent BigInt, e:i128, precision:i64, rule:i64):BigFloat {
+    let negative = n.isNegative != d.isNegative
+    let a = n.abs
+    let b = d.abs
+    var s:i64 = precision + 2 + BigFloat_length(b) - BigFloat_length(a)
+    if s < 0 { s = 0 }
+    let top = a << s
+    var q = top / b
+    var x:i128 = e - s as i128
+    if q * b != top {
+        q = (q << 1) + 1
+        x -= 1
+    }
+    if negative { return BigFloat_make(0 - q, x, precision, rule) }
+    return BigFloat_make(q, x, precision, rule)
+}
+
+// of an integer, a BigInt, an f64 and a rational: the nearest of
+// BigFloat.precision bits, or of the precision written
+let BigFloat(n:lent BigInt, precision:i64):BigFloat { BigFloat_make(n, 0, precision < 1 ? 1 : precision, 0) }
+let BigFloat(n:lent BigInt):BigFloat { BigFloat_make(n, 0, BigFloat_bits(), 0) }
+let BigFloat(n:i64, precision:i64):BigFloat { BigFloat_make(BigInt(n), 0, precision < 1 ? 1 : precision, 0) }
+let BigFloat(n:i64):BigFloat { BigFloat_make(BigInt(n), 0, BigFloat_bits(), 0) }
+
+// an f64 is a mantissa of 53 bits times a power of 2: brought between
+// 2^52 and 2^53 by doublings and halvings, which lose nothing, it is a
+// whole number
+let BigFloat(x:f64, precision:i64):BigFloat {
+    if x != x { return BigFloat_nan() }
+    if x == 0.0 { return BigFloat_zero() }
+    var y:f64 = x < 0.0 ? -x : x
+    if y - y != 0.0 { return BigFloat_inf(x < 0.0 ? -1 : 1) }
+    var e:i64 = 0
+    while y < 4503599627370496.0 {
+        y = y * 2.0
+        e -= 1
+    }
+    while y >= 9007199254740992.0 {
+        y = y * 0.5
+        e += 1
+    }
+    let m:i64 = y as i64
+    return BigFloat_make(BigInt(x < 0.0 ? -m : m), e as i128, precision < 1 ? 1 : precision, 0)
+}
+let BigFloat(x:f64):BigFloat { BigFloat(x, BigFloat_bits()) }
+
+// a rational's infinity and its NaN are a BigFloat's
+let BigFloat(r:lent BigRat, precision:i64):BigFloat {
+    if r.isNaN { return BigFloat_nan() }
+    if r.isInfinite { return BigFloat_inf(r.num.sign) }
+    if r.num.isZero { return BigFloat_zero() }
+    return BigFloat_quotient(r.num, r.den, 0, precision < 1 ? 1 : precision, 0)
+}
+let BigFloat(r:lent BigRat):BigFloat { BigFloat(r, BigFloat_bits()) }
+
+// a BigFloat as a rational, exactly: its mantissa over a power of 2
+let BigRat(x:lent BigFloat):BigRat {
+    if x.special == 2 { return (BigRat){BigInt(0), BigInt(0)} }
+    if x.special == 1 { return (BigRat){BigInt(x.mantissa.sign), BigInt(0)} }
+    if x.exponent >= 0 { return (BigRat){x.mantissa << x.exponent, BigInt(1)} }
+    return (BigRat){x.mantissa.copy(), BigInt(1) << (0 - x.exponent)}
+}
+
+// ---------- what it is ----------
+
+extend BigFloat {
+    let isNaN:bool { self.special == 2 }
+    let isInfinite:bool { self.special == 1 }
+    let isFinite:bool { self.special == 0 }
+
+    // self at precision significant bits, by a rule or to the nearest
+    // and the even one; a number of no more bits is itself, and so are an
+    // infinity and a NaN
+    let round(precision:i64, rule:RoundingRule):Self {
+        if self.special != 0 { return self.copy() }
+        return BigFloat_make(self.mantissa, self.exponent as i128, precision < 1 ? 1 : precision, rule.rule)
+    }
+    let round(precision:i64):Self { self.round(precision, BigFloat.nearestEven) }
+
+    // the nearest f64, of two as near the even one: 53 bits of it, or the
+    // fewer a number below 2^-1022 has above 2^-1074, scaled by its
+    // exponent, which loses nothing; past an f64's range inf or -inf, and
+    // below it 0
+    let f64:f64 {
+        if self.special == 2 { return f64.nan }
+        let negative = self.mantissa.isNegative
+        let inf:f64 = f64.infinity
+        if self.special == 1 { return negative ? -inf : inf }
+        if self.mantissa.isZero { return 0.0 }
+        let top:i128 = self.exponent as i128 + BigFloat_length(self.mantissa) as i128
+        if top > 1025 { return negative ? -inf : inf }
+        if top < -1075 { return negative ? -0.0 : 0.0 }
+        var p:i64 = 53
+        if top < -1021 { p = (top + 1074) as i64 }
+        let r = BigFloat_make(self.mantissa, self.exponent as i128, p, 0)
+        if r.mantissa.isZero { return negative ? -0.0 : 0.0 }
+        var x:f64 = r.mantissa.i64 as f64
+        var k:i64 = r.exponent
+        while k > 0 {
+            x = x * 2.0
+            k -= 1
+        }
+        while k < 0 {
+            x = x * 0.5
+            k += 1
+        }
+        return x
+    }
+}
+
+// ---------- arithmetic ----------
+
+// a + b of two finite numbers, to precision bits. Where b is all below
+// a's last bit and below the last bit kept, by 4 places and more, it
+// tells only which side of a the sum is: a bit 5 places below stands for
+// it, so that no shift is as long as the exponents are apart
+let BigFloat_sum(a:lent BigFloat, b:lent BigFloat, precision:i64):BigFloat {
+    if a.mantissa.isZero { return BigFloat_make(b.mantissa, b.exponent as i128, precision, 0) }
+    if b.mantissa.isZero { return BigFloat_make(a.mantissa, a.exponent as i128, precision, 0) }
+    let ta:i128 = a.exponent as i128 + BigFloat_length(a.mantissa) as i128
+    let tb:i128 = b.exponent as i128 + BigFloat_length(b.mantissa) as i128
+    if tb > ta { return BigFloat_sum(b, a, precision) }
+    var low:i128 = ta - precision as i128
+    if a.exponent as i128 < low { low = a.exponent as i128 }
+    low -= 4
+    if tb < low {
+        let s:i64 = (a.exponent as i128 - low + 1) as i64
+        return BigFloat_make((a.mantissa << s) + b.mantissa.sign, low - 1, precision, 0)
+    }
+    let e:i128 = a.exponent < b.exponent ? a.exponent as i128 : b.exponent as i128
+    let sa:i64 = (a.exponent as i128 - e) as i64
+    let sb:i64 = (b.exponent as i128 - e) as i64
+    return BigFloat_make((a.mantissa << sa) + (b.mantissa << sb), e, precision, 0)
+}
+
+// -1, 0 or 1 as a is below b, equal to it or above; neither is a NaN
+let BigFloat_order(a:lent BigFloat, b:lent BigFloat):i64 {
+    let sa = a.mantissa.sign
+    let sb = b.mantissa.sign
+    if sa != sb { return sa < sb ? -1 : 1 }
+    if sa == 0 { return 0 }
+    if a.special == 1 || b.special == 1 {
+        if a.special == b.special { return 0 }
+        return (a.special == 1) == (sa > 0) ? 1 : -1
+    }
+    let ta:i128 = a.exponent as i128 + BigFloat_length(a.mantissa) as i128
+    let tb:i128 = b.exponent as i128 + BigFloat_length(b.mantissa) as i128
+    if ta != tb { return (ta > tb) == (sa > 0) ? 1 : -1 }
+    let e:i64 = a.exponent < b.exponent ? a.exponent : b.exponent
+    let x = a.mantissa << (a.exponent - e)
+    let y = b.mantissa << (b.exponent - e)
+    return x < y ? -1 : x > y ? 1 : 0
+}
+
+extend BigFloat {
+    // an infinity less itself is a NaN
+    static let +(a:Self, b:Self):Self {
+        if a.special == 2 || b.special == 2 { return BigFloat_nan() }
+        if a.special == 1 {
+            if b.special == 1 && a.mantissa.sign != b.mantissa.sign { return BigFloat_nan() }
+            return a.copy()
+        }
+        if b.special == 1 { return b.copy() }
+        return BigFloat_sum(a, b, BigFloat_bits())
+    }
+    static let +(a:Self, b:BigInt):Self { a + BigFloat(b) }
+    static let +(a:BigInt, b:Self):Self { BigFloat(a) + b }
+    static let +(a:Self, b:i64):Self { a + BigFloat(b) }
+    static let +(a:i64, b:Self):Self { BigFloat(a) + b }
+    static let -(a:Self):Self { (Self){0 - a.mantissa, a.exponent, a.special} }
+    static let -(a:Self, b:Self):Self { a + -b }
+    static let -(a:Self, b:BigInt):Self { a + -BigFloat(b) }
+    static let -(a:BigInt, b:Self):Self { BigFloat(a) + -b }
+    static let -(a:Self, b:i64):Self { a + -BigFloat(b) }
+    static let -(a:i64, b:Self):Self { BigFloat(a) + -b }
+    // 0 times an infinity is a NaN
+    static let *(a:Self, b:Self):Self {
+        if a.special == 2 || b.special == 2 { return BigFloat_nan() }
+        if a.special == 1 || b.special == 1 {
+            let sign:i64 = a.mantissa.sign * b.mantissa.sign
+            if sign == 0 { return BigFloat_nan() }
+            return BigFloat_inf(sign)
+        }
+        return BigFloat_make(a.mantissa * b.mantissa, a.exponent as i128 + b.exponent as i128, BigFloat_bits(), 0)
+    }
+    static let *(a:Self, b:BigInt):Self { a * BigFloat(b) }
+    static let *(a:BigInt, b:Self):Self { BigFloat(a) * b }
+    static let *(a:Self, b:i64):Self { a * BigFloat(b) }
+    static let *(a:i64, b:Self):Self { BigFloat(a) * b }
+    // by 0 it is an infinity, and 0 by 0 a NaN: no division by zero; an
+    // infinity by a number has the quotient's sign, by 0 its own, and by
+    // an infinity it is a NaN
+    static let /(a:Self, b:Self):Self {
+        if a.special == 2 || b.special == 2 { return BigFloat_nan() }
+        if a.special == 1 {
+            if b.special == 1 { return BigFloat_nan() }
+            return BigFloat_inf(b.mantissa.isNegative ? 0 - a.mantissa.sign : a.mantissa.sign)
+        }
+        if b.special == 1 || a.mantissa.isZero {
+            if b.mantissa.isZero { return BigFloat_nan() }
+            return BigFloat_zero()
+        }
+        if b.mantissa.isZero { return BigFloat_inf(a.mantissa.sign) }
+        return BigFloat_quotient(a.mantissa, b.mantissa, a.exponent as i128 - b.exponent as i128, BigFloat_bits(), 0)
+    }
+    static let /(a:Self, b:BigInt):Self { a / BigFloat(b) }
+    static let /(a:BigInt, b:Self):Self { BigFloat(a) / b }
+    static let /(a:Self, b:i64):Self { a / BigFloat(b) }
+    static let /(a:i64, b:Self):Self { BigFloat(a) / b }
+
+    // a NaN equals nothing and has no order, as a float's
+    static let ==(a:Self, b:Self):bool { a.special != 2 && b.special != 2 && BigFloat_order(a, b) == 0 }
+    static let !=(a:Self, b:Self):bool { !(a == b) }
+    static let <(a:Self, b:Self):bool { a.special != 2 && b.special != 2 && BigFloat_order(a, b) < 0 }
+    static let >(a:Self, b:Self):bool { b < a }
+    static let <=(a:Self, b:Self):bool { a.special != 2 && b.special != 2 && BigFloat_order(a, b) <= 0 }
+    static let >=(a:Self, b:Self):bool { b <= a }
+}

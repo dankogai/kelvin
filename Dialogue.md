@@ -10982,3 +10982,31 @@ found that kelvinc does not read `c ? -f64.infinity : f64.infinity`,
 which was left, and reported. Details are provisional P587.
 
 There are 1358 tests, and all pass with clang and with gcc 15.
+
+### 623. BigFloat
+
+It is the first part of **User**'s order of `BigFloat` in §622,
+after the naming it needed (#575): the type, its arithmetic and
+`.round`.
+
+`#import <BigFloat>` has `BigFloat`, a mantissa, a `BigInt`, times a
+power of 2. By **User**'s answers every result is rounded to
+`BigFloat.precision` significant bits, 128, which a program may set,
+so `BigFloat(1) / 3` has 128 bits and a product of two has no more;
+`x.round(precision)` is `x` at fewer, and
+`x.round(precision, rule)` by one of six rules, to the nearest and
+the even one where none is written. It is made of an integer, a
+`BigInt`, an `f64` and a `BigRat`, each the nearest; `x.f64` is the
+nearest `f64` and `BigRat(x)` its value exactly. It has a float's
+infinities and NaN.
+
+**Claude** chose the rules' names, `BigFloat.nearestEven`,
+`.nearestAway`, `.up`, `.down`, `.towardZero` and `.awayFromZero`;
+that the making of one rounds as an operator does; one 0 with no
+sign, as a rational's; and no operator with an `f64`, which is made
+a `BigFloat` first. print shows the struct's members until the
+text's number, the next. The sums, products and quotients were
+checked against a BigRat's, exact, and against C's of `f64`s.
+Details are provisional P588.
+
+There are 1359 tests, and all pass with clang and with gcc 15.

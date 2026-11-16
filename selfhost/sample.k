@@ -8,6 +8,7 @@
 #import <IO>                                          // f.lines, f.write (#450)
 #import <JSON>                                        // modules/JSON.kh, and libkJSON.a beside it (#516)
 #import <Rational>                                    // modules/Rational.k, a module's source, which names BigInt (#542)
+#import <BigFloat>                                    // modules/BigFloat.k, which imports Rational (#576)
 #import <math>                                        // modules/math.k: its typealias, C's names, Self(x) (#550)
 #import <math.h> as C
 
@@ -1556,6 +1557,8 @@ on a new line`
     println(CBR(1) * CBR(br_inf.copy(), BigRat(0)), " ", CBR(br_inf.copy(), BigRat(0)) * CBR(0, 2), " ", CBR(0, 1) * br_inf, " ", CBR(0) * br_inf, " ", CBR(1, 2) * CBR(2), " ", CBR(1, 2) * CBR(0, 2))   // and times one, a 0 part staying 0 times an infinity (#573)
     println(br_inf / BigRat(-2), " ", -br_inf / BigRat(-2), " ", br_inf / -2, " ", rat64(1, 0) / rat64(-2), " ", rat8(1, 0) / -2, " ", br_inf / 2, " ", CBR(br_inf.copy(), BigRat(0)) / -2)   // an infinity by a negative number is the other infinity (#574)
     println(nm_len(1.5).f64, " ", nm_len(2).f64, " ", nm_len(2.75).i64, " ", nm_len(nm_len(3).i64).f64)   // a function and a member of one C name (#575)
+    let bf_third = BigFloat(1) / 3
+    println(bf_third.f64, " ", BigRat(bf_third.round(8)), " ", BigRat(bf_third.round(4, BigFloat.up)), " ", bf_third * 3 == BigFloat(1), " ", (BigFloat(1) / 0).f64, " ", bf_third.mantissa.bits.count - 1, " ", BigRat(BigFloat(1.5) * 3 - 1))   // BigFloat, rounded to 128 bits (#576)
     return 0
 }
 

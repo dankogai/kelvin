@@ -101,6 +101,9 @@ the design decisions, numbered `#N` throughout, are in
   numerator over a denominator, `1.over(3)`, exact arithmetic, with
   infinities and a NaN as a float has (#538); `rat32`, `rat16` and
   `rat8` (#539); `BigRat` of two `BigInt`s, of any precision (#540).
+- [bigfloat.md](bigfloat.md): `#import <BigFloat>`, `BigFloat`, a
+  float of any precision, a `BigInt` times a power of 2, rounded to
+  `BigFloat.precision` bits, 128; `x.round(precision, rule)` (#576).
 - [json.md](json.md): `#import <JSON>`, `JSON.parse` and
   `JSON.stringify` as JS has them.
 - [sion.md](sion.md): `#import <SION>`, SION values, JSON with more.

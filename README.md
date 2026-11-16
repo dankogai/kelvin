@@ -505,3 +505,12 @@ So far the changes from C are these, by topic.
   `meters(x:f64)` beside the attribute `meters.f64`, which kelvinc
   refused, both being `meters__f64` in C; the function is
   `_kv_fn_meters__f64` there (#575)
+- `#import <BigFloat>` is a floating-point number of any precision,
+  a `BigInt` times a power of 2: every result, of `+ - * /` and of
+  `BigFloat(x)`, is rounded to `BigFloat.precision` significant bits,
+  128, which a program may set, so `BigFloat(1) / 3` is a third to
+  128 bits; `x.round(precision)` and `x.round(precision, rule)` round
+  it to fewer, by `BigFloat.nearestEven`, `.nearestAway`, `.up`,
+  `.down`, `.towardZero` or `.awayFromZero`; it has a float's
+  infinities and NaN; `x.f64` is the nearest `f64` and `BigRat(x)`
+  its value exactly (#576)

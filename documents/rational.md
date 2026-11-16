@@ -159,6 +159,9 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
     `modules/math+Rational.k` (#551, [modules.md](modules.md)).
   - And math's functions take a BigRat (#553), each to a precision in
     bits: `sqrt(BigRat(2), 64)`, `x.exp()`, `BigRat.pi(256)`.
+- **With `<BigFloat>`** (#576) `BigFloat(r)` is the nearest float of
+  128 bits, and `BigRat(x)` a BigFloat's value exactly: see
+  [bigfloat.md](bigfloat.md).
 
 ## Where it lives
 

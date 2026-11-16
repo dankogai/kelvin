@@ -22,7 +22,7 @@ A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
-search, the overlays (#551), the layout, and the modules so far: `math.k`, `Rational.k`,
+search, the overlays (#551), the layout, and the modules so far: `math.k`, `Rational.k`, `BigFloat.k`,
 `JSON.k`, `SION.k` and `MsgPack.k`, and `IO`, `OS`, `UnicodeData` and `RegExp`, each a
 header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
@@ -263,6 +263,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, BigRat, n.over(d)
     math+Rational.k       an overlay (#551-#554), where <math> and <Rational> are both imported: CBR, of two BigRats, and math's functions of a BigRat and of a CBR
+    BigFloat.k            #import <BigFloat> (#576, bigfloat.md): a float of any precision, rounded to BigFloat.precision bits; it imports <Rational>
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -328,6 +329,14 @@ grapheme cluster: see [regexp.md](regexp.md).
 a float's infinities and NaN, `rat32`, `rat16` and `rat8` of the
 narrower integers (#539), and `BigRat` of two `BigInt`s (#540): see
 [rational.md](rational.md).
+
+### BigFloat: `modules/BigFloat.k`
+
+`#import <BigFloat>` brings in `BigFloat` (#576), a floating-point
+number whose mantissa is a `BigInt`, every result rounded to
+`BigFloat.precision` significant bits, 128, with `x.round(precision,
+rule)` and a float's infinities and NaN: see [bigfloat.md](bigfloat.md).
+It imports `<Rational>`, so `BigRat` comes with it.
 
 ### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
 
