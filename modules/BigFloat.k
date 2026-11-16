@@ -333,3 +333,260 @@ extend BigFloat {
     static let <=(a:Self, b:Self):bool { a.special != 2 && b.special != 2 && BigFloat_order(a, b) <= 0 }
     static let >=(a:Self, b:Self):bool { b <= a }
 }
+
+// ---------- its text (#577) ----------
+
+// 10^k and 2^k, of any k, as rationals
+let BigFloat_ten(k:i64):BigRat {
+    if k >= 0 { return (BigRat){BigInt(10) ** k, BigInt(1)} }
+    return (BigRat){BigInt(1), BigInt(10) ** (0 - k)}
+}
+let BigFloat_two(k:i64):BigRat {
+    if k >= 0 { return (BigRat){BigInt(1) << k, BigInt(1)} }
+    return (BigRat){BigInt(1), BigInt(1) << (0 - k)}
+}
+
+// digits * 10^exponent, a decimal; found is whether there is one
+struct BigFloat_decimal {
+    digits: BigInt
+    exponent: i64
+    found: bool
+}
+
+// the multiple of 10^k nearest v that is between lo and hi, the ends
+// too where closed: the one below v or the one above, of two as near the
+// even one
+let BigFloat_digits(v:lent BigRat, lo:lent BigRat, hi:lent BigRat, closed:bool, k:i64):BigFloat_decimal {
+    let s = BigFloat_ten(k)
+    let t = v / s
+    let c = t.num / t.den
+    var found = false
+    var best = BigInt(0)
+    var gap = BigRat(0)
+    for j in 0..<2 {
+        let d = c + j
+        let w = BigRat(d) * s
+        let inside = closed ? w >= lo && w <= hi : w > lo && w < hi
+        if !inside { continue }
+        let g = j == 0 ? v - w : w - v
+        if !found || g < gap || (g == gap && !(best & BigInt(1)).isZero) {
+            best = d.copy()
+            gap = g.copy()
+        }
+        found = true
+    }
+    return (BigFloat_decimal){best.copy(), k, found}
+}
+
+// the fewest digits that read back as |x| at q bits, q no fewer than
+// its own; x is finite and not 0. What rounds to x is between the
+// halves of the gaps to its neighbours of q bits, the one below half as
+// far where x is a power of 2, and the ends too where its last bit of q
+// is 0, which a tie rounds to. With more digits there is one between
+// too, so the fewest are found by halving
+let BigFloat_shortest(x:lent BigFloat, q:i64):BigFloat_decimal {
+    let a = x.mantissa.abs
+    let n = BigFloat_length(a)
+    let top:i64 = x.exponent + n
+    let v = x.exponent >= 0 ? (BigRat){a << x.exponent, BigInt(1)} : (BigRat){a.copy(), BigInt(1) << (0 - x.exponent)}
+    let up = BigFloat_two(top - q - 1)
+    let down = BigFloat_two(n == 1 ? top - q - 2 : top - q - 1)
+    let lo = v - down
+    let hi = v + up
+    let closed = n < q
+    var e10:i64 = (top - 1) * 30103 / 100000           // the power of 10 of its first digit: about, then exactly
+    while BigFloat_ten(e10 + 1) <= v { e10 += 1 }
+    while BigFloat_ten(e10) > v { e10 -= 1 }
+    var most:i64 = q * 30103 / 100000 + 3              // digits that are enough
+    var r = BigFloat_digits(v, lo, hi, closed, e10 + 1 - most)
+    while !r.found {
+        most += 8
+        r = BigFloat_digits(v, lo, hi, closed, e10 + 1 - most)
+    }
+    var least:i64 = 1
+    while least < most {
+        let mid:i64 = (least + most) / 2
+        let t = BigFloat_digits(v, lo, hi, closed, e10 + 1 - mid)
+        if t.found {
+            most = mid
+            r = (BigFloat_decimal){t.digits.copy(), t.exponent, true}
+        } else {
+            least = mid + 1
+        }
+    }
+    var digits = r.digits.copy()
+    var exponent:i64 = r.exponent
+    while (digits % BigInt(10)).isZero {
+        digits = digits / BigInt(10)
+        exponent += 1
+    }
+    return (BigFloat_decimal){digits.copy(), exponent, true}
+}
+
+// its decimal text, as an f64's is laid out: plain from 0.0001 up to
+// 2^q, where every integer is exact, with a point, 1.0, and with an
+// exponent otherwise, 1e+40, 1.5e-05; plus is a + before one that is
+// not negative, as x.dec has
+let BigFloat_text(x:lent BigFloat, plus:bool):String {
+    if x.special == 2 { return $"nan" }
+    let sign:cstr := x.mantissa.isNegative ? "-" : plus ? "+" : ""
+    if x.special == 1 { return $`${sign}inf` }
+    if x.mantissa.isZero { return $`${sign}0.0` }
+    var s = $""
+    s += sign
+    let n = BigFloat_length(x.mantissa)
+    let bits = BigFloat_bits()
+    let q:i64 = n > bits ? n : bits
+    let r = BigFloat_shortest(x, q)
+    let text = r.digits.string
+    let d:cstr := text.cstr
+    var count:i64 = 0
+    while rat_digit(d[count], 10) { count += 1 }         // a BigInt's text ends in n
+    let e:i64 = count - 1 + r.exponent                   // the power of 10 of the first digit
+    let top:i64 = x.exponent + n
+    if e < 0 - 4 || top > q + 1 || (top == q + 1 && n > 1) {
+        s += d[0]
+        if count > 1 {
+            s += '.'
+            for i in 1..<count { s += d[i] }
+        }
+        s += 'e'
+        s += e < 0 ? '-' : '+'
+        let size:i64 = e < 0 ? 0 - e : e
+        if size < 10 { s += '0' }
+        let tail = $`${size}`
+        s += &tail
+    } else if e < 0 {
+        s += "0."
+        for i in 0..<(0 - e - 1) { s += '0' }
+        for i in 0..<count { s += d[i] }
+    } else {
+        for i in 0..<count {
+            if i == e + 1 { s += '.' }
+            s += d[i]
+        }
+        for i in count..<(e + 1) { s += '0' }
+        if count <= e + 1 { s += ".0" }
+    }
+    return s
+}
+
+// a hex digit's value, or -1
+let BigFloat_hex(c:u8):i64 {
+    if c >= '0' as u8 && c <= '9' as u8 { return (c - '0' as u8) as i64 }
+    if c >= 'a' as u8 && c <= 'f' as u8 { return (c - 'a' as u8) as i64 + 10 }
+    if c >= 'A' as u8 && c <= 'F' as u8 { return (c - 'A' as u8) as i64 + 10 }
+    return 0 - 1
+}
+
+let BigFloat_blank(c:u8):bool { c == ' ' as u8 || (c >= 9 && c <= 13) }
+
+// a BigFloat of its text, to precision bits: a decimal, 0.1, 1.5e-3,
+// and what else a BigRat is read from, 1/3, read exactly and then
+// rounded; a hex float, 0x1.8p+1, C's; inf and nan, with a sign or
+// none. All of the text is read, blanks at its ends aside, and text
+// that is none is a NaN
+let BigFloat_read(text:cstr, precision:i64):BigFloat {
+    var i:i64 = 0
+    while BigFloat_blank(text[i]) { i += 1 }
+    var j:i64 = i
+    var negative = false
+    if text[j] == '+' as u8 || text[j] == '-' as u8 {
+        negative = text[j] == '-' as u8
+        j += 1
+    }
+    if (text[j] == 'i' as u8 && text[j + 1] == 'n' as u8 && text[j + 2] == 'f' as u8) || (text[j] == 'n' as u8 && text[j + 1] == 'a' as u8 && text[j + 2] == 'n' as u8) {
+        let nan = text[j] == 'n' as u8
+        j += 3
+        while BigFloat_blank(text[j]) { j += 1 }
+        if text[j] != 0 || nan { return BigFloat_nan() }
+        return BigFloat_inf(negative ? -1 : 1)
+    }
+    if text[j] == '0' as u8 && (text[j + 1] == 'x' as u8 || text[j + 1] == 'X' as u8) {
+        j += 2
+        var m = BigInt(0)
+        var digits:i64 = 0
+        var fracs:i64 = 0
+        while BigFloat_hex(text[j]) >= 0 {
+            m = (m << 4) + BigFloat_hex(text[j])
+            digits += 1
+            j += 1
+        }
+        if text[j] == '.' as u8 {
+            j += 1
+            while BigFloat_hex(text[j]) >= 0 {
+                m = (m << 4) + BigFloat_hex(text[j])
+                digits += 1
+                fracs += 1
+                j += 1
+            }
+        }
+        if digits == 0 { return BigFloat_nan() }
+        var e:i128 = 0
+        if text[j] == 'p' as u8 || text[j] == 'P' as u8 {
+            j += 1
+            var minus = false
+            if text[j] == '+' as u8 || text[j] == '-' as u8 {
+                minus = text[j] == '-' as u8
+                j += 1
+            }
+            if !rat_digit(text[j], 10) { return BigFloat_nan() }
+            while rat_digit(text[j], 10) {
+                if e < 4611686018427387904 { e = e * 10 + (text[j] - '0' as u8) as i128 }
+                j += 1
+            }
+            if minus { e = 0 - e }
+        }
+        while BigFloat_blank(text[j]) { j += 1 }
+        if text[j] != 0 { return BigFloat_nan() }
+        if negative { m = 0 - m }
+        return BigFloat_make(m, e - 4 * fracs as i128, precision, 0)
+    }
+    return BigFloat(BigRat(text), precision)
+}
+let BigFloat(text:cstr, precision:i64):BigFloat { BigFloat_read(text, precision < 1 ? 1 : precision) }
+let BigFloat(text:cstr):BigFloat { BigFloat_read(text, BigFloat_bits()) }
+let BigFloat(text:const String^, precision:i64):BigFloat { BigFloat_read(text^.cstr, precision < 1 ? 1 : precision) }
+let BigFloat(text:const String^):BigFloat { BigFloat_read(text^.cstr, BigFloat_bits()) }
+
+extend BigFloat {
+    // its text, which print shows and .cstr gives: the fewest digits
+    // that BigFloat(text) reads back as it at BigFloat.precision bits, or
+    // at its own where it has more
+    let string:String { BigFloat_text(self, false) }
+
+    // the same with a sign, +1.5, as an f64's
+    let dec:String { BigFloat_text(self, true) }
+
+    // C's %a with a sign, +0x1.8p+1, its value exactly: the bits after
+    // the first as hex digits, and the power of 2 of the first
+    let hex:String {
+        if self.special == 2 { return $"nan" }
+        let sign:cstr := self.mantissa.isNegative ? "-" : "+"
+        if self.special == 1 { return $`${sign}inf` }
+        if self.mantissa.isZero { return $`${sign}0x0p+0` }
+        var s = $""
+        s += sign
+        let a = self.mantissa.abs
+        let n = BigFloat_length(a)
+        s += "0x1"
+        if n > 1 {
+            let pad:i64 = (4 - (n - 1) % 4) % 4
+            let frac = (a - (BigInt(1) << (n - 1))) << pad
+            let text = frac.text(16)
+            let d:cstr := text.cstr
+            var count:i64 = 0
+            while BigFloat_hex(d[count]) >= 0 { count += 1 }
+            s += '.'
+            for i in count..<((n - 1 + pad) / 4) { s += '0' }
+            for i in 0..<count { s += d[i] }
+        }
+        let p:i128 = self.exponent as i128 + n as i128 - 1
+        s += 'p'
+        s += p < 0 ? '-' : '+'
+        let size:i128 = p < 0 ? 0 - p : p
+        let tail = $`${size}`
+        s += &tail
+        return s
+    }
+}

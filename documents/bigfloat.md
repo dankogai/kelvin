@@ -1,6 +1,6 @@
 # BigFloat: `#import <BigFloat>`
 
-A floating-point number of any precision, a `BigInt` times a power of 2: `BigFloat(1) / 3` is a third to 128 bits.
+A floating-point number of any precision, a `BigInt` times a power of 2: `BigFloat(1) / 3` is a third to 128 bits, `0.333333333333333333333333333333333333334`.
 
 ## Synopsis
 
@@ -9,16 +9,17 @@ A floating-point number of any precision, a `BigInt` times a power of 2: `BigFlo
 
 let main():int32 {
     let third = BigFloat(1) / 3                 // to 128 bits, the nearest
-    println(third.f64, " ", (third * 3).f64)    // 0.33333333333333331 1.0
-    println(BigRat(third.round(8)))             // (171n/512n): at 8 bits, its value exactly
-    println(BigRat(third.round(4, BigFloat.up)), " ", BigRat(third.round(4, BigFloat.down)))   // (11n/32n) (5n/16n)
+    println(third, " ", third * 3)              // 0.333333333333333333333333333333333333334 1.0
+    println(third.round(8), " ", BigRat(third.round(8)))   // 0.333984375 (171n/512n): at 8 bits, and its value exactly
+    println(third.round(4, BigFloat.up), " ", third.round(4, BigFloat.down))   // 0.34375 0.3125
     let x = BigFloat(1.5) * 3 - BigFloat(1n.over(4n))   // of an f64, an integer and a rational
-    println(BigRat(x), " ", x > third, " ", x.mantissa, " ", x.exponent)   // (17n/4n) true 17n -2
+    println(x, " ", x > third, " ", x.mantissa, " ", x.exponent, " ", x.hex)   // 4.25 true 17n -2 +0x1.1p+2
+    println(BigFloat("0.1"), " ", BigFloat(0.1), " ", BigFloat("0.1") + BigFloat("0.2"))   // 0.1 0.100000000000000005551115123125782702118 0.3
     BigFloat.precision = 256                    // the bits of every result from here
-    println((BigFloat(2) / 3).mantissa.bits.count - 1)   // 256
+    println(BigFloat(2) / 3)                    // 0.66666666666666666666666666666666666666666666666666666666666666666666666666667
     BigFloat.precision = 128
     let inf = BigFloat(1) / 0                   // no division by zero: an infinity
-    println(inf.f64, " ", (inf - inf).isNaN, " ", (inf / -2).f64)   // inf true -inf
+    println(inf, " ", inf - inf, " ", inf / -2, " ", third.f64)   // inf nan -inf 0.33333333333333331
     return 0
 }
 ```
@@ -102,7 +103,42 @@ and no part of the core.
   2: `BigRat(BigFloat(0.1))` is
   `(3602879701896397n/36028797018963968n)`.
   - An infinity is `(1n/0n)` or `(-1n/0n)`, and a NaN `(0n/0n)`.
-- **print** shows its members, as any struct's.
+- **Its text** (#577) is the fewest digits that read back:
+  `BigFloat("0.1")` prints `0.1`, and `BigFloat(1) / 3`
+  `0.333333333333333333333333333333333333334`, 39 digits.
+  - `BigFloat(text)` of it is the number again, at
+    `BigFloat.precision` bits: no shorter decimal rounds to it, and of
+    the shortest it is the nearest.
+    - So `BigFloat(0.1)`, an f64's tenth, prints
+      `0.100000000000000005551115123125782702118` at 128 bits, and
+      `0.1` where the precision is 53.
+    - A number of more bits than the precision, made when it was
+      greater, has the digits of its own count of bits:
+      `BigFloat(text, bits)` reads it back.
+  - It is laid out as an `f64`'s ([floatingpoint.md](floatingpoint.md)):
+    plain from 0.0001 up to `2^precision`, where every integer is
+    exact, with a point, `1.0`, `100000000000000000000.0`; and with an
+    exponent otherwise, `1e+40`, `1.234e-05`.
+    - `inf`, `-inf` and `nan` are an `f64`'s.
+  - It is `x.string`, a String (#506), so `` `${x}` `` and `x.cstr`
+    give it, and a member, an element and an Optional's value show it:
+    `{name: "t", x: 0.1}`, `[1.5, 0.1, inf]`, `some(2.5)`.
+  - **`x.dec`** is the same with a sign, `+0.1`, and **`x.hex`** C's
+    `%a` with a sign, `+0x1.8p+0`: the bits after the first as hex
+    digits, and the power of 2 of the first, its value exactly, of any
+    length.
+- **`BigFloat(text)`** reads one, all of the text, blanks at its ends
+  aside; text that is none is a NaN, `BigFloat("1.5x")`.
+  - A decimal, with a point and an exponent, read exactly and then
+    rounded: `"0.1"`, `"-.5"`, `"1.5e-3"`.
+    - And what else a `BigRat` is read from
+      ([rational.md](rational.md)): `BigFloat("1/3")` is a third to
+      128 bits.
+  - A hex float, C's: `"0x1.8p+1"` is 3, `"0x.8"` a half; so
+    `BigFloat(x.hex)` is `x`.
+  - `"inf"` and `"nan"`, with a sign or none.
+  - `BigFloat(text, precision)` rounds to that many bits; the text is
+    a `cstr`, or a `String` by reference, `BigFloat(&s)`.
 
 ## Where it lives
 
@@ -111,6 +147,10 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 
 - **It imports `<Rational>`,** so a program that imports it has
   `BigRat` and the rationals too ([rational.md](rational.md)).
+- **Its text** is reckoned in rationals, exact: what rounds to a
+  number lies between the halves of the gaps to its neighbours, and
+  the fewest digits with a decimal between them are found by halving.
+  - A decimal is read by `<Rational>`'s reader.
 - **In C:** `a * b` is the module's `*`, which multiplies two
   `BigInt`s, the prelude's ([bigint.md](bigint.md)), adds the
   exponents and rounds.
@@ -129,6 +169,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 |---|---|---|
 | `BigFloat` | `BigFloat(n)`, `BigFloat(x)`, `BigFloat(r)` | of an `i64` or a `BigInt`, of an `f64`, of a `BigRat`: the nearest of `BigFloat.precision` bits (#576) |
 | | `BigFloat(n, precision)`, `BigFloat(x, precision)`, `BigFloat(r, precision)` | the nearest of `precision` bits |
+| | `BigFloat(text)`, `BigFloat(text, precision)` | of its text, `"0.1"`, `"1.5e-3"`, `"1/3"`, `"0x1.8p+1"`, `"inf"`, `"nan"`; a `cstr` or a `String` by reference; text that is none is a NaN (#577) |
 | | `BigFloat.precision` | the significant bits of every result, 128; a variable |
 | | `.mantissa`, `.exponent` | its mantissa, a `BigInt`, odd or 0, and the power of 2 it is times |
 | | `.round(precision)` | itself at `precision` significant bits, to the nearest and the even one |
@@ -138,4 +179,6 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is a NaN; an infinity; neither |
 | | `.f64` | the nearest `f64`; `inf`, `-inf`, 0 or `nan` |
+| | `print(x)`, `.cstr`, `${x}`, `.string` | the fewest digits that `BigFloat(text)` reads back, `0.1`; `.string` a String (#577) |
+| | `.dec`, `.hex` | the same with a sign, `+0.1`, and C's `%a` with a sign, `+0x1.8p+0`, exact; each a String |
 | `BigRat` | `BigRat(x)` | the value of a `BigFloat`, exactly |

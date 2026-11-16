@@ -335,7 +335,8 @@ narrower integers (#539), and `BigRat` of two `BigInt`s (#540): see
 `#import <BigFloat>` brings in `BigFloat` (#576), a floating-point
 number whose mantissa is a `BigInt`, every result rounded to
 `BigFloat.precision` significant bits, 128, with `x.round(precision,
-rule)` and a float's infinities and NaN: see [bigfloat.md](bigfloat.md).
+rule)` and a float's infinities and NaN; print writes the fewest digits
+that `BigFloat(text)` reads back (#577): see [bigfloat.md](bigfloat.md).
 It imports `<Rational>`, so `BigRat` comes with it.
 
 ### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`

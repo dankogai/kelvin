@@ -11010,3 +11010,30 @@ checked against a BigRat's, exact, and against C's of `f64`s.
 Details are provisional P588.
 
 There are 1359 tests, and all pass with clang and with gcc 15.
+
+### 624. The text of a BigFloat
+
+The second part of `BigFloat`, by **User**'s answer in §622: print
+writes the shortest decimal that `BigFloat(text)` reads back, and
+`x.hex` is the exact hex float.
+
+So `BigFloat("0.1")` prints `0.1`, and `BigFloat(1) / 3`
+`0.333333333333333333333333333333333333334`: no shorter decimal
+rounds to the number at `BigFloat.precision` bits. **Claude**'s
+question had called that "as print of an f64", which it is not: an
+`f64` prints 17 digits, `0.10000000000000001`. The words of the
+answer were followed, and the difference reported. The layout is an
+`f64`'s, plain from 0.0001 up to `2^precision` and with an exponent
+otherwise; `x.dec` has a sign, and `x.hex` is C's `%a` with one,
+`+0x1.8p+0`.
+
+`BigFloat(text)` reads a decimal, and what else a `BigRat` is read
+from, exactly and then rounded; a hex float; `inf` and `nan`. All of
+the text is read, and text that is none is a NaN. The digits were
+checked against Python's `repr` of f64s at 53 bits, and the reading
+back at eight precisions. While writing it **Claude** found that
+kelvinc takes `s` as moved out after `if c { return s }`, and that
+kc refuses a template appended to a String, which kelvinc reads;
+both were left, and reported. Details are provisional P589.
+
+There are 1360 tests, and all pass with clang and with gcc 15.

@@ -1559,6 +1559,7 @@ on a new line`
     println(nm_len(1.5).f64, " ", nm_len(2).f64, " ", nm_len(2.75).i64, " ", nm_len(nm_len(3).i64).f64)   // a function and a member of one C name (#575)
     let bf_third = BigFloat(1) / 3
     println(bf_third.f64, " ", BigRat(bf_third.round(8)), " ", BigRat(bf_third.round(4, BigFloat.up)), " ", bf_third * 3 == BigFloat(1), " ", (BigFloat(1) / 0).f64, " ", bf_third.mantissa.bits.count - 1, " ", BigRat(BigFloat(1.5) * 3 - 1))   // BigFloat, rounded to 128 bits (#576)
+    println(bf_third, " ", BigFloat("0.1"), " ", BigFloat(0.1), " ", bf_third.round(8), " ", bf_third.hex, " ", BigFloat(1.5).dec, " ", BigFloat(bf_third.string) == bf_third, " ", BigFloat("1.5x"))   // its text, the fewest digits that read back (#577)
     return 0
 }
 

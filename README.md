@@ -514,3 +514,9 @@ So far the changes from C are these, by topic.
   `.down`, `.towardZero` or `.awayFromZero`; it has a float's
   infinities and NaN; `x.f64` is the nearest `f64` and `BigRat(x)`
   its value exactly (#576)
+- print of a `BigFloat` writes the fewest digits that read back:
+  `BigFloat("0.1")` is `0.1` and `BigFloat(1) / 3`
+  `0.333333333333333333333333333333333333334`, laid out as an
+  `f64`'s; `x.dec` has a sign and `x.hex` is C's `%a`,
+  `+0x1.8p+0`, exact; `BigFloat(text)` reads a decimal, a fraction,
+  a hex float, `inf` and `nan`, and text that is none is a NaN (#577)
