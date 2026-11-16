@@ -242,9 +242,10 @@ println(v)                      //   and its type, a speed
   - What it imports may make another pair, whose overlay is read too.
   - An overlay of an overlay, `A+B+C`, is not looked for.
 - **Written out**, `#import <A+B>` is a module as any, read once.
-- **Kelvin's own** is `math+Rational.k` (#552 to #554): `CBR`, a
+- **Kelvin's own** are `math+Rational.k` (#552 to #554): `CBR`, a
   complex number of two BigRats, and math's functions of a BigRat and
-  of a `CBR` ([math.md](math.md)).
+  of a `CBR` ([math.md](math.md)); and `math+BigFloat.k` (#580),
+  math's functions of a `BigFloat`, which imports the first.
 - **kc** (selfhost/) reads overlays too.
 
 ### `modules/`
@@ -267,6 +268,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, BigRat, n.over(d)
     math+Rational.k       an overlay (#551-#554), where <math> and <Rational> are both imported: CBR, of two BigRats, and math's functions of a BigRat and of a CBR
     BigFloat.k            #import <BigFloat> (#576, bigfloat.md): a float of any precision, rounded to BigFloat.precision bits; it imports <Rational>
+    math+BigFloat.k       an overlay (#580), where <math> and <BigFloat> are both imported: math's functions of a BigFloat; it imports <math+Rational>
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION

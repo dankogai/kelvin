@@ -1,6 +1,6 @@
 # Math: `#import <math>`
 
-The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision; with `<BigFloat>`, the functions of a `BigFloat`.
 
 ## Synopsis
 
@@ -333,9 +333,61 @@ let main():int32 {
   - It is not the fastest way: 16000 bits of each take a fraction of a
     second, a million would take long.
 
+### Functions of a `BigFloat`, with `<BigFloat>`
+
+With `<BigFloat>` the functions take a `BigFloat` too (#580), and
+give one of `BigFloat.precision` significant bits, as every BigFloat's
+result ([bigfloat.md](bigfloat.md)).
+
+```swift
+#import <math>
+#import <BigFloat>
+
+let main():int32 {
+    println(sqrt(BigFloat(2)))                   // 1.41421356237309504880168872420969807857
+    println(exp(BigFloat(1)), " ", BigFloat.pi()) // 2.71828182845904523536028747135266249776 3.1415926535897932384626433832795028842
+    let x = BigFloat("0.7")
+    println(x.sin(16), " ", sin(x) * sin(x) + cos(x) * cos(x))   // 0.6442108154296875 1.0
+    println(exp(BigFloat(1000)), " ", exp(BigFloat(-1000)))      // 1.970071114017046993888879352243323125315e+434 5.0759588975494567652918094795743369193e-435
+    return 0
+}
+```
+
+- **The functions**: `sqrt`, `exp`, `log`, `pow`, `sin`, `cos`, `tan`,
+  `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`,
+  `acosh`, `atanh`, each a method too, `x.exp()`; and `BigFloat.pi()`.
+- **The precision** is a count of significant bits, a float's, where
+  a BigRat's function counts bits after the point.
+  - With none written it is `BigFloat.precision`, 128; `f(x,
+    precision)` and `x.f(precision)` give another, `exp(x, 256)`,
+    `BigFloat.pi(64)`.
+  - It is good whatever the size of the result: `exp(BigFloat(1000))`
+    has 128 good bits, and so has `exp(BigFloat(-1000))`, where a
+    BigRat's 128 bits after the point would be 0.
+- **A result is the nearest** `BigFloat` to the true value, or, where
+  that is all but midway between two, one of the two.
+  - `sqrt`'s is always the nearest, as an `f64`'s.
+  - What is whole is itself: `sqrt(BigFloat(9))` is 3,
+    `pow(BigFloat(2), BigFloat(10))` 1024.
+- **`pow(x, y)`** is `e^(y ln x)` of an `x` above 0; of a negative `x`
+  and a whole `y` the power, and of one not whole a NaN.
+- **An infinity and a NaN** come where a float's function gives one:
+  `log(BigFloat(0))` is `-inf`, `sqrt(BigFloat(-1))` a NaN,
+  `atan` of an infinity half of pi, `tanh` of one 1.
+  - `exp` of a number past `2^62` is an infinity, or 0: its exponent
+    is past an `i64`.
+- **How**: by a BigRat's function, with as many bits after the point
+  as make the bits asked for good, and 8 more.
+  - `exp` takes the multiple of `ln 2` out first and `log` the power
+    of 2, so no bits are spent on the size; `sinh`, `cosh` and `tanh`
+    of 1 and more are of `exp`.
+  - `sqrt` is the whole root of the mantissa, shifted.
+  - `sin`, `tan`, `asin`, `atan`, `sinh`, `tanh`, `asinh` and `atanh`
+    of an `x` so near 0 that its square is below the last bit are `x`.
+
 ## Where it lives
 
-`CBR` and the functions of a `BigRat` and of a `CBR` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+The functions of a `BigFloat` are `modules/math+BigFloat.k`'s, an overlay read where `<math>` and `<BigFloat>` are both imported; it imports `<math+Rational>`, whose functions it is written with (#579). `CBR` and the functions of a `BigRat` and of a `CBR` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
 ## Functions
 
@@ -362,6 +414,15 @@ abs(z:CBR):BigRat, abs(z:CBR, precision:int64):BigRat, arg(z:CBR):BigRat, arg(z:
 pow(z:CBR, w:CBR):CBR, pow(z:CBR, x:BigRat):CBR, pow(x:BigRat, w:CBR):CBR   // each with a precision too
 pow(x:BigRat, y:BigRat):BigRat, pow(x:BigRat, y:BigRat, precision:int64):BigRat
 atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):BigRat
+```
+
+With `<BigFloat>` (#580):
+
+<!-- fragment -->
+```swift
+sin(x:BigFloat):BigFloat, sin(x:BigFloat, precision:int64):BigFloat        // and so for each function of a BigFloat
+pow(x:BigFloat, y:BigFloat):BigFloat, pow(x:BigFloat, y:BigFloat, precision:int64):BigFloat
+atan2(y:BigFloat, x:BigFloat):BigFloat, atan2(y:BigFloat, x:BigFloat, precision:int64):BigFloat
 ```
 
 ## Properties and methods
@@ -401,4 +462,8 @@ atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):Big
 | | `.sqrt(p)`, `.exp(p)`, `.sin(p)`, ... | the same within `2^-p` |
 | | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
 | `BigRat.` | `.pi()`, `.pi(p)` | pi to 128 bits, or within `2^-p` |
+| `BigFloat`, with `<BigFloat>` (#580) | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to `BigFloat.precision` significant bits, 128, a `BigFloat` |
+| | `.sqrt(p)`, `.exp(p)`, `.sin(p)`, ... | the same to `p` significant bits |
+| | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
+| `BigFloat.` | `.pi()`, `.pi(p)` | pi to `BigFloat.precision` bits, or to `p` |
 | | `.precision` | 128, the precision where none is written |

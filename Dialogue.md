@@ -11076,3 +11076,29 @@ stand in the order found. kc was right already. The functions follow
 as the next number. Details are provisional P591.
 
 There are 1362 tests, and all pass with clang and with gcc 15.
+
+### 627. math's functions of a BigFloat
+
+The third part of **User**'s `BigFloat`: "with <math>, math
+functions like sin(), cos(), exp(), log()", by a BigRat's where that
+is the easiest way.
+
+With `<math>` and `<BigFloat>` the seventeen functions a `BigRat`
+has take a `BigFloat`, each a method too, and `BigFloat.pi()`. By
+**User**'s answer a precision is significant bits, so a result has
+`BigFloat.precision` of them whatever its size: `exp(BigFloat(-1000))`
+is `5.0759588975494567652918094795743369193e-435`, where a BigRat's
+128 bits after the point would be 0. Each is the BigRat's function
+with as many bits after the point as that takes, and 8 more than
+asked, so a result is the nearest but where the true value is all
+but midway between two; `sqrt` is done in whole numbers and is
+always the nearest. `exp` and `log` take the power of 2 out
+themselves.
+
+**Claude** checked 5100 values against a reference written in
+Python, with its own series. The text of `exp(BigFloat(1000000))`
+was found to take some 9 seconds, #577's digits being found in
+exact rationals; that was left, and reported. Details are
+provisional P592.
+
+There are 1363 tests, and all pass with clang and with gcc 15.

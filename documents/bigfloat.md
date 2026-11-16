@@ -103,6 +103,14 @@ and no part of the core.
   2: `BigRat(BigFloat(0.1))` is
   `(3602879701896397n/36028797018963968n)`.
   - An infinity is `(1n/0n)` or `(-1n/0n)`, and a NaN `(0n/0n)`.
+- **With `<math>`** its functions take a `BigFloat` (#580): `sqrt`,
+  `exp`, `log`, `pow`, the trigonometric and hyperbolic ones and their
+  inverses, each a method too, and `BigFloat.pi()`: see
+  [math.md](math.md).
+  - A result has `BigFloat.precision` significant bits, whatever its
+    size, or the precision written: `exp(x, 256)`, `x.sin(64)`.
+  - They come with the two imports, by an overlay,
+    `modules/math+BigFloat.k` (#551, [modules.md](modules.md)).
 - **Its text** (#577) is the fewest digits that read back:
   `BigFloat("0.1")` prints `0.1`, and `BigFloat(1) / 3`
   `0.333333333333333333333333333333333333334`, 39 digits.
@@ -181,4 +189,7 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.f64` | the nearest `f64`; `inf`, `-inf`, 0 or `nan` |
 | | `print(x)`, `.cstr`, `${x}`, `.string` | the fewest digits that `BigFloat(text)` reads back, `0.1`; `.string` a String (#577) |
 | | `.dec`, `.hex` | the same with a sign, `+0.1`, and C's `%a` with a sign, `+0x1.8p+0`, exact; each a String |
+| | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()`, with `<math>` (#580) | the function to `BigFloat.precision` significant bits; `.exp(p)` to `p` |
+| | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)`, with `<math>` | the two-argument ones |
+| | `BigFloat.pi()`, `BigFloat.pi(p)`, with `<math>` | pi to `BigFloat.precision` bits, or to `p` |
 | `BigRat` | `BigRat(x)` | the value of a `BigFloat`, exactly |

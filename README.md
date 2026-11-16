@@ -528,3 +528,11 @@ So far the changes from C are these, by topic.
   after the module both are of, are in the order found, where the
   second was put before the first and saw none of what it imports
   (#579)
+- with `<math>` and `<BigFloat>` math's functions take a `BigFloat`:
+  `sqrt(BigFloat(2))` is `1.41421356237309504880168872420969807857`;
+  `sqrt`, `exp`, `log`, `pow`, the trigonometric and hyperbolic
+  functions and their inverses, each a method too, and
+  `BigFloat.pi()`; a result has `BigFloat.precision` significant
+  bits whatever its size, `exp(BigFloat(-1000))` is
+  `5.0759588975494567652918094795743369193e-435`, or the precision
+  written, `exp(x, 256)` (#580)

@@ -1562,6 +1562,7 @@ on a new line`
     println(bf_third, " ", BigFloat("0.1"), " ", BigFloat(0.1), " ", bf_third.round(8), " ", bf_third.hex, " ", BigFloat(1.5).dec, " ", BigFloat(bf_third.string) == bf_third, " ", BigFloat("1.5x"))   // its text, the fewest digits that read back (#577)
     let ta_no = argc > 99
     println(ta_no ? -f64.infinity : f64.infinity, " ", ta_no ? 1 : i64.max, " ", ta_no ? 1:i8 : 2:i8, " ", ta_no ? 0.0 : f64.pi * 2.0)   // the else arm begins with a type's attribute (#578)
+    println(sqrt(BigFloat(2)), " ", exp(BigFloat(1), 64), " ", BigFloat.pi(32), " ", BigFloat("0.7").sin(16), " ", exp(BigFloat(-1000)), " ", pow(BigFloat(2), BigFloat(10)), " ", log(BigFloat(0)))   // math's functions of a BigFloat, by the overlay math+BigFloat.k (#580)
     return 0
 }
 
