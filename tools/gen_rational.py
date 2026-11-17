@@ -131,6 +131,11 @@ for b in reversed(widths):
     static let infinity:Self = {{1, 0}}
     static let nan:Self = {{0, 0}}
 
+    // -1 or 1, an i64, as a floating-point number's (#597): -1 where it
+    // is negative, the negative infinity too, and 1 of all else, 0 and a
+    // NaN, which have no sign
+    let sign:i64 {{ self.num < 0 ? -1 : 1 }}
+
     let isNaN:bool {{ self.num == 0 && self.den == 0 }}
     let isInfinite:bool {{ self.num != 0 && self.den == 0 }}
     let isFinite:bool {{ self.den != 0 }}
@@ -247,6 +252,10 @@ extend BigRat {
     static let zero:Self { (BigRat){BigInt(0), BigInt(1)} }
     static let infinity:Self { (BigRat){BigInt(1), BigInt(0)} }
     static let nan:Self { (BigRat){BigInt(0), BigInt(0)} }
+
+    // -1 or 1, an i64, as a floating-point number's (#597): -1 where it
+    // is negative, the negative infinity too, and 1 of all else
+    let sign:i64 { self.num.isNegative ? -1 : 1 }
 
     let isNaN:bool { self.num.isZero && self.den.isZero }
     let isInfinite:bool { !self.num.isZero && self.den.isZero }

@@ -271,8 +271,8 @@ let main():int32 {
     `(a - b).sign`.
   - It is a property, with no parentheses, and needs no import.
   - It is read, never set: `n.sign = 1` is an error. A floating-point
-    number's is a `bool?`, which may be set (#383):
-    [floatingpoint.md](floatingpoint.md).
+    number's is -1 or 1, an `i64`, by its sign bit, and may be set
+    (#597): [floatingpoint.md](floatingpoint.md).
 - **An unsigned integer** has no `.sign`, nor a complex number, which
   has no order.
 - A struct's field named `sign`, and an attribute of your own, win.

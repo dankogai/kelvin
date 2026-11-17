@@ -98,13 +98,22 @@ text, print and show as text. Integers are in
 - **`x.abs`** is the magnitude, of its type, C's `fabs` or `fabsf`
   (#381), with no import: `(-2.5).abs` is 2.5, and `(-0.0).abs` 0.0.
   - `x.abs()`, math's method, is the same.
-- **`x.sign`** is a `bool?`, by its sign bit (#382, #383), with no
-  import: `true` for positive, `false` for negative, `none` of NaN.
-  - So `0.0.sign` is `some(true)` and `(-0.0).sign` `some(false)`;
-    `x.sign ?? true` reads it as a `bool`.
-  - **`x.sign = b`** sets the bit, a `bool`, in the var that holds `x`:
-    `x.sign = false` makes it negative, zeros and NaN too; `x.sign =
-    none` is an error.
+- **`x.sign`** is -1 or 1, an `i64`, by its sign bit (#597), with no
+  import: -1 for negative, 1 for positive.
+  - It is the bit, so a zero and a NaN have theirs: `0.0.sign` is 1
+    and `(-0.0).sign` -1.
+    - An integer's is -1, 0 or 1, as it has one zero.
+  - So `x.abs * x.sign as f64 == x` of any number but a NaN.
+  - **`x.sign = s`** sets the bit, in the var that holds `x`:
+    `x.sign = -1` makes it negative, zeros and NaN too.
+    - `x.sign *= -1` flips it, and `x.sign = y.sign` is C's
+      `copysign`.
+    - It is set with -1 or 1: another integer written out is an error,
+      a `bool` too, and one worked out ends the program, `kelvin:
+      '.sign' of an f64 is -1 or 1, and this set is neither`.
+  - It was a `bool?`, `none` of NaN (#383).
+  - A rational and a `BigFloat` have it too, -1 or 1
+    ([rational.md](rational.md), [bigfloat.md](bigfloat.md)).
 - **`x.exponent`** and **`x.significand`** are IEEE 754's two other
   fields of its bits, as `i64`s (#383), with no import.
   - The exponent is biased, as stored: 0 to 2047 of an `f64`, 0 to 255
@@ -203,8 +212,8 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 | | `.dec`, `.hex` | its text, `+2.0`, and C's `%a`, each with a sign |
 | | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
 | | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
-| | `.sign` | a `bool?` by its sign bit: `true` positive, `false` negative, `none` of NaN (#382, #383) |
-| | `.sign = b` | sets the sign bit, a `bool` (#383) |
+| | `.sign` | -1 or 1, an `i64`, by its sign bit: a zero's and a NaN's too (#597) |
+| | `.sign = s` | sets the sign bit, with -1 or 1 (#383, #597) |
 | | `.exponent`, `.exponent = e` | the biased exponent field, an `i64`, 0...2047 or 0...255, read and set (#383) |
 | | `.significand`, `.significand = s` | the fraction's bits, an `i64`, 0...2^52 - 1 or 0...2^23 - 1, read and set (#383) |
 | | `.isNaN` | whether it is NaN, a `bool` (#382) |

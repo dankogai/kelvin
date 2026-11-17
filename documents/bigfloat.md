@@ -98,6 +98,9 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
     - Each is a new one at each read, the reader's own, as a
       `BigFloat` owns its mantissa (#595).
     - The other infinity is `-BigFloat.infinity`.
+  - `x.sign` is -1 or 1, an `i64`, as an `f64`'s (#597): -1 where `x`
+    is negative, the negative infinity too, and 1 of all else, as its
+    one 0 and its one NaN have no sign.
   - It has one 0, with no sign, as a rational: `BigFloat(-0.0)` is
     `BigFloat(0)`.
   - An exponent past an `i64` is an infinity, and one below it 0.
@@ -231,6 +234,7 @@ own before, modules/BigFloat.k, `#import <BigFloat>`.
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is a NaN; an infinity; neither |
 | | `BigFloat.zero`, `BigFloat.infinity`, `BigFloat.nan` | 0, the positive infinity and a NaN, a new one at each read (#596) |
+| | `.sign` | -1 where it is negative, else 1, an `i64` (#597) |
 | | `.f64` | the nearest `f64`; `inf`, `-inf`, 0 or `nan` |
 | | `print(x)`, `.cstr`, `${x}`, `.string` | the fewest digits that `BigFloat(text)` reads back, `0.1`; `.string` a String (#577) |
 | | `.dec`, `.hex` | the same with a sign, `+0.1`, and C's `%a` with a sign, `+0x1.8p+0`, exact; each a String |

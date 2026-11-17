@@ -99,7 +99,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     it is an error, which says `p^.isEmpty` of a pointer.
 - **`x.abs`** is the magnitude of a signed integer or a floating-point
   number, of its type (#381), and **`x.sign`** its sign, -1, 0 or 1 of
-  an integer, a `bool?` of a floating-point number (#382, #383); an
+  an integer, -1 or 1 of a floating-point number (#382, #597); an
   unsigned integer has neither, nor a complex number. **`x.isNaN`** is
   whether a floating-point number is NaN (#382), **`x.isInfinite`** and
   **`x.isFinite`** whether it is infinite, or neither that nor NaN

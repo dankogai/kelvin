@@ -1349,6 +1349,11 @@ extend BigFloat {
     static let infinity:Self { BigFloat_inf(1) }
     static let nan:Self { BigFloat_nan() }
 
+    // -1 or 1, an i64, as an f64's (#597): -1 where it is negative, the
+    // negative infinity too, and 1 of all else; its one 0 and its one NaN
+    // have no sign
+    let sign:i64 { self.mantissa.isNegative ? -1 : 1 }
+
     let isNaN:bool { self.special == 2 }
     let isInfinite:bool { self.special == 1 }
     let isFinite:bool { self.special == 0 }

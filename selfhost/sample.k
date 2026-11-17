@@ -999,9 +999,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     println((0 - power3).abs, " ", (-2.5).abs, " ", (power3 - 100).abs)   // x.abs (#381)
     println((0 - power3).sign, " ", (-0.0).sign, " ", (power3 - 81).sign, " ", (0.0 / 0.0).isNaN)   // x.sign, x.isNaN (#382)
     var bits3:float64 = -2.5
-    bits3.sign = true
+    bits3.sign = 1
     bits3.exponent += 1
-    println(bits3, " ", bits3.sign, " ", bits3.exponent, " ", bits3.significand, " ", bits3.sign ?? false)   // a float's fields (#383)
+    println(bits3, " ", bits3.sign, " ", bits3.exponent, " ", bits3.significand, " ", bits3.sign * 2)   // a float's fields (#383), its sign -1 or 1 (#597)
     println(bits3.isFinite, " ", bits3.isInfinite, " ", (1.0 / 0.0).isInfinite, " ", (0.0 / 0.0).isFinite)   // x.isInfinite, x.isFinite (#384)
     let ♾️ = 1.0/0.0
     let 時間 = 60 * 60

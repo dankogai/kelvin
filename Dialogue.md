@@ -11594,3 +11594,26 @@ other. The complex numbers have none, as the order names the real
 ones. Details are provisional P608.
 
 There are 1392 tests, and all pass with clang and with gcc 15.
+
+### 644. A floating-point number's sign, -1 or 1
+
+**User**: "push", for #596, while its battery ran. **Claude** pushed
+it when the battery was clean, and brought in this, written before in
+a copy of the tree.
+
+`x.sign` of a floating-point number was a `bool?`: true for positive,
+false for negative, none of NaN. The user asked for -1 and +1, and,
+asked what a zero's and a NaN's are, chose the sign bit. So it is an
+`i64`, -1 or 1, and `(-0.0).sign` is -1.
+
+It is still set, with what it reads as: `x.sign = -1`. Now that it is
+a number, `x.sign *= -1` flips it, and `x.sign = y.sign` is C's
+`copysign`. A `bool` there is an error, and so is another integer
+written out; one worked out ends the program.
+
+"Any floating-point instance" is taken for the family. A `BigFloat`,
+a `BigRat` and the rationals of integers had no `.sign`, and have it:
+-1 where negative, and 1 of all else, as each has one 0 and one NaN.
+An integer's is as it was, -1, 0 or 1. Details are provisional P609.
+
+There are 1394 tests, and all pass with clang and with gcc 15.

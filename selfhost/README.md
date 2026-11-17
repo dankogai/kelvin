@@ -463,13 +463,14 @@ kc reads what it is written in, and little more.
   the unsigned type, where the least wraps, and of its floating-point
   numbers, fabs; its unsigned ones have none.
 - **`x.sign`** and **`x.isNaN`** (#382), as kelvinc's: -1, 0 or 1 of a
-  signed integer's type, a floating-point number's 1.0 or -1.0 by its
-  sign bit, NaN of NaN; whether a floating-point number is NaN.
-- **A floating-point number's fields** (#383), as kelvinc's: `x.sign` a
-  `bool?` by its sign bit, `x.exponent` and `x.significand` IEEE 754's
-  raw fields as i64s, each set in the var that holds `x`, `x.sign = b`,
-  `x.exponent += 1`, within its field or the program ends; and `b ?? false`
-  of a `bool?` a bool, which prints `true`.
+  signed integer's type, a floating-point number's as the next entry
+  says; whether a floating-point number is NaN.
+- **A floating-point number's fields** (#383), as kelvinc's: `x.sign`
+  -1 or 1, an i64, by its sign bit (#597), where it was a `bool?`,
+  `x.exponent` and `x.significand` IEEE 754's raw fields as i64s, each
+  set in the var that holds `x`, `x.sign = -1`, `x.exponent += 1`,
+  within its field, the sign -1 or 1, or the program ends; and
+  `b ?? false` of a `bool?` a bool, which prints `true`.
 - **`x.isInfinite`** and **`x.isFinite`** (#384), as kelvinc's, Swift's
   pair beside `x.isNaN`.
 - **Names past ASCII** (#385), as kelvinc's: ident.k, which

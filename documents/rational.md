@@ -96,6 +96,9 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
     - A `BigRat`'s is a new one at each read, the reader's own, as it
       owns its two `BigInt`s (#595).
     - The other infinity is `-rat64.infinity`.
+  - `r.sign` is -1 or 1, an `i64`, as a floating-point number's (#597):
+    -1 where `r` is negative, `(-1/0)` too, and 1 of all else, as a
+    rational has one 0 and one NaN, with no sign.
   - They reckon as a float's do: `inf + 1` is `inf`, `inf - inf` and
     `inf * 0` are NaN, `1 / inf` is 0, and `a / 0` is an infinity.
   - An infinity divided has the quotient's sign (#574): `inf / -2`
@@ -200,6 +203,7 @@ that imports it; see [modules.md](modules.md).
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is `(0/0)`; `(1/0)` or `(-1/0)`; neither |
 | | `rat64.zero`, `rat64.infinity`, `rat64.nan` | `(0/1)`, `(1/0)` and `(0/0)`, of each width (#596) |
+| | `.sign` | -1 where it is negative, else 1, an `i64` (#597) |
 | | `.f64` | the nearest `f64`; `inf`, `-inf` or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(num.hex/den.hex)` and its kin, a String; the denominator has no sign (#565) |
 | | `print(r)`, `.cstr`, `${r}`, `.string` | `(num/den)`; `.string` a String (#565) |
@@ -210,6 +214,7 @@ that imports it; see [modules.md](modules.md).
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too; `BigRat(1, 0) / BigRat(-2)` is `(-1n/0n)` (#574) |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |
 | | `BigRat.zero`, `BigRat.infinity`, `BigRat.nan` | `(0n/1n)`, `(1n/0n)` and `(0n/0n)`, a new one at each read (#596) |
+| | `.sign` | as `rat64`'s (#597) |
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |

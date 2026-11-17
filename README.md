@@ -637,3 +637,7 @@ So far the changes from C are these, by topic.
   `f64` and `f32`, where `.zero` is new; `rat64` down to `rat8`,
   `(0/1)`, `(1/0)` and `(0/0)`; and `BigRat` and `BigFloat`, each a new
   one at each read (#596)
+- `x.sign` of a floating-point number is -1 or 1, an `i64`, by its
+  sign bit, a zero's and a NaN's too, where it was a `bool?`; it is
+  set with -1 or 1, `x.sign *= -1`; a rational and a `BigFloat` have
+  it, -1 where negative and 1 of all else (#597)

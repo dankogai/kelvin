@@ -1,4 +1,4 @@
-// x.sign (#382) of i8, i16 and i128, of its own type; of an f32 a bool? (#383)
+// x.sign (#382) of i8, i16 and i128, of its own type; of an f32 -1 or 1, an i64 (#597)
 let main():int32 {
     let k:int8 = -7
     let s:int16 = 300
@@ -7,4 +7,4 @@ let main():int32 {
     println(k.sign, " ", k.sign.size, " ", s.sign, " ", s.sign.size, " ", i64(w.sign), " ", w.sign.size, " ", f.sign)
     return 0
 }
-// out: -1 1 1 2 -1 16 some(false)
+// out: -1 1 1 2 -1 16 -1
