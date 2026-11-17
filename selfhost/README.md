@@ -126,6 +126,13 @@ kc reads what it is written in, and little more.
   - A body that ends in a value on any path, of a block, an `if` or a
     case, is kelvinc's error too, and in `main`, whose end returns 0,
     one with no effect.
+  - A call that C's `_Generic` chooses the overload of (#593) is asked
+    of all of them, by `generic_result`, as kelvinc's
+    `overloaded_result`: no value where none has a result, a value
+    where each has one, and not seen where they differ.
+    - The first of them gave the call its type, so
+      `let f():f64 { note(atof("1.5")) }` was refused where
+      `note(x:i64)`, with no result, was declared before `note(x:f64)`.
 - **An argument with no value** (#317) is kelvinc's error of #316, in
   its words: `println(tell(1))`, `xs.append(f.close())`.
   - It covers a call, a method or `async`, given a call of a function or

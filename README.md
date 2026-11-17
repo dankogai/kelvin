@@ -622,3 +622,8 @@ So far the changes from C are these, by topic.
   holds it, so two objects that both use it link; `#import <math>` is
   accepted and does nothing; `abs(-3)` is Kelvin's, an `i64`, where it
   was C's, an `int` (#591)
+- A call of an overloaded function has the result of the overload it
+  calls where kelvinc asks whether a call has a value: one with no
+  result is no value of a body and no argument, as a program's own
+  `log(x:i64)` beside math's `log`, and one with a result is a value a
+  body drops; both were left to C (#593)

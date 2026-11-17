@@ -566,6 +566,11 @@ extend nm_len {
     let i64:i64 { .v as i64 }
 }
 
+// a call that C chooses the overload of has no value only where none of
+// them has a result (#593): here one has, so it is the body's value
+let told593(x:int64) { println("told ", x) }
+let told593(x:float64):float64 { return x * 2.0 }
+let chosen593():float64 { told593(atof("1.5")) }
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1576,6 +1581,8 @@ on a new line`
     println(abs(CBF(bf_top, bf_top)).hex, " ", abs(CBF(1 / bf_top, 1 / bf_top)).hex, " ", sqrt(CBF(bf_top, BigFloat(1))).hex, " ", sqrt(CBF(BigFloat(-7) * bf_top, BigFloat(24) * bf_top)).hex)   // abs and sqrt of a CBF with a part of any exponent (#587)
     println(exp(BigFloat("0x1p+62")).hex, " ", pow(BigFloat(2), BigFloat("0x1.cp+62")).hex, " ", exp(BigFloat("6393154322601327918")), " ", sinh(BigFloat("6393154322601327917")).hex, " ", exp(-BigFloat("0x1p+62")).hex)   // exp of a BigFloat up to the greatest exponent there is (#588)
     println(exp(CBF(BigFloat("7000000000000000000"), BigFloat("0x1p-4000000000000000000"))).hex, " ", exp(CBF(BigFloat("-6393154322601327735"), BigFloat(1))).hex, " ", tanh(CBF(BigFloat("3196577161300663870"), BigFloat(1))).hex, " ", pow(CBF(BigFloat(2), BigFloat("0x1p-4000000000000000000")), CBF(BigFloat("0x1.1p+63"))).hex)   // a part of a CBF's exp is tried as the product it is (#589)
+    told593(593)
+    println(chosen593(), " ", told593(0.25))   // an overload's call has the result of the one called (#593)
     return 0
 }
 

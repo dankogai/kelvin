@@ -11463,3 +11463,40 @@ said a module is compiled with its program "as math is", which #591
 had made untrue; they are put right. Details are provisional P604.
 
 There are 1375 tests, and all pass with clang and with gcc 15.
+
+### 640. A call of an overloaded function, and its value
+
+**User**: "push", for #592, and then "fix the no-value check of an
+overloaded function as #593". **Claude** pushed #592 when its battery
+was clean, and CI passed, 9 of 9.
+
+The fault was found with #591. `let f(x:i64):i64 { log(x) }`, of a
+program's own `log(x:i64)` with no result, is no value to return, and
+kelvinc says so of a function of a name of its own. But `log` is
+math's name too, and of a name with several functions the check saw
+nothing: it asked the type of the name, not the overload called. So C
+said it, "returning 'void' from a function".
+
+Now the check asks the overload the call chose. Where C chooses, of
+an argument only C sees the type of, it asks all C chooses among: the
+call is no value where none of them has a result. The same holds of
+such a call as an argument, `twice(note(1))`.
+
+**Claude** found the twin and fixed it with it. A body that ends in a
+call of an overloaded function with a result, as in
+`if x > 0 { twice(x) } else { twice(-x) }`, drops the value. kelvinc
+reports it of any other function; of an overloaded one C gave a
+warning alone, and the function returned nothing. It is the same
+question of the same call, so it is one fix; the user may have it
+apart.
+
+kc asked the overload chosen already. Where C chooses, it asked the
+first declared, and refused `let f():f64 { note(atof("1.5")) }` where
+the `note` with no result came first. It asks all of them now, as
+kelvinc. Details are provisional P605.
+
+**Claude** found one thing more and left it: kc does not report a
+method's value dropped at a body's end, overloaded or not. kelvinc
+does.
+
+There are 1380 tests, and all pass with clang and with gcc 15.

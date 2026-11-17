@@ -17869,6 +17869,26 @@ let builtin_no_value(k:ykind, m:int64):bool {
     return tok_is(m, "write") || tok_is(m, "flush") || tok_is(m, "close") || tok_is(m, "print") || tok_is(m, "println") || tok_is(m, "rewind")
 }
 
+// the result of a call that only C's _Generic chooses for (#41), as far
+// as kc sees it, as kelvinc's overloaded_result (#593): 1 where each of
+// the overloads it may be has one, 0 where none of them has, 2 where
+// some have and some have not, which kc does not see, and -1 where the
+// call is no such one. The first of them gives the call its type, which
+// is not asked here.
+let generic_result(n:int64):int64 {
+    if nodes[n].kind != N_CALL || nodes[nodes[n].a].kind != N_ID { return -1 }
+    if call_target(n) < 0 || !generic_at.has(n) { return -1 }
+    let at = generic_at.get(n, 0)
+    let count = generic_sets[at]
+    var with:int64 = 0
+    for i in 0..<count {
+        let y:int64 = nodes[generic_sets[at + 1 + i]].ty
+        if y >= 0 && types[y].kind != Y_VOID { with += 1 }
+    }
+    if with == count { return 1 }
+    return with == 0 ? 0 : 2
+}
+
 // whether e, a statement, has no value: println, print, a call of a
 // function or method kc sees has no result, or of a built-in method with
 // none (#317), as kelvinc's no_value
@@ -17889,6 +17909,8 @@ let no_value(e:int64):bool {
     }
     if k != N_CALL && k != N_AWAIT { return false }       // await of a Task of none (#313)
     if is_case_word(e) { return false }                   // ok(v), err(e): a value, of no type to ask here (#413)
+    let g = generic_result(e)                             // of the overloads C chooses among (#593)
+    if g >= 0 { return g == 0 }
     let y:int64 = type_of(e)
     return y >= 0 && types[y].kind == Y_VOID
 }
@@ -17945,6 +17967,8 @@ let drops_value(e:int64, calls:bool):bool {
     if !calls || k != N_CALL || nodes[nodes[e].a].kind != N_ID { return false }
     if tok_is(nodes[nodes[e].a].t, "println") || tok_is(nodes[nodes[e].a].t, "print") { return false }
     if call_target(e) < 0 { return false }
+    let g = generic_result(e)                             // of the overloads C chooses among (#593)
+    if g >= 0 { return g == 1 }
     let y:int64 = type_of(e)
     return y >= 0 && types[y].kind != Y_VOID
 }

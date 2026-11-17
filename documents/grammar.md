@@ -345,6 +345,9 @@ let square(x:int64):int64 { x * x }
   anonymous function does: `let square(x:i64):i64 { x * x }`.
   - There, an assignment, or a call kelvinc sees has no value such as
     `println`, is an error.
+    - A call of an overloaded function is seen by the overload it
+      calls (#593): a program's own `log(x:i64)` with no result is no
+      value, though math's `log` has one.
   - `main` is the exception: its end returns 0 as in C, so its one
     expression is a statement, and `let main():i32 { printf("hi\n") }`
     exits 0.
@@ -352,6 +355,8 @@ let square(x:int64):int64 { x * x }
   - kelvinc reports one that ends, on any path, in a value it drops:
     one with no effect, as in `if x < 0 { -1 } else { 1 }`, or a call
     it sees has a result (in `main`, only the first kind).
+    - A call of an overloaded function is among them, by the overload
+      it calls (#593).
 - In a function with a result, `return` at the end of a line takes the
   expression on the next line, as in Swift.
   - In one without a result there is nothing to return, so `return`

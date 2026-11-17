@@ -115,6 +115,11 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     - So is a method with none, a Kelvin one or a built-in one, as
       `f.print(...)` or `xs.clear()`.
     - So is `await t` of a Task of a function with no result.
+    - A call of an overloaded function is of the overload it calls
+      (#593): `twice(note(1))` is the error where `note(x:i64)` has no
+      result, though `note(x:f64)` has one.
+      - Where C chooses among them, it is the error where none of
+        them has a result.
 - **`return {...}`** (#77) takes the function's result type, as a
   declaration's `{...}` does.
   - `return {0, 0}` in a function that returns a `point`.

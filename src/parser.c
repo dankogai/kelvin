@@ -12778,6 +12778,23 @@ static bool builtin_no_value(char ok, const char *m) {
     return false;
 }
 
+/* Whether a call of a function whose name overloads share (#41) has a
+   result, as far as kelvinc sees: 1 where the overload chosen has one, or
+   each of those C chooses among, 0 where it has none, or none of them
+   has, and -1 where some have and some have not, or the call is of no
+   such name. The callee's own type is not asked: of a name with several
+   functions it is none kelvinc sees (#593). */
+static int overloaded_result(Expr *e) {
+    if (e->kind != E_CALL || e->op || !e->a || e->a->kind != E_IDENT)
+        return -1;
+    if (e->target)
+        return e->target->kind == D_FN ? e->target->ret != NULL : -1;
+    int with = 0;
+    for (int i = 0; i < e->cands.len; i++)
+        with += ((Decl *)e->cands.data[i])->ret != NULL;
+    return !e->cands.len ? -1 : with == e->cands.len ? 1 : with ? -1 : 0;
+}
+
 /* Does kelvinc see that e has no value: a call of print or println, of a
    Kelvin function, method or function value with no result, of a
    built-in method with none, or of _Pragma or asm, or a comma or ?: with
@@ -12794,6 +12811,9 @@ static bool no_value(Expr *e) {
             for (int i = 0; words[i]; i++)
                 if (!strcmp(e->a->text, words[i]))
                     return true;
+        int r = overloaded_result(e); /* of an overloaded function (#593) */
+        if (r >= 0)
+            return !r;
         Type *t = value_type(e->a);
         return t && t->kind == T_FUNC && !t->elem;
     }
@@ -12860,6 +12880,9 @@ static bool drops_value(Expr *e, bool calls) {
         return false;
     switch (e->kind) {
     case E_CALL: {
+        int r = overloaded_result(e); /* of an overloaded function (#593) */
+        if (r >= 0)
+            return r;
         Type *t = value_type(e->a);
         return t && t->kind == T_FUNC && t->elem;
     }
