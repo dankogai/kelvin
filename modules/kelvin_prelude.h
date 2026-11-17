@@ -236,6 +236,113 @@ kv_string kv_string_lit(const void *p, size_t n);
    copy(), and its block frees it, elements included. */
 void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
+/* A floating-point number as sign * significand * 2^exponent (#598), all
+   integers, the significand odd, or 0 of a zero with an exponent of 0, as
+   a BigFloat's mantissa and exponent are: 1.0 is (1, 0, 1), 1.5 (1, -1, 3).
+   An infinity reads as its sign times 1 and a NaN as 0, each with an
+   exponent of 0, as a BigFloat keeps them. The bits are IEEE 754's: p the
+   significand's with its leading 1, 53 or 24, and e those of the exponent's
+   field, 11 or 8. */
+static inline int64_t kv_float_part(uint64_t b, int p, int e, bool exponent) {
+    uint64_t frac = b & (((uint64_t)1 << (p - 1)) - 1);
+    int64_t field = (int64_t)(b >> (p - 1) & (((uint64_t)1 << e) - 1));
+    if (field == ((int64_t)1 << e) - 1) /* an infinity, 1 times 2^0; a NaN, 0 */
+        return exponent ? 0 : frac == 0;
+    uint64_t m = field ? frac | (uint64_t)1 << (p - 1) : frac; /* a subnormal has no leading 1 */
+    if (!m)
+        return 0;
+    int low = __builtin_ctzll(m);
+    return exponent ? (field ? field : 1) - (((int64_t)1 << (e - 1)) - 1) - (p - 1) + low : (int64_t)(m >> low);
+}
+static inline int64_t kv_f64_exponent(double x) {
+    uint64_t b;
+    __builtin_memcpy(&b, &x, 8);
+    return kv_float_part(b, 53, 11, true);
+}
+static inline int64_t kv_f64_significand(double x) {
+    uint64_t b;
+    __builtin_memcpy(&b, &x, 8);
+    return kv_float_part(b, 53, 11, false);
+}
+static inline int64_t kv_f32_exponent(float x) {
+    uint32_t b;
+    __builtin_memcpy(&b, &x, 4);
+    return kv_float_part(b, 24, 8, true);
+}
+static inline int64_t kv_f32_significand(float x) {
+    uint32_t b;
+    __builtin_memcpy(&b, &x, 4);
+    return kv_float_part(b, 24, 8, false);
+}
+/* F(sign, exponent, significand) (#598): the bits of the number nearest
+   sign * significand * 2^exponent, ties to the even one, rounded once, a
+   subnormal too; an infinity where it is past the greatest, a zero where
+   below the least, each with the sign. The sign of a negative significand
+   is taken with the sign's; a 0 has the sign's. A sign that is neither -1
+   nor 1 makes a NaN. */
+static inline uint64_t kv_float_bits(int64_t sign, int64_t exponent, int64_t significand, int p, int e) {
+    int64_t emax = ((int64_t)1 << (e - 1)) - 1, emin = 1 - emax;
+    uint64_t all = ((uint64_t)1 << e) - 1;
+    if (sign != 1 && sign != -1)
+        return all << (p - 1) | (uint64_t)1 << (p - 2); /* a quiet NaN */
+    uint64_t s = (uint64_t)((sign < 0) != (significand < 0)) << (p - 1 + e);
+    uint64_t m = significand < 0 ? 0 - (uint64_t)significand : (uint64_t)significand;
+    if (!m)
+        return s;
+    if (exponent > emax + 1)
+        return s | all << (p - 1);
+    if (exponent < emin - p - 66)
+        return s;
+    int n = 64 - __builtin_clzll(m);           /* the bits of m */
+    int64_t top = exponent + n - 1;            /* the exponent of its leading 1 */
+    int64_t room = top >= emin ? p : p - (emin - top); /* the bits a number there keeps */
+    if (room < 0)
+        return s;
+    if (n > room) { /* rounded to them, once: to the nearest, a tie to the even one */
+        int cut = n - (int)room;
+        uint64_t q = cut > 63 ? 0 : m >> cut, rest = cut > 63 ? m : m & (((uint64_t)1 << cut) - 1);
+        uint64_t half = (uint64_t)1 << (cut - 1);
+        if (rest > half || (rest == half && (q & 1)))
+            q++;
+        m = q;
+        exponent += cut;
+        if (!m)
+            return s;
+        n = 64 - __builtin_clzll(m);
+        top = exponent + n - 1;
+    }
+    if (top > emax)
+        return s | all << (p - 1);
+    if (top >= emin) /* normal: its leading 1 at bit p - 1, and left out */
+        return s | (uint64_t)(top + emax) << (p - 1) | ((m << (p - n)) & (((uint64_t)1 << (p - 1)) - 1));
+    return s | m << (exponent - (emin - (p - 1))); /* subnormal: its last bit is 2^(emin - p + 1) */
+}
+static inline double kv_f64_make(int64_t sign, int64_t exponent, int64_t significand) {
+    uint64_t b = kv_float_bits(sign, exponent, significand, 53, 11);
+    double x;
+    __builtin_memcpy(&x, &b, 8);
+    return x;
+}
+static inline float kv_f32_make(int64_t sign, int64_t exponent, int64_t significand) {
+    uint32_t b = (uint32_t)kv_float_bits(sign, exponent, significand, 24, 8);
+    float x;
+    __builtin_memcpy(&x, &b, 4);
+    return x;
+}
+/* x.exponent = e and x.significand = s (#598): x anew, of its sign and the
+   other of the two */
+static inline void kv_f64_set_exponent(double *x, int64_t e) {
+    *x = kv_f64_make(__builtin_signbit(*x) ? -1 : 1, e, kv_f64_significand(*x));
+}
+static inline void kv_f64_set_significand(double *x, int64_t s) {
+    *x = kv_f64_make(__builtin_signbit(*x) ? -1 : 1, kv_f64_exponent(*x), s);
+}
+static inline void kv_f32_set_exponent(float *x, int64_t e) {
+    *x = kv_f32_make(__builtin_signbit(*x) ? -1 : 1, e, kv_f32_significand(*x));
+}
+static inline void kv_f32_set_significand(float *x, int64_t s) {
+    *x = kv_f32_make(__builtin_signbit(*x) ? -1 : 1, kv_f32_exponent(*x), s);
+}
 /* x.bits[n] of an integer of w bits (#530, #454's x.bit(n)): n is 0 to
    w - 1, else the program ends */
 static inline unsigned kv_int_place(uint64_t n, unsigned w) {

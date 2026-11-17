@@ -374,7 +374,7 @@ let main():int32 {
 - **A `BigInt`** has them too (#531), of any width: `b.bits[n]` past its
   top is its sign, setting one there grows it, and `BigInt(bools)` reads
   its last bool as the sign; see [bigint.md](bigint.md#bits-bits).
-- A floating-point number has none, and its fields are `.sign`,
+- A floating-point number has none, and is read as `.sign`,
   `.exponent` and `.significand`; a `bool` flips with `b.flip()`, see
   [bool.md](bool.md).
 - **`x.bit(n)` and `x.flip(n)`**, #454's, are gone with #530: each is

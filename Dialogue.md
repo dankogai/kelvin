@@ -11617,3 +11617,30 @@ a `BigRat` and the rationals of integers had no `.sign`, and have it:
 An integer's is as it was, -1, 0 or 1. Details are provisional P609.
 
 There are 1394 tests, and all pass with clang and with gcc 15.
+
+### 645. Sign, exponent and significand
+
+**User**: "push", for #597, twice, while its battery ran. **Claude**
+pushed it when the battery was clean, and brought in this.
+
+`1.0.exponent` was 1023: the exponent's field of an `f64`, biased, as
+IEEE 754 stores it (#383). The user's "WTF!!" is fair. Asked which
+of three meanings it should have, the user chose `BigFloat`'s: a
+number is its sign times its significand times 2 to its exponent, all
+three integers, and the significand odd. So `1.0` is 1 times `2^0`,
+`1.5` is 3 times `2^-1`, and `8.0` 1 times `2^3`.
+
+`f64(sign, exponent, significand)` makes the number of the three, and
+what `x.sign`, `x.exponent` and `x.significand` read gives `x` back,
+a negative zero and a subnormal too. It is the nearest number,
+rounded once. `f32` has the same, and `BigFloat`, `BigRat` and the
+rationals of integers are made so too, a `BigFloat`'s and a
+`BigRat`'s significand a `BigInt` or an integer.
+
+Three choices were Claude's, and the user said to go ahead with them:
+an infinity reads as 1 times `2^0` and a NaN as 0, as a `BigFloat`
+keeps them; an exponent out of range makes an infinity or a zero,
+and the old fields' ranges are gone with their errors; and `rat64`
+and down have the maker as well. Details are provisional P610.
+
+There are 1394 tests, and all pass with clang and with gcc 15.

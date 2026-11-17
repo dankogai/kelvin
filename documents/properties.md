@@ -104,8 +104,9 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   whether a floating-point number is NaN (#382), **`x.isInfinite`** and
   **`x.isFinite`** whether it is infinite, or neither that nor NaN
   (#384), and **`x.exponent`**
-  and **`x.significand`** its IEEE 754 fields, read and set, as is its
-  sign (#383). See [integers.md](integers.md) and
+  and **`x.significand`** the two integers it is with its sign, `sign *
+  significand * 2 ** exponent`, read and set, as is its sign (#597,
+  #598). See [integers.md](integers.md) and
   [floatingpoint.md](floatingpoint.md).
 - **A codepoint** is a `u32` (#527), its own number: `n.utf32`,
   `n.codepoint` and `n.uchr`, of `uchr` (#56), are no more (#528), and

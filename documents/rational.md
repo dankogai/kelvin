@@ -99,6 +99,18 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - `r.sign` is -1 or 1, an `i64`, as a floating-point number's (#597):
     -1 where `r` is negative, `(-1/0)` too, and 1 of all else, as a
     rational has one 0 and one NaN, with no sign.
+  - **`rat64(sign, exponent, significand)`** is `sign * significand *
+    2^exponent` (#598), as `f64(sign, exponent, significand)` makes a
+    floating-point number: `rat64(1, -1, 3)` is `(3/2)`.
+    - It is exact; what does not fit is a NaN, as of any rational of
+      integers: `rat8(1, 7, 1)`.
+    - `BigRat(sign, exponent, significand)` takes a `BigInt` or an
+      integer for its significand, and holds any:
+      `BigRat(x.sign, x.exponent, x.significand)` is an `f64` `x`
+      exactly.
+    - A sign that is neither -1 nor 1 makes a NaN.
+    - A rational has no `.exponent` and no `.significand`: not every
+      one is an integer times a power of 2. It has `.num` and `.den`.
   - They reckon as a float's do: `inf + 1` is `inf`, `inf - inf` and
     `inf * 0` are NaN, `1 / inf` is 0, and `a / 0` is an infinity.
   - An infinity divided has the quotient's sign (#574): `inf / -2`
@@ -196,6 +208,7 @@ that imports it; see [modules.md](modules.md).
 |---|---|---|
 | `i64`, `i32`, `i16`, `i8` | `n.over(d)` | `(n/d)`, a `rat64`, `rat32`, `rat16` or `rat8`, in lowest terms (#539) |
 | `rat64`, `rat32`, `rat16`, `rat8` | `rat64(n, d)`, `rat64(n)` | `(n/d)`; `(n/1)` |
+| | `rat64(sign, exponent, significand)` | `sign * significand * 2^exponent`, exact; a NaN where it does not fit, or the sign is neither -1 nor 1 (#598) |
 | | `rat64(r)`, `rat8(r)` | `r`, a rational of another width or a `BigRat`, converted; a NaN where it does not fit (#539, #540) |
 | | `rat64(text)`, `rat64(text, base)` | of its text, `"8/-12"`, `"(-2/3)"`, `r.hex` with 16; a `cstr` or a `String` by reference; a part may have a point, `"1.5"`, `"2.5/1.5"`, and in base 10 an exponent, `"1.5e-3"`, read exactly; `"abc"`, `""`, `"5x"`, `"1/"` and `"/3"` are NaNs (#565, #567, #568) |
 | | `.num`, `.den` | its numerator and its denominator, the denominator 0 or more |
@@ -209,6 +222,7 @@ that imports it; see [modules.md](modules.md).
 | | `print(r)`, `.cstr`, `${r}`, `.string` | `(num/den)`; `.string` a String (#565) |
 | `BigInt` | `n.over(d)` | `(n/d)`, a `BigRat`, of a `BigInt` or an integer `d` (#540) |
 | `BigRat` | `BigRat(n, d)`, `BigRat(n)`, `BigRat(r)` | of `BigInt`s or integers; of a rational of integers |
+| | `BigRat(sign, exponent, significand)` | `sign * significand * 2^exponent`, exact, the significand a `BigInt` or an integer (#598) |
 | | `BigRat(text)`, `BigRat(text, base)` | of its text, `"8/-12"`, `"(-2n/3n)"`, `"0.1"`, `r.hex` with 16; text that is no rational is a NaN (#565, #567, #568) |
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too; `BigRat(1, 0) / BigRat(-2)` is `(-1n/0n)` (#574) |

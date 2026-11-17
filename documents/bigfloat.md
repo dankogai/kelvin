@@ -41,6 +41,19 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
     one form: `BigFloat(6)` is 3 times `2^1`.
   - `x.mantissa` and `x.exponent` are its members, read as any
     struct's.
+  - `x.sign`, `x.exponent` and `x.significand` are the three an `f64`
+    has (#598): `x.significand` is the mantissa without its sign, a
+    `BigInt`, so `x` is `sign * significand * 2^exponent`.
+    - An infinity's significand is 1 and a NaN's 0, each with an
+      exponent of 0.
+  - **`BigFloat(sign, exponent, significand)`** makes one of the three
+    (#598), the significand a `BigInt` or an integer:
+    `BigFloat(-1, -1, 5n)` is -2.5.
+    - `BigFloat(x.sign, x.exponent, x.significand)` is `x`, of any
+      finite `x`.
+    - It is rounded to `BigFloat.precision` bits, as every result; the
+      significand need not be odd.
+    - A sign that is neither -1 nor 1 makes a NaN.
 - **Every result is rounded** to `BigFloat.precision` significant
   bits, the bits of the mantissa wherever the point is.
   - It is 128 where a program sets no other, some 38 decimal digits:
@@ -227,6 +240,8 @@ own before, modules/BigFloat.k, `#import <BigFloat>`.
 | | `BigFloat(text)`, `BigFloat(text, precision)` | of its text, `"0.1"`, `"1.5e-3"`, `"1/3"`, `"0x1.8p+1"`, `"inf"`, `"nan"`; a `cstr` or a `String` by reference; text that is none is a NaN (#577) |
 | | `BigFloat.precision` | the significant bits of every result, 128; a variable |
 | | `.mantissa`, `.exponent` | its mantissa, a `BigInt`, odd or 0, and the power of 2 it is times |
+| | `.significand` | its mantissa without its sign, a `BigInt` (#598) |
+| | `BigFloat(sign, exponent, significand)` | `sign * significand * 2^exponent`, the significand a `BigInt` or an integer; a NaN where the sign is neither -1 nor 1 (#598) |
 | | `.round(precision)` | itself at `precision` significant bits, to the nearest and the even one |
 | | `.round(precision, rule)` | by a rule |
 | | `BigFloat.nearestEven`, `.nearestAway`, `.up`, `.down`, `.towardZero`, `.awayFromZero` | the six rules, each a `RoundingRule` |

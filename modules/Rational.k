@@ -101,6 +101,37 @@ let rat16(num:i16):rat16 { (rat16){num, 1} }
 let rat8(num:i8, den:i8):rat8 { rat8_lowest(num as i128, den as i128) }
 let rat8(num:i8):rat8 { (rat8){num, 1} }
 
+// sign * significand * 2^exponent (#598), as a floating-point number is
+// made of the three, f64(sign, exponent, significand): exact, in lowest
+// terms, its parts within most; a NaN where it does not fit, and where
+// the sign is neither -1 nor 1
+let rat_parts(sign:i64, exponent:i64, significand:i64, most:i128):rat64 {
+    if sign != 1 && sign != -1 { return (rat64){0, 0} }
+    var m:i128 = significand as i128 * sign as i128
+    var e:i64 = exponent
+    if m == 0 { return (rat64){0, 1} }
+    while e < 0 && m % 2 == 0 {                        // the 2s the two have in common
+        m /= 2
+        e += 1
+    }
+    if e > 63 || e < -63 { return (rat64){0, 0} }
+    if e >= 0 { return rat_lowest(m * ((1 as i128) << e), 1, most) }
+    return rat_lowest(m, (1 as i128) << (0 - e), most)
+}
+let rat64(sign:i64, exponent:i64, significand:i64):rat64 { rat_parts(sign, exponent, significand, 9223372036854775807) }
+let rat32(sign:i64, exponent:i64, significand:i64):rat32 {
+    let r:rat64 = rat_parts(sign, exponent, significand, 2147483647)
+    return (rat32){r.num as i32, r.den as i32}
+}
+let rat16(sign:i64, exponent:i64, significand:i64):rat16 {
+    let r:rat64 = rat_parts(sign, exponent, significand, 32767)
+    return (rat16){r.num as i16, r.den as i16}
+}
+let rat8(sign:i64, exponent:i64, significand:i64):rat8 {
+    let r:rat64 = rat_parts(sign, exponent, significand, 127)
+    return (rat8){r.num as i8, r.den as i8}
+}
+
 // of another width: the same value, or a NaN where the narrower does not
 // hold it
 let rat64(r:rat32):rat64 { rat64_lowest(r.num as i128, r.den as i128) }
@@ -470,6 +501,16 @@ let BigRat(num:lent BigInt, den:lent BigInt):BigRat { BigRat_lowest(num, den) }
 let BigRat(num:lent BigInt):BigRat { BigRat_lowest(num, BigInt(1)) }
 let BigRat(num:i64, den:i64):BigRat { BigRat_lowest(BigInt(num), BigInt(den)) }
 let BigRat(num:i64):BigRat { BigRat_lowest(BigInt(num), BigInt(1)) }
+// sign * significand * 2^exponent (#598), as a floating-point number is
+// made of the three: exact, whatever the exponent; a NaN where the sign is
+// neither -1 nor 1
+let BigRat(sign:i64, exponent:i64, significand:lent BigInt):BigRat {
+    if sign != 1 && sign != -1 { return (BigRat){BigInt(0), BigInt(0)} }
+    let m:BigInt = sign < 0 ? -significand : significand.copy()
+    if exponent >= 0 { return BigRat_lowest(m << exponent, BigInt(1)) }
+    return BigRat_lowest(m, BigInt(1) << (0 - exponent))
+}
+let BigRat(sign:i64, exponent:i64, significand:i64):BigRat { BigRat(sign, exponent, BigInt(significand)) }
 // of a rational of integers, which it always holds
 let BigRat(r:rat64):BigRat { (BigRat){BigInt(r.num as i128), BigInt(r.den as i128)} }
 let BigRat(r:rat32):BigRat { (BigRat){BigInt(r.num as i128), BigInt(r.den as i128)} }

@@ -1299,6 +1299,16 @@ let BigFloat(n:lent BigInt, precision:i64):BigFloat { BigFloat_make(n, 0, precis
 let BigFloat(n:lent BigInt):BigFloat { BigFloat_make(n, 0, BigFloat_bits(), 0) }
 let BigFloat(n:i64, precision:i64):BigFloat { BigFloat_make(BigInt(n), 0, precision < 1 ? 1 : precision, 0) }
 let BigFloat(n:i64):BigFloat { BigFloat_make(BigInt(n), 0, BigFloat_bits(), 0) }
+// sign * significand * 2^exponent (#598), as an f64 is made of the three,
+// f64(sign, exponent, significand), and as a BigFloat is its mantissa
+// times 2^exponent: rounded to BigFloat.precision bits; a NaN where the
+// sign is neither -1 nor 1
+let BigFloat(sign:i64, exponent:i64, significand:lent BigInt):BigFloat {
+    if sign != 1 && sign != -1 { return BigFloat_nan() }
+    let m:BigInt = sign < 0 ? -significand : significand.copy()
+    return BigFloat_make(m, exponent as i128, BigFloat_bits(), 0)
+}
+let BigFloat(sign:i64, exponent:i64, significand:i64):BigFloat { BigFloat(sign, exponent, BigInt(significand)) }
 
 // an f64 is a mantissa of 53 bits times a power of 2: brought between
 // 2^52 and 2^53 by doublings and halvings, which lose nothing, it is a
@@ -1353,6 +1363,11 @@ extend BigFloat {
     // negative infinity too, and 1 of all else; its one 0 and its one NaN
     // have no sign
     let sign:i64 { self.mantissa.isNegative ? -1 : 1 }
+
+    // its mantissa without its sign (#598), a BigInt, odd or 0, so that x
+    // is BigFloat(x.sign, x.exponent, x.significand); 1 of an infinity and
+    // 0 of a NaN, as each is kept
+    let significand:BigInt { self.mantissa.abs }
 
     let isNaN:bool { self.special == 2 }
     let isInfinite:bool { self.special == 1 }

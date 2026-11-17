@@ -641,3 +641,11 @@ So far the changes from C are these, by topic.
   sign bit, a zero's and a NaN's too, where it was a `bool?`; it is
   set with -1 or 1, `x.sign *= -1`; a rational and a `BigFloat` have
   it, -1 where negative and 1 of all else (#597)
+- A floating-point number is `sign * significand * 2 ** exponent`,
+  three integers, the significand odd, as a `BigFloat` is its mantissa
+  times a power of 2: `1.0.exponent` is 0 and `1.5` is 3 times `2^-1`,
+  where `.exponent` and `.significand` were IEEE 754's raw fields,
+  `1.0`'s exponent 1023; `f64(sign, exponent, significand)` makes the
+  number of the three, the nearest, and `f32`, `BigFloat`, `BigRat`
+  and `rat64` are made so too, a `BigFloat`'s and a `BigRat`'s
+  significand a `BigInt` or an integer (#598)

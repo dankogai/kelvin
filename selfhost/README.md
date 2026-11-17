@@ -467,10 +467,16 @@ kc reads what it is written in, and little more.
   says; whether a floating-point number is NaN.
 - **A floating-point number's fields** (#383), as kelvinc's: `x.sign`
   -1 or 1, an i64, by its sign bit (#597), where it was a `bool?`,
-  `x.exponent` and `x.significand` IEEE 754's raw fields as i64s, each
-  set in the var that holds `x`, `x.sign = -1`, `x.exponent += 1`,
-  within its field, the sign -1 or 1, or the program ends; and
-  `b ?? false` of a `bool?` a bool, which prints `true`.
+  `x.exponent` and `x.significand` the two integers it is with it,
+  `sign * significand * 2^exponent`, the significand odd (#598), where
+  they were IEEE 754's raw fields; each set in the var that holds `x`,
+  `x.sign = -1`, `x.exponent += 1`, the sign -1 or 1 or the program
+  ends; and `b ?? false` of a `bool?` a bool, which prints `true`.
+  - The two are kelvin_prelude.h's `kv_f64_exponent`,
+    `kv_f64_significand`, `kv_f64_set_exponent` and their kin, which
+    gen.k calls as kelvinc does.
+  - `f64(sign, exponent, significand)` and `f32`'s (#598) are
+    `gen_converter`'s, of three integers, `kv_f64_make`.
 - **`x.isInfinite`** and **`x.isFinite`** (#384), as kelvinc's, Swift's
   pair beside `x.isNaN`.
 - **Names past ASCII** (#385), as kelvinc's: ident.k, which

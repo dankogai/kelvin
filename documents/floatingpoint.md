@@ -13,6 +13,7 @@ let x = float64("0x1.8p1")              // read from text: 3.0
 println(0.1, " ", $[1.0, 0.5])      // 0.10000000000000001 [1.0, 0.5]
 println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 println(f64.pi, " ", f64.infinity, " ", f64.ulpOfOne)   // 3.1415926535897931 inf 2.2204460492503131e-16
+println(1.5.sign, " ", 1.5.exponent, " ", 1.5.significand, " ", f64(1, -1, 3))   // 1 -1 3 1.5: sign * significand * 2 ** exponent
 println(f64.random(), " ", f64.random(-1.0, 1.0))       // from 0.0 up to 1.0, and from -1.0 up to 1.0
 ```
 
@@ -114,21 +115,42 @@ text, print and show as text. Integers are in
   - It was a `bool?`, `none` of NaN (#383).
   - A rational and a `BigFloat` have it too, -1 or 1
     ([rational.md](rational.md), [bigfloat.md](bigfloat.md)).
-- **`x.exponent`** and **`x.significand`** are IEEE 754's two other
-  fields of its bits, as `i64`s (#383), with no import.
-  - The exponent is biased, as stored: 0 to 2047 of an `f64`, 0 to 255
-    of an `f32`, `1.0.exponent` 1023.
-  - The significand is the fraction's bits, without the leading 1: 0 to
-    2^52 - 1 of an `f64`, 0 to 2^23 - 1 of an `f32`, `1.5.significand`
-    2^51.
-  - With the sign they make the bits, every one: 0 for zeros and
-    subnormals, the most for infinities and NaN.
-  - **`x.exponent = e`** and **`x.significand = s`** set them, in the
-    var that holds `x`, as `x += e` sets it: `x.exponent += 1` doubles
-    a normal `x`.
-  - A value outside its field is an error, written so, and ends the
-    program otherwise: `kelvin: '.exponent' of an f64 is 0 to 2047, and
-    this set is past it`.
+- **`x.exponent`** and **`x.significand`** are the two integers `x` is
+  with its sign (#598), `i64`s, with no import: `x` is `x.sign *
+  x.significand * 2 ** x.exponent`.
+  - The significand is odd, so a number has one form: `1.0` is 1 times
+    `2^0`, `1.5` is 3 times `2^-1`, and `8.0` 1 times `2^3`.
+    - `1.0.exponent` is 0, `1.5.exponent` -1, and `3.0.exponent` 0, as
+      3 is odd: it is not the exponent of the leading bit.
+    - A zero's are 0 and 0.
+  - A `BigFloat` is the same three, its mantissa and its exponent
+    ([bigfloat.md](bigfloat.md)).
+  - An infinity reads as 1 times `2^0` and a NaN as 0, as a `BigFloat`
+    keeps them: `x.isInfinite` and `x.isNaN` tell them.
+  - Of an `f64` the significand is below `2^53` and the exponent from
+    -1074 to 1023; of an `f32`, below `2^24` and from -149 to 127.
+  - **`x.exponent = e`** and **`x.significand = s`** set `x`, in the
+    var that holds it, to the number of its sign and the other of the
+    two: `x.exponent += 1` doubles it.
+    - An exponent past the greatest makes an infinity, and one below
+      the least a zero.
+  - They were IEEE 754's raw fields, the exponent biased, `1.0`'s 1023
+    (#383).
+- **`f64(sign, exponent, significand)`** makes the number of the three
+  (#598), integers all: `f64(1, -1, 3)` is 1.5, and `f32(1, -1, 3)` an
+  `f32`.
+  - `f64(x.sign, x.exponent, x.significand)` is `x`, of any finite `x`,
+    a negative zero and a subnormal too.
+  - The significand need not be odd: `f64(1, 0, 6)` is 6.0. A negative
+    one's sign is taken with the sign's, and a zero has the sign's,
+    `f64(-1, 0, 0)` is -0.0.
+  - It is the nearest number, a tie to the even one, rounded once:
+    `f64(1, 0, 9007199254740993)` is 9007199254740992.0.
+    - Past the greatest it is an infinity, and below the least a zero.
+  - A sign that is neither -1 nor 1 makes a NaN.
+  - An infinity and a NaN are `f64.infinity` and `f64.nan`.
+  - `BigFloat`, `BigRat` and `rat64` are made so too
+    ([bigfloat.md](bigfloat.md), [rational.md](rational.md)).
 - **The others are read**: `x.abs = y`, `x.isNaN = b` and the like are
   errors that say they are worked out of the value.
 - **`x.isNaN`** is whether it is NaN, a `bool` (#382), with no import:
@@ -214,8 +236,9 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 | | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
 | | `.sign` | -1 or 1, an `i64`, by its sign bit: a zero's and a NaN's too (#597) |
 | | `.sign = s` | sets the sign bit, with -1 or 1 (#383, #597) |
-| | `.exponent`, `.exponent = e` | the biased exponent field, an `i64`, 0...2047 or 0...255, read and set (#383) |
-| | `.significand`, `.significand = s` | the fraction's bits, an `i64`, 0...2^52 - 1 or 0...2^23 - 1, read and set (#383) |
+| | `.exponent`, `.exponent = e` | the power of 2 its significand is times, an `i64`, read and set (#598) |
+| | `.significand`, `.significand = s` | the odd integer it is times that power, 0 of a zero, an `i64`, read and set (#598) |
+| | `f64(sign, exponent, significand)`, `f32(...)` | `sign * significand * 2 ** exponent`, of three integers, the nearest; a NaN where the sign is neither -1 nor 1 (#598) |
 | | `.isNaN` | whether it is NaN, a `bool` (#382) |
 | | `.isInfinite`, `.isFinite` | whether it is `inf` or `-inf`; whether it is neither infinite nor NaN, `bool`s (#384) |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |

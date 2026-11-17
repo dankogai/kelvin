@@ -6746,6 +6746,39 @@ let gen_converter(n:int64) {
         gen_error(base, "a base is for reading an integer from text; bool(...) takes one value")
         return
     }
+    if base >= 0 && nodes[base].next >= 0 && nodes[nodes[base].next].next < 0 && (k == Y_F64 || k == Y_F32) {
+        // F(sign, exponent, significand) (#598), as kelvinc's: the number
+        // nearest sign * significand * 2^exponent, of three integers, by
+        // kelvin_prelude.h's kv_f64_make
+        var part:int64 = v
+        var at = 0
+        while part >= 0 {
+            let py:int64 = type_of(part)
+            if failed { return }
+            if py < 0 || !power_int(py) {
+                var m = name.copy()
+                m += "(sign, exponent, significand) is of three integers (#598), and its "
+                m += at == 0 ? "sign is " : at == 1 ? "exponent is " : "significand is "
+                let w:String = py < 0 ? $"a value kelvinc cannot see" : power_float(py) ? $"a floating-point number" : types[py].kind == Y_BOOL ? $"a bool" : nodes[part].kind == N_STR || types[py].kind == Y_CSTR ? $"text" : kelvin_type_text(py)
+                m += &w
+                gen_error(part, m.cstr)
+                return
+            }
+            at += 1
+            part = nodes[part].next
+        }
+        put(k == Y_F64 ? "((double)kv_f64_make(" : "((float)kv_f32_make(")
+        part = v
+        while part >= 0 {
+            put("((int64_t)(")
+            gen_expr(part)
+            put("))")
+            if nodes[part].next >= 0 { put(", ") }
+            part = nodes[part].next
+        }
+        put("))")
+        return
+    }
     if v < 0 || (base >= 0 && nodes[base].next >= 0) {
         var m = $"a converter takes one value, and an integer type a base for text after it: "
         m += &name
@@ -10831,14 +10864,12 @@ let gen_expr_of(n:int64) {
         }
     }
     if k == N_FIELD && (tok_is(t, "exponent") || tok_is(t, "significand")) && power_float(type_of(nodes[n].a)) {
-        let wide = types[type_of(nodes[n].a)].kind == Y_F64     // IEEE 754's fields (#383), as kelvinc's
-        put(wide ? "({ double _kv_fv = (" : "({ float _kv_fv = (")
+        let wide = types[type_of(nodes[n].a)].kind == Y_F64     // the two integers it is with its sign (#598), as kelvinc's: kelvin_prelude.h's
+        put(wide ? "kv_f64_" : "kv_f32_")
+        put_tok(t)
+        put(wide ? "((double)(" : "((float)(")
         gen_expr(nodes[n].a)
-        put(wide ? "); uint64_t _kv_fb; __builtin_memcpy(&_kv_fb, &_kv_fv, 8); (int64_t)(_kv_fb >> " : "); uint32_t _kv_fb; __builtin_memcpy(&_kv_fb, &_kv_fv, 4); (int64_t)(_kv_fb >> ")
-        put(float_field_at(t, wide))
-        put(" & ")
-        put(float_field_mask(t, wide))
-        put("); })")
+        put("))")
         return
     }
     if k == N_FIELD && tok_is(t, "abs") && type_of(nodes[n].a) >= 0 {
@@ -12109,9 +12140,9 @@ let float_field_mask(t:int64, wide:bool):cstr {
 }
 
 // x.sign = s, x.exponent = e, x.significand = s of a floating-point
-// number (#383), as kelvinc's: its bits set in the var that holds it, e
-// and s within their fields, and the sign -1 or 1 (#597), or the program
-// ends; x.abs and the rest are read, never set
+// number (#383), as kelvinc's: set in the var that holds it, the sign its
+// bit, -1 or 1 or the program ends (#597), and the other two x anew, of
+// its sign and the other (#598); x.abs and the rest are read, never set
 let gen_float_set(n:int64) {
     let lhs:int64 = nodes[n].a
     let t:int64 = nodes[n].t
@@ -12190,26 +12221,18 @@ let gen_float_set(n:int64) {
         gen_error(v, m.cstr)
         return
     }
-    let most:int64 = tok_is(f, "exponent") ? (wide ? 2047 : 255) : (wide ? 4503599627370495 : 8388607)
-    if !sign && power_int_literal(v) && ((nodes[v].kind == N_UNARY && power_magnitude(v) != 0) || power_magnitude(v) < 0 || power_magnitude(v) > most) {
-        var m = $"'."
-        m += tok_text(f)
-        m += wide ? "' of an f64 is 0 to " : "' of an f32 is 0 to "
-        m += tok_is(f, "exponent") ? (wide ? "2047" : "255") : (wide ? "4503599627370495" : "8388607")
-        m += ", and this is "
-        if nodes[v].kind == N_UNARY {
-            m += "-"
-            m += tok_text(nodes[nodes[v].a].t)
-        } else {
-            m += tok_text(nodes[v].t)
-        }
-        gen_error(v, m.cstr)
-        return
-    }
     let bt:cstr := wide ? "uint64_t" : "uint32_t"
-    put(wide ? "({ double *_kv_fp = &(" : "({ float *_kv_fp = &(")
-    gen_expr(x)
-    put("); int64_t _kv_fs = (")
+    if sign {
+        put(wide ? "({ double *_kv_fp = &(" : "({ float *_kv_fp = &(")
+        gen_expr(x)
+        put("); int64_t _kv_fs = (")
+    } else {                                             // x anew, of its sign and the other of the two (#598)
+        put(wide ? "kv_f64_set_" : "kv_f32_set_")
+        put_tok(f)
+        put("(&(")
+        gen_expr(x)
+        put("), (int64_t)(")
+    }
     if compound && tok_is(t, "**=") {
         gen_power(lhs, v)
     } else if compound {
@@ -12222,18 +12245,12 @@ let gen_float_set(n:int64) {
     } else {
         gen_expr(v)
     }
-    put("); ")
     if !sign {
-        put("if (_kv_fs < 0 || _kv_fs > (int64_t)")
-        put(float_field_mask(f, wide))
-        put(") kv_array_fail(\"'.")
-        put_tok(f)
-        put(wide ? "' of an f64 is 0 to " : "' of an f32 is 0 to ")
-        put(tok_is(f, "exponent") ? (wide ? "2047" : "255") : (wide ? "2^52 - 1" : "2^23 - 1"))
-        put(", and this set is past it\"); ")
-    } else {
-        put(wide ? "if (_kv_fs != 1 && _kv_fs != -1) kv_array_fail(\"'.sign' of an f64 is -1 or 1, and this set is neither\"); " : "if (_kv_fs != 1 && _kv_fs != -1) kv_array_fail(\"'.sign' of an f32 is -1 or 1, and this set is neither\"); ")
+        put("));\n")
+        return
     }
+    put("); ")
+    put(wide ? "if (_kv_fs != 1 && _kv_fs != -1) kv_array_fail(\"'.sign' of an f64 is -1 or 1, and this set is neither\"); " : "if (_kv_fs != 1 && _kv_fs != -1) kv_array_fail(\"'.sign' of an f32 is -1 or 1, and this set is neither\"); ")
     put(bt)
     put(wide ? " _kv_fb; __builtin_memcpy(&_kv_fb, _kv_fp, 8); _kv_fb = (_kv_fb & ~((" : " _kv_fb; __builtin_memcpy(&_kv_fb, _kv_fp, 4); _kv_fb = (_kv_fb & ~((")
     put(bt)

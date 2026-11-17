@@ -1764,6 +1764,7 @@ static bool ascii_name(const char *s);
 static bool name_known(const char *s);
 static void reject_unknown_name(Token *t);
 static char power_class(Expr *x);
+static char *power_operand_text(Expr *x);
 static Expr *pow_method(Expr *b, Token *name);
 static Expr *bit_method(Expr *e, Token *name, const char *member);
 static Expr *int_bits(Expr *e, Token *name);
@@ -5087,6 +5088,43 @@ static Expr *parse_primary(void) {
         }
         if (accept_p(","))
             base = parse_assign(); /* i32("755", 8) (#36) */
+        if (base && is_p(peek(), ",") && (!strcmp(base_type(t->text, t->pos)->name, "f64") ||
+                                          !strcmp(base_type(t->text, t->pos)->name, "f32"))) {
+            /* F(sign, exponent, significand) (#598): the number nearest sign *
+               significand * 2^exponent, of three integers, by kelvin_prelude.h's
+               kv_f64_make: what x.sign, x.exponent and x.significand read gives
+               x back */
+            advance();
+            Expr *parts[3] = {v, base, parse_assign()};
+            brace_ends_condition = saved_brace;
+            brace_in_for = saved_for;
+            expect_p(")");
+            Type *ty = base_type(t->text, t->pos);
+            static const char *names[] = {"sign", "exponent", "significand"};
+            Expr *call = new_expr(E_CALL, t->pos);
+            call->a = new_expr(E_IDENT, t->pos);
+            call->a->text = strfmt("kv_%s_make", ty->name);
+            call->a->op = "c";
+            for (int k = 0; k < 3; k++) {
+                if (parts[k]->is_bool || seen_bool(parts[k]) || bool_shape(parts[k]) || power_class(parts[k]) != 'i')
+                    error_at(parts[k]->pos, "%s(sign, exponent, significand) is of three integers (#598), and its %s "
+                                            "is %s",
+                             t->text, names[k],
+                             power_class(parts[k]) == 'f' ? "a floating-point number" : power_operand_text(parts[k]));
+                Expr *as = new_expr(E_CAST, parts[k]->pos);
+                as->op = "as";
+                as->type = base_type("i64", t->pos);
+                as->a = parts[k];
+                as->paren = true;
+                list_push(&call->items, as);
+            }
+            Expr *c = new_expr(E_CAST, t->pos);
+            c->op = "as";
+            c->type = ty;
+            c->a = call;
+            c->paren = true;
+            return c;
+        }
         brace_ends_condition = saved_brace;
         brace_in_for = saved_for;
         if (is_p(peek(), ","))
@@ -9194,8 +9232,10 @@ static Expr *property(Expr *e, Token *name, char *member) {
            type; of a floating-point number an i64 (#597), 1 by its sign
            bit's 0 and -1 by its 1, zeros and NaN too. x.isNaN (#382),
            x.isInfinite and x.isFinite (#384), Swift's,
-           x.exponent and x.significand (#383), IEEE 754's raw fields as an
-           i64, of a floating-point number. An unsigned integer has none,
+           x.exponent and x.significand, i64s (#598): x is its sign times
+           its significand, an odd integer, times 2 to its exponent, as a
+           BigFloat is; they were IEEE 754's raw fields (#383). An unsigned
+           integer has none,
            nor a complex number, nor what kelvinc cannot see, which C is
            left to; a field wins */
         Decl *record;
@@ -9990,10 +10030,10 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             }
             if (lhs->kind == E_METHOD && lhs->op && !strncmp(lhs->op, "num_", 4)) {
                 /* x.sign = s, x.exponent = e, x.significand = s of a
-                   floating-point number (#383): its bits set, in the var
-                   that holds it; e and s within their fields, and the sign
-                   -1 or 1 (#597), or the program ends; the others are read,
-                   never set */
+                   floating-point number (#383): set in the var that holds
+                   it, the sign its bit, -1 or 1 or the program ends (#597),
+                   and the other two x anew, of its sign and the other
+                   (#598); the others are read, never set */
                 bool fl = lhs->from && lhs->from->name[0] == 'f';
                 bool sign = !strcmp(lhs->op, "num_sign");
                 if (!fl || !(sign || !strcmp(lhs->op, "num_exponent") || !strcmp(lhs->op, "num_significand")))
@@ -10009,7 +10049,6 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     error_at(t->pos, "'.%s' changes the number it is of, so that number is a variable", lhs->text);
                 Expr *v = parse_assign();
                 assign_ok = ok;
-                bool f64 = !strcmp(lhs->from->name, "f64");
                 if (strcmp(t->text, "=")) {
                     if (!repeatable(lhs->a))
                         error_at(t->pos, "'x.%s %s y' is 'x.%s = x.%s %.*s y', which reads x twice, so x may not hold "
@@ -10024,8 +10063,6 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 if (sign && (v->is_bool || seen_bool(v) || bool_shape(v) || power_class(v) != 'i'))
                     error_at(v->pos, "'.sign' of a floating-point number is set with -1 or 1, an integer: -1 for "
                                      "negative, 1 for positive (#597)");
-                long long most = !strcmp(lhs->op, "num_exponent") ? (f64 ? 2047 : 255)
-                                                                  : (f64 ? (1LL << 52) - 1 : (1LL << 23) - 1);
                 if (!sign && power_class(v) != 'i')
                     error_at(v->pos, "'.%s' is set with an integer, and this is %s", lhs->text,
                              power_class(v) == 'f' ? "a floating-point number" : power_operand_text(v));
@@ -10034,9 +10071,6 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 if (sign && int_literal_value(v, &mag, &neg) && mag != 1)
                     error_at(v->pos, "'.sign' of an %s is -1 or 1, and this is %s%s", lhs->from->name, neg ? "-" : "",
                              v->kind == E_PREFIX ? v->a->text : v->text);
-                if (!sign && int_literal_value(v, &mag, &neg) && ((neg && mag) || mag > (unsigned long long)most))
-                    error_at(v->pos, "'.%s' of an %s is 0 to %lld, and this is %s%s", lhs->text, lhs->from->name, most,
-                             neg ? "-" : "", v->kind == E_PREFIX ? v->a->text : v->text);
                 Expr *c = new_expr(E_METHOD, t->pos);
                 c->a = lhs->a;
                 c->text = lhs->text;

@@ -1500,35 +1500,26 @@ static char *expr_bare(Expr *e) {
             return strfmt("((bool)__builtin_isfinite(%s))", expr(e->a));
         if (e->op && (!strcmp(e->op, "num_exponent") || !strcmp(e->op, "num_significand") ||
                       !strcmp(e->op, "num_set") || (!strcmp(e->op, "num_sign") && e->from->name[0] == 'f'))) {
-            /* x.sign, x.exponent and x.significand of a floating-point number
-               (#383): IEEE 754's fields of its bits, read, or set in the var
-               that holds it, e and s within their fields or the program ends */
+            /* x.sign, x.exponent and x.significand of a floating-point number:
+               its sign bit as -1 or 1 (#597), and the two integers it is with
+               it, sign * significand * 2^exponent, the significand odd (#598),
+               by kelvin_prelude.h's kv_f64_exponent and its kin; each read, or
+               set in the var that holds it, the sign -1 or 1 or the program
+               ends */
             bool f64 = !strcmp(e->from->name, "f64");
-            const char *ft = f64 ? "double" : "float", *bt = f64 ? "uint64_t" : "uint32_t";
-            int size = f64 ? 8 : 4, at_sign = f64 ? 63 : 31, at_exp = f64 ? 52 : 23;
-            const char *field = !strcmp(e->text, "sign") ? "0x1" : !strcmp(e->text, "exponent") ? (f64 ? "0x7ff" : "0xff")
-                                                                                              : (f64 ? "0xfffffffffffff" : "0x7fffff");
-            int shift = !strcmp(e->text, "sign") ? at_sign : !strcmp(e->text, "exponent") ? at_exp : 0;
+            const char *ft = f64 ? "double" : "float", *bt = f64 ? "uint64_t" : "uint32_t", *fn = f64 ? "f64" : "f32";
+            int size = f64 ? 8 : 4, shift = f64 ? 63 : 31;
             if (!strcmp(e->op, "num_sign")) /* -1 or 1, by the bit: a zero's and a NaN's too (#597) */
                 return strfmt("((int64_t)(__builtin_signbit((%s)(%s)) ? -1 : 1))", ft, expr(e->a));
             if (strcmp(e->op, "num_set"))
-                return strfmt("({ %s _kv_fv = (%s); %s _kv_fb; __builtin_memcpy(&_kv_fb, &_kv_fv, %d); (int64_t)(_kv_fb >> "
-                              "%d & %s); })",
-                              ft, expr(e->a), bt, size, shift, field);
-            const char *check =
-                !strcmp(e->text, "sign")
-                    ? strfmt("if (_kv_fs != 1 && _kv_fs != -1) kv_array_fail(\"'.sign' of an %s is -1 or 1, and this set "
-                             "is neither\"); ",
-                             e->from->name)
-                    : strfmt("if (_kv_fs < 0 || _kv_fs > (int64_t)%s) kv_array_fail(\"'.%s' of an %s is 0 to %s, and this "
-                             "set is past it\"); ",
-                             field, e->text, e->from->name,
-                             !strcmp(e->text, "exponent") ? (f64 ? "2047" : "255") : (f64 ? "2^52 - 1" : "2^23 - 1"));
-            return strfmt("({ %s *_kv_fp = &(%s); %s _kv_fs = (%s); %s%s _kv_fb; __builtin_memcpy(&_kv_fb, _kv_fp, %d); "
-                          "_kv_fb = (_kv_fb & ~((%s)%s << %d)) | ((%s)%s << %d); __builtin_memcpy(_kv_fp, &_kv_fb, "
-                          "%d); (void)0; })",
-                          ft, expr(e->a), "int64_t", expr(e->items.data[0]), check, bt, size, bt, field, shift, bt,
-                          !strcmp(e->text, "sign") ? "(_kv_fs < 0)" : "_kv_fs", shift, size);
+                return strfmt("kv_%s_%s((%s)(%s))", fn, e->text, ft, expr(e->a));
+            if (strcmp(e->text, "sign")) /* x anew, of its sign and the other of the two */
+                return strfmt("kv_%s_set_%s(&(%s), (int64_t)(%s))", fn, e->text, expr(e->a), expr(e->items.data[0]));
+            return strfmt("({ %s *_kv_fp = &(%s); int64_t _kv_fs = (%s); if (_kv_fs != 1 && _kv_fs != -1) "
+                          "kv_array_fail(\"'.sign' of an %s is -1 or 1, and this set is neither\"); %s _kv_fb; "
+                          "__builtin_memcpy(&_kv_fb, _kv_fp, %d); _kv_fb = (_kv_fb & ~((%s)0x1 << %d)) | ((%s)(_kv_fs < 0) "
+                          "<< %d); __builtin_memcpy(_kv_fp, &_kv_fb, %d); (void)0; })",
+                          ft, expr(e->a), expr(e->items.data[0]), e->from->name, bt, size, bt, shift, bt, shift, size);
         }
         if (e->op && !strcmp(e->op, "num_sign")) { /* x.sign (#382): -1, 0 or 1 of a signed integer's type */
             const char *t = decl(e->type, "");
