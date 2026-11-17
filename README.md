@@ -633,3 +633,7 @@ So far the changes from C are these, by topic.
   `static let T.x = v` is one stored value: so an owner may be one,
   each read a new one; in `extend T { }` it is `static let x:R { ... }`,
   and a module's header writes it `static let x:R { get }` (#595)
+- Every number of the family has `F.zero`, `F.infinity` and `F.nan`:
+  `f64` and `f32`, where `.zero` is new; `rat64` down to `rat8`,
+  `(0/1)`, `(1/0)` and `(0/0)`; and `BigRat` and `BigFloat`, each a new
+  one at each read (#596)

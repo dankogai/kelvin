@@ -1342,6 +1342,13 @@ let BigRat(x:lent BigFloat):BigRat {
 // ---------- what it is ----------
 
 extend BigFloat {
+    // the three every number of the family has (#596), each computed, a
+    // new one at each read (#595), as a BigFloat owns its mantissa: 0, the
+    // positive infinity, and a NaN
+    static let zero:Self { BigFloat_zero() }
+    static let infinity:Self { BigFloat_inf(1) }
+    static let nan:Self { BigFloat_nan() }
+
     let isNaN:bool { self.special == 2 }
     let isInfinite:bool { self.special == 1 }
     let isFinite:bool { self.special == 0 }

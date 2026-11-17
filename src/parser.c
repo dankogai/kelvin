@@ -8313,8 +8313,8 @@ static Expr *random_call(Token *t) {
 }
 
 /* a constant of the floating-point type whose word is t (#546), Swift's
-   FloatingPoint's: radix, an i64, and nan, signalingNaN, infinity,
-   greatestFiniteMagnitude, pi, ulpOfOne, leastNormalMagnitude and
+   FloatingPoint's: radix, an i64, and nan, signalingNaN, infinity, zero
+   (#596), greatestFiniteMagnitude, pi, ulpOfOne, leastNormalMagnitude and
    leastNonzeroMagnitude, each a T: C's of float.h, or kelvin_prelude.h's
    KV_F64_NAN and its kin, constants all; NULL of another type or member */
 static Expr *float_constant(Token *t, const char *member) {
@@ -8328,6 +8328,7 @@ static Expr *float_constant(Token *t, const char *member) {
                {"signalingNaN", "SNAN"},
                {"infinity", "INFINITY"},
                {"pi", "PI"},
+               {"zero", "ZERO"}, /* (#596) */
                {"leastNonzeroMagnitude", "LEAST_NONZERO"},
                {"greatestFiniteMagnitude", "_MAX"},
                {"ulpOfOne", "_EPSILON"},

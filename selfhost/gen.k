@@ -1127,6 +1127,7 @@ let float_constant_c(n:int64):cstr {
     if tok_is(t, "signalingNaN") { return "SNAN" }
     if tok_is(t, "infinity") { return "INFINITY" }
     if tok_is(t, "pi") { return "PI" }
+    if tok_is(t, "zero") { return "ZERO" }               // (#596)
     if tok_is(t, "leastNonzeroMagnitude") { return "LEAST_NONZERO" }
     if tok_is(t, "greatestFiniteMagnitude") { return "_MAX" }
     if tok_is(t, "ulpOfOne") { return "_EPSILON" }

@@ -90,6 +90,12 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
   - A denominator of 0 is an infinity: `1.over(0)` is `(1/0)`, and
     `(-7).over(0)` is `(-1/0)`.
   - `0.over(0)` is `(0/0)`, a NaN.
+  - `rat64.infinity` and `rat64.nan` are those two, and `rat64.zero`
+    is `(0/1)` (#596), as `f64` has the three: of each width, and
+    `BigRat.zero`, `BigRat.infinity` and `BigRat.nan` of a `BigRat`.
+    - A `BigRat`'s is a new one at each read, the reader's own, as it
+      owns its two `BigInt`s (#595).
+    - The other infinity is `-rat64.infinity`.
   - They reckon as a float's do: `inf + 1` is `inf`, `inf - inf` and
     `inf * 0` are NaN, `1 / inf` is 0, and `a / 0` is an infinity.
   - An infinity divided has the quotient's sign (#574): `inf / -2`
@@ -193,6 +199,7 @@ that imports it; see [modules.md](modules.md).
 | | `+`, `-`, `*`, `/`, prefix `-` and `+` (#563) | exact, of two of one width or with an integer; what does not fit is a NaN; an infinity by a negative number is the other infinity, `(1/0) / -2` is `(-1/0)` (#574) |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is `(0/0)`; `(1/0)` or `(-1/0)`; neither |
+| | `rat64.zero`, `rat64.infinity`, `rat64.nan` | `(0/1)`, `(1/0)` and `(0/0)`, of each width (#596) |
 | | `.f64` | the nearest `f64`; `inf`, `-inf` or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(num.hex/den.hex)` and its kin, a String; the denominator has no sign (#565) |
 | | `print(r)`, `.cstr`, `${r}`, `.string` | `(num/den)`; `.string` a String (#565) |
@@ -202,6 +209,7 @@ that imports it; see [modules.md](modules.md).
 | | `.num`, `.den` | its numerator and its denominator, `BigInt`s |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, the comparisons | as `rat64`'s, exact at any size, with a `BigInt` or an integer too; `BigRat(1, 0) / BigRat(-2)` is `(-1n/0n)` (#574) |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | as `rat64`'s |
+| | `BigRat.zero`, `BigRat.infinity`, `BigRat.nan` | `(0n/1n)`, `(1n/0n)` and `(0n/0n)`, a new one at each read (#596) |
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |

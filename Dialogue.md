@@ -11574,3 +11574,23 @@ precompiled. Details are provisional P607.
 attribute written alone, `static var T.x = v`, does not parse.
 
 There are 1391 tests, and all pass with clang and with gcc 15.
+
+### 643. `F.zero`, `F.infinity` and `F.nan`
+
+**User**: "push", for #595, twice, while its battery ran, and then
+"go ahead with #598 as designed". **Claude** pushed #595 when the
+battery was clean, and wrote the numbers after it meanwhile, each in
+a copy of the tree.
+
+This is the second, the three statics of the user's order. `f64` and
+`f32` had `.infinity` and `.nan`, and have `.zero` now. The rationals
+of integers, `rat64` down to `rat8`, have the three as stored values,
+`(0/1)`, `(1/0)` and `(0/0)`. `BigRat` and `BigFloat` have them
+computed, by #595: each read makes a new one, as each owns.
+
+So any `F` of the family is written `F.zero`, `F.infinity` and
+`F.nan`. The infinity is the positive one, and `-F.infinity` the
+other. The complex numbers have none, as the order names the real
+ones. Details are provisional P608.
+
+There are 1392 tests, and all pass with clang and with gcc 15.

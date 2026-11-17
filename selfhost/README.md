@@ -822,6 +822,9 @@ kc reads what it is written in, and little more.
   `f32`'s, written as kelvinc writes them, `((double)KV_F64_INFINITY)`.
   - gen.k's `float_constant_c`, `float_constant_of` and
     `put_float_constant`, asked where `int_limit_of` is.
+  - `f64.zero` and `f32.zero` (#596) are of them, `KV_F64_ZERO`; a
+    rational's and a `BigFloat`'s three are their modules', stored or
+    computed (#595), and need nothing of kc.
 - **An integer type's limits** (#545), as kelvinc's: `T.min` and
   `T.max` of `i8` to `i128` and `u8` to `u128`, a `T`, written as
   kelvinc writes them, `((int64_t)INT64_MAX)`.

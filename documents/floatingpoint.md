@@ -146,6 +146,9 @@ text, print and show as text. Integers are in
   attributes of `f64` and of `f32`, with no import:
   - `f64.nan` and `f64.signalingNaN`, a quiet NaN and a signaling one;
     `f64.infinity`.
+  - `f64.zero`, 0.0 (#596): with `.infinity` and `.nan`, the three that
+    every number of the family has, a rational's and a `BigFloat`'s
+    too ([rational.md](rational.md), [bigfloat.md](bigfloat.md)).
   - `f64.greatestFiniteMagnitude`, the greatest finite number, C's
     `DBL_MAX`.
   - `f64.leastNormalMagnitude`, the least normal number above 0, C's
@@ -188,6 +191,7 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 | On | Property | Gives |
 |---|---|---|
 | `f32.`, `f64.` | `.nan`, `.signalingNaN`, `.infinity`, `.pi` | the type's constants, of the type, with no import (#546) |
+| | `.zero` | 0.0, of the type (#596) |
 | | `.greatestFiniteMagnitude`, `.leastNormalMagnitude`, `.leastNonzeroMagnitude`, `.ulpOfOne` | its limits and the gap at 1.0, of the type (#546) |
 | | `.radix` | 2, an `i64` (#546) |
 | | `T.random()` | a number from 0.0 up to 1.0, without it, by the system's random bits (#547) |

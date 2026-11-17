@@ -1586,6 +1586,7 @@ on a new line`
     println(chosen593(), " ", told593(0.25))   // an overload's call has the result of the one called (#593)
     var tb595 = tally_box.empty                // a computed attribute of the type, read with no parentheses (#595)
     println(tb595.bump(5), " ", tally_box.empty.n)
+    println(f64.zero, " ", f32.zero.typename, " ", rat64.zero, " ", rat8.infinity, " ", BigRat.nan, " ", BigFloat.infinity, " ", BigFloat.zero.isFinite)   // F.zero, F.infinity and F.nan (#596)
     return 0
 }
 

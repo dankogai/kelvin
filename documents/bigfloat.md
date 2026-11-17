@@ -93,6 +93,11 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
     negative one, and by 0 its own.
   - A NaN equals nothing, itself included, and has no order.
   - `x.isNaN`, `x.isInfinite` and `x.isFinite` tell them.
+  - `BigFloat.infinity` and `BigFloat.nan` are the positive infinity
+    and a NaN, and `BigFloat.zero` is 0 (#596), as `f64` has the three.
+    - Each is a new one at each read, the reader's own, as a
+      `BigFloat` owns its mantissa (#595).
+    - The other infinity is `-BigFloat.infinity`.
   - It has one 0, with no sign, as a rational: `BigFloat(-0.0)` is
     `BigFloat(0)`.
   - An exponent past an `i64` is an infinity, and one below it 0.
@@ -225,6 +230,7 @@ own before, modules/BigFloat.k, `#import <BigFloat>`.
 | | `+`, `-`, `*`, `/`, prefix `-` and `+` | rounded to `BigFloat.precision` bits; of two, or with a `BigInt` or an integer on either side |
 | | `==`, `!=`, `<`, `<=`, `>`, `>=` | by value; a NaN equals nothing and has no order |
 | | `.isNaN`, `.isInfinite`, `.isFinite` | whether it is a NaN; an infinity; neither |
+| | `BigFloat.zero`, `BigFloat.infinity`, `BigFloat.nan` | 0, the positive infinity and a NaN, a new one at each read (#596) |
 | | `.f64` | the nearest `f64`; `inf`, `-inf`, 0 or `nan` |
 | | `print(x)`, `.cstr`, `${x}`, `.string` | the fewest digits that `BigFloat(text)` reads back, `0.1`; `.string` a String (#577) |
 | | `.dec`, `.hex` | the same with a sign, `+0.1`, and C's `%a` with a sign, `+0x1.8p+0`, exact; each a String |

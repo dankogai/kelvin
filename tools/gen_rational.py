@@ -125,6 +125,12 @@ let rat_text(num:cstr, den:cstr):String {
 ''')
 for b in reversed(widths):
     w(f'''extend rat{b} {{
+    // the three every number of the family has (#596): (0/1), (1/0), the
+    // positive infinity, and (0/0), a NaN
+    static let zero:Self = {{0, 1}}
+    static let infinity:Self = {{1, 0}}
+    static let nan:Self = {{0, 0}}
+
     let isNaN:bool {{ self.num == 0 && self.den == 0 }}
     let isInfinite:bool {{ self.num != 0 && self.den == 0 }}
     let isFinite:bool {{ self.den != 0 }}
@@ -235,6 +241,13 @@ extend BigInt {
 }
 
 extend BigRat {
+    // the three every number of the family has (#596), each computed, a
+    // new one at each read (#595), as a BigRat owns its two BigInts:
+    // (0n/1n), (1n/0n), the positive infinity, and (0n/0n), a NaN
+    static let zero:Self { (BigRat){BigInt(0), BigInt(1)} }
+    static let infinity:Self { (BigRat){BigInt(1), BigInt(0)} }
+    static let nan:Self { (BigRat){BigInt(0), BigInt(0)} }
+
     let isNaN:bool { self.num.isZero && self.den.isZero }
     let isInfinite:bool { !self.num.isZero && self.den.isZero }
     let isFinite:bool { !self.den.isZero }

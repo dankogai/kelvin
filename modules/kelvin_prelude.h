@@ -916,11 +916,13 @@ typedef struct kv_text_tag kv_text_tag;
 #define KV_F64_SNAN __builtin_nans("")
 #define KV_F64_INFINITY __builtin_inf()
 #define KV_F64_PI 3.141592653589793
+#define KV_F64_ZERO 0.0 /* f64.zero (#596) */
 #define KV_F64_LEAST_NONZERO __DBL_DENORM_MIN__
 #define KV_F32_NAN __builtin_nanf("")
 #define KV_F32_SNAN __builtin_nansf("")
 #define KV_F32_INFINITY __builtin_inff()
 #define KV_F32_PI 3.141592653589793
+#define KV_F32_ZERO 0.0
 #define KV_F32_LEAST_NONZERO __FLT_DENORM_MIN__
 #ifdef __SIZEOF_INT128__
 #define KV_I128_MAX ((__int128)(~(unsigned __int128)0 >> 1))
