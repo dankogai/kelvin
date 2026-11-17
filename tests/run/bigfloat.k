@@ -1,11 +1,11 @@
-// BigFloat, a floating-point number of any precision, with <BigFloat>
+// BigFloat, a floating-point number of any precision, with <BigNum>
 // (#576): a mantissa, a BigInt, times a power of 2. Every result, of its
 // making and of + - * /, is rounded to BigFloat.precision significant
 // bits, 128, which a program may set, to the nearest and the even one;
 // x.round(precision) and x.round(precision, rule) round it to fewer, by
 // one of six rules. It has a float's infinities and NaN and one 0;
 // BigRat(x) is its value exactly and x.f64 the nearest f64
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     // a mantissa that is odd, and an exponent
     let six = BigFloat(6)

@@ -1,6 +1,6 @@
 // A part of a CBF's exp is a product, e^x times a cosine or a sine, and
 // it is the product that is tried against the exponents there are (#589),
-// with <math> and <BigFloat>: exp(CBF(7000000000000000000, tiny)), tiny
+// with <BigNum>: exp(CBF(7000000000000000000, tiny)), tiny
 // being 2^-4000000000000000000, has an imaginary part of
 // 2^6098865286222743851, where it was an infinity. e^x was made a
 // BigFloat first, an infinity past any exponent and 0 below the least,
@@ -10,8 +10,7 @@
 // had to 16 bits more than are asked, and was 0 where those were below the
 // least exponent: so a part 16 places above the least number was 0 too.
 // And tanh's e^(-2|a|) was of 2|a| rounded to BigFloat.precision
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     let far = BigFloat("7000000000000000000")
     let tiny = BigFloat("0x1p-4000000000000000000")

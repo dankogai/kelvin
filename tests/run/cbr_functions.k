@@ -1,13 +1,12 @@
 // a CBR's functions that are not rational, to a precision (#554), of
-// modules/math+Rational.k, the overlay of math with Rational (#551): each
+// modules/BigNum.k (#590), the overlay of math with Rational before (#551): each
 // part of f(z, precision) is within 2^-precision of the true value's, and
 // f(z) is the same to BigRat.precision, 128 bits; abs and arg give a
 // BigRat; each a method too. The inverses take their principal values,
 // with C99's branch cuts, a point on a cut on the side a float's +0 is.
 // Reckoned in BigInts alone, so every system prints the same; the values
 // here agree with another reckoning of them.
-#import <math>
-#import <Rational>
+#import <BigNum>
 
 // whether each part of a and of b are within 2^-bits of each other
 let near(a:lent CBR, b:lent CBR, bits:i64):bool {

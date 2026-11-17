@@ -1,11 +1,11 @@
-# BigFloat: `#import <BigFloat>`
+# BigFloat: `#import <BigNum>`
 
 A floating-point number of any precision, a `BigInt` times a power of 2: `BigFloat(1) / 3` is a third to 128 bits, `0.333333333333333333333333333333333333334`.
 
 ## Synopsis
 
 ```swift
-#import <BigFloat>
+#import <BigNum>
 
 let main():int32 {
     let third = BigFloat(1) / 3                 // to 128 bits, the nearest
@@ -27,8 +27,8 @@ let main():int32 {
 ## Description
 
 A `BigFloat` is a float whose mantissa is a `BigInt`: as an `f64`, but
-of as many bits as a program asks. It is `#import <BigFloat>`'s (#576),
-and no part of the core.
+of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
+#590, [bignum.md](bignum.md)), and no part of the core.
 
 | Kelvin | C |
 |--------|---|
@@ -103,7 +103,7 @@ and no part of the core.
   2: `BigRat(BigFloat(0.1))` is
   `(3602879701896397n/36028797018963968n)`.
   - An infinity is `(1n/0n)` or `(-1n/0n)`, and a NaN `(0n/0n)`.
-- **With `<math>`** its functions take a `BigFloat` (#580): `sqrt`,
+- **math's functions** take a `BigFloat` (#580): `sqrt`,
   `exp`, `log`, `pow`, the trigonometric and hyperbolic ones and their
   inverses, each a method too, and `BigFloat.pi()`: see
   [math.md](math.md).
@@ -112,8 +112,8 @@ and no part of the core.
   - A number far from 1 is taken as any (#583): `cos` of
     `2^-1000000000000` is 1, and `atan` of `2^1000000000000` half of
     pi.
-  - They come with the two imports, by an overlay,
-    `modules/math+BigFloat.k` (#551, [modules.md](modules.md)).
+  - They come with it, by the one import (#590); they were an
+    overlay's before, read where `<math>` was imported too.
   - And `CBF`, `complexBigFloat` by its alias, is a complex number of
     two BigFloats (#581), as a `c64` is of two `f64`s: `CBF(1, 2) /
     CBF(3, 4)` is `(0.44+0.08.i)`.
@@ -173,11 +173,14 @@ and no part of the core.
 
 ## Where it lives
 
-A module, modules/BigFloat.k, a Kelvin source compiled with the program
-that imports it, as [math](math.md) is; see [modules.md](modules.md).
+A part of the module modules/BigNum.k (#590, [bignum.md](bignum.md)),
+a Kelvin source compiled with the program that imports it, as
+[math](math.md) is; see [modules.md](modules.md). It was a module of
+its own before, modules/BigFloat.k, `#import <BigFloat>`.
 
-- **It imports `<Rational>`,** so a program that imports it has
-  `BigRat` and the rationals too ([rational.md](rational.md)).
+- **`<BigNum>` imports `<Rational>`** and `<math>`, so a program that
+  imports it has `BigRat`, the rationals and math's own too
+  ([rational.md](rational.md)).
 - **Its text** is reckoned in rationals, exact: what rounds to a
   number lies between the halves of the gaps to its neighbours, and
   the fewest digits with a decimal between them are found by halving.
@@ -225,8 +228,8 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.f64` | the nearest `f64`; `inf`, `-inf`, 0 or `nan` |
 | | `print(x)`, `.cstr`, `${x}`, `.string` | the fewest digits that `BigFloat(text)` reads back, `0.1`; `.string` a String (#577) |
 | | `.dec`, `.hex` | the same with a sign, `+0.1`, and C's `%a` with a sign, `+0x1.8p+0`, exact; each a String |
-| | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()`, with `<math>` (#580) | the function to `BigFloat.precision` significant bits; `.exp(p)` to `p` |
-| | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)`, with `<math>` | the two-argument ones |
-| | `BigFloat.pi()`, `BigFloat.pi(p)`, with `<math>` | pi to `BigFloat.precision` bits, or to `p` |
-| | `.i`, with `<math>` (#581) | `CBF(0, x)`, a complex number of two BigFloats: the value rotated a quarter turn ([math.md](math.md)) |
+| | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` (#580) | the function to `BigFloat.precision` significant bits; `.exp(p)` to `p` |
+| | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
+| | `BigFloat.pi()`, `BigFloat.pi(p)` | pi to `BigFloat.precision` bits, or to `p` |
+| | `.i` (#581) | `CBF(0, x)`, a complex number of two BigFloats: the value rotated a quarter turn ([math.md](math.md)) |
 | `BigRat` | `BigRat(x)` | the value of a `BigFloat`, exactly |

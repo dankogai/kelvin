@@ -3,8 +3,7 @@
 // writes a float, the imaginary part's sign joining the two, both parts
 // always and a zero with its sign; a CBR's parts each a BigRat's text, a +
 // between them; the type reads it back, c64(z.cstr) is z
-#import <math>
-#import <Rational>
+#import <BigNum>
 struct holder { name: cstr; z: c64; w: c32 }
 struct exact { q: CBR }
 let main():int32 {

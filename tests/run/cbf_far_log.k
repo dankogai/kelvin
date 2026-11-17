@@ -1,5 +1,5 @@
-// log, arg and pow of a CBF take a part of any size (#586), with <math>
-// and <BigFloat>: log(CBF(1, tiny)), tiny being 2^-1000000000000, is
+// log, arg and pow of a CBF take a part of any size (#586), with
+// <BigNum>: log(CBF(1, tiny)), tiny being 2^-1000000000000, is
 // tiny^2 / 2 + tiny i, where it was NaNs, a part below 2^-67108864 or of
 // 2^67108864 and more being past reckoning (#582). The angle is a
 // BigFloat's atan2, which takes any two numbers (#583), and the norm is
@@ -13,8 +13,7 @@
 // has a part that is 0 exactly, past 65536 too, which did not end; and
 // an infinite power has its signs of an angle past 2^64 too, which it had
 // not, the angle's bits being cut to 64 where the real part was larger
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     let tiny = BigFloat("0x1p-1000000000000")
     let huge = BigFloat("0x1p+1000000000000")

@@ -1,4 +1,4 @@
-// math's functions of a CBF (#582), with <math> and <BigFloat>: abs
+// math's functions of a CBF (#582), with <BigNum>: abs
 // and arg, BigFloats, and sqrt, exp, log, pow, the trigonometric and
 // hyperbolic functions and their inverses, CBFs, each a method too. Each
 // part of a result has BigFloat.precision significant bits, or the
@@ -6,8 +6,7 @@
 // part it is; a part that is 0 is exactly 0; the inverses have a CBR's
 // principal values and branch cuts, and with an infinity or a NaN in a
 // part each is a CBR's
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 
 var seed:u64 = 88172645463325252
 let rnd():u64 {

@@ -1,12 +1,11 @@
 // CBF, complexBigFloat by its alias (#581): a complex number of two
-// BigFloats, of modules/math+BigFloat.k, the overlay read where <math>
-// and <BigFloat> are both imported. Each part of + - * / is the exact
+// BigFloats, of modules/BigNum.k, #import <BigNum> (#590), an overlay of
+// math with BigFloat before. Each part of + - * / is the exact
 // one's, rounded once to BigFloat.precision bits, so z * w is
 // CBF(CBR(z) * CBR(w)) whatever cancels; with a BigFloat, a BigInt or an
 // i64 on either side; conj, norm, z.i and x.i, z.round; its text is a
 // c64's, (0.1-0.2.i), which CBF(text) reads back, and .dec and .hex
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 
 struct pair {
     z: CBF

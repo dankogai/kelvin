@@ -1,6 +1,6 @@
 # Math: `#import <math>`
 
-The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<Rational>`, `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision; with `<BigFloat>`, the functions of a `BigFloat`, `CBF`, a complex number of two, and the functions of a `CBF`.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<BigNum>` ([bignum.md](bignum.md)), `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision, and the functions of a `BigFloat`, `CBF`, a complex number of two, and the functions of a `CBF`.
 
 ## Synopsis
 
@@ -158,15 +158,14 @@ turn on the Gaussian plane.
   c` with two roundings, as gcc does, and the results are the same with
   both *(provisional P55)*.
 
-### Exact complex numbers: `CBR`, with `<Rational>`
+### Exact complex numbers: `CBR`, with `<BigNum>`
 
-Where a program imports `<Rational>` too, `<math>` has a complex number
-of two `BigRat`s (#552), fractions of any size
-([rational.md](rational.md)): every result is exact.
+`<BigNum>` (#590, [bignum.md](bignum.md)) has a complex number of two
+`BigRat`s (#552), fractions of any size ([rational.md](rational.md)):
+every result is exact.
 
 ```swift
-#import <math>
-#import <Rational>
+#import <BigNum>
 
 let main():int32 {
     let z = CBR(1n.over(2n), 1n.over(3n))        // or complexBigRat(...), by the alias
@@ -179,10 +178,10 @@ let main():int32 {
 
 - **The type**: `CBR`, with `real` and `imag` of `BigRat`, a struct;
   `complexBigRat` is its alias, as `complex64` is `c64`'s.
-  - It is there with both imports alone: a program with `<math>` or
-    `<Rational>` alone neither sees it nor compiles it.
-  - It lives in an overlay, `modules/math+Rational.k` (#551,
-    [modules.md](modules.md)).
+  - It is `<BigNum>`'s: a program with `<math>` and `<Rational>` and
+    no `<BigNum>` neither sees it nor compiles it.
+  - It was an overlay's before #590, `modules/math+Rational.k`, read
+    where the two were both imported (#551, [modules.md](modules.md)).
 - **Making one**: `CBR(re, im)` and `CBR(re)` of BigRats, of BigInts or
   of `i64`s, and `(CBR){re, im}` of two BigRats.
 - **Arithmetic**: `+ - * /`, unary `-`, `==` and `!=`, between two, or
@@ -272,15 +271,14 @@ let main():int32 {
   - From base 19 up `i` is a digit, so there `2.i` is a number and
     `(2).i` the imaginary one.
 
-### Functions of a `BigRat` and of a `CBR`, to a precision, with `<Rational>`
+### Functions of a `BigRat` and of a `CBR`, to a precision, with `<BigNum>`
 
-With `<Rational>` the functions take a `BigRat` too (#553). Few of
+With `<BigNum>` the functions take a `BigRat` too (#553). Few of
 their values are rational, so each takes a precision, in bits, and
 gives a `BigRat` that near.
 
 ```swift
-#import <math>
-#import <Rational>
+#import <BigNum>
 
 let main():int32 {
     println(sqrt(BigRat(2), 64))                 // (26087635650665564425n/18446744073709551616n)
@@ -333,15 +331,14 @@ let main():int32 {
   - It is not the fastest way: 16000 bits of each take a fraction of a
     second, a million would take long.
 
-### Functions of a `BigFloat`, with `<BigFloat>`
+### Functions of a `BigFloat`, with `<BigNum>`
 
-With `<BigFloat>` the functions take a `BigFloat` too (#580), and
+With `<BigNum>` the functions take a `BigFloat` too (#580), and
 give one of `BigFloat.precision` significant bits, as every BigFloat's
 result ([bigfloat.md](bigfloat.md)).
 
 ```swift
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 
 let main():int32 {
     println(sqrt(BigFloat(2)))                   // 1.41421356237309504880168872420969807857
@@ -409,15 +406,14 @@ let main():int32 {
   - `sin`, `tan`, `asin`, `atan`, `sinh`, `tanh`, `asinh` and `atanh`
     of an `x` so near 0 that its square is below the last bit are `x`.
 
-### Complex numbers of any precision: `CBF`, with `<BigFloat>`
+### Complex numbers of any precision: `CBF`, with `<BigNum>`
 
-With `<BigFloat>` there is `CBF` too (#581): a complex number whose
+With `<BigNum>` there is `CBF` too (#581): a complex number whose
 parts are `BigFloat`s, as a `c64`'s are `f64`s, of as many bits as a
 program asks.
 
 ```swift
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 
 let main():int32 {
     let z = CBF(1, 2) / CBF(3, 4)                // or complexBigFloat(1, 2), by the alias
@@ -434,8 +430,9 @@ let main():int32 {
 
 - **The type**: `CBF`, with `real` and `imag` of `BigFloat`, a struct;
   `complexBigFloat` is its alias, as `complexBigRat` is `CBR`'s.
-  - It comes with the two imports, `<math>` and `<BigFloat>`, by the
-    overlay `modules/math+BigFloat.k` ([modules.md](modules.md)).
+  - It is `<BigNum>`'s (#590); it was an overlay's before,
+    `modules/math+BigFloat.k`, read where `<math>` and `<BigFloat>` were
+    both imported ([modules.md](modules.md)).
 - **Making one**: `CBF(re, im)` and `CBF(re)` of BigFloats, of BigInts,
   of `i64`s or of `f64`s, and `(CBF){re, im}` of two BigFloats.
   - Two BigFloats are kept as they are; a part of another kind is a
@@ -490,14 +487,13 @@ let main():int32 {
     `CBF("x")`, `CBF("(1+2)")`.
 - **math's functions** take a `CBF` too, below.
 
-### Functions of a `CBF`, with `<BigFloat>`
+### Functions of a `CBF`, with `<BigNum>`
 
 math's functions take a `CBF` (#582), as they take a `c64` and a
 `CBR`, and give each part to `BigFloat.precision` significant bits.
 
 ```swift
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 
 let main():int32 {
     let z = CBF(1, 2)
@@ -629,7 +625,7 @@ let main():int32 {
 
 ## Where it lives
 
-The functions of a `BigFloat`, `CBF` and its functions are `modules/math+BigFloat.k`'s, an overlay read where `<math>` and `<BigFloat>` are both imported; it imports `<math+Rational>`, whose functions it is written with (#579). `CBR` and the functions of a `BigRat` and of a `CBR` are `modules/math+Rational.k`'s, an overlay (#551), read where `<math>` and `<Rational>` are both imported. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+`CBR`, the functions of a `BigRat` and of a `CBR`, the functions of a `BigFloat`, `CBF` and its functions are `modules/BigNum.k`'s, brought in by `#import <BigNum>` (#590, [bignum.md](bignum.md)), which imports `<math>` and `<Rational>`; they were two overlays before, `modules/math+Rational.k` (#551) and `modules/math+BigFloat.k` (#580), read where `<math>` was imported beside `<Rational>` or `<BigFloat>`. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
 ## Functions
 
@@ -643,7 +639,7 @@ c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, pola
 c64(text:cstr):c64, c32(text:cstr):c32                                      // and of a String by reference (#569)
 ```
 
-With `<Rational>` (#552):
+With `<BigNum>`, of a `BigRat` and a `CBR` (#552):
 
 <!-- fragment -->
 ```swift
@@ -658,7 +654,7 @@ pow(x:BigRat, y:BigRat):BigRat, pow(x:BigRat, y:BigRat, precision:int64):BigRat
 atan2(y:BigRat, x:BigRat):BigRat, atan2(y:BigRat, x:BigRat, precision:int64):BigRat
 ```
 
-With `<BigFloat>` (#580 to #582):
+With `<BigNum>`, of a `BigFloat` and a `CBF` (#580 to #582):
 
 <!-- fragment -->
 ```swift
@@ -694,7 +690,7 @@ atan2(y:BigFloat, x:BigFloat):BigFloat, atan2(y:BigFloat, x:BigFloat, precision:
 | | `.cstr` | the same text, a `cstr` |
 | | `.hex`, `.dec` | `(+0x1.8p+0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
 | | `c64(text)`, `c32(text)` | of its text: `(1.5-2.0.i)`, `(+1.5-2.0.i)`, `{real: 1.5, imag: -2.0}`, or a part alone, `1.5`, `2.0.i`; a `cstr` or a `String` by reference; text that is none is a NaN in both parts (#569) |
-| `CBR`, with `<Rational>` (#552) | `.real`, `.imag` | the parts, fields, each a `BigRat` |
+| `CBR`, with `<BigNum>` (#552) | `.real`, `.imag` | the parts, fields, each a `BigRat` |
 | | `+`, `-`, `*`, `/`, prefix `-` and `+`, `==`, `!=` | exact, of two, or with a `BigRat`, a `BigInt` or an `i64` on either side; `z / 0` is infinite, a part that is 0 staying 0, `((1n/0n)+(0n/1n).i)` (#571); by a real or an imaginary `CBR` it is part by part (#572), and times one (#573); an infinite part by a negative number has the quotient's sign (#574) |
 | | `.conj()` | the conjugate, a `CBR` |
 | | `.norm()` | `real² + imag²`, a `BigRat` |
@@ -706,17 +702,17 @@ atan2(y:BigFloat, x:BigFloat):BigFloat, atan2(y:BigFloat, x:BigFloat, precision:
 | | `.abs()`, `.arg()`, `.abs(p)`, `.arg(p)` | to 128 bits, or within `2^-p`, a `BigRat` (#554) |
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to 128 bits, a `CBR` (#554) |
 | | `.sqrt(p)`, `.exp(p)`, ..., `.pow(w)`, `.pow(w, p)` | the same, each part within `2^-p` |
-| `BigRat`, with `<Rational>` (#552) | `.i` | `CBR(0, r)`: the value rotated a quarter turn |
-| `BigRat`, with `<Rational>` (#553) | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to `BigRat.precision`, 128 bits, a `BigRat` |
+| `BigRat`, with `<BigNum>` (#552) | `.i` | `CBR(0, r)`: the value rotated a quarter turn |
+| `BigRat`, with `<BigNum>` (#553) | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to `BigRat.precision`, 128 bits, a `BigRat` |
 | | `.sqrt(p)`, `.exp(p)`, `.sin(p)`, ... | the same within `2^-p` |
 | | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
 | `BigRat.` | `.pi()`, `.pi(p)` | pi to 128 bits, or within `2^-p` |
-| `BigFloat`, with `<BigFloat>` (#580) | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to `BigFloat.precision` significant bits, 128, a `BigFloat` |
+| `BigFloat`, with `<BigNum>` (#580) | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function to `BigFloat.precision` significant bits, 128, a `BigFloat` |
 | | `.sqrt(p)`, `.exp(p)`, `.sin(p)`, ... | the same to `p` significant bits |
 | | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
 | `BigFloat.` | `.pi()`, `.pi(p)` | pi to `BigFloat.precision` bits, or to `p` |
 | | `.precision` | 128, the precision where none is written |
-| `CBF`, with `<BigFloat>` (#581) | `.real`, `.imag` | the parts, fields, each a `BigFloat` |
+| `CBF`, with `<BigNum>` (#581) | `.real`, `.imag` | the parts, fields, each a `BigFloat` |
 | | `+`, `-`, `*`, `/`, prefix `-`, `==`, `!=` | each part the exact one's, rounded once to `BigFloat.precision` bits; of two, or with a `BigFloat`, a `BigInt` or an `i64` on either side; `z / 0` is infinite, a part that is 0 staying 0, `(inf+0.0.i)` |
 | | `.conj()` | the conjugate, a `CBF` |
 | | `.norm()` | `real² + imag²`, a `BigFloat`, rounded once |
@@ -731,4 +727,4 @@ atan2(y:BigFloat, x:BigFloat):BigFloat, atan2(y:BigFloat, x:BigFloat, precision:
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` | the function, each part to `BigFloat.precision` significant bits, a `CBF` (#582) |
 | | `.sqrt(p)`, `.exp(p)`, ..., `.pow(w)`, `.pow(w, p)` | the same, each part to `p` significant bits |
 | `CBR`, `c64` | `CBR(z)`, `c64(z)` | of a `CBF`: its value exactly, and the nearest `c64` |
-| `BigFloat`, with `<BigFloat>` (#581) | `.i` | `CBF(0, x)`: the value rotated a quarter turn |
+| `BigFloat`, with `<BigNum>` (#581) | `.i` | `CBF(0, x)`: the value rotated a quarter turn |

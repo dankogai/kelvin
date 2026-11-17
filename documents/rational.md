@@ -152,16 +152,17 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 - **`r.f64`** is the nearest `f64`: 0.5 of `(1/2)`, `inf` or `-inf` of
   an infinity, `nan` of a NaN.
 - **`r.num` and `r.den`** are its members, read as any struct's.
-- **With `<math>`** a program has `CBR` too (#552), a complex number
-  of two BigRats, and `r.i` of a BigRat is `CBR(0, r)`: see
-  [math.md](math.md).
-  - It comes with the two imports, by an overlay,
-    `modules/math+Rational.k` (#551, [modules.md](modules.md)).
+- **With `<BigNum>`** (#590, [bignum.md](bignum.md)) a program has
+  `CBR` too (#552), a complex number of two BigRats, and `r.i` of a
+  BigRat is `CBR(0, r)`: see [math.md](math.md).
   - And math's functions take a BigRat (#553), each to a precision in
     bits: `sqrt(BigRat(2), 64)`, `x.exp()`, `BigRat.pi(256)`.
-- **With `<BigFloat>`** (#576) `BigFloat(r)` is the nearest float of
-  128 bits, and `BigRat(x)` a BigFloat's value exactly: see
-  [bigfloat.md](bigfloat.md).
+  - And `BigFloat(r)` is the nearest float of 128 bits (#576), and
+    `BigRat(x)` a BigFloat's value exactly: see
+    [bigfloat.md](bigfloat.md).
+  - `<Rational>` alone has none of these: a `BigRat` and its
+    arithmetic, exact, and no function of math. They came with
+    `<math>` beside it before, by an overlay (#551).
 
 ## Where it lives
 
@@ -204,5 +205,5 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |
-| | `.i`, with `<math>` (#552) | `CBR(0, r)`, a complex number of two BigRats ([math.md](math.md)) |
-| | `.sqrt()`, `.exp(p)`, `.sin()`, ..., with `<math>` (#553) | math's functions, within `2^-p`, or to 128 bits ([math.md](math.md)) |
+| | `.i`, with `<BigNum>` (#552) | `CBR(0, r)`, a complex number of two BigRats ([math.md](math.md)) |
+| | `.sqrt()`, `.exp(p)`, `.sin()`, ..., with `<BigNum>` (#553) | math's functions, within `2^-p`, or to 128 bits ([math.md](math.md)) |

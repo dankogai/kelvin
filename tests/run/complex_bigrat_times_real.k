@@ -4,8 +4,7 @@
 // imaginary part was 0 times an infinity, a NaN; either way round, and
 // times a BigRat too; 0 times an infinity is NaNs; what is finite is as
 // it was
-#import <math>
-#import <Rational>
+#import <BigNum>
 let main():int32 {
     let inf = BigRat(1, 0)
     let nan = BigRat(0, 0)

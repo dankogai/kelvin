@@ -5,8 +5,7 @@
 // integer, and of r /= d; by a positive number it is as it was, and so
 // is every other quotient: by an infinity a NaN, by 0 itself, and a
 // finite number by any
-#import <math>
-#import <Rational>
+#import <BigNum>
 let main():int32 {
     let inf = BigRat(1, 0)
     let ninf = BigRat(-1, 0)

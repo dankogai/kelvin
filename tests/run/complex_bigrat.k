@@ -1,10 +1,9 @@
 // CBR, complexBigRat by its alias (#552): a complex number of two
-// BigRats, of modules/math+Rational.k, the overlay (#551) read where
-// <math> and <Rational> are both imported; what stays rational, and so
+// BigRats, of modules/BigNum.k, #import <BigNum> (#590), the overlay of
+// math with Rational before (#551); what stays rational, and so
 // exact: + - * /, unary -, == and !=, with a BigRat, a BigInt or an i64
 // on either side, conj, norm, z.i and r.i; c64(z) for the rest of math's
-#import <math>
-#import <Rational>
+#import <BigNum>
 let main():int32 {
     let z = CBR(1n.over(2n), 1n.over(3n))
     let w:complexBigRat = CBR(3, -4)

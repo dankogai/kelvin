@@ -2,8 +2,7 @@
 // BigRat("8/-12") (-2n/3n), so T(text) gives the value back, as
 // i64("42") does; with a base it reads .hex, .oct and .bin, whose
 // denominator has no sign now: the sign is the numerator's alone
-#import <Rational>
-#import <math>
+#import <BigNum>
 let main():int32 {
     // a sign on either part, in lowest terms; spaces and a ( may come first
     println(rat64("8/-12"), " ", BigRat("8/-12"), " ", rat64("-8/-12"), " ", rat64("(-2/3)"), " ", BigRat("(-2n/3n)"), " ", rat64(" ( 8 / -12 )"))

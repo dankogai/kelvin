@@ -1,5 +1,5 @@
 // exp, the sines, the cosines and the tangents of a CBF take a part of
-// any size (#585), with <math> and <BigFloat>: exp(CBF(1, tiny)), tiny
+// any size (#585), with <BigNum>: exp(CBF(1, tiny)), tiny
 // being 2^-1000000000000, is e + e tiny i, where it was NaNs, a part
 // below 2^-67108864 or of 2^67108864 and more being past reckoning
 // (#582). They are products and quotients of a BigFloat's functions,
@@ -9,8 +9,7 @@
 // 2^67108864 and more are NaNs, and so is a part one is in, but where
 // its other factor is 0. The inverses are as they were; log, arg and pow
 // take a part of any size too (#586, cbf_far_log.k)
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     let tiny = BigFloat("0x1p-1000000000000")
     let huge = BigFloat("0x1p+1000000000000")

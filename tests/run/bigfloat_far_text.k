@@ -1,4 +1,4 @@
-// the text of a BigFloat far from 1 (#584), with <BigFloat>: print
+// the text of a BigFloat far from 1 (#584), with <BigNum>: print
 // writes the fewest digits of 2^-1000000000000 as soon as of any other
 // number, 1.044250726930468202952436781310171121576e-301029995664, and
 // BigFloat("1e1000000000") reads it, where each took a rational as long
@@ -7,8 +7,7 @@
 // more where those do not; the text reads back as the number, up to
 // the largest exponent there is, and a decimal past that is an infinity
 // or 0. A decimal is read exactly still where its exponent is near 0
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let far(text:cstr):bool {
     let x = BigFloat(text)
     let y = BigFloat(1) / 3 * x

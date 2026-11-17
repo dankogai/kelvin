@@ -260,6 +260,9 @@ static char *import_path(Token *t, const char *argv0) {
         if (dirs[i] && kelvin_file(strfmt("%s/%s", dirs[i], name)))
             return strfmt("%s/%s", dirs[i], name);
     }
+    if (!strcmp(t->text, "<BigFloat>")) /* renamed (#590) */
+        error_at(t->pos, "<BigFloat> is <BigNum> now, with CBR, CBF and math's functions of them (#590): write "
+                         "#import <BigNum>");
     error_at(t->pos, "cannot find %s (%s%s) in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)",
              t->text, bare ? strfmt("%sh or ", name) : "", name);
 }

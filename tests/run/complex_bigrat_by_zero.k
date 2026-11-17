@@ -2,8 +2,7 @@
 // 0 stays 0 beside one that is none, a rational's 0 being exactly 0, so
 // CBR(1) / CBR(0) is ((1n/0n)+(0n/1n).i), where its imaginary part was
 // 0 / 0, a NaN; 0 / 0 is NaNs still; a c64's is as it was, C's
-#import <math>
-#import <Rational>
+#import <BigNum>
 let main():int32 {
     // by a CBR that is 0
     println(CBR(1) / CBR(0), " ", CBR(0, 1) / CBR(0), " ", CBR(-1) / CBR(0), " ", CBR(0, -1) / CBR(0))

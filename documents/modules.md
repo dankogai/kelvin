@@ -22,7 +22,7 @@ A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
-search, the overlays (#551), the layout, and the modules so far: `math.k`, `Rational.k`, `BigFloat.k`,
+search, the overlays (#551), the layout, and the modules so far: `math.k`, `Rational.k`, `BigNum.k`,
 `JSON.k`, `SION.k` and `MsgPack.k`, and `IO`, `OS`, `UnicodeData` and `RegExp`, each a
 header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
@@ -242,12 +242,10 @@ println(v)                      //   and its type, a speed
   - What it imports may make another pair, whose overlay is read too.
   - An overlay of an overlay, `A+B+C`, is not looked for.
 - **Written out**, `#import <A+B>` is a module as any, read once.
-- **Kelvin's own** are `math+Rational.k` (#552 to #554): `CBR`, a
-  complex number of two BigRats, and math's functions of a BigRat and
-  of a `CBR` ([math.md](math.md)); and `math+BigFloat.k` (#580),
-  math's functions of a `BigFloat`, which imports the first, `CBF`,
-  a complex number of two (#581), and math's functions of a `CBF`
-  (#582).
+- **Kelvin's own** were two, `math+Rational.k` (#552 to #554) and
+  `math+BigFloat.k` (#580 to #582), until #590 made them parts of one
+  module, `<BigNum>` ([bignum.md](bignum.md)): Kelvin's modules/ has
+  none now, and a project's own are read as before.
 - **kc** (selfhost/) reads overlays too.
 
 ### `modules/`
@@ -268,9 +266,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, BigRat, n.over(d)
-    math+Rational.k       an overlay (#551-#554), where <math> and <Rational> are both imported: CBR, of two BigRats, and math's functions of a BigRat and of a CBR
-    BigFloat.k            #import <BigFloat> (#576, bigfloat.md): a float of any precision, rounded to BigFloat.precision bits; it imports <Rational>
-    math+BigFloat.k       an overlay (#580), where <math> and <BigFloat> are both imported: math's functions of a BigFloat, CBF, a complex number of two (#581), and math's functions of a CBF (#582); it imports <math+Rational>
+    BigNum.k              #import <BigNum> (#590, bignum.md): BigFloat, a float of any precision (#576, bigfloat.md), CBR and CBF, complex numbers of two BigRats and of two BigFloats, and math's functions of them and of a BigRat; it imports <math> and <Rational>
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -301,9 +297,8 @@ the functions of `math.h` for `f64` and `f32`, each a method too,
 and `c32`, complex numbers, `complex64` and `complex32` by their
 aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
 
-- With `<Rational>` too it has `CBR`, a complex number of two BigRats
-  (#552), and its functions of a BigRat and of a `CBR`, to a precision
-  (#553, #554), by the overlay `modules/math+Rational.k`.
+- Its functions of a `BigRat`, a `CBR`, a `BigFloat` and a `CBF` are
+  `<BigNum>`'s (#590), below.
 
 ### UnicodeData: `modules/UnicodeData.k`
 
@@ -337,14 +332,24 @@ a float's infinities and NaN, `rat32`, `rat16` and `rat8` of the
 narrower integers (#539), and `BigRat` of two `BigInt`s (#540): see
 [rational.md](rational.md).
 
-### BigFloat: `modules/BigFloat.k`
+### BigNum: `modules/BigNum.k`
 
-`#import <BigFloat>` brings in `BigFloat` (#576), a floating-point
-number whose mantissa is a `BigInt`, every result rounded to
-`BigFloat.precision` significant bits, 128, with `x.round(precision,
-rule)` and a float's infinities and NaN; print writes the fewest digits
-that `BigFloat(text)` reads back (#577): see [bigfloat.md](bigfloat.md).
-It imports `<Rational>`, so `BigRat` comes with it.
+`#import <BigNum>` brings in the numbers of any size (#590): see
+[bignum.md](bignum.md).
+
+- `BigFloat` (#576), a floating-point number whose mantissa is a
+  `BigInt`, every result rounded to `BigFloat.precision` significant
+  bits, 128, with `x.round(precision, rule)` and a float's infinities
+  and NaN; print writes the fewest digits that `BigFloat(text)` reads
+  back (#577): see [bigfloat.md](bigfloat.md).
+- `CBR` (#552) and `CBF` (#581), complex numbers of two BigRats and of
+  two BigFloats, and math's functions of a `BigRat`, a `CBR`, a
+  `BigFloat` and a `CBF`, each to a precision: see
+  [math.md](math.md).
+- It imports `<math>` and `<Rational>`, so math's own and `BigRat`
+  come with it.
+- It was `#import <BigFloat>` and two overlays before, read where
+  `<math>` was imported beside `<Rational>` or `<BigFloat>`.
 
 ### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
 

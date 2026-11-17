@@ -8,7 +8,7 @@
 #import <IO>                                          // f.lines, f.write (#450)
 #import <JSON>                                        // modules/JSON.kh, and libkJSON.a beside it (#516)
 #import <Rational>                                    // modules/Rational.k, a module's source, which names BigInt (#542)
-#import <BigFloat>                                    // modules/BigFloat.k, which imports Rational (#576)
+#import <BigNum>                                      // modules/BigNum.k, which imports math and Rational: BigFloat, CBR and CBF (#576, #590)
 #import <math>                                        // modules/math.k: its typealias, C's names, Self(x) (#550)
 #import <math.h> as C
 
@@ -1518,7 +1518,7 @@ on a new line`
     println(abs(ma_z), " ", ma_z.typename, " ", ma_w, " ", 1.0.i * 1.0.i, " ", 1.0 / ma_z, " ", sqrt(16.0), " ", 16.0.ma_root(), " ", 1.5.ma_twice())
     println(ma_q, " ", ma_q.ma_sum(), " ", ma_q.typename, " ", ma_apply(ma_half, 9.0), " ", sizeof(c64), " ", sizeof(ma_cx) == sizeof(complex32) * 2, " ", 2.0.pow(10.0), " ", floor(2.5))
     println(copysign(INFINITY, -1.0), " ", isnan(pow(ma_z, NAN).real) != 0, " ", fmax(NAN, 2.0), " ", f64.tau > 6.28)   // C's names, given to overloads
-    let cb_z = CBR(1n.over(2n), 1n.over(3n))            // math+Rational.k, the overlay of two modules imported above (#551, #552)
+    let cb_z = CBR(1n.over(2n), 1n.over(3n))            // BigNum's, the overlay of math with Rational before (#551, #552, #590)
     let cb_w:complexBigRat = cb_z * cb_z.conj() + 1
     println(cb_z, " ", cb_w, " ", cb_z / CBR(3, -4), " ", norm(cb_z), " ", 1n.over(7n).i, " ", c64(CBR(3, -4)), " ", cb_z.typename)
     println(BigRat.pi(64), " ", exp(BigRat(1), 32), " ", 1n.over(3n).sin(16), " ", sqrt(BigRat(2)) == sqrt(BigRat(2), BigRat.precision))   // math's functions of a BigRat, to a precision (#553)

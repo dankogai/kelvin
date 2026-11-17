@@ -6,8 +6,7 @@
 // out of its domain a NaN; atan2 is of the quotient; pow beside a 0 or an
 // infinity reads the other's sign and size alone. A sine, a cosine and a
 // tangent of a number of 2^67108864 and more are NaNs, past reckoning
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     let tiny = BigFloat("0x1p-1000000000000")
     let huge = BigFloat("0x1p+1000000000000")

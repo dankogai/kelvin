@@ -1,10 +1,9 @@
 // z.hex and z.dec of a c64 or a c32 (#559): its parts' texts and .i, in
 // parentheses, (+0x1.8p+0-0x1p+1.i); each part's own sign joins them,
-// so the text pastes back as the number. Of a CBR, with <Rational>,
+// so the text pastes back as the number. Of a CBR, with <BigNum>,
 // z.hex, z.oct and z.bin: its parts are BigRats, each in its own
 // parentheses, with a + between
-#import <math>
-#import <Rational>
+#import <BigNum>
 let main():int32 {
     let z = c64(1.5, -2.0)
     println(z.hex, " ", z.dec, " ", z.conj().hex, " ", z.conj().dec, " ", z.hex.typename)

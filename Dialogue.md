@@ -11376,3 +11376,41 @@ are provisional P601.
   `BigFloat("0x1.8p+9223372036854775808")`, which is greater, a number.
 
 There are 1372 tests, and all pass with clang and with gcc 15.
+
+### 637. BigNum, the one library of the numbers of any size
+
+**User**: "push", for #589, and then: "Another big one. Let's move
+non-big operations in `<math>` to the prelude." Many languages, like
+JavaScript and Perl, have them built in. Before that the user wanted
+a name for the library of BigRat, BigFloat and their complex
+versions, "`BigNum` or `MPMath`?", with `Rational` staying the same,
+"including `rat64` and down, for the time being".
+
+**Claude** recommended `BigNum`: every type in it is a `Big`, and it
+is the name of swift-bignum, which holds the same things. Three
+questions followed, and the user took the recommended answer of
+each.
+
+- The name is `BigNum`.
+- `BigRat` stays in `<Rational>`, which is untouched, and `<BigNum>`
+  imports it.
+- `#import <math>` will be accepted and do nothing; `#import
+  <BigFloat>` is gone.
+
+**User**: "Just make sure `BigFloat` and `CBF` remain as typenames
+while `<BigFloat>` is gone." They do.
+
+**Claude** tried the move of math first, and found why the rename
+had to come first, as the user had said: with math implied, a
+program that imports `<Rational>` and names `abs` would read the old
+overlay. So #590 is the rename alone.
+
+`modules/BigNum.k` is the three files in one: the overlay
+`math+Rational.k`, `BigFloat.k`, and the overlay `math+BigFloat.k`.
+`<math>` with `<Rational>` reads no overlay now: a program that had
+`CBR` by the two imports writes `#import <BigNum>`. `#import
+<BigFloat>` is an error that says so. Details are provisional P602.
+
+The move of math is written and set aside, for the next number.
+
+There are 1373 tests, and all pass with clang and with gcc 15.

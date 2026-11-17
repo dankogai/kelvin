@@ -1,12 +1,11 @@
-// math's functions of a BigFloat (#580), with <math> and <BigFloat>:
+// math's functions of a BigFloat (#580), with <BigNum>:
 // sqrt, exp, log, pow, the trigonometric and hyperbolic functions and
 // their inverses, each a method too, and BigFloat.pi(). A result has
 // BigFloat.precision significant bits, or the precision written, whatever
 // its size: e^1000 has 128 good bits and so has e^-1000. They are a
 // BigRat's functions, with as many bits after the point as that takes;
 // an infinity and a NaN come where a float's function gives one
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     let one = BigFloat(1)
     let two = BigFloat(2)

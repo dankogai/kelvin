@@ -2,8 +2,7 @@
 // a BigRat, so no 0 of the divisor's meets an infinity of the dividend's:
 // CBR(inf, 0) / CBR(2) is ((1n/0n)+(0n/1n).i), where its imaginary part
 // was 0 times an infinity, a NaN; what is finite is as it was
-#import <math>
-#import <Rational>
+#import <BigNum>
 let main():int32 {
     let inf = BigRat(1, 0)
     let nan = BigRat(0, 0)

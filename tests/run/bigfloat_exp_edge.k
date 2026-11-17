@@ -1,5 +1,5 @@
 // exp of a BigFloat is had up to the greatest exponent there is (#588),
-// with <math> and <BigFloat>: exp(BigFloat("0x1p+62")) is a number of
+// with <BigNum>: exp(BigFloat("0x1p+62")) is a number of
 // 2^6653256548922161245, where it was an infinity. e^x is 2^k times a
 // number near 1, k the nearest whole number to x over ln 2, and an x of
 // 2^62 and more was taken for past any exponent; but k is an i64's up to
@@ -9,8 +9,7 @@
 // the stored exponent being of the last bit. pow, which is e^(y ln x),
 // and sinh and cosh, which are of e^x, have their numbers with it, and
 // sinh and cosh half of an e^x that is itself past
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     let x = BigFloat("0x1p+62")
     // from 2^62 up: numbers, where they were infinities and 0

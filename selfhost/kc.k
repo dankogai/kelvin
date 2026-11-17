@@ -359,6 +359,10 @@ let load_module(mods:String^, t:int64):bool {
             return read
         }
     }
+    if tok_is(t, "<BigFloat>") {                         // renamed (#590)
+        lex_error(toks[t].file, toks[t].line, "<BigFloat> is <BigNum> now, with CBR, CBF and math's functions of them (#590): write #import <BigNum>")
+        return false
+    }
     var why = $"cannot find "
     let at:int64 = toks[t].at
     for j in 0..<toks[t].len {

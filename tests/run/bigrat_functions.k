@@ -1,11 +1,10 @@
 // the functions of a BigRat that are not rational, to a precision (#553),
-// of modules/math+Rational.k, the overlay of math with Rational (#551):
+// of modules/BigNum.k (#590), the overlay of math with Rational before (#551):
 // f(x, precision) is a BigRat of 2^precision parts within one of them of
 // the true value, and f(x) the same to BigRat.precision, 128 bits; each a
 // method too. They are reckoned in BigInts alone, so every system prints
 // the same; the values here agree with another reckoning of them.
-#import <math>
-#import <Rational>
+#import <BigNum>
 
 // the first digits of r after its point, cut: of r times 10^digits
 let digits(r:lent BigRat, count:i64):BigInt {

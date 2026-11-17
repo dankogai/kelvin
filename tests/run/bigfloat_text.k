@@ -1,4 +1,4 @@
-// the text of a BigFloat (#577), with <BigFloat>: print writes the
+// the text of a BigFloat (#577), with <BigNum>: print writes the
 // fewest digits that BigFloat(text) reads back as it, at
 // BigFloat.precision bits, so BigFloat("0.1") is 0.1 and a third 39
 // digits; laid out as an f64's, plain from 0.0001 up to 2^precision and
@@ -7,7 +7,7 @@
 // sign, its value exactly. BigFloat(text) reads a decimal, what else a
 // BigRat is read from, a hex float, inf and nan: all of the text, and
 // text that is none is a NaN
-#import <BigFloat>
+#import <BigNum>
 struct probe {
     name: cstr
     x: BigFloat

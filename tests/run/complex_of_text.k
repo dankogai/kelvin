@@ -3,8 +3,7 @@
 // z.dec's and z.hex's (a+b.i), print's too (#570), and a struct's text of
 // the parts, {real: a, imag: b}, which print wrote before;
 // a part alone is read too, and text that is none is a NaN in both parts
-#import <math>
-#import <Rational>
+#import <BigNum>
 let main():int32 {
     // each text of a c64 gives it back
     let z = c64(1.5, -2.0)

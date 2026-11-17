@@ -3,8 +3,7 @@
 // so of a variable a copy, an owner's a new one as -x's is, and +1n of a
 // literal is the literal; a BigInt's .hex, .oct and .bin, +0xffn, paste
 // back
-#import <math>
-#import <Rational>
+#import <BigNum>
 struct vec { x:i32; y:i32 }
 extend vec {
     static let -(a:Self):Self { (Self){-a.x, -a.y} }

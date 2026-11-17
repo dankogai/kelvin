@@ -716,8 +716,9 @@ kc reads what it is written in, and little more.
     matters to its aliases alone (#550): parse.k's `alias_order` passes
     the files as kelvinc reads them and places each overlay after the
     later of its two modules, before `alias_walk` reads any alias.
-  - sample.k meets one from #552 on, `math+Rational.k`; the tests of
-    tests/project, built by kc, print what kelvinc's builds print.
+  - sample.k met one from #552 on, `math+Rational.k`, until #590 made
+    it a part of `<BigNum>`; the tests of tests/project, built by kc,
+    print what kelvinc's builds print.
 - **Programs that import math** (#550): kc builds what
   `#import <math>` needs, where it stopped at the module's `typealias`,
   and its programs print what kelvinc's builds print.
@@ -812,6 +813,9 @@ kc reads what it is written in, and little more.
     - And of `CBF` (#581), the overlay's complex number of two
       BigFloats, and of math's functions of one (#582): kc builds
       them as they are.
+    - They are one module since #590, modules/BigNum.k, with `CBR`
+      and a BigRat's functions, the overlay math+Rational.k before:
+      sample.k imports `<BigNum>`, and kc builds it as it is.
   - **A type's own text, `T.cstr()`**, as kelvinc's #53: `let
     T.cstr():cstr { `...` }` of a struct, a union or an enum with
     values, one template or one text.

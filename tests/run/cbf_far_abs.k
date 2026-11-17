@@ -1,5 +1,5 @@
-// abs and sqrt of a CBF take a part of any exponent (#587), with <math>
-// and <BigFloat>: abs(CBF(top, top)), top being 2^9000000000000000000,
+// abs and sqrt of a CBF take a part of any exponent (#587), with
+// <BigNum>: abs(CBF(top, top)), top being 2^9000000000000000000,
 // is the root of 2 times top, where it was an infinity, and
 // abs(CBF(low, low)), low being 1 over top, was 0. Both are of the norm,
 // whose exponent is twice a part's: past 2^(2^62) either way it is past
@@ -8,8 +8,7 @@
 // greater part is near 1, times 2^k, and of parts further apart than
 // 2^(2^40) it is of the greater alone. sqrt(CBF(top, 1)) was wrong by
 // the root of 2
-#import <math>
-#import <BigFloat>
+#import <BigNum>
 let main():int32 {
     let top = BigFloat("0x1p+9000000000000000000")
     let low = BigFloat("0x1p-9000000000000000000")

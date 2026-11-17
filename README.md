@@ -450,7 +450,7 @@ So far the changes from C are these, by topic.
     mix: `rat64(r)` converts (#539)
   - `BigRat` is of two `BigInt`s, a fraction of any precision:
     `1n.over(3n)` is `(1n/3n)`, and every result fits (#540)
-  - with `#import <math>` too there is `CBR`, a complex number of two
+  - with `#import <BigNum>` there is `CBR`, a complex number of two
     BigRats, exact in `+ - * /`: `1 / CBR(3, -4)` is
     `((3n/25n)+(4n/25n).i)` (#552)
   - and math's functions take a BigRat, each to a precision in bits,
@@ -478,7 +478,7 @@ So far the changes from C are these, by topic.
 - a complex number is read from its text by its type: `c64(z.dec)`,
   `c64(z.hex)` and `c64("{real: 1.5, imag: -2.0}")` are `z`, the sign
   of a zero too, and `c64("1.5")` and `c64("2.0.i")` a part alone;
-  `c32(text)` likewise, and with `<Rational>` `CBR(text)` and
+  `c32(text)` likewise, and with `<BigNum>` `CBR(text)` and
   `CBR(z.hex, 16)` (#569)
 - `print` of a complex number writes `(a+b.i)`: `c64(1.5, -2.0)` is
   `(1.5-2.0.i)`, each part as `print` writes a float, both always, a
@@ -505,8 +505,9 @@ So far the changes from C are these, by topic.
   `meters(x:f64)` beside the attribute `meters.f64`, which kelvinc
   refused, both being `meters__f64` in C; the function is
   `_kv_fn_meters__f64` there (#575)
-- `#import <BigFloat>` is a floating-point number of any precision,
-  a `BigInt` times a power of 2: every result, of `+ - * /` and of
+- `BigFloat`, with `#import <BigNum>`, is a floating-point number of
+  any precision, a `BigInt` times a power of 2: every result, of
+  `+ - * /` and of
   `BigFloat(x)`, is rounded to `BigFloat.precision` significant bits,
   128, which a program may set, so `BigFloat(1) / 3` is a third to
   128 bits; `x.round(precision)` and `x.round(precision, rule)` round
@@ -528,7 +529,7 @@ So far the changes from C are these, by topic.
   after the module both are of, are in the order found, where the
   second was put before the first and saw none of what it imports
   (#579)
-- with `<math>` and `<BigFloat>` math's functions take a `BigFloat`:
+- with `<BigNum>` math's functions take a `BigFloat`:
   `sqrt(BigFloat(2))` is `1.41421356237309504880168872420969807857`;
   `sqrt`, `exp`, `log`, `pow`, the trigonometric and hyperbolic
   functions and their inverses, each a method too, and
@@ -536,7 +537,7 @@ So far the changes from C are these, by topic.
   bits whatever its size, `exp(BigFloat(-1000))` is
   `5.0759588975494567652918094795743369193e-435`, or the precision
   written, `exp(x, 256)` (#580)
-- with `<math>` and `<BigFloat>` there is `CBF`, `complexBigFloat` by
+- with `<BigNum>` there is `CBF`, `complexBigFloat` by
   its alias, a complex number of two BigFloats: `CBF(1, 2) / CBF(3, 4)`
   is `(0.44+0.08.i)`; each part of `+ - * /` is the exact one's,
   rounded once to `BigFloat.precision` bits, so nothing is lost where
@@ -606,3 +607,10 @@ So far the changes from C are these, by topic.
   made a BigFloat before it was multiplied; beside the least number a
   part is 0 where `e^x` is, and was 16 places sooner; `sinh`, `cosh`,
   `sin`, `cos`, `tanh`, `tan` and `pow` are so too (#589)
+- `#import <BigNum>` is the one library of the numbers of any size:
+  `BigFloat`, `CBR` and `CBF`, and math's functions of a `BigRat`, a
+  `CBR`, a `BigFloat` and a `CBF`; it was `#import <BigFloat>` and two
+  overlays, read where `<math>` was imported beside `<Rational>` or
+  `<BigFloat>`; `<Rational>` is as it was, `rat64` and down and
+  `BigRat` with its arithmetic, and `#import <BigFloat>` is an error
+  that says what to write (#590)
