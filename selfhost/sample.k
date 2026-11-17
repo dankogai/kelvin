@@ -1575,6 +1575,7 @@ on a new line`
     let bf_top = BigFloat("0x1p+9000000000000000000")
     println(abs(CBF(bf_top, bf_top)).hex, " ", abs(CBF(1 / bf_top, 1 / bf_top)).hex, " ", sqrt(CBF(bf_top, BigFloat(1))).hex, " ", sqrt(CBF(BigFloat(-7) * bf_top, BigFloat(24) * bf_top)).hex)   // abs and sqrt of a CBF with a part of any exponent (#587)
     println(exp(BigFloat("0x1p+62")).hex, " ", pow(BigFloat(2), BigFloat("0x1.cp+62")).hex, " ", exp(BigFloat("6393154322601327918")), " ", sinh(BigFloat("6393154322601327917")).hex, " ", exp(-BigFloat("0x1p+62")).hex)   // exp of a BigFloat up to the greatest exponent there is (#588)
+    println(exp(CBF(BigFloat("7000000000000000000"), BigFloat("0x1p-4000000000000000000"))).hex, " ", exp(CBF(BigFloat("-6393154322601327735"), BigFloat(1))).hex, " ", tanh(CBF(BigFloat("3196577161300663870"), BigFloat(1))).hex, " ", pow(CBF(BigFloat(2), BigFloat("0x1p-4000000000000000000")), CBF(BigFloat("0x1.1p+63"))).hex)   // a part of a CBF's exp is tried as the product it is (#589)
     return 0
 }
 

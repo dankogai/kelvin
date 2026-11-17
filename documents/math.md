@@ -594,12 +594,29 @@ let main():int32 {
       infinities, each part with its other factor's sign:
       `exp(CBF(huge, 2))` is `(-inf+inf.i)`, and `exp(CBF(-huge, 2))`
       `(0.0+0.0.i)`.
+      - A part is `e^x` times a cosine or a sine, and it is the
+        product that is tried against the exponents there are (#589).
+        - Where `e^x` is past any exponent and the sine brings it
+          back, the part is a number: with `tiny` of
+          `2^-4000000000000000000`,
+          `exp(CBF(7000000000000000000, tiny))` has an imaginary part
+          of `2^6098865286222743851`, beside a real part that is an
+          infinity.
+        - Beside the least number a part is 0 where `e^x` is 0 to
+          the bits asked: `exp(CBF(-6393154322601327735, 1))` is a
+          number in both parts.
+        - `sinh`, `cosh`, `sin`, `cos`, `tanh`, `tan` and `pow` are so
+          too.
+        - An `x` of `2^64` and more is past any exponent whatever the
+          sine.
     - An angle of `2^67108864` and more has no sine, and a part it is
       in is a NaN: `exp(CBF(1, huge))` is `(nan+nan.i)`.
       - But where its other factor is 0: `sinh(CBF(0, huge))` is
         `(0.0+nan.i)`, and `tanh(CBF(huge, huge))` `(1.0+0.0.i)`.
 - **How**: `exp`, the sines, the cosines and `tanh` are products and
   quotients of a BigFloat's functions, which lose nothing.
+  - `e^x` is kept with its exponent in full, and a part is its
+    product with the cosine, rounded once.
   - `sqrt` and `log` are of the norm, exactly; `pow` is `exp` of `w`
     times `log`, with as many more bits as a part of it is small.
     - `sqrt` is of `z` over `4^k`, whose greater part is near 1, times

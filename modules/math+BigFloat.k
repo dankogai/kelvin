@@ -184,28 +184,41 @@ let BigFloat_i128(k:lent BigInt):i128 {
     return high.i64 as i128 * 4294967296 + low.i64 as i128
 }
 
-// e^x times 2^shift, of a finite x that is not 0: x is k times ln 2
-// and a rest of no more than half of ln 2, so e^x is e^rest, near 1,
-// times 2^k; no bits are spent on its size, and one past any exponent is
-// an infinity, or 0. The k is an i64's and more: e^x has an exponent an
-// i64 holds up to an x of 2^63 times ln 2, 6.39e18, and it is the result
-// that is tried against the exponents there are, not x against 2^62
-// (#588); of 2^64 and more it is past them whatever the bits are
-let BigFloat_exp_at(x:lent BigFloat, bits:i64, shift:i128):BigFloat {
+// e^x of a finite x, in two parts: a number near 1, to bits bits, and
+// the k it is to be taken times 2 to, written to at. x is k times ln 2
+// and a rest of no more than half of ln 2, so e^x is e^rest times 2^k,
+// and no bits are spent on its size. The k is an i64's and more: e^x has
+// an exponent an i64 holds up to an x of 2^63 times ln 2, 6.39e18 (#588),
+// and past it too its product with a number below 1 may have one (#589).
+// Of an x of 2^64 and more in size e^x is past any exponent, whatever
+// number it is taken times: the k is then 2^100, or less it
+let BigFloat_exp_parts(x:lent BigFloat, bits:i64, at:i128^):BigFloat {
+    at^ = 0
+    if x.mantissa.isZero { return BigFloat(1) }
     let top = BigFloat_top(x)
     if top > 64 {
-        if x.mantissa.isNegative { return BigFloat_zero() }
-        return BigFloat_inf(1)
+        at^ = (1 as i128) << 100
+        if x.mantissa.isNegative { at^ = 0 - ((1 as i128) << 100) }
+        return BigFloat(1)
     }
-    if top < 0 - bits as i128 - 2 { return BigFloat_make(BigInt(1), shift, bits, 0) }   // 1 + x rounds to 1
+    if top < 0 - bits as i128 - 2 { return BigFloat(1) }    // 1 + x rounds to 1
     let w:i64 = bits + 32
     let ln2 = log(BigRat(2), w + 70)
     let rx = BigRat(x)
     let q = rx / ln2
     let k = fx_floor_div(q.num * 2 + q.den, q.den * 2)      // the nearest whole number to x / ln 2
     let rest = rx - BigRat(k) * ln2
-    let m = BigFloat(exp(rest, w), bits)
-    return BigFloat_make(m.mantissa, m.exponent as i128 + BigFloat_i128(k) + shift, bits, 0)
+    at^ = BigFloat_i128(k)
+    return BigFloat(exp(rest, w), bits)
+}
+
+// e^x times 2^shift, of a finite x that is not 0: it is the result
+// that is tried against the exponents there are, not x against 2^62
+// (#588), and one past any exponent is an infinity, or 0
+let BigFloat_exp_at(x:lent BigFloat, bits:i64, shift:i128):BigFloat {
+    var k:i128 = 0
+    let m = BigFloat_exp_parts(x, bits, &k)
+    return BigFloat_make(m.mantissa, m.exponent as i128 + k + shift, bits, 0)
 }
 
 // e^x
@@ -1111,14 +1124,50 @@ let CBF_log(z:lent CBF, bits:i64):CBF {
 // infinity or 0, and sinh and cosh infinities; and the sine and the
 // cosine of a number of 2^67108864 and more are NaNs, which a part that
 // has one in it is, but where the other factor is 0
+//
+// A part is a product, e^x times a cosine, and it is the product that
+// is tried against the exponents there are (#589): e^x is kept as a
+// term, with its exponent in full, so a part is a number where e^x
+// itself is past any exponent and the cosine, or the sine, brings it
+// back, exp(CBF(7000000000000000000, tiny)), and where e^x is all but
+// below the least number
+
+// e^x of a finite x, as a term
+let CBF_exp_term(x:lent BigFloat, bits:i64):CBF_term {
+    var k:i128 = 0
+    let m = BigFloat_exp_parts(x, bits, &k)
+    return (CBF_term){m.mantissa.copy(), m.exponent as i128 + k}
+}
+
+// half of e^|x|, which sinh and cosh of an x are, but for the sign of
+// sinh, where they are past any exponent
+let CBF_exp_half(x:lent BigFloat, bits:i64):CBF_term {
+    let size:BigFloat = (BigFloat){x.mantissa.abs, x.exponent, 0}
+    let t = CBF_exp_term(size, bits)
+    return (CBF_term){t.m.copy(), t.e - 1}
+}
+
+// a term above 0 times b, a sine or a cosine, to bits bits, or less
+// it: a number wherever the product has an exponent there is. Of a b
+// past reckoning it is a NaN, but 0 where the term itself is 0 to the
+// bits, b being 1 at the most
+let CBF_term_times(t:lent CBF_term, b:lent BigFloat, minus:bool, bits:i64):BigFloat {
+    if b.special != 0 {
+        if BigFloat_make(t.m, t.e, bits, 0).mantissa.isZero { return BigFloat_zero() }
+        return BigFloat_nan()
+    }
+    let r = BigFloat_make(t.m * b.mantissa, t.e + b.exponent as i128, bits, 0)
+    if minus { return -r }
+    return r
+}
 
 // e^x (cos y + i sin y)
 let CBF_exp(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(9, z, bits) }
     if CBF_zero(z.imag) { return (CBF){exp(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
-    let e = exp(z.real, p)
-    return (CBF){CBF_turned(e, cos(z.imag, p), bits), CBF_turned(e, sin(z.imag, p), bits)}
+    let e = CBF_exp_term(z.real, p)
+    return (CBF){CBF_term_times(e, cos(z.imag, p), false, bits), CBF_term_times(e, sin(z.imag, p), false, bits)}
 }
 
 // sinh(a + ib) = sinh a cos b + i cosh a sin b
@@ -1126,7 +1175,12 @@ let CBF_sinh(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(14, z, bits) }
     if CBF_zero(z.imag) { return (CBF){sinh(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
-    return (CBF){CBF_turned(sinh(z.real, p), cos(z.imag, p), bits), CBF_mul(cosh(z.real, p), sin(z.imag, p), bits)}
+    let sh = sinh(z.real, p)
+    if sh.special == 1 {
+        let h = CBF_exp_half(z.real, p)
+        return (CBF){CBF_term_times(h, cos(z.imag, p), z.real.mantissa.isNegative, bits), CBF_term_times(h, sin(z.imag, p), false, bits)}
+    }
+    return (CBF){CBF_turned(sh, cos(z.imag, p), bits), CBF_mul(cosh(z.real, p), sin(z.imag, p), bits)}
 }
 
 // cosh(a + ib) = cosh a cos b + i sinh a sin b
@@ -1134,7 +1188,12 @@ let CBF_cosh(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(15, z, bits) }
     if CBF_zero(z.imag) { return (CBF){cosh(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
-    return (CBF){CBF_mul(cosh(z.real, p), cos(z.imag, p), bits), CBF_turned(sinh(z.real, p), sin(z.imag, p), bits)}
+    let ch = cosh(z.real, p)
+    if ch.special == 1 {
+        let h = CBF_exp_half(z.real, p)
+        return (CBF){CBF_term_times(h, cos(z.imag, p), false, bits), CBF_term_times(h, sin(z.imag, p), z.real.mantissa.isNegative, bits)}
+    }
+    return (CBF){CBF_mul(ch, cos(z.imag, p), bits), CBF_turned(sinh(z.real, p), sin(z.imag, p), bits)}
 }
 
 // sin(x + iy) = sin x cosh y + i cos x sinh y
@@ -1142,7 +1201,12 @@ let CBF_sin(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(11, z, bits) }
     if CBF_zero(z.imag) { return (CBF){sin(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
-    return (CBF){CBF_mul(sin(z.real, p), cosh(z.imag, p), bits), CBF_mul(cos(z.real, p), sinh(z.imag, p), bits)}
+    let ch = cosh(z.imag, p)
+    if ch.special == 1 {
+        let h = CBF_exp_half(z.imag, p)
+        return (CBF){CBF_term_times(h, sin(z.real, p), false, bits), CBF_term_times(h, cos(z.real, p), z.imag.mantissa.isNegative, bits)}
+    }
+    return (CBF){CBF_mul(sin(z.real, p), ch, bits), CBF_mul(cos(z.real, p), sinh(z.imag, p), bits)}
 }
 
 // cos(x + iy) = cos x cosh y - i sin x sinh y
@@ -1150,25 +1214,31 @@ let CBF_cos(z:lent CBF, bits:i64):CBF {
     if CBF_wild(z) { return CBF_wild_by(12, z, bits) }
     if CBF_zero(z.imag) { return (CBF){cos(z.real, bits), BigFloat_zero()} }
     let p:i64 = bits + 16
-    return (CBF){CBF_mul(cos(z.real, p), cosh(z.imag, p), bits), -CBF_mul(sin(z.real, p), sinh(z.imag, p), bits)}
+    let ch = cosh(z.imag, p)
+    if ch.special == 1 {
+        let h = CBF_exp_half(z.imag, p)
+        return (CBF){CBF_term_times(h, cos(z.real, p), false, bits), CBF_term_times(h, sin(z.real, p), !z.imag.mantissa.isNegative, bits)}
+    }
+    return (CBF){CBF_mul(cos(z.real, p), ch, bits), -CBF_mul(sin(z.real, p), sinh(z.imag, p), bits)}
 }
 
 // tanh(a + ib) = (sinh a cosh a + i sin b cos b) / (sinh^2 a + cos^2 b),
 // a sum that cancels nothing, near a pole too; of an a as large as the
 // bits, where the sum is all but e^(2|a|) / 4, it is 1 with a's sign and
-// 4 sin b cos b e^(-2|a|). z is finite, and b not 0
+// 4 sin b cos b e^(-2|a|), a product that is tried against the exponents
+// as it is, e^(-2|a|) being a term (#589). z is finite, and b not 0
 let CBF_tanh_of(z:lent CBF, bits:i64):CBF {
     let p:i64 = bits + 16
     let s = sin(z.imag, p)
     let c = cos(z.imag, p)
     let size:BigFloat = (BigFloat){z.real.mantissa.abs, z.real.exponent, 0}
     if size >= BigFloat(p) {
-        let e = exp(-(size * 2), p)
-        if e.mantissa.isZero { return (CBF){BigFloat(z.real.mantissa.sign), BigFloat_zero()} }
-        if s.special != 0 { return (CBF){BigFloat(z.real.mantissa.sign), BigFloat_nan()} }   // b is past reckoning, and its part not 0
-        let t = CBF_mul(CBF_mul(s, c, p), e, bits)
-        if t.special != 0 || t.mantissa.isZero { return (CBF){BigFloat(z.real.mantissa.sign), BigFloat_zero()} }
-        return (CBF){BigFloat(z.real.mantissa.sign), (BigFloat){t.mantissa.copy(), t.exponent + 2, 0}}
+        if BigFloat_top(size) > 64 { return (CBF){BigFloat(z.real.mantissa.sign), BigFloat_zero()} }
+        let twice:BigFloat = (BigFloat){0 - size.mantissa, size.exponent + 1, 0}
+        let e = CBF_exp_term(twice, p)
+        let four:CBF_term = (CBF_term){e.m.copy(), e.e + 2}
+        // of a b past reckoning a NaN, but where e^(-2|a|) is 0
+        return (CBF){BigFloat(z.real.mantissa.sign), CBF_term_times(four, CBF_mul(s, c, p), false, bits)}
     }
     if s.special != 0 {                                  // b is past reckoning: i tan b of an imaginary z, and else nothing
         if CBF_zero(z.real) { return (CBF){BigFloat_zero(), BigFloat_nan()} }
@@ -1311,7 +1381,9 @@ let CBF_level(z:lent CBF):bool {
 // within that of its own size: q is raised until they are, and what would
 // take 1048576 bits more than are asked is past reckoning, a NaN. An x
 // that is past any exponent whatever its error makes an infinity or 0, and
-// 0 times a sine not known is 0
+// 0 times a sine not known is 0. e^x is a term, with its exponent in
+// full, and it is its product with the cosine, and with the sine, that is
+// tried against the exponents there are (#589)
 let CBF_power(z:lent CBF, w:lent CBF, bits:i64):CBF {
     // the angle of z: k quarter turns and atan2(num, den), den above 0 and num no more than it in size
     let ax:BigFloat = (BigFloat){z.real.mantissa.abs, z.real.exponent, 0}
@@ -1358,7 +1430,7 @@ let CBF_power(z:lent CBF, w:lent CBF, bits:i64):CBF {
     let far:i128 = 0 - ((1 as i128) << 100)
     let limit:i128 = bits as i128 + 1048576 + 64
     var q:i64 = bits + 40
-    var e = BigFloat(1)                  // e^(the real part of w log z)
+    var e:CBF_term = (CBF_term){BigInt(1), 0}       // e^(the real part of w log z)
     var c = BigFloat(1)                  // the cosine and the sine of phi
     var s = BigFloat_zero()
     var still = true                     // phi is nothing: the sine is 0 exactly
@@ -1384,7 +1456,7 @@ let CBF_power(z:lent CBF, w:lent CBF, bits:i64):CBF {
             let top:i128 = CBF_top(tr)
             if !tr.m.isZero && top > 66 && top > tre + 12 - q as i128 {
                 if tr.m.isNegative { return (CBF){BigFloat_zero(), BigFloat_zero()} }
-                e = BigFloat_inf(1)
+                e = (CBF_term){BigInt(1), (1 as i128) << 100}
             } else {
                 var want:i128 = bits as i128 + 22 + tre
                 if tr.m.isZero && want <= q as i128 { want = 2 * q as i128 + 8 }
@@ -1393,8 +1465,8 @@ let CBF_power(z:lent CBF, w:lent CBF, bits:i64):CBF {
                 } else if want > q as i128 {
                     need = want
                 } else {
-                    e = exp(BigFloat_make(tr.m, tr.e, q, 0), bits + 16)
-                    if CBF_zero(e) { return (CBF){BigFloat_zero(), BigFloat_zero()} }
+                    e = CBF_exp_term(BigFloat_make(tr.m, tr.e, q, 0), bits + 16)
+                    if CBF_top(e) < 0 - 9223372036854775807 as i128 { return (CBF){BigFloat_zero(), BigFloat_zero()} }   // below the least number
                 }
             }
         }
@@ -1441,18 +1513,23 @@ let CBF_power(z:lent CBF, w:lent CBF, bits:i64):CBF {
         if need <= q as i128 { break }
         q = (need + 8) as i64
     }
-    if lost_e { e = BigFloat_nan() }
     if lost_c { c = BigFloat_nan() }
     if lost_s { s = BigFloat_nan() }
+    var ec = BigFloat_nan()              // e^x times the cosine, and times the sine
+    var es = BigFloat_nan()
+    if !lost_e {
+        ec = CBF_term_times(e, c, false, bits)
+        es = CBF_term_times(e, s, false, bits)
+    }
     // the j quarter turns: (c, s), (-s, c), (-c, -s) and (s, -c)
     var re = BigFloat_zero()
     var im = BigFloat_zero()
     if j == 0 || j == 2 {
-        re = CBF_turned(e, c, bits)
-        if !still { im = CBF_turned(e, s, bits) }
+        re = ec.copy()
+        if !still { im = es.copy() }
     } else {
-        if !still { re = CBF_turned(e, s, bits) }
-        im = CBF_turned(e, c, bits)
+        if !still { re = es.copy() }
+        im = ec.copy()
     }
     if j == 1 || j == 2 { re = -re }
     if j == 2 || j == 3 { im = -im }

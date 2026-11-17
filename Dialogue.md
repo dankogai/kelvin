@@ -11340,3 +11340,39 @@ are had where `e^x` itself is past. Details are provisional P600.
 cosine near 0 would fit.
 
 There are 1371 tests, and all pass with clang and with gcc 15.
+
+### 636. A part of a CBF's exp, tried as the product it is
+
+**User**: "push", for #588, and then "fix exp of a CBF beside a small
+cosine as #589". **Claude** pushed #588, whose nine jobs passed, and
+wrote #589 in a copy of the modules.
+
+A part of `exp` is `e^x` times a cosine or a sine. `e^x` was made a
+BigFloat first, an infinity where it is past any exponent, and the
+part was an infinity with it, though a small sine brings the product
+back. Now `e^x` is kept with its exponent in full, and it is the
+product that is tried: with `tiny` of `2^-4000000000000000000`,
+`exp(CBF(7000000000000000000, tiny))` has an imaginary part of
+`2^6098865286222743851`.
+
+`sinh`, `cosh`, `sin`, `cos`, `tanh`, `tan` and `pow` are of `e^x` the
+same way, and are so too. Beside the least number both parts were 0
+sixteen places too soon, `e^x` being had to 16 bits more than are
+asked: `exp(CBF(-6393154322601327735, 1))` is a number now. Details
+are provisional P601.
+
+**Claude** found three more things on the way.
+
+- `tanh` far out took `e^(-2a)` of `2a` rounded to
+  `BigFloat.precision`: of a real part of more bits its small part
+  was wrong. It is fixed with #589, being in the same line.
+- The example given with #588 was wrong: `exp(CBF(6393154322601327918,
+  1.5))` is `(inf+inf.i)` rightly. Its real part's 128 bits end in six
+  0s, and the exponent a BigFloat keeps is the last 1's. The fault
+  was real where the cosine is below `2^-16`.
+- That rule itself is left, not ordered: near the greatest exponent a
+  BigFloat is a number or an infinity by its last bits.
+  `BigFloat("0x1p+9223372036854775808")` is an infinity, and
+  `BigFloat("0x1.8p+9223372036854775808")`, which is greater, a number.
+
+There are 1372 tests, and all pass with clang and with gcc 15.

@@ -599,3 +599,10 @@ So far the changes from C are these, by topic.
   infinity past `6393154322601327917` at 128 bits and 0 below
   `-6393154322601327741`; `pow`, `sinh` and `cosh` have their numbers
   with it (#588)
+- A part of a `CBF`'s `exp` is tried against the exponents as the
+  product it is: with `tiny` of `2^-4000000000000000000`,
+  `exp(CBF(7000000000000000000, tiny))` has an imaginary part of
+  `2^6098865286222743851`, where it was an infinity, `e^x` having been
+  made a BigFloat before it was multiplied; beside the least number a
+  part is 0 where `e^x` is, and was 16 places sooner; `sinh`, `cosh`,
+  `sin`, `cos`, `tanh`, `tan` and `pow` are so too (#589)
