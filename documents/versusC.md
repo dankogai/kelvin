@@ -101,7 +101,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `strtol(s, NULL, 8)`, `atof(s)` | `i64(s, 8)`, `f64(s)` or `s.f64` (#36) |
 | `snprintf(buf, n, "%s: %d", name, n)` | `` `${name}: ${n}` `` (#39) |
 | `(uintptr_t)p`, `printf("%p", p)` | `p.addr`, `print(p.hex)` (#37) |
-| `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <math>` (#40, #46) |
+| `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <Rational>` (#40, #46) |
 | `x.h` and `libx.a`, built by `cc -c x.c` and `ar rcs`, linked with `-lx` | `kelvinc --lib x.k` builds `x.kh` and `libkx.a` into `modules/`, which `#import <x>` brings in and links by itself (#143, #146) |
 | `csin(z)` beside `sin(x)` | `let sin(z:c64):c64 { ... }` beside C's `sin` (#41) |
 | `cadd(a, b)` | `a + b`, given `let +(a:c64, b:c64):c64 { ... }` (#42) |
@@ -141,8 +141,8 @@ Each document says so in its "Where it lives" section. In short:
 | Home | What | Needs |
 |---|---|---|
 | the core | numbers, `bool`, pointers, `cstr`, fixed arrays, structs, unions, enums, functions, operators, the statements, `#import` | kelvinc alone: the C is C's own, nothing linked |
-| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
-| loaded explicitly | `IO`; `OS` and `SYS`; `c64` and `c32`; `JSON`; a C header's names | `#import <IO>`, `#import <OS>` (#144, #145), a header and a library each; `#import <math>`, `#import <JSON>`, sources; `#import <x.h> as C` |
+| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, the checks of `T?`, `Result<T, U>` and enums with values; `RegExp`, `BigInt`, and math's functions with `c64` and `c32` (#591), where a program names them | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
+| loaded explicitly | `IO`; `OS` and `SYS`; the rationals; `JSON`; a C header's names | `#import <IO>`, `#import <OS>` (#144, #145), a header and a library each; `#import <Rational>`, a source; `#import <JSON>`; `#import <x.h> as C` |
 
 ### The documents
 

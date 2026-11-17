@@ -65,7 +65,7 @@ let main():int32 {
     // where only C sees the other operand's type, _Generic chooses, and a
     // number of another type converts to the one operator that takes a
     // number there
-    println((a * round(1.5)).cents, " ", (a + abs(-5)).cents, " ", (a / abs(-3)).cents, " ", (abs(-2) * a).cents,
+    println((a * atof("2")).cents, " ", (a + atoi("5")).cents, " ", (a / atoi("3")).cents, " ", (atoi("2") * a).cents,
             " ", (a * labs(-2)).cents, " ", (a * llabs(-2)).cents)
     let one:bits = {.f = 1.0}
     println(one == one, " ", one == (bits){.u = 0})

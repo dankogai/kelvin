@@ -1,10 +1,10 @@
-// where only C sees that abs gives an int, which two overloads take alike,
+// where only C sees that atoi gives an int, which two overloads take alike,
 // C's _Generic says so (#41)
 #import <stdlib.h> as C
 let twice(n:int64):int64 { n * 2 }
 let twice(x:float64):float64 { x * 2.0 }
 let main():int32 {
-    println(twice(abs(-3)))
+    println(twice(atoi("3")))
     return 0
 }
 // error: kv_no_such_overload

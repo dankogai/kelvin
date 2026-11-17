@@ -70,6 +70,7 @@ runtime/unicode_tables.c
 runtime/unicode_names.c
 modules/RegExp.kh
 modules/BigInt.kh
+modules/math.kh
 modules/fetch.kh
 modules/libkfetch.link
 modules/JSON.kh

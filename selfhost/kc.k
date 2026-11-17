@@ -398,6 +398,97 @@ let load_module_imports(mods:String^):bool {
     return true
 }
 
+// whether token t has the text of one of the tokens at
+let text_among(t:int64, at:$[int64]^):bool {
+    for a in at^ {
+        if same_text(t, a) { return true }
+    }
+    return false
+}
+
+// math, the prelude's too (#590), as kelvinc's with_math: the files that
+// name one of its names read it as if the program began with #import
+// <math>. Its names are read from the module itself: what it declares,
+// wherever the files write it but where they declare one of their own,
+// let log(...), and what it gives f64 and f32, after a dot, f64.tau. So it
+// is read first, and its tokens are taken away again where none of them
+// is named, or where a type of the files' own has the name of one of its
+// types. The tokens of the UnicodeData that every program has are not
+// asked, file ucd of them
+let load_math(mods:String^, ucd:int64):bool {
+    var path = $""
+    var dir = $""
+    var header = false
+    for k in 0..<2 {
+        dir = k == 0 ? $"./modules" : mods^.copy()
+        var kh:String = dir.copy()
+        kh += "/math.kh"
+        var src:String = dir.copy()
+        src += "/math.k"
+        if exists(&kh) {
+            path = kh.copy()
+            header = true
+            break
+        }
+        if exists(&src) {
+            path = src.copy()
+            break
+        }
+    }
+    if path.count == 0 || read_already(&path) { return true }        // none, or #import <math> written
+    let first:int64 = toks.count as int64
+    let code0:int64 = codes.count as int64
+    if !loads(&path) { return false }
+    var names:$[int64] = $[]
+    var types:$[int64] = $[]
+    var members:$[int64] = $[]
+    var depth = 0
+    var giving = false                                   // in an extend of a type that is not math's own
+    for t in first..<toks.count as int64 - 1 {
+        let u:int64 = t + 1
+        if toks[t].kind == T_PUNCT && tok_is(t, "{") {
+            depth += 1
+        } else if toks[t].kind == T_PUNCT && tok_is(t, "}") {
+            depth -= 1
+        } else if toks[t].kind != T_ID || toks[u].kind != T_ID {
+            continue
+        } else if depth == 0 && (tok_is(t, "struct") || tok_is(t, "union") || tok_is(t, "enum") || tok_is(t, "typealias")) {
+            types += u
+        } else if depth == 0 && tok_is(t, "extend") {
+            giving = !text_among(u, &types)
+        } else if tok_is(t, "let") || tok_is(t, "var") {
+            if depth == 0 {
+                names += u
+            } else if depth == 1 && giving {
+                members += u
+            }
+        }
+    }
+    var named = false
+    var own = false
+    for t in 1..<first {
+        if toks[t].kind != T_ID || toks[t].file == ucd { continue }
+        let declares = toks[t - 1].kind == T_ID && (tok_is(t - 1, "struct") || tok_is(t - 1, "union") || tok_is(t - 1, "enum") || tok_is(t - 1, "typealias"))
+        if declares && text_among(t, &types) { own = true }
+        if toks[t - 1].kind == T_ID && (tok_is(t - 1, "let") || tok_is(t - 1, "var")) { continue }
+        let dot = toks[t - 1].kind == T_PUNCT && tok_is(t - 1, ".")
+        if text_among(t, &names) || text_among(t, &types) || (dot && text_among(t, &members)) { named = true }
+    }
+    if !named || own {                                   // not math's: its tokens, its text and its file go
+        while toks.count as int64 > first { toks.pop() }
+        while codes.count as int64 > code0 { codes.pop() }
+        fnames.pop()
+        file_by.pop()
+        file_with_a.pop()
+        file_with_b.pop()
+        return true
+    }
+    var name = $"math"
+    if header { module_library(&dir, &name) }
+    note_module(&name, fnames.count as int64 - 1)
+    return true
+}
+
 // a module of the prelude that the files name, as kelvinc's with_prelude:
 // RegExp, or a $/.../ literal, and BigInt, or a 123n, as if the program
 // began with #import <M>, unless a type of its own has that name, which a
@@ -406,13 +497,16 @@ let load_module_imports(mods:String^):bool {
 let load_prelude(mods:String^):bool {
     var ucd:String = mods^.copy()                        // UnicodeData, in every program, as kelvinc's (#520)
     ucd += "/UnicodeData.kh"
+    var ucd_file:int64 = 0 - 1
     if !read_already(&ucd) {
         if !loads(&ucd) { return false }
         var u = $"UnicodeData"
-        note_module(&u, fnames.count as int64 - 1)
+        ucd_file = fnames.count as int64 - 1
+        note_module(&u, ucd_file)
     }
     if !load_module_imports(mods) { return false }       // each #import <M> first, as kelvinc's with_imports: a module
                                                          // may name BigInt, as Rational's BigRat does (#542)
+    if !load_math(mods, ucd_file) { return false }       // math, where one of its names is named (#590)
     let first:int64 = toks.count as int64
     for k in 0..<2 {
         let w:cstr := k == 0 ? "RegExp" : "BigInt"

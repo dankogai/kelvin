@@ -43,7 +43,7 @@ let main():int32 {
 // out: {x: 1.5, y: 2.5} 16
 // c: /* {x: f64, y: f64} */
 // c: struct _kv_anon1
-// c: double norm(const struct _kv_anon1 v)
+// c: double norm__anon1(const struct _kv_anon1 v)
 // c: struct _kv_anon1 origin(void)
 // c: KV_ARRAY(struct _kv_anon1, _kv_array_anon1, KV_PLAIN_FREE, KV_PLAIN_COPY)
 // c: static inline void _kv__kv_anon3_free(struct _kv_anon3 *self)

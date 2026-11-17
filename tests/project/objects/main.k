@@ -4,12 +4,13 @@
 let digits(s:String^):bool
 let ids():Set<int64>
 let label(n:int64):String
+let size(z:c64):f64
 let main():int32 {
     var s = ${1}
     var t = ids()
     s += &t
     var w = $"a12"
-    println(digits(&w), " ", s, " ", label(42))
+    println(digits(&w), " ", s, " ", label(42), " ", size(c64(3.0, 4.0)), " ", c64(1.0, 2.0) * 1.0.i)
     return 0
 }
-// out: true {1, 7, 8} n=42
+// out: true {1, 7, 8} n=42 7.0 (-2.0+1.0.i)

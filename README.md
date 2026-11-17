@@ -266,7 +266,7 @@ So far the changes from C are these, by topic.
 - functions overload by their parameter types; C's function of a name
   is called only where no Kelvin function has it (#223): beside
   `let sin(z:c64):c64`, C's is declared, `let sin(x:f64):f64`, as
-  `#import <math>` declares it, so that `sin(0.5)` is C's
+  math declares it, so that `sin(0.5)` is C's
   - a function, a method, an operator or a function of a type may be
     called before it is written, as in Swift: kelvinc writes its
     prototype where it is needed, every overload seen (#505)
@@ -432,12 +432,13 @@ So far the changes from C are these, by topic.
 - `async f(x)` makes a call on a thread of its own and gives a
   `Task<R>`, and `await t` its value, once; the arguments are passed
   as any call's, a value copied and an owner moved in (#312)
-- `#import <math>` is `math.h` and its complex counterpart: its
-  functions for `f64` and `f32`, each a method too, `x.sin()`, its
-  constants as attributes of the type, `f64.pi`, and `c64` and
-  `c32` with their arithmetic and elementary functions, `x.i` a
-  quarter turn; a Kelvin file's source, from `./modules` or Kelvin's
-  own `modules/`
+- math is `math.h` and its complex counterpart, the prelude's, with
+  no import (#591): its functions for `f64` and `f32`, each a method
+  too, `x.sin()`, its constants as attributes of the type, `f64.pi`,
+  and `c64` and `c32` with their arithmetic and elementary functions,
+  `x.i` a quarter turn
+- `#import <M>` of a Kelvin file is its source, from `./modules` or
+  Kelvin's own `modules/`: `#import <Rational>`
 - an overlay comes with two modules: where `<A>` and `<B>` are both
   imported, `modules/A+B.k` is imported too, as Swift's cross-import
   overlay; Kelvin has no `#if` to ask with (#551)
@@ -614,3 +615,10 @@ So far the changes from C are these, by topic.
   `<BigFloat>`; `<Rational>` is as it was, `rat64` and down and
   `BigRat` with its arithmetic, and `#import <BigFloat>` is an error
   that says what to write (#590)
+- math is the prelude's: `sin(0.5)`, `2.0.sqrt()`, `f64.tau` and
+  `c64(1.0, 2.0)` need no import, as in JavaScript and Perl; a program
+  that names one of math's names has it, as it has `RegExp` and
+  `BigInt`, and one that names none compiles as before; libkelvin
+  holds it, so two objects that both use it link; `#import <math>` is
+  accepted and does nothing; `abs(-3)` is Kelvin's, an `i64`, where it
+  was C's, an `int` (#591)

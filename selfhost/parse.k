@@ -3269,7 +3269,8 @@ let parse_type_attribute(recv:int64, is_let:bool) {
     attribute_names[nm] = true
     let t:int64 = pos
     let n:int64 = parse_var(0)
-    if is_let && nodes[n].a < 0 {
+    let declared = nodes[n].a < 0 && in_kh(t)            // a module's, in its header, as math's f64.tau (#590): extern in C, as kelvinc's (#146)
+    if is_let && nodes[n].a < 0 && !declared {
         var m = $"a static let needs a value: write 'static let "
         m += tok_text(recv)
         m += "."
@@ -3291,6 +3292,7 @@ let parse_type_attribute(recv:int64, is_let:bool) {
     nodes[n].t = g
     nodes[n].kind = D_GLOBAL
     if is_let { nodes[n].flag = 1 }
+    if declared { extern_decls += n }
     decls += n
 }
 
@@ -3745,7 +3747,14 @@ let alias_at(f:int64, k:int64) {
             sib = file_next[sib]
         }
         let b:int64 = file_by[g]
-        if b < 0 { break }
+        if b < 0 {                                       // a file no #import reads, as math of the prelude (#590):
+            var after = false                            // kelvinc reads the rest after it, the program too
+            for r in alias_roots {
+                if after { alias_reach(r, file_from[r], at, len, target) }
+                if r == g { after = true }
+            }
+            break
+        }
         from = b + 1
         g = toks[b].file
     }

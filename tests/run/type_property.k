@@ -33,7 +33,7 @@ let main():int32 {
     // its text: kelvinc's where it sees the type, else C's _Generic
     println(k.typename, " ", pt.typename, " ", p.typename, " ", xs.typename, " ", inc.typename, " ",
             pp^.typename);
-    println(abs(-1).typename, " ", strlen("a").typename, " ", getenv("X").typename, " ", 42.typename, " ",
+    println(atoi("-1").typename, " ", strlen("a").typename, " ", getenv("X").typename, " ", 42.typename, " ",
             (1 < 2).typename, " ", 1.5.typename);
 
     // a field named type stays a field

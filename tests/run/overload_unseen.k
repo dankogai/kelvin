@@ -60,17 +60,17 @@ let describe(s:sign):cstr { "sign" }
 let describe(n:int32):cstr { "i32" }
 
 let main():int32 {
-    println(kind(strtol("1", nowhere, 10)), " ", kind(strtoll("1", nowhere, 10)), " ", kind(atan2(1.0, 1.0)), " ",
-            kind(floorf(1.5:float32)), " ", kind(strchr("abc", 'b')[0]), " ", kind(strchr("abc", 'b')))
+    println(kind(strtol("1", nowhere, 10)), " ", kind(strtoll("1", nowhere, 10)), " ", kind(atof("1")), " ",
+            kind(strtof("1.5", nowhere)), " ", kind(strchr("abc", 'b')[0]), " ", kind(strchr("abc", 'b')))
     println(len(strchr("hello", 'l')), " ", len(strtol("7", nowhere, 10)), " ", len(strtoll("8", nowhere, 10)), " ",
             release(malloc(8)), " ", release(labs(-3)), " ", measure(strlen("abc")), " ", measure(4))
     out(stdout, 5)
     out(stdout, strchr("six", 's'))
     // sqrt of a number is C's, whose own value only C sees
-    println(sqrt(fabs(-9.0)), " ", sqrt((vec){3.0, 4.0}))
+    println(sqrt(atof("9")), " ", sqrt((vec){3.0, 4.0}))
     println(abs(-2), " ", kind(abs(atoi("-5"))), " ", kind(half(atof("3"))), " ", hypot(3.0, 4.0), " ",
-            hypot(fabs(-3.0), fabs(4.0)), " ", hypot((vec){3.0, 4.0}, 0.5))
-    println(pair(3, strlen("ab")), " ", total(1, strchr("abc", 'b')), " ", total(1, atof("2")), " ", describe(abs(-5)),
+            hypot(atof("3"), atof("4")), " ", hypot((vec){3.0, 4.0}, 0.5))
+    println(pair(3, strlen("ab")), " ", total(1, strchr("abc", 'b')), " ", total(1, atof("2")), " ", describe(abs(-5 as int32)),
             " ", describe(POSITIVE))
     return 0
 }

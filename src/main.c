@@ -372,6 +372,93 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
     return toks;
 }
 
+/* is s one of the names of l? */
+static bool name_in(List *l, const char *s) {
+    for (int i = 0; i < l->len; i++)
+        if (!strcmp(l->data[i], s))
+            return true;
+    return false;
+}
+
+/* math is the prelude's too (#590), which libkelvin holds: a program
+   that names one of its names imports it as if it began with #import
+   <math>; one that names none compiles as before. The names are read
+   from the module itself, math.kh, so that none is kept here: what it
+   declares, sin, c64, polar, wherever the program writes it but where it
+   declares one of its own, let log(...); and what it gives f64 and f32,
+   after a dot, f64.tau, x.isnan, 1.0.i. What it gives its own types, z.real,
+   needs none: a program has no c64 that does not name one. A program
+   that defines a type of one of its types' names, c64, has its own, and
+   no math. A module of the prelude is built without it, and so is math */
+static Token *with_math(Token *toks, int n, int *out_n, const char *argv0) {
+    *out_n = n;
+    if (source_name && !strcmp(source_name, "math"))
+        return toks;
+    const char *dirs[] = {"./modules", kelvin_modules(argv0)};
+    char *path = NULL;
+    for (int d = 0; d < 2 && !path; d++) {
+        if (dirs[d] && kelvin_file(strfmt("%s/math.kh", dirs[d])))
+            path = strfmt("%s/math.kh", dirs[d]);
+        else if (dirs[d] && kelvin_file(strfmt("%s/math.k", dirs[d])))
+            path = strfmt("%s/math.k", dirs[d]);
+    }
+    if (!path || imported_has(path)) /* none, or #import <math> written */
+        return toks;
+    int m;
+    Token *mt = lex(path, read_file(path), &m);
+    List names = {0}, types = {0}, members = {0};
+    int depth = 0;
+    bool giving = false; /* in an extend of a type that is not math's own */
+    for (int i = 0; i + 1 < m; i++) {
+        const Token *t = &mt[i], *u = &mt[i + 1];
+        if (t->kind == TK_PUNCT && !strcmp(t->text, "{"))
+            depth++;
+        else if (t->kind == TK_PUNCT && !strcmp(t->text, "}"))
+            depth--;
+        else if (depth == 0 && t->kind == TK_KEYWORD && u->kind == TK_IDENT &&
+                 (!strcmp(t->text, "struct") || !strcmp(t->text, "union") || !strcmp(t->text, "enum")))
+            list_push(&types, u->text);
+        else if (depth == 0 && t->kind == TK_IDENT && !strcmp(t->text, "typealias") && u->kind == TK_IDENT)
+            list_push(&types, u->text);
+        else if (depth == 0 && t->kind == TK_IDENT && !strcmp(t->text, "extend"))
+            giving = !name_in(&types, u->text);
+        else if (t->kind == TK_KEYWORD && (!strcmp(t->text, "let") || !strcmp(t->text, "var")) && u->kind == TK_IDENT) {
+            if (depth == 0)
+                list_push(&names, u->text);
+            else if (depth == 1 && giving)
+                list_push(&members, u->text);
+        }
+    }
+    bool named = false;
+    for (int i = 0; i < n && !named; i++) {
+        if (toks[i].kind != TK_IDENT)
+            continue;
+        bool dot = i > 0 && toks[i - 1].kind == TK_PUNCT && !strcmp(toks[i - 1].text, ".");
+        bool own = i > 0 && toks[i - 1].kind == TK_KEYWORD &&
+                   (!strcmp(toks[i - 1].text, "let") || !strcmp(toks[i - 1].text, "var"));
+        if (own)
+            continue;
+        named = name_in(&names, toks[i].text) || name_in(&types, toks[i].text) ||
+                (dot && name_in(&members, toks[i].text));
+    }
+    if (!named)
+        return toks;
+    for (int i = 0; i + 1 < n; i++) /* a type of the program's own with one of its types' names */
+        if (toks[i + 1].kind == TK_IDENT && name_in(&types, toks[i + 1].text) &&
+            ((toks[i].kind == TK_KEYWORD &&
+              (!strcmp(toks[i].text, "struct") || !strcmp(toks[i].text, "union") || !strcmp(toks[i].text, "enum"))) ||
+             (toks[i].kind == TK_IDENT && !strcmp(toks[i].text, "typealias"))))
+            return toks;
+    Token imp = {TK_IMPORT_K, toks[0].pos, "<math>", toks[0].pos.line, false, false, false, false, true, false};
+    int k;
+    Token *more = with_imports(&imp, 1, &k, argv0); /* the import, then the module's tokens */
+    Token *all = xmalloc(sizeof(Token) * (size_t)(k + n + 1));
+    memcpy(all, more, sizeof(Token) * (size_t)k);
+    memcpy(all + k, toks, sizeof(Token) * (size_t)n);
+    *out_n = n + k;
+    return all;
+}
+
 /* The name of the module that an #import of a Kelvin file names, as the
    parser's (#143): <dir/M.k> is M */
 static char *module_name(const Token *t) {
@@ -769,6 +856,8 @@ int main(int argc, char **argv) {
     if (!runtime_mode) {
         const char *base = strrchr(src_path, '/');
         source_name = default_output(base ? base + 1 : src_path);
+        if (!prelude_mode)
+            toks = with_math(toks, ntoks, &ntoks, argv[0]); /* math, if one of its names is named (#590) */
         toks = with_prelude(toks, ntoks, &ntoks, argv[0]); /* RegExp, if named (#504); UnicodeData (#520) */
         toks = with_overlays(toks, ntoks, &ntoks, argv[0]); /* <A+B>, where <A> and <B> are both imported (#551) */
     }

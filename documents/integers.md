@@ -297,9 +297,8 @@ let main():int32 {
     of an `i32` does.
 - **A type attribute of your own** of the name wins: `static let
   u16.max:Self = 7`.
-- **A float** has none of these names without `<math>`, whose `f64.max`
-  and `f64.min` are C's `DBL_MAX` and `DBL_MIN`: see
-  [math.md](math.md).
+- **A float's** `f64.max` and `f64.min` are math's, the prelude's
+  (#591), C's `DBL_MAX` and `DBL_MIN`: see [math.md](math.md).
 
 ### Random: `T.random()`
 

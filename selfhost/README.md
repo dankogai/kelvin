@@ -719,6 +719,16 @@ kc reads what it is written in, and little more.
   - sample.k met one from #552 on, `math+Rational.k`, until #590 made
     it a part of `<BigNum>`; the tests of tests/project, built by kc,
     print what kelvinc's builds print.
+- **math of the prelude** (#591), as kelvinc's `with_math`: kc.k's
+  `load_math`, in `load_prelude`, reads modules/math.kh, takes the
+  names it declares and the members it gives `f64` and `f32`, and
+  keeps it where the files name one; else its tokens, its text and its
+  file are taken away again.
+  - parse.k: a header's `static let x:T` with no value is an extern,
+    as kelvinc's, which `f64.tau` is; and an alias of a file no
+    `#import` reads, `complex64`, reaches the files read after it, the
+    program too.
+  - kc.k names `pow`, so the stages are built with it.
 - **Programs that import math** (#550): kc builds what
   `#import <math>` needs, where it stopped at the module's `typealias`,
   and its programs print what kelvinc's builds print.

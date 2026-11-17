@@ -11414,3 +11414,32 @@ overlay. So #590 is the rename alone.
 The move of math is written and set aside, for the next number.
 
 There are 1373 tests, and all pass with clang and with gcc 15.
+
+### 638. math, of the prelude
+
+**User**: "push", for #590. **Claude** pushed it when its battery
+was clean, and put the move of math back on top of it, the second
+step of the user's order.
+
+math is the prelude's now. `sin(0.5)`, `2.0.sqrt()`, `f64.tau` and
+`c64(1.0, 2.0)` need no import: a program that names one of math's
+names has it, as it has `RegExp` and `BigInt`, and one that names
+none compiles as before. `#import <math>` is accepted and does
+nothing more, as the user chose.
+
+The names are read from the module itself, so no list is kept in a
+compiler. libkelvin holds the module: two objects that both included
+its source did not link, and with no import to write, any two that
+call `sin` would have met that.
+
+One thing changes for a program that wrote no import: `abs(-3)` is
+Kelvin's, of an `i64`, where it was C's, of an `int`. Ten tests were
+about C's own `abs`, `sqrt` or `round`; they keep what they test, by
+`atoi`, `atof`, `strtof` and `labs`. Details are provisional P603.
+
+**Claude** found two things and left them. A function with no result
+whose name is overloaded, used as a value, is C's error and not
+kelvinc's: a program's own `log` is such now. And a program with a
+`c64` of its own and an `abs` of it meets C's `abs`.
+
+There are 1375 tests, and all pass with clang and with gcc 15.

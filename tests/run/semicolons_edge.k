@@ -40,7 +40,7 @@ let area(w:int64, h:int64):int64 {
         + 1
 }
 let mul(a:int64, b:int64):int64 { a * b; }
-let named():cstr { abs(-3).typename }
+let named():cstr { atoi("-3").typename }
 
 let main():int32 {
     // a `(...)`, a property, a conversion or sizeof(T) at the end of a

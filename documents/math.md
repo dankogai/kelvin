@@ -1,12 +1,10 @@
-# Math: `#import <math>`
+# Math: `math.h` and complex numbers, of the prelude
 
-The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`; with `<BigNum>` ([bignum.md](bignum.md)), `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision, and the functions of a `BigFloat`, `CBF`, a complex number of two, and the functions of a `CBF`.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`, with no import; with `<BigNum>` ([bignum.md](bignum.md)), `CBR`, an exact one, and the functions of a `BigRat` and of a `CBR` to any precision, and the functions of a `BigFloat`, `CBF`, a complex number of two, and the functions of a `CBF`.
 
 ## Synopsis
 
 ```swift
-#import <math>
-
 let main():int32 {
     let i = c64(0.0, 1.0)                        // or complex64(0.0, 1.0), by the alias
     let z = c64(1.0, 2.0)
@@ -27,6 +25,27 @@ attributes of it, `f64.pi`; `c64` and `c32`, complex numbers with `f64`
 and `f32` parts, named by the size of each part, `complex64` and
 `complex32` by their aliases (#150); and `x.i`, `x` rotated a quarter
 turn on the Gaussian plane.
+
+It is the prelude's (#591), as `RegExp` and `BigInt` are: a program
+that names one of its names has it, with no import. Many languages
+have these built in, JavaScript and Perl among them.
+
+- **What names it**: a name the module declares, `sin`, `c64`,
+  `polar`, wherever the program writes it; and what it gives `f64` and
+  `f32`, after a dot: `f64.tau`, `x.isnan`, `2.0.sqrt()`, `1.0.i`.
+  - The names are read from the module itself: none is kept in the
+    compilers.
+  - A program that names none compiles as before, without it.
+  - A name the program declares, `let log(what:cstr)`, names nothing
+    there; its calls do, and the function stands beside math's, told
+    apart by its types.
+- **`#import <math>`** is accepted, and does nothing more.
+- **A type of the program's own** named `c64`, `c32`, `complex64` or
+  `complex32` keeps math out: the program has its own, as with a
+  `RegExp` of its own (#504).
+- **`abs` of an integer** is Kelvin's now, of an `i64`: `abs(-3)` is
+  an `i64`. With no import it was C's, of an `int`, which cut a larger
+  number short.
 
 ### The functions of `math.h`
 
@@ -625,7 +644,7 @@ let main():int32 {
 
 ## Where it lives
 
-`CBR`, the functions of a `BigRat` and of a `CBR`, the functions of a `BigFloat`, `CBF` and its functions are `modules/BigNum.k`'s, brought in by `#import <BigNum>` (#590, [bignum.md](bignum.md)), which imports `<math>` and `<Rational>`; they were two overlays before, `modules/math+Rational.k` (#551) and `modules/math+BigFloat.k` (#580), read where `<math>` was imported beside `<Rational>` or `<BigFloat>`. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+`CBR`, the functions of a `BigRat` and of a `CBR`, the functions of a `BigFloat`, `CBF` and its functions are `modules/BigNum.k`'s, brought in by `#import <BigNum>` (#590, [bignum.md](bignum.md)), which imports `<math>` and `<Rational>`; they were two overlays before, `modules/math+Rational.k` (#551) and `modules/math+BigFloat.k` (#580), read where `<math>` was imported beside `<Rational>` or `<BigFloat>`. The rest is `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. It is a module of the prelude (#591): `make` builds it with `kelvinc --prelude` into `modules/math.kh`, its declarations, and an object that libkelvin holds, as `BigInt`'s is, so two objects of one program that both use it link, which two copies of its source did not.
 
 ## Functions
 

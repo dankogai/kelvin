@@ -97,7 +97,7 @@ text, print and show as text. Integers are in
     the same with both *(provisional P55)*.
 - **`x.abs`** is the magnitude, of its type, C's `fabs` or `fabsf`
   (#381), with no import: `(-2.5).abs` is 2.5, and `(-0.0).abs` 0.0.
-  - With `<math>`, `x.abs()`, its method, is the same.
+  - `x.abs()`, math's method, is the same.
 - **`x.sign`** is a `bool?`, by its sign bit (#382, #383), with no
   import: `true` for positive, `false` for negative, `none` of NaN.
   - So `0.0.sign` is `some(true)` and `(-0.0).sign` `some(false)`;
@@ -159,8 +159,8 @@ text, print and show as text. Integers are in
   - Each but `radix` is of its type, `f32.ulpOfOne` an `f32`, and each
     is a constant, which goes where one goes: a global's value, a
     `static_assert`.
-  - A type attribute of your own of the name wins. `<math>` adds the
-    rest, by C's names: `f64.tau`, `f64.e`, `f64.epsilon`, `f64.max`
+  - A type attribute of your own of the name wins. math, the
+    prelude's (#591), has the rest, by C's names: `f64.tau`, `f64.e`, `f64.epsilon`, `f64.max`
     and `f64.min` ([math.md](math.md)).
   - An integer type's `T.min` and `T.max` are in
     [integers.md](integers.md).

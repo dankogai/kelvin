@@ -5,13 +5,13 @@ How a program brings in Kelvin files, headers and libraries with `#import`, and 
 ## Synopsis
 
 ```swift
-#import <math>                  // modules/math.k, its source compiled with the program
+#import <Rational>              // modules/Rational.k, its source compiled with the program
 #import <IO>                    // modules/IO.kh, and libkIO.a beside it
 #import <ctype.h> as C          // a C header's names
 
 let main():int32 {
     IO.stdout.println("io")
-    println(sin(0.5), " ", toupper(97))
+    println(1.over(3) + 1.over(6), " ", toupper(97))
     return 0
 }
 ```
@@ -22,12 +22,12 @@ A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
-search, the overlays (#551), the layout, and the modules so far: `math.k`, `Rational.k`, `BigNum.k`,
-`JSON.k`, `SION.k` and `MsgPack.k`, and `IO`, `OS`, `UnicodeData` and `RegExp`, each a
+search, the overlays (#551), the layout, and the modules so far: `Rational.k`, `BigNum.k`,
+`JSON.k`, `SION.k` and `MsgPack.k`, and `IO`, `OS`, `UnicodeData`, `RegExp`, `BigInt` and `math`, each a
 header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
-### Kelvin files: `#import <math>`
+### Kelvin files: `#import <Rational>`
 
 `#import` of a `.k` file, without `as C`, brings in its source: its
 declarations are compiled with the program as if written where the
@@ -108,6 +108,9 @@ let main():int32 {
   - `BigInt` ([bigint.md](bigint.md), #507), integers of any size, is a
     module of the prelude too, written in Kelvin alone: a program that
     names `BigInt` has it.
+  - `math` ([math.md](math.md), #43) is a module of the prelude too
+    (#591), written in Kelvin over C's `math.h`: a program that names
+    one of its names, `sin`, `c64`, `f64.tau`, has it.
   - A module of the prelude is linked from the static libkelvin.a, as
     the rest of it: a program that uses none of it links none of it.
   - `JSON` ([json.md](json.md)) is built the same from `JSON.k` alone
@@ -264,7 +267,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     RegExp.kh             the prelude's RegExp (#157, #504, regexp.md), built by make from RegExp.k; $/.../ literals
     BigInt.kh             the prelude's BigInt (#507, bigint.md), built by make from BigInt.k
     kRegExp.h             its C header; the engine is libkelvin's (#504)
-    math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
+    math.kh               the prelude's math (#148, #591, math.md), built by make from math.k: math.h for f64 and f32, c64 and c32
     Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, BigRat, n.over(d)
     BigNum.k              #import <BigNum> (#590, bignum.md): BigFloat, a float of any precision (#576, bigfloat.md), CBR and CBF, complex numbers of two BigRats and of two BigFloats, and math's functions of them and of a BigRat; it imports <math> and <Rational>
     JSON.k                #import <JSON> (#113, json.md)
@@ -291,7 +294,8 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
 
 ### Math: `modules/math.k`
 
-`#import <math>` brings in `math.h` and its complex counterpart (#148):
+`math` is `math.h` and its complex counterpart (#148), the prelude's
+since #591, with no import:
 the functions of `math.h` for `f64` and `f32`, each a method too,
 `x.sin()`, the constants as attributes of the type, `f64.pi`, and `c64`
 and `c32`, complex numbers, `complex64` and `complex32` by their
@@ -367,4 +371,4 @@ has them (#113): see [json.md](json.md).
 
 ## Where it lives
 
-`#import` is the core. What it brings in is loaded explicitly: `modules/math.k`, with the functions of math.h and `c64` and `c32`, comes only with `#import <math>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.
+`#import` is the core. What it brings in is loaded explicitly: `modules/Rational.k`, with the rationals, comes only with `#import <Rational>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.
