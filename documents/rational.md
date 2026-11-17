@@ -154,7 +154,7 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 - **`r.num` and `r.den`** are its members, read as any struct's.
 - **With `<BigNum>`** (#590, [bignum.md](bignum.md)) a program has
   `CBR` too (#552), a complex number of two BigRats, and `r.i` of a
-  BigRat is `CBR(0, r)`: see [math.md](math.md).
+  BigRat is `CBR(0, r)`: see [bignum.md](bignum.md).
   - And math's functions take a BigRat (#553), each to a precision in
     bits: `sqrt(BigRat(2), 64)`, `x.exp()`, `BigRat.pi(256)`.
   - And `BigFloat(r)` is the nearest float of 128 bits (#576), and
@@ -167,7 +167,7 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 ## Where it lives
 
 A module, modules/Rational.k, a Kelvin source compiled with the program
-that imports it, as [math](math.md) is; see [modules.md](modules.md).
+that imports it; see [modules.md](modules.md).
 
 - **In C:** `a + b` is the module's `+` of two `rat64`s, a function that
   multiplies in `__int128` and divides by the greatest common divisor;
@@ -205,5 +205,5 @@ that imports it, as [math](math.md) is; see [modules.md](modules.md).
 | | `.f64` | an `f64` of it; `inf`, `-inf`, 0 or `nan` |
 | | `.hex`, `.oct`, `.bin` | `(+0x1n/0x3n)` and its kin, a String |
 | | `print(r)`, `.cstr`, `${r}` | `(1n/3n)`; `.cstr` cut at 256 bytes, as a String's |
-| | `.i`, with `<BigNum>` (#552) | `CBR(0, r)`, a complex number of two BigRats ([math.md](math.md)) |
-| | `.sqrt()`, `.exp(p)`, `.sin()`, ..., with `<BigNum>` (#553) | math's functions, within `2^-p`, or to 128 bits ([math.md](math.md)) |
+| | `.i`, with `<BigNum>` (#552) | `CBR(0, r)`, a complex number of two BigRats ([bignum.md](bignum.md)) |
+| | `.sqrt()`, `.exp(p)`, `.sin()`, ..., with `<BigNum>` (#553) | math's functions, within `2^-p`, or to 128 bits ([bignum.md](bignum.md)) |

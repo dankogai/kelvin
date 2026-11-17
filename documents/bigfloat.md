@@ -106,7 +106,7 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
 - **math's functions** take a `BigFloat` (#580): `sqrt`,
   `exp`, `log`, `pow`, the trigonometric and hyperbolic ones and their
   inverses, each a method too, and `BigFloat.pi()`: see
-  [math.md](math.md).
+  [bignum.md](bignum.md).
   - A result has `BigFloat.precision` significant bits, whatever its
     size, or the precision written: `exp(x, 256)`, `x.sin(64)`.
   - A number far from 1 is taken as any (#583): `cos` of
@@ -175,8 +175,8 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
 
 A part of the module modules/BigNum.k (#590, [bignum.md](bignum.md)),
 a Kelvin source compiled with the program that imports it, as
-[math](math.md) is; see [modules.md](modules.md). It was a module of
-its own before, modules/BigFloat.k, `#import <BigFloat>`.
+`Rational` is; see [modules.md](modules.md). It was a module of its
+own before, modules/BigFloat.k, `#import <BigFloat>`.
 
 - **`<BigNum>` imports `<Rational>`** and `<math>`, so a program that
   imports it has `BigRat`, the rationals and math's own too
@@ -231,5 +231,5 @@ its own before, modules/BigFloat.k, `#import <BigFloat>`.
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` (#580) | the function to `BigFloat.precision` significant bits; `.exp(p)` to `p` |
 | | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
 | | `BigFloat.pi()`, `BigFloat.pi(p)` | pi to `BigFloat.precision` bits, or to `p` |
-| | `.i` (#581) | `CBF(0, x)`, a complex number of two BigFloats: the value rotated a quarter turn ([math.md](math.md)) |
+| | `.i` (#581) | `CBF(0, x)`, a complex number of two BigFloats: the value rotated a quarter turn ([bignum.md](bignum.md)) |
 | `BigRat` | `BigRat(x)` | the value of a `BigFloat`, exactly |

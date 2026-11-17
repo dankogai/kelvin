@@ -11443,3 +11443,23 @@ kelvinc's: a program's own `log` is such now. And a program with a
 `c64` of its own and an `abs` of it meets C's `abs`.
 
 There are 1375 tests, and all pass with clang and with gcc 15.
+
+### 639. BigNum's sections, in bignum.md
+
+**User**: "push", for #591, and then "move math.md's BigNum sections
+to bignum.md as #592". **Claude** pushed #591 when its second battery
+was clean; the first had failed on one test's pinned C, which was put
+right.
+
+math.md had the sections on `CBR`, on `CBF` and on math's functions
+of a `BigRat`, a `CBR`, a `BigFloat` and a `CBF`, written while each
+was an overlay of math. They are `<BigNum>`'s since #590, and
+bignum.md has them now, with their lists of functions and their rows
+of the table. math.md is of the prelude's math alone, and says in a
+short section where the rest is.
+
+Nothing of the language changes, and no test. Three places still
+said a module is compiled with its program "as math is", which #591
+had made untrue; they are put right. Details are provisional P604.
+
+There are 1375 tests, and all pass with clang and with gcc 15.

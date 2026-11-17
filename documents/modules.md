@@ -348,8 +348,8 @@ narrower integers (#539), and `BigRat` of two `BigInt`s (#540): see
   back (#577): see [bigfloat.md](bigfloat.md).
 - `CBR` (#552) and `CBF` (#581), complex numbers of two BigRats and of
   two BigFloats, and math's functions of a `BigRat`, a `CBR`, a
-  `BigFloat` and a `CBF`, each to a precision: see
-  [math.md](math.md).
+  `BigFloat` and a `CBF`, each to a precision: all in
+  [bignum.md](bignum.md).
 - It imports `<math>` and `<Rational>`, so math's own and `BigRat`
   come with it.
 - It was `#import <BigFloat>` and two overlays before, read where

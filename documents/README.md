@@ -96,15 +96,15 @@ the design decisions, numbered `#N` throughout, are in
 - [modules.md](modules.md): `#import` of Kelvin files, `modules/`, a
   module as `M.kh` and `libkM`, `kelvinc --lib`.
 - [math.md](math.md): math.h for `f64` and `f32`, the prelude's (#591),
-  `c64` and `c32`; with `<BigNum>` `CBR` and `CBF`, complex numbers
-  of two BigRats and of two BigFloats, and the functions of each.
+  `c64` and `c32`.
 - [rational.md](rational.md): `#import <Rational>`, `rat64`, a
   numerator over a denominator, `1.over(3)`, exact arithmetic, with
   infinities and a NaN as a float has (#538); `rat32`, `rat16` and
   `rat8` (#539); `BigRat` of two `BigInt`s, of any precision (#540).
 - [bignum.md](bignum.md): `#import <BigNum>`, the numbers of any
-  size in one library (#590): `BigFloat`, `CBR`, `CBF`, and math's
-  functions of them and of a `BigRat`.
+  size in one library (#590): `BigFloat`; `CBR` and `CBF`, complex
+  numbers of two BigRats and of two BigFloats; and math's functions of
+  them and of a `BigRat`, each to a precision.
 - [bigfloat.md](bigfloat.md): `BigFloat`, with `#import <BigNum>`, a
   float of any precision, a `BigInt` times a power of 2, rounded to
   `BigFloat.precision` bits, 128; `x.round(precision, rule)` (#576).
