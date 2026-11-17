@@ -239,6 +239,9 @@ functions, by one rule.
 | `let f(x:i64)`, alone | `f` |
 | `let f(x:i64)` overloaded, imported from a Kelvin file, or sharing a name with a C function the program calls before `f` is declared | `f__i64`, by its parameters' types; `f__void` of none; `__va` for `...` |
 | `let T(x:f64)` named by its types, where `T` has a member `f64` (#575) | `_kv_fn_T__f64`: `_kv_fn_` before its name, the member being `T__f64` |
+| `let abs(n:i64)` of the program's own, where libkelvin defines the prelude's of that name and those types (#600) | `_kv_own_abs__i64`; the prelude's keeps `abs__i64` |
+| `struct BigInt` of the program's own, a type with the name of one of the prelude's (#600) | `struct _kv_own_BigInt`, and `_kv_own_BigInt` in every name made of it; the prelude's keeps `BigInt` |
+| `Kelvin.sqrt(x)` where a variable is named `sqrt` (#600) | `_kv_ns_sqrt(x)`, of `static __typeof__(sqrt) *const _kv_ns_sqrt = sqrt;` at the top level |
 | `let T.m()`, a method | `T__m`; `T__m__i64` where methods of the name on `T` differ |
 | a setter of `T.x` | `T__set_x` |
 | `let T.cstr()` | `_kv_T_cstr`, `static inline` in each file |

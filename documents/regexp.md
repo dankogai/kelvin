@@ -34,8 +34,10 @@ flags)` the same from text.
   `BytesMatch`, and no import.
   - `#import <RegExp>`, which it once needed, still builds, and does
     nothing more.
-  - A program with a type of its own named `RegExp` keeps it, and has
-    none of these; a `$/.../` literal there is an error.
+  - A program with a type of its own named `RegExp` keeps it, under
+    the bare name; the prelude's is `Kelvin.RegExp` there (#600), and
+    a `$/.../` literal is the prelude's, where it was an error: see
+    [namespace.md](namespace.md).
   - A program that names none of them compiles as before, and links
     none of it.
 

@@ -486,6 +486,14 @@ static bool tag_name_ahead(Token *t, bool in_sizeof) {
 
 /* the function `name` names here, unless a local name hides it */
 static Decl *function_named(const char *name) {
+    if (!strncmp(name, KV_NS, strlen(KV_NS))) { /* Kelvin.f (#600): the prelude's, which no local's name hides */
+        for (int j = 0; j < functions.len; j++) {
+            Decl *d = functions.data[j];
+            if (!d->recv && !d->nested_in && !d->op && d->prelude && !strcmp(d->name, name + strlen(KV_NS)))
+                return d;
+        }
+        return NULL;
+    }
     int global_end = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
     for (int i = scope_names.len - 1; i >= 0; i--) {
         if (strcmp(scope_names.data[i], name))
@@ -4092,8 +4100,13 @@ static Expr *string_piece(Expr *v) {
     return w;
 }
 
+static void kelvin_name(Token *t);
+static void ns_mark(Expr *e, const char *text);
+
 static Expr *parse_primary(void) {
     Token *t = peek();
+    if (t->kind == TK_IDENT && !strncmp(t->text, KV_NS, strlen(KV_NS))) /* Kelvin.f (#600) */
+        kelvin_name(t);
     if (t->kind == TK_IDENT && !strcmp(t->text, "asm") && is_p(peek2(), "(") && binding_index("asm") < 0 &&
         !function_named("asm")) /* GNU C's asm(...), left out on purpose (#399) */
         error_at(t->pos, "assembly is C's, a GNU extension, left out on purpose: write it in #inline C { __asm__ "
@@ -4303,7 +4316,8 @@ static Expr *parse_primary(void) {
                 if ((int)(intptr_t)local_enum_at.data[i] == b)
                     e->text = ((Var *)local_enums.data[i])->cname;
         }
-        if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4)) /* as an unnamed parameter's (#388) */
+        if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4) &&
+            strncmp(t->text, KV_OWN, strlen(KV_OWN))) /* as an unnamed parameter's (#388); not the program's own type (#600) */
             error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: '%s' is none of the "
                              "program's",
                      t->text);
@@ -4329,6 +4343,7 @@ static Expr *parse_primary(void) {
                 e->target = cands.data[0];
             else
                 e->cands = cands;
+            ns_mark(e, t->text);
         }
         return e;
     }
@@ -7256,10 +7271,16 @@ static char *signature(Decl *d) {
 }
 
 /* The Kelvin functions (not methods) named so, or the operators so
-   written, one per signature, in the order declared */
+   written, one per signature, in the order declared. Where the program
+   has a function of the name and types of one of the prelude's (#600), it
+   is the program's that the bare name calls, and Kelvin.name the
+   prelude's, of which it chooses alone */
 static List overloads_of(const char *name, const char *op) {
     List out = {0};
-    if (!op && bound_in_block(name)) { /* a function defined in a block (#180): the one bound, hiding the top level's */
+    bool ns = !op && !strncmp(name, KV_NS, strlen(KV_NS));
+    if (ns)
+        name += strlen(KV_NS);
+    if (!op && !ns && bound_in_block(name)) { /* a function defined in a block (#180): the one bound, hiding the top level's */
         Decl *d = function_named(name);
         if (d)
             list_push(&out, d);
@@ -7269,9 +7290,14 @@ static List overloads_of(const char *name, const char *op) {
         Decl *d = functions.data[i];
         if (d->recv || d->nested_in || (op ? !d->op || strcmp(d->op, op) : d->op || strcmp(d->name, name)))
             continue;
+        if (ns && !d->prelude)
+            continue;
         bool same = false;
-        for (int j = 0; j < out.len && !same; j++)
+        for (int j = 0; j < out.len && !same; j++) {
             same = !strcmp(signature(out.data[j]), signature(d));
+            if (same && !op && ((Decl *)out.data[j])->prelude && !d->prelude)
+                out.data[j] = d; /* the program's own, in the prelude's place */
+        }
         if (!same)
             list_push(&out, d);
     }
@@ -7835,7 +7861,43 @@ static const char *arg_text(Expr *x) {
    called only where no Kelvin function has it (#223): arguments that fit
    no overload are an error. A single function of the program's own keeps
    its C name and is called as C calls it. */
+/* Kelvin.f (#600) where a variable of the program's has the name f: C's
+   variable of the name would hide C's function, so the call is through
+   the function's alias, which codegen.c writes after its declaration */
+static void ns_mark(Expr *e, const char *text) {
+    if (!text || strncmp(text, KV_NS, strlen(KV_NS)) || !bound_in_block(text + strlen(KV_NS)))
+        return;
+    e->ns_alias = true;
+    if (e->target)
+        e->target->ns_alias = true;
+    for (int i = 0; i < e->cands.len; i++)
+        ((Decl *)e->cands.data[i])->ns_alias = true;
+}
+
+/* Kelvin.f where nothing of the program's has the name f, a variable in
+   scope or a function, is f: the prelude's is all there is, and what
+   kelvinc knows of a function by its name, grapheme(...), stays so */
+static void kelvin_name(Token *t) {
+    const char *x = t->text + strlen(KV_NS);
+    if (bound_in_block(x))
+        return;
+    for (int j = 0; j < functions.len; j++) {
+        Decl *d = functions.data[j];
+        if (!d->recv && !d->nested_in && !d->op && !d->prelude && !strcmp(d->name, x))
+            return;
+    }
+    t->text = (char *)x;
+}
+
+static void resolve_call_of(Expr *call);
+
 static void resolve_call(Expr *call) {
+    resolve_call_of(call);
+    if (call->a && call->a->kind == E_IDENT)
+        ns_mark(call, call->a->text);
+}
+
+static void resolve_call_of(Expr *call) {
     Expr *callee = call->a;
     if (callee->kind != E_IDENT)
         return;
@@ -9012,12 +9074,23 @@ static void name_functions(void) {
             continue;
         }
         bool defined = false, imported = false;
+        /* the program's own function of the name and types of one of the
+           prelude's is another function (#600), and not that one's
+           definition: where the prelude's is Kelvin's, abs(n:i64), in
+           libkelvin by the name of its types, the program's is
+           _kv_own_abs__i64 */
+        bool hides = false;
         for (int k = 0; k < functions.len; k++) {
             Decl *e = functions.data[k];
             if (e->recv || e->op || strcmp(e->name, d->name))
                 continue;
             imported = imported || e->imported;
-            defined = defined || ((e->kelvin_proto || e->body) && !strcmp(signature(e), signature(d)));
+            bool same = !strcmp(signature(e), signature(d));
+            if (same && e->prelude != d->prelude) {
+                hides = hides || (!d->prelude && (e->kelvin_proto || e->body));
+                continue;
+            }
+            defined = defined || ((e->kelvin_proto || e->body) && same);
         }
         bool by_types = overloads_of(d->name, NULL).len > 1 || imported || called_as_c(d->name);
         if (!defined || !strcmp(d->name, "main"))
@@ -9029,6 +9102,8 @@ static void name_functions(void) {
                           : !strcmp(d->name + strlen(d->recv_name) + 1, "[]=") ? "subscript_set" /* (#136) */
                                                                                 : d->name + strlen(d->recv_name) + 1);
         d->cname = by_types ? strfmt("%s%s", base, types.buf) : (char *)base;
+        if (hides && defined && strcmp(d->name, "main"))
+            d->cname = strfmt(KV_OWN "%s%s", base, types.buf);
     }
     /* A function named by its types as a member of a type is named, T(x:f64)
        and T's f64, each T__f64: the function is _kv_fn_T__f64 (#575), so that
@@ -9457,8 +9532,10 @@ static Expr *property(Expr *e, Token *name, char *member) {
         Expr *x;
         if (t && !type_has_expr(t)) {
             bare_tags = true;
-            char *text = kelvin_type(t);
+            char *text = xstrdup(kelvin_type(t));
             bare_tags = false;
+            for (char *own = text; (own = strstr(own, KV_OWN));) /* the program's own c64 is c64 (#600) */
+                memmove(own, own + strlen(KV_OWN), strlen(own + strlen(KV_OWN)) + 1);
             Buf lit = {0}; /* a C string literal */
             buf_puts(&lit, "\"");
             for (const char *ch = text; *ch; ch++) {
@@ -11837,6 +11914,8 @@ static bool prelude_token(Token *t) {
 }
 
 static void reject_kv_name(Token *t) {
+    if (t->kind == TK_IDENT && !strncmp(t->text, KV_OWN, strlen(KV_OWN)))
+        return; /* the program's own type of a prelude's name (#600), so named by main.c, which lets no program write one */
     if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4))
         error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: rename '%s'", t->text);
     if (t->kind == TK_IDENT && !runtime_mode && !prelude_token(t) && /* the runtime's own file names them (#289, #504) */
@@ -15269,6 +15348,7 @@ static Decl *new_decl(DeclKind kind, Pos pos, const char *storage) {
     d->kind = kind;
     d->pos = pos;
     d->storage = storage;
+    d->prelude = prelude_file(pos.file); /* (#600) */
     return d;
 }
 
@@ -15527,6 +15607,8 @@ static void check_overload(Decl *d, Token *name) {
         if (!strcmp(d->name, "main") && strcmp(signature(e), signature(d)))
             error_at(name->pos, "main cannot be overloaded: it is C's main, with one form");
         if (strcmp(signature(e), signature(d)))
+            continue;
+        if (!d->op && e->prelude != d->prelude) /* the program's own beside the prelude's (#600): two functions */
             continue;
         if ((!e->ret) != (!d->ret) || (e->ret && strcmp(kelvin_type(e->ret), kelvin_type(d->ret))))
             error_at(name->pos, "'%s' is declared with these parameter types already, with another result: "
@@ -17963,7 +18045,7 @@ static char *type_attribute_decl(Program *prog, int i, bool alone) {
         if (!sep)
             continue;
         return strfmt("static %s %.*s%s%s:%s", v->is_let ? "let" : "var", alone ? (int)(sep - v->name) : 0, v->name,
-                      alone ? "." : "", sep + 2, kelvin_type(v->type));
+                      alone ? "." : "", sep + 2, kv_shown(kelvin_type(v->type)));
     }
     error_at(toks[i].pos, "a type attribute in a library: its declaration was not found");
 }

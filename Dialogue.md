@@ -11680,3 +11680,43 @@ objects, as their libraries are, and the battery was run again.
 Details are provisional P611.
 
 There are 1395 tests, and all pass with clang and with gcc 15.
+
+### 647. `Kelvin.name`, the prelude's name
+
+**User**: "push", for #599. **Claude** pushed it when its battery was
+clean; the first was not, as tests/asan.sh linked every module's
+object with every program, and the script was mended. Then:
+
+**User**: "I want to give kelvin a namespace where you can access
+prelude even when it is clobbered by user defined identifiers", with
+`log("I'm okay")` the program's and `K.log(sqrt(2.0))` the prelude's,
+and asked for a name: `Kelvin`? `Prelude`? **Claude** answered
+`Kelvin`, reserved, as `Swift.print` is Swift's, and said its one
+cost, a `struct Kelvin` of a temperature. **User**: "implement the
+Kelvin namespace as #600", and of the cost, "it is unlikely to be a
+struct when a floating-point number suffices. small-cap `kelvin` will
+be left available for users."
+
+Four things were asked. The user took three as offered: `Kelvin.`
+reaches the prelude alone, not what a module adds; a function of the
+program's with the very types of the prelude's lives beside it; and
+`print` and `println` stay as they are. Of types the user wrote an
+answer of their own: "Whatever appears on top-level with prelude
+should be able to be accessed via `Kelvin.`"
+
+So `Kelvin.sqrt(x)` chooses among the prelude's overloads alone, under
+a variable named `sqrt` too; a program's `log(x:f64)`, which took the
+prelude's place, and its `abs(n:i64)`, which did not link, are
+functions of their own; and a program's `struct BigInt`, which kept
+the prelude's out, hides it under the bare name while `Kelvin.BigInt`
+and `123n` are the prelude's. The two are two types, and a message
+names each as the program writes it.
+
+It is done in the tokens, once every file is read, by both compilers:
+`Kelvin.T` is one token, and the program's own type of a prelude's
+name is renamed where its file sees it, so that the parser and C see
+two types with no more said. The choices that were Claude's are in
+the note: where an own type hides, the literals, the enum's words.
+Details are provisional P612.
+
+There are 1401 tests, and all pass with clang and with gcc 15.

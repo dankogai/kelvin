@@ -157,6 +157,7 @@ static void sync(Pos p) {
 
 /* ---------- types ---------- */
 
+static const char *fn_cname(Decl *d, Expr *e);
 static char *expr(Expr *e);
 static const char *range_max(Type *t);
 static char *range_walk(Type *t, const char *r, const char *p);
@@ -542,7 +543,7 @@ static char *expr_bare(Expr *e) {
     }
     case E_IDENT: /* a function's name is its C name (#41) */
         if (e->target)
-            return e->target->cname ? e->target->cname : e->target->name;
+            return (char *)fn_cname(e->target, e);
         if (e->cands.len)
             error_at(e->pos, "'%s' names %d functions: say which by its type, as in 'let f:(T):R := %s'", e->text,
                      e->cands.len, e->text);
@@ -1023,7 +1024,7 @@ static char *expr_bare(Expr *e) {
         if (e->cands.len)
             return dispatch_call(e);
         Buf b = {0};
-        const char *callee = e->target ? (e->target->cname ? e->target->cname : e->target->name)
+        const char *callee = e->target ? fn_cname(e->target, e)
                              : e->op && !strcmp(e->op, "c") ? e->a->text /* C's own function (#41) */
                                                             : operand_before(e->a);
         if ((e->target || (e->op && !strcmp(e->op, "c"))) && e->a->paren)
@@ -2102,11 +2103,20 @@ static Type *passed_type(Decl *d, int k) {
    with several, to kv_no_such_overload, a C error: C's own function of
    the name is never among Kelvin's (#223). One overload left with nothing
    else to choose is called, and C converts or reports the arguments. */
+/* A function's name in C where e names or calls it: its C name, or, of
+   Kelvin.f where a variable of the program's has the name f (#600), its
+   alias, _kv_ns_f, a constant pointer to it at the top level, which C's
+   variable of the name does not hide as it hides the function */
+static const char *fn_cname(Decl *d, Expr *e) {
+    const char *c = d->cname ? d->cname : d->name;
+    return e && e->ns_alias && d->ns_alias ? strfmt("_kv_ns_%s", c) : c;
+}
+
 static char *generic_tree(List *cands, Expr *call, char **args, int k) {
     bool op = !isalpha((unsigned char)call->a->text[0]) && call->a->text[0] != '_';
     char *none = op ? "kv_no_such_operator" : "kv_no_such_overload";
     if (cands->len == 1)
-        return ((Decl *)cands->data[0])->cname;
+        return (char *)fn_cname(cands->data[0], call);
     while (k < call->items.len) {
         if (call->unseen && !call->unseen[k]) { /* kelvinc saw it fits every overload left */
             k++;
@@ -2123,7 +2133,7 @@ static char *generic_tree(List *cands, Expr *call, char **args, int k) {
         k++;
     }
     if (k >= call->items.len)
-        return cands->len == 1 ? ((Decl *)cands->data[0])->cname : none; /* more than one fits equally */
+        return cands->len == 1 ? (char *)fn_cname(cands->data[0], call) : none; /* more than one fits equally */
     /* the overloads left, grouped by their parameter k's C type */
     List types = {0}, groups = {0}, va = {0};
     for (int i = 0; i < cands->len; i++) {
@@ -4361,7 +4371,25 @@ static void emit_tagged_record(Decl *d, Type *recv) {
     }
 }
 
+static void emit_decl_of(Decl *d);
+
+/* a declaration, and after a function of the prelude's that is called as
+   Kelvin.f where a variable has its name (#600), its alias: a constant
+   pointer to it, of its own type, which that variable does not hide */
 static void emit_decl(Decl *d) {
+    static List done; /* char *: the C names given one */
+    emit_decl_of(d);
+    if (d->kind != D_FN || !d->ns_alias || d->recv)
+        return;
+    const char *c = d->cname ? d->cname : d->name;
+    for (int i = 0; i < done.len; i++)
+        if (!strcmp(done.data[i], c))
+            return;
+    list_push(&done, (void *)c);
+    line("static __typeof__(%s) *const _kv_ns_%s = %s;", c, c, c);
+}
+
+static void emit_decl_of(Decl *d) {
     sync(d->pos);
     hidden_names.len = 0;
     switch (d->kind) {

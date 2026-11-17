@@ -202,6 +202,8 @@ repeated to the left, kept as short as it can be; zero is no limbs.
   it.
 - kelvinc brings `BigInt.kh` in where a program names `BigInt`; a
   program with a type of its own named `BigInt` keeps it.
+  - The prelude's is `Kelvin.BigInt` there (#600), and `123n` its
+    literal: see [namespace.md](namespace.md).
 - Its helpers are `kv_bi_`, the runtime's names, which a program may not
   write.
 - **A bit** (#531) is read and set by them, where the limbs are:

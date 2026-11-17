@@ -78,6 +78,7 @@ let put_spelling(t:int64) {
 // whether token t starts with _kv_, a name of kelvinc's own (#388)
 let kelvin_word(t:int64):bool {
     let at:int64 = toks[t].at
+    if tok_starts(t, "_kv_own_") { return false }       // the files' own type of a prelude's name (#600), so named by kc.k
     return toks[t].len >= 4 && codes[at] == '_' && codes[at + 1] == 'k' && codes[at + 2] == 'v' && codes[at + 3] == '_'
 }
 
@@ -211,7 +212,8 @@ let ascii_names(s:const String^):String {
 let tok_error(t:int64, what:cstr) {
     if !failed {
         let k:tok = toks[t]
-        println(fnames[k.file], ":", k.line, ": error: ", what)
+        let said:String = as_shown(what)                    // (#600)
+        println(fnames[k.file], ":", k.line, ": error: ", said)
     }
     failed = true
 }
@@ -330,7 +332,8 @@ let put_int(n:int64) {
 let gen_error(n:int64, what:cstr) {
     if !failed {
         let t:tok = toks[nodes[n].t]
-        println(fnames[t.file], ":", t.line, ": error: ", what)
+        let said:String = as_shown(what)                    // (#600)
+        println(fnames[t.file], ":", t.line, ": error: ", said)
     }
     failed = true
 }
@@ -852,6 +855,11 @@ let index_names() {
                 if !method_names.has(name) { method_names[name] = d }
             } else {
                 index_name(&fn_names, nodes[d].t, d)
+                if toks[nodes[d].t].kind == T_ID && prelude_file(toks[nodes[d].t].file) {   // Kelvin.f (#600): the prelude's
+                    var ns = $"Kelvin."
+                    ns += tok_text(nodes[d].t)
+                    if !fn_names.has(ns) { fn_names[ns] = d }
+                }
             }
         case D_GLOBAL: index_name(&global_names, nodes[d].t, d)
         case D_STRUCT: index_name(&struct_names, nodes[d].t, d)
@@ -3054,10 +3062,35 @@ let params_key(d:int64):String {
     return s
 }
 
-let sig_key(d:int64):String {
+// a function's name and its parameters' types
+let plain_key(d:int64):String {
     var key = tok_text(nodes[d].t)
     key += params_key(d)
     return key
+}
+
+// the name and types of each function of the prelude's (#600): a function
+// of the files' own of that name and those types is another function,
+// and not that one's definition, as kelvinc's. The bare name calls the
+// files' own, and Kelvin.name the prelude's
+var prelude_keys:Dictionary<String, int64>
+var prelude_keyed = false
+
+let hides_prelude(d:int64):bool {
+    if !prelude_keyed || nodes[d].kind != D_FN || nodes[d].c >= 0 || toks[nodes[d].t].kind != T_ID { return false }
+    if prelude_file(toks[nodes[d].t].file) { return false }
+    return prelude_keys.has(plain_key(d))
+}
+
+// a function's key among them: its name and types, of the files' own
+// that hides one of the prelude's marked so
+let sig_key(d:int64):String {
+    if hides_prelude(d) {
+        var own = $"own "
+        own += plain_key(d)
+        return own
+    }
+    return plain_key(d)
 }
 
 // whether y is a value a Kelvin struct's operators take: a struct or a
@@ -3236,6 +3269,13 @@ let count_overloads() {
     name_subscripts(&sub_getters)
     name_subscripts(&sub_setters)
     name_methods()
+    for i in 0..<decls.count as int64 {                  // the prelude's functions (#600), before any is keyed
+        let d:int64 = decls[i]
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 || toks[nodes[d].t].kind != T_ID || !prelude_file(toks[nodes[d].t].file) { continue }
+        var key = plain_key(d)
+        if !prelude_keys.has(key) { prelude_keys[key] = d }
+        prelude_keyed = true
+    }
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind != D_FN || nodes[d].c >= 0 { continue }
@@ -3245,6 +3285,11 @@ let count_overloads() {
             fn_sigs[key] = d
             var name = tok_text(nodes[d].t)
             fn_overloads[name] = fn_overloads.get(name, 0) + 1
+            if toks[nodes[d].t].kind == T_ID && prelude_file(toks[nodes[d].t].file) {   // Kelvin.f's overloads, the prelude's alone
+                var ns = $"Kelvin."
+                ns += &name
+                fn_overloads[ns] = fn_overloads.get(ns, 0) + 1
+            }
         }
         let kh = in_kh(nodes[d].t) && !extern_decls.contains(d)   // a module's, which libkelvin defines (#515)
         if nodes[d].b >= 0 || kh { fn_bodies[key] = 1 }
@@ -3317,12 +3362,35 @@ let put_fn_name(d:int64) {
     if fn_by_types(d) {
         var key = sig_key(d)
         if fn_renamed.has(key) { put("_kv_fn_") }       // a member of a type has its name (#575)
+        if hides_prelude(d) && fn_bodies.has(plain_key(d)) { put("_kv_own_") }   // the prelude's is Kelvin's, in libkelvin by this name (#600)
         put_tok(nodes[d].t)
         var types_of = params_key(d)
         out += &types_of
         return
     }
     put_tok(nodes[d].t)
+}
+
+// Kelvin.f (#600) where the files have something of the name f: the
+// function through its alias, _kv_ns_f, a constant pointer to it at the
+// top level, which C's variable of the name does not hide as it hides
+// the function. Each C name given one, written before the functions
+var ns_aliases:$[String] = $[]
+var ns_generic = false                                  // a call that C chooses for is Kelvin.f's
+
+let put_ns_name(d:int64) {
+    var before:String = out.copy()
+    out = $""
+    put_fn_name(d)
+    var c:String = out.copy()
+    out = before.copy()
+    var had = false
+    for i in 0..<ns_aliases.count as int64 {
+        if ns_aliases[i] == c { had = true }
+    }
+    if !had { ns_aliases += c.copy() }
+    put("_kv_ns_")
+    out += &c
 }
 
 // a number to choose overloads by, as kelvinc's numeric_type: bool too, as C's _Bool
@@ -3377,11 +3445,29 @@ let arg_fit(a:int64, t:int64, wraps:bool):int64 {
 // well on each argument as any other and better on one; -2 a tie, -1 none
 let choose_overload(n:int64, name:String^, wraps:bool):int64 {
     var some:$[int64] = $[]
+    var bare = $""                                       // Kelvin.f (#600) chooses among the prelude's f alone
+    let mark:cstr := "Kelvin."
+    var ns = true
+    var at = 0
+    for c in name^.codepoints {
+        if at < 7 && c != mark[at] as uint32 { ns = false }
+        if at >= 7 { bare += c }
+        at += 1
+    }
+    if at <= 7 { ns = false }
+    if !ns { bare = name^.copy() }
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
-        if nodes[d].kind != D_FN || nodes[d].c >= 0 || tok_text(nodes[d].t) != name^ { continue }
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 || tok_text(nodes[d].t) != bare { continue }
+        let theirs = toks[nodes[d].t].kind == T_ID && prelude_file(toks[nodes[d].t].file)
+        if ns && !theirs { continue }
         var key = sig_key(d)
         if fn_sigs.get(key, -1) != d { continue }         // a signature once
+        if !ns && theirs {                                // one that the files' own of its name and types hides
+            var own = $"own "
+            own += &key
+            if fn_sigs.has(own) { continue }
+        }
         some += d
     }
     return choose_among(n, &some, wraps)
@@ -7022,7 +7108,13 @@ let gen_call(n:int64) {
     if d >= 0 { lend_temps(n, d) }                  // f($/\s+/) to a const RegExp^ (#187, #515)
     let given:int64 = nodes[n].b
     var opened = hold_args(given, d)                // as kelvinc holds them (#227)
-    if d >= 0 { put_fn_name(d) } else { put_tok(nodes[f].t) }
+    if d >= 0 && tok_starts(nodes[f].t, "Kelvin.") {    // (#600)
+        put_ns_name(d)
+    } else if d >= 0 {
+        put_fn_name(d)
+    } else {
+        put_tok(nodes[f].t)
+    }
     put("(")
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
         gen_print_args(given)
@@ -7111,7 +7203,11 @@ let overloads_taking(cands:const $[int64]^, k:int64, y:int64):$[int64] {
 // pointer; with none, or with several, a name C reports (#41)
 let put_generic_tree(cands:const $[int64]^, first:int64, base:int64, from:int64, nargs:int64, none:cstr) {
     if cands^.count == 1 {
-        put_fn_name(cands^[0])
+        if ns_generic {
+            put_ns_name(cands^[0])
+        } else {
+            put_fn_name(cands^[0])
+        }
         return
     }
     var k:int64 = from
@@ -7209,6 +7305,13 @@ var generic_serial:int64 = 0
 // a call only C's _Generic chooses for (#41): its arguments in
 // temporaries, a literal as the type kelvinc reads it, then the choice
 let gen_generic_call(n:int64) {
+    let was_ns = ns_generic
+    ns_generic = nodes[nodes[n].a].kind == N_ID && tok_starts(nodes[nodes[n].a].t, "Kelvin.")   // (#600)
+    gen_generic_call_of(n)
+    ns_generic = was_ns
+}
+
+let gen_generic_call_of(n:int64) {
     let first:int64 = nodes[n].b
     let at:int64 = generic_at.get(n, 0)
     var cands:$[int64] = $[]
@@ -10520,7 +10623,8 @@ let gen_typename(n:int64) {
         put("))")
         return
     }
-    let w:String = kelvin_type_text(y)
+    let raw:String = kelvin_type_text(y)
+    let w:String = shown_text(raw.cstr, false)           // the files' own c64 is c64 (#600)
     put("\"")
     var after_q = false
     for c in w.codepoints {
@@ -13174,6 +13278,7 @@ let anon_function(an:int64, ey:int64, me:const String^):int64 {
 
 // the function of the program the name t names, no method's, or -1 (#428)
 let fn_named(t:int64):int64 {
+    if tok_starts(t, "Kelvin.") { return decl_named(t, D_FN) }   // the prelude's (#600)
     for x in decls {
         if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) { return x }
     }
@@ -13199,6 +13304,18 @@ let overloads_of(t:int64):int64 {
 }
 
 let fn_of_type(t:int64, y:int64):int64 {
+    if tok_starts(t, "Kelvin.") {                        // the prelude's alone (#600)
+        var bare = $""
+        var at = 0
+        for c in tok_text(t).codepoints {
+            if at >= 7 { bare += c }
+            at += 1
+        }
+        for x in decls {
+            if nodes[x].kind == D_FN && nodes[x].c < 0 && toks[nodes[x].t].kind == T_ID && prelude_file(toks[nodes[x].t].file) && tok_text(nodes[x].t) == bare && !variadic_fns.contains(x) && decl_fn_type(x) == y { return x }
+        }
+        return 0 - 1
+    }
     for x in decls {
         if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) && !variadic_fns.contains(x) && decl_fn_type(x) == y { return x }
     }
@@ -13366,7 +13483,11 @@ var anon_made:Dictionary<int64, int64>    // the function kc made of each anonym
 let gen_fn_value(n:int64, y:int64) {
     let k = nodes[n].kind                                // one of owners too, which a function kc makes owns, as kelvinc's: a call through it is refused (#515)
     if fn_picked.has(n) {                                // of its overloads, the one a function type said (#537)
-        put_fn_name(fn_picked.get(n, 0 - 1))
+        if tok_starts(nodes[n].t, "Kelvin.") {           // through its alias, which no variable's name hides (#600)
+            put_ns_name(fn_picked.get(n, 0 - 1))
+        } else {
+            put_fn_name(fn_picked.get(n, 0 - 1))
+        }
         return
     }
     var given:int64 = 0 - 1
@@ -19200,6 +19321,15 @@ let gen_program() {
     put_async_heads()                                   // async f(x)'s (#313)
     put_lazy_heads()                                    // and the functions kc makes (#324)
     put_iter_adapters(true)                             // and an Iterator's adapters (#326)
+    for i in 0..<ns_aliases.count as int64 {            // Kelvin.f's aliases (#600)
+        put("static __typeof__(")
+        out += &ns_aliases[i]
+        put(") *const _kv_ns_")
+        out += &ns_aliases[i]
+        put(" = ")
+        out += &ns_aliases[i]
+        put(";\n")
+    }
     out += &body
     put_async_bodies()
     for i in 0..<shown.count as int64 { gen_show(shown[i]) }

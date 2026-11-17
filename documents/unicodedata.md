@@ -29,6 +29,9 @@ codepoints, after Python's `unicodedata`.
   - Its `nfc`, `nfd`, `nfkc` and `nfkd` are words of every program, and
     `grapheme(...)`, `String.fromCodepoints(...)` and `CodepointError`
     (#526) are names of it.
+  - Each is `Kelvin.nfc`, `Kelvin.grapheme(...)` and
+    `Kelvin.NormalForm` too (#600), whatever the program calls its
+    own: see [namespace.md](namespace.md).
 - It is a header, `UnicodeData.kh` in `modules/`, whose code libkelvin
   holds (#504), as the prelude's `RegExp` uses it; a program links its
   tables only where it uses them.

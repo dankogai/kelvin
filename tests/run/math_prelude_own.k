@@ -1,7 +1,8 @@
 // a program that defines a type of one of math's types' names, c64, has
-// its own, and no math of the prelude's (#591), as one that defines a
-// RegExp has no RegExp of the prelude's (#504): conj and exp here are the
-// program's own, and its c64 prints as the struct it is
+// its own (#591), as one that defines a RegExp has its own (#504): conj
+// and exp here are the program's own, and its c64 prints as the struct
+// it is. It hides math's under the bare name, and no longer keeps math
+// out (#600): tests/run/kelvin_types.k has the two side by side
 struct c64 { re: i64; im: i64 }
 let size(z:c64):i64 { z.re * z.re + z.im * z.im }
 let conj(z:c64):c64 { (c64){z.re, 0 - z.im} }

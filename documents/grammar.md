@@ -64,6 +64,10 @@ let main():int32 {
 - **A name past ASCII is Kelvin's**: C could not declare one, so using
   it before it is declared, or declaring it twice in a block, is
   Kelvin's error, in its own spelling.
+- **`Kelvin` is no name of a program's own** (#600): it is the
+  prelude's, in `Kelvin.sqrt(x)` and `Kelvin.BigInt`, which reach the
+  prelude's whatever the program calls its own; `kelvin` is free. See
+  [namespace.md](namespace.md).
 - **The C has it in ASCII**, as C compilers refuse emoji in names:
   `_kv_u`, then each ASCII letter or digit as it is and any other
   codepoint as `_`, its hex, `_`, so `♾️` is `_kv_u_267e__fe0f_`.

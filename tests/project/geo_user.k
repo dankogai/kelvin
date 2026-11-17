@@ -15,6 +15,8 @@ let main():int32 {
     println(q.sum(), " ", halved(q.sum()), " ", q.swapped())   // inline, from geo.kh's bodies (#392)
     println(point(2.5), " ", point(2.5).f64)     // a function named in C as a member is (#575)
     println(point.unit, " ", made, " ", shape.unit.area(), " ", made)   // computed attributes of the types, each read a call (#595)
+    let m:Match = {0 - 3}                        // the module's own abs and Match, beside the prelude's (#600)
+    println(abs(-3), " ", Kelvin.abs(-3), " ", best(m, (Match){7}).score, " ", far(m), " ", m.typename)
     return 0
 }
 // out: (3.0, 4.0) 7.0 4.0 3.0 (6.0, 8.0) 5.0 1
@@ -23,3 +25,4 @@ let main():int32 {
 // out: 5.0 2.5 (3.0, 2.0)
 // out: (2.5, 2.5) 5.0
 // out: (1.0, 1.0) 4 3.0 5
+// out: 6 3 7 3000000000000n Match

@@ -330,7 +330,8 @@ let annotation_ahead():bool {
 let parse_error(what:cstr) {
     if !failed {
         let t:tok = toks[pos]
-        println(fnames[t.file], ":", t.line, ": error: ", what)
+        let said:String = as_shown(what)                    // (#600)
+        println(fnames[t.file], ":", t.line, ": error: ", said)
     }
     failed = true
     pos = eof_pos                       // the end: every loop stops

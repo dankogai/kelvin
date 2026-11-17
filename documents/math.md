@@ -41,8 +41,14 @@ have these built in, JavaScript and Perl among them.
     apart by its types.
 - **`#import <math>`** is accepted, and does nothing more.
 - **A type of the program's own** named `c64`, `c32`, `complex64` or
-  `complex32` keeps math out: the program has its own, as with a
-  `RegExp` of its own (#504).
+  `complex32` hides math's under the bare name, and `Kelvin.c64` is
+  math's (#600), as with a `RegExp` of its own.
+  - It kept all of math out before; the rest of math is there now,
+    `sqrt(2.0)` too.
+- **A function of the program's own with the name and the types of
+  one of math's**, `let log(x:f64):f64 { ... }`, is another function
+  (#600): `log(x)` calls it and `Kelvin.log(x)` math's. See
+  [namespace.md](namespace.md).
 - **`abs` of an integer** is Kelvin's now, of an `i64`: `abs(-3)` is
   an `i64`. With no import it was C's, of an `int`, which cut a larger
   number short.

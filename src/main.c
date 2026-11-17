@@ -390,6 +390,122 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
     return all;
 }
 
+/* ---------- the Kelvin namespace (#600) ---------- */
+
+/* A file of the tokens: where its braces are, the files it imports, and
+   the types of its own it sees that have the name of one of the prelude's:
+   those it defines, struct BigInt { ... }, and those of the files it
+   imports. Such a type hides the prelude's under the bare name there, and
+   nowhere else: BigNum.kh's c64 is math's, whatever the program defines */
+typedef struct {
+    const char *path;
+    char *id;      /* its device and inode, as imported_already's, or its path */
+    bool prelude;  /* a file of the prelude, which defines none of them */
+    int depth;
+    List imports;  /* char *: the ids of the files it imports */
+    List sees;     /* char *: the names */
+} SrcFile;
+static List src_files; /* SrcFile * */
+
+static char *file_id(const char *path) {
+    struct stat st;
+    if (stat(path, &st) != 0)
+        return xstrdup(path);
+    return strfmt("%lld:%lld", (long long)st.st_dev, (long long)st.st_ino);
+}
+
+static SrcFile *src_file_of(const char *path) {
+    static SrcFile *last;
+    if (last && last->path == path)
+        return last;
+    for (int i = 0; i < src_files.len; i++) {
+        SrcFile *f = src_files.data[i];
+        if (f->path == path || !strcmp(f->path, path))
+            return last = f;
+    }
+    SrcFile *f = xcalloc(1, sizeof *f);
+    f->path = path;
+    f->id = file_id(path);
+    f->prelude = prelude_file(path);
+    list_push(&src_files, f);
+    return last = f;
+}
+
+static bool tok_is(const Token *t, TokKind kind, const char *text) { return t->kind == kind && !strcmp(t->text, text); }
+
+/* is s one of the names of l? */
+static bool name_in(List *l, const char *s) {
+    for (int i = 0; i < l->len; i++)
+        if (!strcmp(l->data[i], s))
+            return true;
+    return false;
+}
+
+/* does the token at i define a type, struct T { ... }, enum T { ... } or
+   typealias T = ..., and not name one, p:struct tm^? Its name is the next */
+static bool defines_type(const Token *toks, int n, int i) {
+    if (i + 2 >= n || toks[i + 1].kind != TK_IDENT || (i > 0 && tok_is(&toks[i - 1], TK_PUNCT, ".")))
+        return false;
+    if (tok_is(&toks[i], TK_IDENT, "typealias"))
+        return tok_is(&toks[i + 2], TK_PUNCT, "=");
+    if (toks[i].kind != TK_KEYWORD ||
+        (strcmp(toks[i].text, "struct") && strcmp(toks[i].text, "union") && strcmp(toks[i].text, "enum")))
+        return false;
+    return tok_is(&toks[i + 2], TK_PUNCT, "{") || tok_is(&toks[i + 2], TK_PUNCT, "<") || tok_is(&toks[i + 2], TK_PUNCT, ":");
+}
+
+/* Each file's own types among names, the prelude's types' names: what it
+   defines at its top level, and what the files it imports see, as it reads
+   them too. A file of the prelude sees none */
+static void own_types(Token *toks, int n, List *names, const char *argv0) {
+    for (int i = 0; i < src_files.len; i++) {
+        SrcFile *f = src_files.data[i];
+        f->depth = 0;
+        f->imports.len = f->sees.len = 0;
+    }
+    bool any = false;
+    for (int i = 0; i < n; i++) {
+        SrcFile *f = src_file_of(toks[i].pos.file);
+        if (tok_is(&toks[i], TK_PUNCT, "{"))
+            f->depth++;
+        else if (tok_is(&toks[i], TK_PUNCT, "}"))
+            f->depth--;
+        else if (toks[i].kind == TK_IMPORT_K)
+            list_push(&f->imports, file_id(import_path(&toks[i], argv0)));
+        else if (!f->prelude && f->depth == 0 && defines_type(toks, n, i) && name_in(names, toks[i + 1].text) &&
+                 !name_in(&f->sees, toks[i + 1].text)) {
+            list_push(&f->sees, toks[i + 1].text);
+            any = true;
+        }
+    }
+    for (bool more = any; more;) {
+        more = false;
+        for (int i = 0; i < src_files.len; i++) {
+            SrcFile *f = src_files.data[i];
+            for (int k = 0; !f->prelude && k < f->imports.len; k++)
+                for (int j = 0; j < src_files.len; j++) {
+                    SrcFile *g = src_files.data[j];
+                    if (g == f || strcmp(g->id, f->imports.data[k]))
+                        continue;
+                    for (int s = 0; s < g->sees.len; s++)
+                        if (!name_in(&f->sees, g->sees.data[s])) {
+                            list_push(&f->sees, g->sees.data[s]);
+                            more = true;
+                        }
+                }
+        }
+    }
+}
+
+/* is the name at i the program's own type, which hides the prelude's
+   there? Not after Kelvin., nor after another dot, a member's name, nor
+   where it is a literal's, $/.../ or 123n, which are the prelude's */
+static bool own_name(const Token *toks, int i) {
+    if (toks[i].kind != TK_IDENT || toks[i].regexp || toks[i].bigint || (i > 0 && tok_is(&toks[i - 1], TK_PUNCT, ".")))
+        return false;
+    return name_in(&src_file_of(toks[i].pos.file)->sees, toks[i].text);
+}
+
 /* The modules of the prelude (#504), which libkelvin holds: a program
    that names one, RegExp, a $/.../ literal's too, imports it as if it
    began with #import <RegExp>, unless it defines a type of that name or
@@ -403,30 +519,23 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
     const char **names = prelude_names;
     *out_n = n;
     for (int k = 0; names[k]; k++) {
-        bool named = false, own = false;
+        bool named = false;
+        /* a type of the program's own of the name hides the prelude's
+           there, and no longer keeps it out (#600): Kelvin.RegExp names
+           it, and so does a literal, $/.../ or 123n; the bare name is the
+           program's own, where it sees that type */
+        List one = {0};
+        list_push(&one, (void *)names[k]);
+        own_types(toks, n, &one, argv0);
         for (int i = 0; i < n && !named; i++)
-            named = toks[i].kind == TK_IDENT && !strcmp(toks[i].text, names[k]);
+            named = toks[i].kind == TK_IDENT && !strcmp(toks[i].text, names[k]) && !own_name(toks, i);
         if (!strcmp(names[k], "UnicodeData")) /* (#520) */
             named = !source_name || strcmp(source_name, "UnicodeData");
         Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false, false,
                      true, false}; /* implied: the prelude's, which a module's header does not write (#520) */
         if (!named || imported_has(import_path(&imp, argv0))) /* none, or #import <RegExp> written */
             continue;
-        for (int i = 0; i < n; i++) {
-            if (i + 1 < n && toks[i].kind == TK_KEYWORD &&
-                (!strcmp(toks[i].text, "struct") || !strcmp(toks[i].text, "union") || !strcmp(toks[i].text, "enum")) &&
-                toks[i + 1].kind == TK_IDENT && !strcmp(toks[i + 1].text, names[k]))
-                own = true;
-        }
-        for (int i = 0; own && i < n; i++) { /* $/.../ and 123n are the prelude's, which the program's own type hides */
-            if (toks[i].regexp && !strcmp(names[k], "RegExp"))
-                error_at(toks[i].pos, "a $/.../ literal is the prelude's RegExp, which a type of this program named "
-                                      "RegExp hides: rename that type (#504)");
-            if (toks[i].bigint && !strcmp(names[k], "BigInt"))
-                error_at(toks[i].pos, "a 123n literal is the prelude's BigInt, which a type of this program named "
-                                      "BigInt hides: rename that type (#508)");
-        }
-        if (own)
+        if (source_name && !strcmp(source_name, names[k])) /* the module itself, which its own type kept out before (#600) */
             continue;
         int m;
         Token *more = with_imports(&imp, 1, &m, argv0); /* the import, then the module's tokens */
@@ -440,14 +549,6 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
     return toks;
 }
 
-/* is s one of the names of l? */
-static bool name_in(List *l, const char *s) {
-    for (int i = 0; i < l->len; i++)
-        if (!strcmp(l->data[i], s))
-            return true;
-    return false;
-}
-
 /* math is the prelude's too (#590), which libkelvin holds: a program
    that names one of its names imports it as if it began with #import
    <math>; one that names none compiles as before. The names are read
@@ -455,9 +556,11 @@ static bool name_in(List *l, const char *s) {
    declares, sin, c64, polar, wherever the program writes it but where it
    declares one of its own, let log(...); and what it gives f64 and f32,
    after a dot, f64.tau, x.isnan, 1.0.i. What it gives its own types, z.real,
-   needs none: a program has no c64 that does not name one. A program
-   that defines a type of one of its types' names, c64, has its own, and
-   no math. A module of the prelude is built without it, and so is math */
+   needs none: a program has no c64 that does not name one. A type of
+   the program's own with one of its types' names, c64, hides math's
+   there and names no math (#600), where it kept all of math out: what
+   else the program names of it brings it in, and Kelvin.c64 is math's.
+   A module of the prelude is built without it, and so is math */
 static Token *with_math(Token *toks, int n, int *out_n, const char *argv0) {
     *out_n = n;
     if (source_name && !strcmp(source_name, "math"))
@@ -498,25 +601,20 @@ static Token *with_math(Token *toks, int n, int *out_n, const char *argv0) {
         }
     }
     bool named = false;
+    own_types(toks, n, &types, argv0); /* a type of the program's own with one of its types' names (#600) */
     for (int i = 0; i < n && !named; i++) {
         if (toks[i].kind != TK_IDENT)
             continue;
         bool dot = i > 0 && toks[i - 1].kind == TK_PUNCT && !strcmp(toks[i - 1].text, ".");
         bool own = i > 0 && toks[i - 1].kind == TK_KEYWORD &&
                    (!strcmp(toks[i - 1].text, "let") || !strcmp(toks[i - 1].text, "var"));
-        if (own)
+        if (own || own_name(toks, i)) /* its own c64 names no math; Kelvin.c64 does, and all else of math's */
             continue;
         named = name_in(&names, toks[i].text) || name_in(&types, toks[i].text) ||
                 (dot && name_in(&members, toks[i].text));
     }
     if (!named)
         return toks;
-    for (int i = 0; i + 1 < n; i++) /* a type of the program's own with one of its types' names */
-        if (toks[i + 1].kind == TK_IDENT && name_in(&types, toks[i + 1].text) &&
-            ((toks[i].kind == TK_KEYWORD &&
-              (!strcmp(toks[i].text, "struct") || !strcmp(toks[i].text, "union") || !strcmp(toks[i].text, "enum"))) ||
-             (toks[i].kind == TK_IDENT && !strcmp(toks[i].text, "typealias"))))
-            return toks;
     Token imp = {TK_IMPORT_K, toks[0].pos, "<math>", toks[0].pos.line, false, false, false, false, true, false};
     int k;
     Token *more = with_imports(&imp, 1, &k, argv0); /* the import, then the module's tokens */
@@ -623,6 +721,141 @@ static Token *with_overlays(Token *toks, int n, int *out_n, const char *argv0) {
     }
     *out_n = n;
     return toks;
+}
+
+/* Kelvin.name (#600) is the prelude's name, whatever the program calls
+   its own: what a file of the prelude declares at its top level, a
+   function or a type, and print, println and the types that are words,
+   Kelvin.String. Kelvin is no name of a program's own.
+
+   It is settled here, in the tokens, once every file is read. Kelvin.T of
+   a type is the one token T, and Kelvin.f of a function the one token
+   "Kelvin.f", a callee the parser chooses among the prelude's alone, which
+   no variable's name hides. And a type of the program's own that has the
+   name of one of the prelude's is _kv_own_T in the files that see it
+   (own_types), so that the two are two types, to the parser and to C: the
+   bare name is the program's there, and the prelude's all else */
+static Token *with_kelvin(Token *toks, int n, int *out_n, const char *argv0) {
+    static const char *words[] = {"i8",   "i16",  "i32",   "i64",   "i128",       "u8",  "u16",      "u32",    "u64",
+                                  "u128", "f32",  "f64",   "bool",  "String",     "cstr", "Bytes",   "Array",  "Dictionary",
+                                  "Set",  "Optional", "Result", "Task", "Iterator", "Range", "SYS", NULL};
+    List fns = {0}, types = {0};
+    /* the words of the prelude's enums of words alone, nfc of NormalForm,
+       which are names of every program: each, the token of its enum's
+       name, and its number, or NULL where kelvinc does not see it */
+    List words_of = {0}, enums_of = {0}, values_of = {0};
+    int uses = 0;
+    for (int i = 0; i < src_files.len; i++)
+        ((SrcFile *)src_files.data[i])->depth = 0;
+    for (int i = 0; i + 2 < n; i++) {
+        SrcFile *f = src_file_of(toks[i].pos.file);
+        uses += tok_is(&toks[i], TK_IDENT, "Kelvin");
+        if (!f->prelude)
+            continue;
+        if (f->depth == 0 && tok_is(&toks[i], TK_KEYWORD, "enum") && toks[i + 1].kind == TK_IDENT &&
+            tok_is(&toks[i + 2], TK_PUNCT, "{")) {
+            int end = i + 3;
+            bool values = false;
+            while (end < n && !tok_is(&toks[end], TK_PUNCT, "}")) {
+                values = values || tok_is(&toks[end], TK_PUNCT, ":") || tok_is(&toks[end], TK_PUNCT, "{");
+                end++;
+            }
+            long at = 0;
+            bool known = true;
+            for (int k = i + 3; !values && k < end; k++) {
+                bool first = tok_is(&toks[k - 1], TK_PUNCT, "{") || tok_is(&toks[k - 1], TK_PUNCT, ",") ||
+                             tok_is(&toks[k - 1], TK_PUNCT, ";") ||
+                             (toks[k].pos.line > toks[k - 1].end_line && !tok_is(&toks[k - 1], TK_PUNCT, "="));
+                if (toks[k].kind != TK_IDENT || !first)
+                    continue;
+                if (tok_is(&toks[k + 1], TK_PUNCT, "=")) { /* a number written is its own; any other value kelvinc leaves to C */
+                    char *rest = NULL;
+                    at = toks[k + 2].kind == TK_NUMBER ? strtol(toks[k + 2].text, &rest, 0) : 0;
+                    known = known && rest && !*rest &&
+                            (tok_is(&toks[k + 3], TK_PUNCT, ",") || tok_is(&toks[k + 3], TK_PUNCT, ";") || k + 3 >= end ||
+                             toks[k + 3].pos.line > toks[k + 2].end_line);
+                }
+                list_push(&words_of, toks[k].text);
+                list_push(&enums_of, &toks[i + 1]);
+                list_push(&values_of, known ? strfmt("%ld", at) : NULL);
+                at++;
+            }
+        }
+        if (tok_is(&toks[i], TK_PUNCT, "{"))
+            f->depth++;
+        else if (tok_is(&toks[i], TK_PUNCT, "}"))
+            f->depth--;
+        else if (f->depth == 0 && defines_type(toks, n, i))
+            list_push(&types, toks[i + 1].text);
+        else if (f->depth == 0 && toks[i].kind == TK_KEYWORD && (!strcmp(toks[i].text, "let") || !strcmp(toks[i].text, "var")) &&
+                 toks[i + 1].kind == TK_IDENT && !tok_is(&toks[i + 2], TK_PUNCT, ".")) /* not static let T.x, a member */
+            list_push(&fns, toks[i + 1].text);
+    }
+    own_types(toks, n, &types, argv0);
+    Token *out = xmalloc(sizeof(Token) * (size_t)(n + 2 * uses + 1));
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+        Token t = toks[i];
+        if (t.kind == TK_IDENT && !strncmp(t.text, KV_OWN, strlen(KV_OWN)))
+            error_at(t.pos, "names starting with _kv_ are kelvinc's own, in the C it writes: rename '%s'", t.text);
+        if (!tok_is(&t, TK_IDENT, "Kelvin")) {
+            if (own_name(toks, i)) {
+                if (!name_in(&kv_own_names, t.text))
+                    list_push(&kv_own_names, t.text);
+                t.text = strfmt(KV_OWN "%s", t.text);
+            }
+            out[m++] = t;
+            continue;
+        }
+        bool member = i > 0 && tok_is(&toks[i - 1], TK_PUNCT, ".");
+        bool dotted = i + 2 < n && tok_is(&toks[i + 1], TK_PUNCT, ".") &&
+                      (toks[i + 2].kind == TK_IDENT || toks[i + 2].kind == TK_KEYWORD);
+        if (member || !dotted)
+            error_at(t.pos, "'Kelvin' is the prelude's name (#600), as in 'Kelvin.log(x)', the prelude's log whatever "
+                            "the program calls its own: a name of the program's own is another, as 'kelvin'");
+        Token x = toks[i + 2];
+        bool call = i + 3 < n && tok_is(&toks[i + 3], TK_PUNCT, "(");
+        bool word = false;
+        for (int k = 0; x.kind == TK_KEYWORD && words[k]; k++)
+            word = word || !strcmp(words[k], x.text);
+        if (x.kind == TK_KEYWORD && !word)
+            error_at(x.pos, "'Kelvin.%s' names nothing: '%s' is a word of the language, and not a name of the prelude's "
+                            "(#600)", x.text, x.text);
+        if (x.kind == TK_KEYWORD || !strcmp(x.text, "print") || !strcmp(x.text, "println"))
+            ; /* a word, which no program defines: the same with and without */
+        else if (name_in(&fns, x.text) && (call || !name_in(&types, x.text)))
+            x.text = strfmt(KV_NS "%s", x.text); /* the prelude's function, the parser's to choose */
+        else if (!name_in(&types, x.text) && name_in(&words_of, x.text)) {
+            /* a word of an enum of the prelude's, Kelvin.nfc: (0 as NormalForm), its number as its type, which
+               a variable of its name hides neither here nor in C */
+            int w = 0;
+            while (strcmp(words_of.data[w], x.text))
+                w++;
+            if (!values_of.data[w])
+                error_at(x.pos, "'Kelvin.%s' is a word of the prelude's enum %s whose number kelvinc does not see: "
+                                "not yet (#600)", x.text, ((Token *)enums_of.data[w])->text);
+            Token part = x;
+            part.kind = TK_PUNCT, part.text = "(";
+            out[m++] = part;
+            part.kind = TK_NUMBER, part.text = values_of.data[w];
+            out[m++] = part;
+            part.kind = TK_KEYWORD, part.text = "as";
+            out[m++] = part;
+            part.kind = TK_IDENT, part.text = ((Token *)enums_of.data[w])->text;
+            out[m++] = part;
+            part.kind = TK_PUNCT, part.text = ")";
+            out[m++] = part;
+            i += 2;
+            continue;
+        } else if (!name_in(&types, x.text))
+            error_at(x.pos, "'Kelvin.%s' names nothing: the prelude has no '%s' at its top level (#600); Kelvin.name is "
+                            "a function or a type that a program has with no import, as 'Kelvin.sqrt' and 'Kelvin.BigInt'",
+                     x.text, x.text);
+        out[m++] = x; /* where the name is, which a library's header is written from */
+        i += 2;
+    }
+    *out_n = m;
+    return out;
 }
 
 static List lib_objects; /* --lib: the .o and .a files given after the source, into libkM too (#156) */
@@ -929,6 +1162,7 @@ int main(int argc, char **argv) {
             toks = with_math(toks, ntoks, &ntoks, argv[0]); /* math, if one of its names is named (#590) */
         toks = with_prelude(toks, ntoks, &ntoks, argv[0]); /* RegExp, if named (#504); UnicodeData (#520) */
         toks = with_overlays(toks, ntoks, &ntoks, argv[0]); /* <A+B>, where <A> and <B> are both imported (#551) */
+        toks = with_kelvin(toks, ntoks, &ntoks, argv[0]); /* Kelvin.name, and the program's own types of the prelude's names (#600) */
     }
     Program *prog = parse(toks, ntoks);
     char *c_code = gen_program(prog, line_directives);

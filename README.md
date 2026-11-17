@@ -655,3 +655,11 @@ So far the changes from C are these, by topic.
   a quarter of a second, where it took four; a module's library is
   linked before those its header imports, whatever the order of a
   program's imports (#599)
+- `Kelvin.name` is the prelude's `name`, whatever the program calls
+  its own, as `Swift.print` is Swift's: `Kelvin.log(x)` beside a `log`
+  of the program's, `Kelvin.sqrt(x)` under a variable named `sqrt`,
+  and `Kelvin.BigInt` beside a `struct BigInt`. A function of the
+  program's with the name and the types of one of the prelude's is
+  another function, where it took its place or did not link, and a
+  type with the name of one of its types no longer keeps the prelude's
+  out; `Kelvin` is no name of a program's own (#600)

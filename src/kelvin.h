@@ -42,6 +42,14 @@ void buf_printf(Buf *b, const char *fmt, ...);
 void set_source(const char *file, const char *src); /* each file's text, for messages */
 const char *source_text_of(const char *file);       /* that text, or NULL */
 _Noreturn void fatal(const char *fmt, ...);
+bool prelude_file(const char *path); /* (#600) */
+char *kv_shown(const char *s); /* (#600): a text with such names as the program writes them */
+extern List kv_own_names; /* (#600): the prelude's types' names that a type of the program's own has, for a message */
+/* the name, in the tokens and in C, of a type of the program's own that has
+   the name of one of the prelude's (#600): _kv_own_BigInt */
+#define KV_OWN "_kv_own_"
+/* the prelude's own name of a function, as a callee's text: Kelvin.log */
+#define KV_NS "Kelvin."
 _Noreturn void error_at(Pos p, const char *fmt, ...);
 
 /* ---------- lexer.c ---------- */
@@ -166,6 +174,7 @@ struct Expr {
        the default) */
     Decl *target;
     List cands;       /* Decl * */
+    bool ns_alias;    /* E_CALL, E_IDENT: Kelvin.f where a variable has the name f (#600), the function through its alias in C */
     Decl *method;     /* E_METHOD: the method called, the overload its arguments chose (#158) */
     Type *fn_type;    /* E_CALL through a function value (#158): its type, whose owner parameters take */
     bool *unseen;     /* with cands: per argument, whether only C sees its type */
@@ -318,6 +327,8 @@ struct Decl {
                              parameters, read as T.x: each read calls it */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,
                              called as T.name(...) (#111); name is "T.name" */
+    bool ns_alias;        /* D_FN: called as Kelvin.f where a variable has its name (#600): static __typeof__(f) *const _kv_ns_f = f, which C's variable does not hide */
+    bool prelude;         /* declared in a file of the prelude (#600): Kelvin.name names it, and a program's own of its name and types hides it bare */
     bool kelvin_proto;    /* D_FN: a prototype in a module's header, M.kh (#146): the library's
                              function, named by its types as its definition is, not C's */
     bool text_method;     /* D_FN: T.cstr(), the text of a struct or union, one

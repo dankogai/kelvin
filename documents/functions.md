@@ -410,6 +410,14 @@ let main():int32 {
     C name, and is an overload like any other.
   - Arguments that fit no overload are an error, never a call of C's.
   - C's declaration may come after the call, as a Kelvin function may.
+- **The prelude's function of the name** is `Kelvin.name` (#600),
+  whatever the program adds: `Kelvin.sqrt(x)` chooses among the
+  prelude's overloads alone.
+  - A function of the program's own with the name and the types of
+    one of the prelude's is another function, which the bare name
+    calls: `let abs(n:i64):i64 { ... }` beside `Kelvin.abs`.
+  - A variable or a parameter of the name hides the bare name, and
+    not `Kelvin.name`. See [namespace.md](namespace.md).
 - **A call may come before the definition** (#505), as in Swift: of a
   function, a method, an operator or a function of a type, its overloads
   all seen.

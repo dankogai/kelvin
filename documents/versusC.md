@@ -165,6 +165,7 @@ Each document says so in its "Where it lives" section. In short:
 | [io.md](io.md) | `IO`: files and the standard streams as owners, `IO(path, mode)` straight with `f.error`, `.bytes`, `.string`, `.read(n)`, `.lines`, `.write` |
 | [os.md](os.md) | `OS`: the working directory, the environment, files and directories, a shell command, the pid |
 | [sys.md](sys.md) | `SYS`: the arguments, the platform, exiting |
+| [namespace.md](namespace.md) | `Kelvin.name`: the prelude's function or type, whatever the program calls its own; a program's own beside it (#600) |
 | [tasks.md](tasks.md) | `async f(x)` and `await`: a call on a thread of its own, a `Task<R>` of its result (#312) |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
 | [ranges.md](ranges.md) | `Range<T>`: `a..<b`, `a...b`, `a...`, `..<b`, `...b`, a Sequence of integers, `map`, `filter`, `reduce`, `flatMap`, `lazy`, `prefix` (#373) |

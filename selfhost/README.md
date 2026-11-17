@@ -1040,8 +1040,10 @@ kc reads what it is written in, and little more.
     `$/.../`, reads `M.kh` from the modules directory, `-m`, as if it
     began with `#import <M>`.
     - So does `#import <M>` of one, and RegExp.kh's of UnicodeData.
-    - A type of the program's own of that name hides it, and the
-      module's literal is then kelvinc's error.
+    - A type of the program's own of that name hides it under the bare
+      name there, and `Kelvin.M` and the module's literal are the
+      prelude's (#600); it kept the module out before, and the
+      literal was kelvinc's error.
   - kc reads a `.kh`'s declarations, which have no bodies, and writes
     their prototypes; libkelvin, which kc links already, defines them.
   - The C names are kelvinc's, so objects of both mix:
@@ -1066,6 +1068,41 @@ kc reads what it is written in, and little more.
     - `b.escape()` and `Bytes.unescape(text)` of a Bytes.
   - A `$/.../` pattern is checked as the program runs, where kelvinc
     checks it as it builds.
+- **`Kelvin.name`** (#600), the prelude's name whatever the program
+  calls its own, as kelvinc's.
+  - It is settled in the tokens, once every file is read, by kc.k's
+    `kelvin_names`, as kelvinc's `with_kelvin`:
+    - `Kelvin.T` of a type of the prelude's is the one token `T`;
+    - `Kelvin.f` of a function is the one token `Kelvin.f`, or `f`
+      where the files have nothing of the name, which `nothing_named`
+      asks of the tokens, where kelvinc asks its scopes;
+    - `Kelvin.nfc`, a word of an enum of the prelude's, is
+      `(0 as NormalForm)`, its number as its type;
+    - `Kelvin.String`, `Kelvin.print` and the like are the word alone;
+    - any other `Kelvin` is kelvinc's error, in its words.
+  - A file of the prelude is told by its name, lex.k's `prelude_file`:
+    UnicodeData, RegExp, BigInt or math.
+  - **A type of the files' own with the name of one of the prelude's**
+    is `_kv_own_T` in the files that see it, kc.k's `own_types`: the
+    file that defines it and those that import that file, by the
+    imports `note_import` keeps.
+    - So the two are two types, to kc and to C.
+    - A message, `x.typename` and a header show `T`, and the
+      prelude's `Kelvin.T`: lex.k's `shown_text`.
+  - **A function of the files' own with the name and the types of one
+    of the prelude's** is another function: gen.k's `hides_prelude`.
+    - Its key among the signatures is marked, `sig_key`, so both are
+      kept; `choose_overload` leaves the prelude's out of a bare
+      call, and takes the prelude's alone of `Kelvin.f`.
+    - Where libkelvin defines the prelude's, the files' own is
+      `_kv_own_f__types` in C, as kelvinc's.
+  - **`Kelvin.f` that stays so** is called through `_kv_ns_f`, a
+    constant pointer to the function written before the functions,
+    which a variable of the name does not hide in C: `put_ns_name`.
+    - kc writes it of each such call, where kelvinc writes it only
+      where a variable of the name is in scope; the programs print
+      the same.
+  - sample.k has a line of them.
 - **The modules a program imports** (#516), as kelvinc's #46 and #143.
   - `#import <M>` is `M.kh`, a module's header, else `M.k`, in
     ./modules, else in the modules directory, `-m`.

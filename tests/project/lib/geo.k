@@ -57,3 +57,11 @@ let shape.area():float64 {
     default: return 0.0
     }
 }
+// a function with the name and the types of one of the prelude's, and a
+// type with the name of one (#600): each the module's own, by a name of
+// its own in C, to geo.kh's reader too; Kelvin.abs and Kelvin.BigInt are
+// the prelude's, as geo.kh writes them
+let abs(n:int64):int64 { n < 0 ? 0 - n * 2 : n * 2 }
+struct Match { score: int64 }
+let best(a:Match, b:Match):Match { a.score > b.score ? a : b }
+let far(m:Match):Kelvin.BigInt { Kelvin.BigInt(Kelvin.abs(m.score)) * 1000000000000n }

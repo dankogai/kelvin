@@ -57,6 +57,40 @@ let tok_is(t:int64, w:cstr):bool {
     return w[n] == 0
 }
 
+// the text of token t begins with w
+let tok_starts(t:int64, w:cstr):bool {
+    let at:int64 = toks[t].at
+    var i = 0
+    while w[i] != 0 {
+        if i >= toks[t].len || codes[at + i] != w[i] as uint32 { return false }
+        i += 1
+    }
+    return true
+}
+
+// whether file f is one of the prelude's (#600), as kelvinc's
+// prelude_file: UnicodeData, RegExp, BigInt or math, the source or its
+// header, by its name. What it declares at its top level is what
+// Kelvin.name names
+var file_prelude:$[int64] = $[]                          // 1 where it is, 0 where not, each file asked once
+
+let prelude_file(f:int64):bool {
+    while file_prelude.count as int64 > fnames.count as int64 { file_prelude.pop() }
+    while file_prelude.count as int64 < fnames.count as int64 {
+        var base = $""
+        for c in fnames[file_prelude.count as int64].codepoints {
+            if c == '/' {
+                base = $""
+            } else {
+                base += c
+            }
+        }
+        let yes = base == "UnicodeData.k" || base == "UnicodeData.kh" || base == "RegExp.k" || base == "RegExp.kh" || base == "BigInt.k" || base == "BigInt.kh" || base == "math.k" || base == "math.kh"
+        file_prelude += yes ? 1 : 0
+    }
+    return file_prelude[f] == 1
+}
+
 // tokens a and b have the same text
 let same_text(a:int64, b:int64):bool {
     let n:int64 = toks[a].len
@@ -357,8 +391,71 @@ let lex_regexp(i:int64, to:int64, line:int64, file:int64):int64 {
     return k
 }
 
+// a type of the files' own that has the name of one of the prelude's is
+// _kv_own_T in the tokens and in C (#600), as kelvinc's: each such name,
+// where its text is among the codes
+var own_at:$[int64] = $[]
+var own_len:$[int64] = $[]
+
+// a message as it is shown, as kelvinc's kv_shown: the files' own type is
+// T, and the prelude's of that name Kelvin.T, as the program writes each
+let shown_text(what:cstr, prelude:bool):String
+
+let as_shown(what:cstr):String {
+    return shown_text(what, true)
+}
+
+// what as the files write it: with prelude, the prelude's type of such a
+// name is Kelvin.T too; without, as x.typename has it, the files' own is T
+let shown_text(what:cstr, prelude:bool):String {
+    if own_at.count == 0 { return String(what) }
+    var text = String(what)
+    var cs:$[uint32] = $[]
+    for c in text.codepoints { cs += c }
+    let own:cstr := "_kv_own_"
+    var s = $""
+    let n:int64 = cs.count as int64
+    var i:int64 = 0
+    while i < n {
+        var marked = i + 8 <= n
+        for j in 0..<8 {
+            if marked && cs[i + j] != own[j] as uint32 { marked = false }
+        }
+        if marked {                                      // the files' own: its name
+            i += 8
+            while i < n && name_continue(cs[i]) {
+                s += cs[i]
+                i += 1
+            }
+            continue
+        }
+        var len:int64 = 0
+        if prelude && (i == 0 || (!name_continue(cs[i - 1]) && cs[i - 1] != '.')) {
+            for k in 0..<own_at.count as int64 {
+                let m:int64 = own_len[k]
+                if len > 0 || i + m > n { continue }
+                var same = true
+                for j in 0..<m {
+                    if cs[i + j] != codes[own_at[k] + j] { same = false }
+                }
+                if same && (i + m == n || !name_continue(cs[i + m])) { len = m }
+            }
+        }
+        if len > 0 {                                     // the prelude's of that name
+            s += "Kelvin."
+            for j in 0..<len { s += cs[i + j] }
+            i += len
+            continue
+        }
+        s += cs[i]
+        i += 1
+    }
+    return s
+}
+
 let lex_error(file:int64, line:int64, what:cstr) {
-    println(fnames[file], ":", line, ": error: ", what)
+    let said:String = as_shown(what)
+    println(fnames[file], ":", line, ": error: ", said)
     failed = true
 }
 
