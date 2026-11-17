@@ -195,9 +195,9 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
 ## Where it lives
 
 A part of the module modules/BigNum.k (#590, [bignum.md](bignum.md)),
-a Kelvin source compiled with the program that imports it, as
-`Rational` is; see [modules.md](modules.md). It was a module of its
-own before, modules/BigFloat.k, `#import <BigFloat>`.
+a header and a library that `make` builds (#599), as `Rational` is; see
+[modules.md](modules.md). It was a module of its own before,
+modules/BigFloat.k, `#import <BigFloat>`.
 
 - **`<BigNum>` imports `<Rational>`** and `<math>`, so a program that
   imports it has `BigRat`, the rationals and math's own too

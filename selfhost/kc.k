@@ -256,8 +256,73 @@ let link_flags(path:String^) {
     if w.count > 0 { module_libs += w.copy() }
 }
 
+// a module's library and what follows it in module_libs, its libkM.link's
+// flags (#599), as kelvinc's ModuleLib: by its dir/libkM, where it starts
+// and how many it is, and the file of its header; and each pair of a
+// module and one its header imports. A library goes before those its
+// module imports, as C's linker reads each once, in order
+var lib_keys:$[String] = $[]
+var lib_at:$[int64] = $[]
+var lib_len:$[int64] = $[]
+var lib_file:$[int64] = $[]
+var lib_moving:$[bool] = $[]
+var lib_by:$[int64] = $[]                   // pairs: the importer's place among them, then the imported's
+
+// where the library of dir/libkM is among them, or -1
+let lib_mark(dir:String^, name:String^):int64 {
+    var key:String = dir^.copy()
+    key += "/libk"
+    key += name
+    for i in 0..<lib_keys.count as int64 {
+        if lib_keys[i] == key { return i }
+    }
+    return -1
+}
+
+// the library m, and what follows it, after all the others, and then the
+// ones its module imports after it, as kelvinc's module_lib_after: one
+// imported already is moved after the module whose header imports it now
+let lib_after(m:int64) {
+    if m < 0 || lib_moving[m] || lib_len[m] == 0 { return }
+    lib_moving[m] = true
+    let at = lib_at[m]
+    let n = lib_len[m]
+    var all:$[String] = $[]
+    for i in 0..<module_libs.count as int64 {
+        if i < at || i >= at + n { all += module_libs[i].copy() }
+    }
+    for i in at..<at + n { all += module_libs[i].copy() }
+    while module_libs.count > 0 { module_libs.pop() }
+    for l in all { module_libs += l.copy() }
+    for i in 0..<lib_at.count as int64 {
+        if i != m && lib_at[i] > at { lib_at[i] -= n }
+    }
+    lib_at[m] = module_libs.count as int64 - n
+    var k:int64 = 0
+    while k + 1 < lib_by.count as int64 {
+        if lib_by[k] == m { lib_after(lib_by[k + 1]) }
+        k += 2
+    }
+    lib_moving[m] = false
+}
+
 // the library of a module's header, dir/M.kh, as kelvinc's module_library
 let module_library(dir:String^, name:String^) {
+    let start = module_libs.count as int64
+    module_library_of(dir, name)
+    if module_libs.count as int64 > start && lib_mark(dir, name) < 0 {
+        var key:String = dir^.copy()
+        key += "/libk"
+        key += name
+        lib_keys += key.copy()
+        lib_at += start
+        lib_len += module_libs.count as int64 - start
+        lib_file += 0 - 1
+        lib_moving += false
+    }
+}
+
+let module_library_of(dir:String^, name:String^) {
     var base:String = dir^.copy()
     base += "/libk"
     base += name
@@ -340,11 +405,29 @@ let load_module(mods:String^, t:int64):bool {
             var kh:String = path.copy()
             kh += ".kh"
             if exists(&kh) {
-                if read_already(&kh) { return true }
+                var by:int64 = 0 - 1                     // the module whose header imports it (#599)
+                for i in 0..<lib_file.count as int64 {
+                    if lib_file[i] == toks[t].file { by = i }
+                }
+                if read_already(&kh) {
+                    let had = lib_mark(&dir, &name)
+                    if by >= 0 && had >= 0 {             // its library after that module's
+                        lib_by += by
+                        lib_by += had
+                        lib_after(had)
+                    }
+                    return true
+                }
                 module_library(&dir, &name)
+                let made = lib_mark(&dir, &name)
+                if by >= 0 && made >= 0 {
+                    lib_by += by
+                    lib_by += made
+                }
                 reading_by = t                           // (#550)
                 let read = loads(&kh)
                 reading_by = 0 - 1
+                if read && made >= 0 { lib_file[made] = fnames.count as int64 - 1 }
                 if read { note_module(&base, fnames.count as int64 - 1) }
                 return read
             }

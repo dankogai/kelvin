@@ -78,3 +78,5 @@ modules/localStorage.kh
 
 # benchmarks/*/run.sh builds and writes here
 /benchmarks/*/out/
+modules/Rational.kh
+modules/BigNum.kh

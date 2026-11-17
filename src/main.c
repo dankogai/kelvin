@@ -206,6 +206,51 @@ static bool imported_has(const char *path) {
    that one a later one calls comes after it; linked before libkelvin */
 static List module_libs;
 
+/* A module's library and what follows it there, its libkM.link's flags
+   (#599): where they are in module_libs, and the modules its header
+   imports, by their headers' paths. A library goes before those its
+   module imports, as C's linker reads each once, in order: one imported
+   already, by the program or by another module, is moved after the one
+   whose header imports it now, and what it imports after it. BigNum's
+   header imports Rational's, so #import <Rational> and then #import
+   <BigNum> link libkBigNum.a before libkRational.a. */
+typedef struct {
+    const char *path;
+    int start, len;
+    List deps; /* char *: the headers its own imports */
+    bool moving;
+} ModuleLib;
+static List module_marks;       /* ModuleLib * */
+static const char *importing;   /* the file whose #imports with_imports reads, NULL of the program's own */
+
+static ModuleLib *module_mark(const char *path) {
+    for (int i = 0; path && i < module_marks.len; i++)
+        if (!strcmp(((ModuleLib *)module_marks.data[i])->path, path))
+            return module_marks.data[i];
+    return NULL;
+}
+
+static void module_lib_after(ModuleLib *m) {
+    if (!m || m->moving || !m->len)
+        return;
+    m->moving = true;
+    void **held = xmalloc(sizeof(void *) * (size_t)m->len);
+    memcpy(held, module_libs.data + m->start, sizeof(void *) * (size_t)m->len);
+    memmove(module_libs.data + m->start, module_libs.data + m->start + m->len,
+            sizeof(void *) * (size_t)(module_libs.len - m->start - m->len));
+    memcpy(module_libs.data + module_libs.len - m->len, held, sizeof(void *) * (size_t)m->len);
+    free(held);
+    for (int i = 0; i < module_marks.len; i++) {
+        ModuleLib *o = module_marks.data[i];
+        if (o != m && o->start > m->start)
+            o->start -= m->len;
+    }
+    m->start = module_libs.len - m->len;
+    for (int i = 0; i < m->deps.len; i++)
+        module_lib_after(module_mark(m->deps.data[i]));
+    m->moving = false;
+}
+
 /* the flags of libkM.link beside a module's library (#482), split on
    whitespace, such as -L/opt/local/lib -lssl -lcrypto: what the library
    needs of the system, linked after it */
@@ -221,7 +266,21 @@ static void link_flags(const char *dir, const char *name, List *out) {
         list_push(out, xstrdup(tok));
 }
 
+static void module_library_of(const char *path);
+
 static void module_library(const char *path) {
+    int start = module_libs.len;
+    module_library_of(path);
+    if (module_libs.len > start && !module_mark(path)) {
+        ModuleLib *m = xcalloc(1, sizeof *m);
+        m->path = xstrdup(path);
+        m->start = start;
+        m->len = module_libs.len - start;
+        list_push(&module_marks, m);
+    }
+}
+
+static void module_library_of(const char *path) {
     size_t n = strlen(path);
     if (n < 4 || strcmp(path + n - 3, ".kh"))
         return;
@@ -295,8 +354,14 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
         if (toks[i].kind != TK_IMPORT_K)
             continue;
         char *path = import_path(&toks[i], argv0);
-        if (imported_already(path))
+        ModuleLib *by = module_mark(importing);
+        if (by) /* a module's header imports it (#599): its library after that module's */
+            list_push(&by->deps, path);
+        if (imported_already(path)) {
+            if (by)
+                module_lib_after(module_mark(path));
             continue;
+        }
         module_library(path);
         char *src = read_file(path);
         set_source(path, src);
@@ -305,7 +370,10 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
         for (int j = 0; j < m; j++)
             more[j].imported = true;
         Pos eof = more[m - 1].pos;
+        const char *outer = importing;
+        importing = path;
         more = with_imports(more, m - 1, &k, argv0); /* without its end of file */
+        importing = outer;
         for (int j = 0; j < k; j++) {
             Token *u = xmalloc(sizeof *u);
             *u = more[j];
@@ -633,6 +701,7 @@ static void all_module_libs(const char *argv0) {
     for (int i = 0; i < modules_found.len; i++)
         visit_module(modules_found.data[i], &order);
     module_libs.len = 0;
+    module_marks.len = 0;
     for (int i = order.len - 1; i >= 0; i--)
         module_library(((Module *)order.data[i])->path);
 }

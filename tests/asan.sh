@@ -63,6 +63,7 @@ for src in runtime/*.k; do
     fi
     objs="$objs $o"
 done
+mods=
 for mod in modules/*.k; do
     name=$(basename "$mod" .k)
     [ -e "modules/$name.kh" ] || continue  # a module built by make into a library
@@ -74,8 +75,18 @@ for mod in modules/*.k; do
         bad "$mod" "the module's C does not compile with ASan"
         exit 1
     fi
-    objs="$objs $tmp/mod_$name.o"
+    mods="$mods $tmp/mod_$name.o"
 done
+# the modules' objects are an archive, as their libraries are (#599): a
+# program links of them what it names and no more, as tests/run/bignum_absent.k,
+# whose own BigRat's .i and sqrt would meet <BigNum>'s were its object linked
+if [ -n "$mods" ]; then
+    if ! ar rcs "$tmp/libmods.a" $mods > "$tmp/log" 2>&1; then
+        bad modules "ar does not make the archive of the modules"
+        exit 1
+    fi
+    objs="$objs $tmp/libmods.a"
+fi
 
 for f in tests/run/*.k; do
     [ -e "$f" ] || continue

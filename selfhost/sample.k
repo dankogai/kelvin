@@ -7,8 +7,8 @@
 #import <time.h> as C
 #import <IO>                                          // f.lines, f.write (#450)
 #import <JSON>                                        // modules/JSON.kh, and libkJSON.a beside it (#516)
-#import <Rational>                                    // modules/Rational.k, a module's source, which names BigInt (#542)
-#import <BigNum>                                      // modules/BigNum.k, which imports math and Rational: BigFloat, CBR and CBF (#576, #590)
+#import <Rational>                                    // modules/Rational.kh, and libkRational.a beside it (#599), which names BigInt (#542)
+#import <BigNum>                                      // modules/BigNum.kh, which imports math and Rational: BigFloat, CBR and CBF (#576, #590); libkBigNum.a, linked before Rational's (#599)
 #import <math>                                        // modules/math.k: its typealias, C's names, Self(x) (#550)
 #import <math.h> as C
 

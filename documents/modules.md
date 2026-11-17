@@ -5,7 +5,8 @@ How a program brings in Kelvin files, headers and libraries with `#import`, and 
 ## Synopsis
 
 ```swift
-#import <Rational>              // modules/Rational.k, its source compiled with the program
+#import <Rational>              // modules/Rational.kh, and libkRational.a beside it (#599)
+#import <SION>                  // modules/SION.k, its source compiled with the program
 #import <IO>                    // modules/IO.kh, and libkIO.a beside it
 #import <ctype.h> as C          // a C header's names
 
@@ -22,8 +23,9 @@ A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
-search, the overlays (#551), the layout, and the modules so far: `Rational.k`, `BigNum.k`,
-`JSON.k`, `SION.k` and `MsgPack.k`, and `IO`, `OS`, `UnicodeData`, `RegExp`, `BigInt` and `math`, each a
+search, the overlays (#551), the layout, and the modules so far:
+`SION.k` and `MsgPack.k`, sources, and `IO`, `OS`, `UnicodeData`,
+`RegExp`, `BigInt`, `math`, `JSON`, `Rational` and `BigNum`, each a
 header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
@@ -31,7 +33,9 @@ header and a library. C headers are in
 
 `#import` of a `.k` file, without `as C`, brings in its source: its
 declarations are compiled with the program as if written where the
-import is (#40), which is at the top level.
+import is (#40), which is at the top level. `#import <SION>` is one,
+modules/SION.k; `<Rational>` was one, and is a header and a library
+since #599, below.
 
 - A name with no extension is a module: `#import <JSON>` is
   `#import <JSON.kh>`, a header with a library (#143), where there is
@@ -166,6 +170,13 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
   object and archived; its functions are named by their types, as a
   program's prototypes of them are, so that the names meet.
   - A library has no `main`, which is an error.
+- **A library is linked before those its module imports** (#599), as
+  C's linker reads each once, in order, and takes from one what the
+  ones before it ask for.
+  - `BigNum.kh` imports `<Rational>`, so `libkBigNum` is linked before
+    `libkRational`, whichever of the two a program imports first.
+  - One imported already is moved after the module whose header
+    imports it, and what it imports after it.
 - **The shared library** (#147), `libkM.dylib` on macOS and `libkM.so`
   elsewhere, is the same object linked against the shared `libkelvin`
   and the shared libraries of the modules the file imports, or their
@@ -272,6 +283,10 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.kh               the prelude's math (#148, #591, math.md), built by make from math.k: math.h for f64 and f32, c64 and c32
     Rational.k            #import <Rational> (#538-#540, rational.md): rat64 to rat8, BigRat, n.over(d)
+    Rational.kh           its header, built by make from Rational.k with kelvinc --lib (#599)
+    libkRational.a|.dylib|.so   its library, linked by the import
+    BigNum.kh             <BigNum>'s header, built so too (#599)
+    libkBigNum.a|.dylib|.so     its library, linked before Rational's, which it uses
     BigNum.k              #import <BigNum> (#590, bignum.md): BigFloat, a float of any precision (#576, bigfloat.md), CBR and CBF, complex numbers of two BigRats and of two BigFloats, and math's functions of them and of a BigRat; it imports <math> and <Rational>
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
@@ -339,6 +354,13 @@ a float's infinities and NaN, `rat32`, `rat16` and `rat8` of the
 narrower integers (#539), and `BigRat` of two `BigInt`s (#540): see
 [rational.md](rational.md).
 
+- It is a header and a library (#599), `Rational.kh` and
+  `libkRational`, which `make` builds from the source with
+  `kelvinc --lib`, as it builds `JSON`'s: a program reads the
+  declarations and links the code, and compiles neither.
+  - `<BigNum>`'s header imports it, so it is one too: its source in a
+    program beside the library's own copy would not link.
+
 ### BigNum: `modules/BigNum.k`
 
 `#import <BigNum>` brings in the numbers of any size (#590): see
@@ -355,6 +377,10 @@ narrower integers (#539), and `BigRat` of two `BigInt`s (#540): see
   [bignum.md](bignum.md).
 - It imports `<math>` and `<Rational>`, so math's own and `BigRat`
   come with it.
+- It is a header and a library (#599), `BigNum.kh` and `libkBigNum`,
+  built by `make`: its source is some 3700 lines, and a program that
+  imported it took 4 seconds to build, where it takes a quarter of
+  one.
 - It was `#import <BigFloat>` and two overlays before, read where
   `<math>` was imported beside `<Rational>` or `<BigFloat>`.
 

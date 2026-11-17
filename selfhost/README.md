@@ -1074,7 +1074,13 @@ kc reads what it is written in, and little more.
     - `<IO>` and `<OS>` stay kc's own.
   - A header's library is linked, before libkelvin:
     - `libkM.a` beside it, else `-lkM` of a shared one;
-    - with the flags of `libkM.link`, as fetch's.
+    - with the flags of `libkM.link`, as fetch's;
+    - and before the libraries of the modules its header imports
+      (#599), as kelvinc's: kc.k's `lib_after` moves one imported
+      already after the module that imports it now, so
+      `libkBigNum.a` is before `libkRational.a`, whichever is
+      imported first. `<Rational>` and `<BigNum>` are libraries
+      since, which kc reads as it reads `<JSON>`'s header.
   - ./modules is where C looks for headers too.
   - What came with it, for any program:
     - `"""text"""` and `$"""text"""`, as kelvinc's #115 and #118;

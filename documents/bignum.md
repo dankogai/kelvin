@@ -519,8 +519,15 @@ let main():int32 {
 
 ## Where it lives
 
-A module, modules/BigNum.k, a Kelvin source compiled with the program
-that imports it, as `Rational` is; see [modules.md](modules.md).
+A module, modules/BigNum.k, built by `make` into a header and a
+library, modules/BigNum.kh and `libkBigNum` (#599), as `Rational` is;
+see [modules.md](modules.md).
+
+- **It was a source** compiled with each program that imported it,
+  some 3700 lines: such a program took 4 seconds to build, and takes
+  a quarter of one.
+  - `libkBigNum` is linked before `libkRational`, which it uses,
+    whichever a program imports first.
 
 - **Three files before #590**, which are its three parts, in the
   order one uses another:

@@ -187,8 +187,10 @@ floating-point number rounds: `1.over(3) + 1.over(6)` is `(1/2)`. It is
 
 ## Where it lives
 
-A module, modules/Rational.k, a Kelvin source compiled with the program
-that imports it; see [modules.md](modules.md).
+A module, modules/Rational.k, built by `make` into a header and a
+library, modules/Rational.kh and `libkRational` (#599), which a program
+that imports it reads and links; see [modules.md](modules.md). It was a
+source compiled with each program.
 
 - **In C:** `a + b` is the module's `+` of two `rat64`s, a function that
   multiplies in `__int128` and divides by the greatest common divisor;

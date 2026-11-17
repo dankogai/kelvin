@@ -439,7 +439,7 @@ So far the changes from C are these, by topic.
   and `c64` and `c32` with their arithmetic and elementary functions,
   `x.i` a quarter turn
 - `#import <M>` of a Kelvin file is its source, from `./modules` or
-  Kelvin's own `modules/`: `#import <Rational>`
+  Kelvin's own `modules/`: `#import <SION>`
 - an overlay comes with two modules: where `<A>` and `<B>` are both
   imported, `modules/A+B.k` is imported too, as Swift's cross-import
   overlay; Kelvin has no `#if` to ask with (#551)
@@ -649,3 +649,9 @@ So far the changes from C are these, by topic.
   number of the three, the nearest, and `f32`, `BigFloat`, `BigRat`
   and `rat64` are made so too, a `BigFloat`'s and a `BigRat`'s
   significand a `BigInt` or an integer (#598)
+- `<Rational>` and `<BigNum>` are libraries, `M.kh` and `libkM`, built
+  once by `make` as `<JSON>` is, where each was a source compiled with
+  every program that imported it: a program with `<BigNum>` builds in
+  a quarter of a second, where it took four; a module's library is
+  linked before those its header imports, whatever the order of a
+  program's imports (#599)

@@ -11644,3 +11644,39 @@ and the old fields' ranges are gone with their errors; and `rat64`
 and down have the maker as well. Details are provisional P610.
 
 There are 1394 tests, and all pass with clang and with gcc 15.
+
+### 646. `<BigNum>` and `<Rational>` precompiled
+
+**User**: "push", for #598. **Claude** pushed it, and brought in this,
+the last of the five.
+
+A program that imported `<BigNum>` took four seconds to build: the
+module was a source, some 3700 lines, compiled again with each
+program. The user's order was to consider making it a precompiled
+library, and it is one: `make` builds modules/BigNum.kh and
+`libkBigNum` once, with `kelvinc --lib`, as it builds `<JSON>`'s, and
+a program reads the header and links the code. It builds in a quarter
+of a second.
+
+`<Rational>` is a library too, Claude's choice, and a needed one:
+`BigNum`'s header imports it, and its source in a program beside the
+library's own copy would not link. Neither source is changed, and no
+program that imports either is written otherwise.
+
+One thing had to change in the two compilers. The libraries were
+linked in the order of the imports, and C's linker reads each static
+library once: `#import <Rational>` and then `#import <BigNum>`, with
+nothing of Rational named, would leave BigNum's library asking for
+what had gone by. So a module's library is linked before those its
+header imports, whatever the order of the imports. macOS's linker
+does not mind either order, so the new test tells on Linux alone.
+
+The first battery was not clean: the ASan step failed of one test,
+tests/run/bignum_absent.k, a program with a `BigRat.i` of its own.
+The script linked every module's object with every program, imported
+or not, and `<BigNum>`'s was among them now. No program kelvinc
+builds is so linked. The script makes an archive of the modules'
+objects, as their libraries are, and the battery was run again.
+Details are provisional P611.
+
+There are 1395 tests, and all pass with clang and with gcc 15.
