@@ -592,3 +592,10 @@ So far the changes from C are these, by topic.
   root of 2 times `top`, where it was an infinity, and
   `sqrt(CBF(top, 1))` was wrong by the root of 2; the norm's exponent
   is twice a part's, past an `i64`'s there, and is held no more (#587)
+- `exp` of a BigFloat is had up to the greatest exponent there is:
+  `exp(BigFloat("0x1p+62"))` is a number of `2^6653256548922161245`,
+  where it was an infinity, an `x` of `2^62` and more having been
+  taken for past any exponent; it is the result that is tried now, an
+  infinity past `6393154322601327917` at 128 bits and 0 below
+  `-6393154322601327741`; `pow`, `sinh` and `cosh` have their numbers
+  with it (#588)

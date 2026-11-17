@@ -1574,6 +1574,7 @@ on a new line`
     println(log(CBF(bf_tiny, BigFloat(1))).hex, " ", arg(CBF(-bf_huge, -bf_tiny)), " ", pow(CBF(bf_tiny, BigFloat(1)), CBF(3)).hex, " ", pow(CBF(bf_huge, bf_huge), CBF(2)).hex, " ", pow(CBF(1, 1), CBF(bf_tiny)).hex, " ", pow(CBF(BigFloat(1), bf_tiny), CBF(bf_huge)) == CBF(cos(BigFloat(1)), sin(BigFloat(1))), " ", pow(CBF(1, 2), CBF(bf_huge)), " ", pow(CBF(1, 1), CBF(131072)).hex)   // and log, arg and pow (#586)
     let bf_top = BigFloat("0x1p+9000000000000000000")
     println(abs(CBF(bf_top, bf_top)).hex, " ", abs(CBF(1 / bf_top, 1 / bf_top)).hex, " ", sqrt(CBF(bf_top, BigFloat(1))).hex, " ", sqrt(CBF(BigFloat(-7) * bf_top, BigFloat(24) * bf_top)).hex)   // abs and sqrt of a CBF with a part of any exponent (#587)
+    println(exp(BigFloat("0x1p+62")).hex, " ", pow(BigFloat(2), BigFloat("0x1.cp+62")).hex, " ", exp(BigFloat("6393154322601327918")), " ", sinh(BigFloat("6393154322601327917")).hex, " ", exp(-BigFloat("0x1p+62")).hex)   // exp of a BigFloat up to the greatest exponent there is (#588)
     return 0
 }
 

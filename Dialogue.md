@@ -11315,3 +11315,28 @@ provisional P599.
 `exp` of a BigFloat from `2^62` to `6.39e18` is left, not ordered.
 
 There are 1370 tests, and all pass with clang and with gcc 15.
+
+### 635. exp of a BigFloat, up to the greatest exponent
+
+**User**: "push", for #587, its battery still running, and then "fix
+exp of a BigFloat past 2^62 as #588". **Claude** held #587's commit
+until its battery was clean, and wrote #588 meanwhile in a copy of
+the modules, the main tree being the battery's.
+
+`e^x` is `2^k` times a number near 1, with `k` the nearest whole
+number to `x` over `ln 2`. `k` was made an `i64`, so `exp` gave up at
+an `x` of `2^62`: an infinity, or 0. But `k` fits up to an `x` of
+`6.39e18`, and between the two a number was lost.
+
+`k` is had in full now, and the result is tried against the exponents
+there are, as any result is. At 128 bits the last number is `exp` of
+`6393154322601327917`, and the least `exp` of `-6393154322601327741`.
+`pow` is of this `exp`, and `pow(BigFloat(2), BigFloat("0x1.cp+62"))`
+is `2^8070450532247928832`. `sinh` and `cosh` are half of `e^x`, and
+are had where `e^x` itself is past. Details are provisional P600.
+
+**Claude** found one more thing and left it: a CBF's `exp` whose
+`e^x` is past any exponent is an infinity, though its product with a
+cosine near 0 would fit.
+
+There are 1371 tests, and all pass with clang and with gcc 15.

@@ -374,8 +374,15 @@ let main():int32 {
 - **An infinity and a NaN** come where a float's function gives one:
   `log(BigFloat(0))` is `-inf`, `sqrt(BigFloat(-1))` a NaN,
   `atan` of an infinity half of pi, `tanh` of one 1.
-  - `exp` of a number past `2^62` is an infinity, or 0: its exponent
-    is past an `i64`.
+  - `exp` is an infinity, or 0, where its exponent is past an `i64`:
+    at 128 bits, of a number past `6393154322601327917`, or below
+    `-6393154322601327741`.
+    - Up to there it is a number (#588): `exp(BigFloat("0x1p+62"))`
+      is one of `2^6653256548922161245`, and
+      `pow(BigFloat(2), BigFloat("0x1.cp+62"))` is
+      `2^8070450532247928832`.
+    - `sinh` and `cosh` are half of `e^x`, and are had where `e^x`
+      itself is past.
 - **A number far from 1** is taken as any (#583): no rational is made
   of it, which would be as long as its exponent is large.
   - Near 0 a function is its first term: `cos` and `cosh` of

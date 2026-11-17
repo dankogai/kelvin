@@ -177,18 +177,27 @@ let BigFloat_sqrt(x:lent BigFloat, bits:i64):BigFloat {
     return BigFloat_sqrt_of(x.mantissa, x.exponent as i128, bits)
 }
 
-// e^x: x is k times ln 2 and a rest of no more than half of ln 2, so
-// e^x is e^rest, near 1, times 2^k; no bits are spent on its size, and
-// one past any exponent is an infinity, or 0
-let BigFloat_exp(x:lent BigFloat, bits:i64):BigFloat {
-    if x.special != 0 { return BigFloat_by(1, x, x, bits, true) }
-    if x.mantissa.isZero { return BigFloat(1, bits) }
+// a whole number below 2^95 in size, as an i128
+let BigFloat_i128(k:lent BigInt):i128 {
+    let high = k >> 32
+    let low = k - (high << 32)
+    return high.i64 as i128 * 4294967296 + low.i64 as i128
+}
+
+// e^x times 2^shift, of a finite x that is not 0: x is k times ln 2
+// and a rest of no more than half of ln 2, so e^x is e^rest, near 1,
+// times 2^k; no bits are spent on its size, and one past any exponent is
+// an infinity, or 0. The k is an i64's and more: e^x has an exponent an
+// i64 holds up to an x of 2^63 times ln 2, 6.39e18, and it is the result
+// that is tried against the exponents there are, not x against 2^62
+// (#588); of 2^64 and more it is past them whatever the bits are
+let BigFloat_exp_at(x:lent BigFloat, bits:i64, shift:i128):BigFloat {
     let top = BigFloat_top(x)
-    if top > 62 {
+    if top > 64 {
         if x.mantissa.isNegative { return BigFloat_zero() }
         return BigFloat_inf(1)
     }
-    if top < 0 - bits as i128 - 2 { return BigFloat(1, bits) }   // 1 + x rounds to 1
+    if top < 0 - bits as i128 - 2 { return BigFloat_make(BigInt(1), shift, bits, 0) }   // 1 + x rounds to 1
     let w:i64 = bits + 32
     let ln2 = log(BigRat(2), w + 70)
     let rx = BigRat(x)
@@ -196,7 +205,14 @@ let BigFloat_exp(x:lent BigFloat, bits:i64):BigFloat {
     let k = fx_floor_div(q.num * 2 + q.den, q.den * 2)      // the nearest whole number to x / ln 2
     let rest = rx - BigRat(k) * ln2
     let m = BigFloat(exp(rest, w), bits)
-    return BigFloat_make(m.mantissa, m.exponent as i128 + k.i64 as i128, bits, 0)
+    return BigFloat_make(m.mantissa, m.exponent as i128 + BigFloat_i128(k) + shift, bits, 0)
+}
+
+// e^x
+let BigFloat_exp(x:lent BigFloat, bits:i64):BigFloat {
+    if x.special != 0 { return BigFloat_by(1, x, x, bits, true) }
+    if x.mantissa.isZero { return BigFloat(1, bits) }
+    return BigFloat_exp_at(x, bits, 0)
 }
 
 // ln of m * 2^e, m above 0 and odd: it is s * 2^t, s from 1 up to 2,
@@ -267,7 +283,9 @@ let BigFloat_hyper(f:i64, x:lent BigFloat, bits:i64):BigFloat {
     let e = BigFloat_exp(size, p)
     if e.special == 1 {
         if f == 12 { return BigFloat_make(BigInt(negative ? -1 : 1), 0, bits, 0) }
-        return BigFloat_inf(negative && f == 10 ? -1 : 1)
+        let half = BigFloat_exp_at(size, p, 0 - 1).round(bits)     // e^|x| / 2, which may be had where e^|x| is not (#588)
+        if negative && f == 10 { return -half }
+        return half
     }
     let inv = BigFloat_quotient(BigInt(1), e.mantissa, 0 - e.exponent as i128, p, 0)
     let less = BigFloat_sum(e, -inv, p)
