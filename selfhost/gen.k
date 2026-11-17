@@ -17578,6 +17578,14 @@ let tell_stmt(n:int64) {
 }
 
 let gen_stmt_of(n:int64, depth:int64)    // a prototype: gen_stmt writes n by it
+let drops_value(e:int64, calls:bool):bool    // and asks it of a statement at a body's end (#594)
+
+// the statements at the end of a path through a body with a result,
+// which drop what they have for a value (#286): 1 of a function, 2 of
+// main, whose end returns 0. Each is asked where gen writes it, the
+// body's own variables declared before it (#594): a method is its
+// receiver's, an overload its arguments', and either may be a local
+var end_stmts:Dictionary<int64, int64>
 
 // the statement n, and the owners it moved out dead after it (#441)
 let gen_stmt(n:int64, depth:int64) {
@@ -17619,6 +17627,11 @@ let gen_stmt_of(n:int64, depth:int64) {
         }
     case S_EXPR:
         let v = nodes[n].a
+        let at_end = end_stmts.get(n, 0)                 // at a body's end (#286, #594)
+        if at_end != 0 && drops_value(v, at_end == 1) {
+            gen_error(n, at_end == 2 ? "main's end returns 0, as in C, so it does not return this value: write 'return' before it" : "this value would be dropped: a body returns its value without 'return' only when it is one expression, so write 'return' before it")
+            return
+        }
         let vy = type_of(v)
         if vy >= 0 && types[vy].kind == Y_TASK && !is_place(v) {     // as kelvinc's (#313)
             gen_error(v, "a Task dropped here would be awaited at once: bind it, 'let t = async f(x)', and await it when its value is wanted")
@@ -17953,8 +17966,9 @@ let refuse_valueless_args(n:int64):bool {
 }
 
 // whether e, a statement, leaves a value behind: one with no effect, or,
-// with calls, a call of a function kc sees has a result, as kelvinc's
-// drops_value; a call of C's, or of a type, has an effect
+// with calls, a call of a function or of a method kc sees has a result
+// (#594), as kelvinc's drops_value; a call of C's, of a type, or of a
+// built-in method has an effect
 let drops_value(e:int64, calls:bool):bool {
     let k = nodes[e].kind
     if k == N_COND { return drops_value(nodes[e].b, calls) || drops_value(nodes[e].c, calls) }
@@ -17964,7 +17978,12 @@ let drops_value(e:int64, calls:bool):bool {
         return y >= 0 && types[y].kind != Y_VOID
     }
     if k != N_CALL && k != N_METHOD { return true }
-    if !calls || k != N_CALL || nodes[nodes[e].a].kind != N_ID { return false }
+    if k == N_METHOD {                                  // a method kc sees has a result (#594), as kelvinc's
+        if !calls || nodes[nodes[e].a].kind == N_TYPE { return false }
+        let f:int64 = method_of(e)
+        return f >= 0 && nodes[f].ty >= 0 && types[nodes[f].ty].kind != Y_VOID
+    }
+    if !calls || nodes[nodes[e].a].kind != N_ID { return false }
     if tok_is(nodes[nodes[e].a].t, "println") || tok_is(nodes[nodes[e].a].t, "print") { return false }
     if call_target(e) < 0 { return false }
     let g = generic_result(e)                             // of the overloads C chooses among (#593)
@@ -17984,32 +18003,32 @@ let last_of(s:int64):int64 {
     return last
 }
 
-// the statement at the end of a path through s that drops a value: of a
-// block, either arm of an if, each case of a switch; -1 if none
-let dropped_at_end(s:int64, calls:bool):int64 {
-    if s < 0 { return -1 }
+// the statements at the end of a path through s, noted in end_stmts as
+// how: of a block, either arm of an if, each case of a switch. gen asks
+// each, in turn, whether it drops a value (#594)
+let note_ends(s:int64, how:int64) {
+    if s < 0 { return }
     let k = nodes[s].kind
-    if k == S_EXPR { return drops_value(nodes[s].a, calls) ? s : -1 }
-    if k == S_BLOCK { return dropped_at_end(last_of(nodes[s].a), calls) }
+    if k == S_EXPR { end_stmts[s] = how }
+    if k == S_BLOCK { note_ends(last_of(nodes[s].a), how) }
     if k == S_IF || k == S_IFLET {
-        let b = dropped_at_end(nodes[s].b, calls)
-        return b >= 0 ? b : dropped_at_end(nodes[s].c, calls)
+        note_ends(nodes[s].b, how)
+        note_ends(nodes[s].c, how)
     }
     if k == S_SWITCH {
         var c:int64 = nodes[s].b
         while c >= 0 {
-            let x = dropped_at_end(last_of(nodes[c].b), calls)
-            if x >= 0 { return x }
+            note_ends(last_of(nodes[c].b), how)
             c = nodes[c].next
         }
     }
-    return -1
 }
 
 // a function with a result whose body is one expression returns it, as
 // kelvinc's (#26, #35); main keeps C's rule that its end returns 0. One
 // assignment, or one call with no value, is an error there, as is a body
-// that ends, on any path, in a value it drops; in main, one with no effect
+// that ends, on any path, in a value it drops; in main, one with no
+// effect: gen reports that one, at the statement
 let implicit_return(d:int64) {
     let first:int64 = nodes[nodes[d].b].a
     if first < 0 { return }
@@ -18039,12 +18058,7 @@ let implicit_return(d:int64) {
             return
         }
     }
-    let dropped = dropped_at_end(last, !main)
-    if dropped >= 0 && main {
-        gen_error(dropped, "main's end returns 0, as in C, so it does not return this value: write 'return' before it")
-    } else if dropped >= 0 {
-        gen_error(dropped, "this value would be dropped: a body returns its value without 'return' only when it is one expression, so write 'return' before it")
-    }
+    note_ends(last, main ? 2 : 1)                        // asked where gen writes each (#594)
 }
 
 let gen_function(d:int64) {

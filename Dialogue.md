@@ -11500,3 +11500,36 @@ method's value dropped at a body's end, overloaded or not. kelvinc
 does.
 
 There are 1380 tests, and all pass with clang and with gcc 15.
+
+### 641. kc, and a method's value dropped
+
+**User**: "push", for #593, while its battery ran, and then "fix kc's
+dropped method value check as #594". **Claude** pushed #593 when the
+battery was clean, and wrote #594 in a copy of the tree meanwhile.
+
+kelvinc reports a body that ends in a value it drops, a method's
+among them: `if c { p.twice(1) } else { p.twice(2) }` in a function
+with a result. kc reported a function's and not a method's, so C
+warned and the function returned nothing. kc asks the method now.
+
+That was half of it. kc asked before it wrote the body, where only
+the parameters are declared, and a method of a variable of the
+body's own, `let q = p^` and then `q.twice(1)`, had no receiver to
+ask. So kc notes the statements at a body's end, and asks each where
+it writes it, the variables before it declared. The order named the
+method's check; the move is Claude's choice, and the user's to
+change.
+
+The move fixed one thing more. A call of an overloaded function by a
+local, at the end of a body with a result, chose its overload before
+the body, with no type for the local, and C refused what kc wrote.
+It is chosen where the statement is written.
+
+kelvinc is as it was. The tests of tests/run and tests/error give
+the same with kc before and after. Details are provisional P606.
+
+**Claude** found one thing and left it: of a method's overloads that
+an argument only C sees fits alike, kelvinc says so, and kc takes the
+first.
+
+There are 1383 tests, and all pass with clang and with gcc 15.

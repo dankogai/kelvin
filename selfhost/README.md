@@ -126,6 +126,18 @@ kc reads what it is written in, and little more.
   - A body that ends in a value on any path, of a block, an `if` or a
     case, is kelvinc's error too, and in `main`, whose end returns 0,
     one with no effect.
+    - A method's value is one (#594), `if c { p.twice(1) } else { ... }`,
+      as a function's: of a struct's method, an enum's, or one a
+      module gives a number, `y.abs()`. A built-in method's is not, as
+      with kelvinc.
+    - Each statement at an end is asked where gen writes it (#594),
+      noted before by `note_ends`, so the body's own variables are
+      declared: a method is its receiver's, `let q = p^` then
+      `q.twice(1)`, and an overload its arguments'.
+      - It was asked before the body, with its parameters alone: a
+        call of an overloaded function by a local, `note(y)`, at the
+        end of a body with a result chose its overload there, with no
+        type for `y`, and kept it, which C refused.
   - A call that C's `_Generic` chooses the overload of (#593) is asked
     of all of them, by `generic_result`, as kelvinc's
     `overloaded_result`: no value where none has a result, a value
