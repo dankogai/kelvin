@@ -11533,3 +11533,44 @@ an argument only C sees fits alike, kelvinc says so, and kc takes the
 first.
 
 There are 1383 tests, and all pass with clang and with gcc 15.
+
+### 642. A computed attribute of a type
+
+**User**: "push", for #594, and then five things at once: "Give
+Big{Rat,Float} `static F.infinity`, `static F.zero` and `static
+F.nan` as well"; "`fp.sign` should return `-1` for negative and `+1`
+for positive where `fp` is any floating-point instance";
+"`(1.0).exponent` returned 1023!! WTF!!"; "`F(sign, exponent,
+significand)` creates a floating-point instance where all arguments
+are in int64 except for Big{Rat,Float} where significand is BigInt";
+and "compiling with <BigNum> is time-consuming. Consider making it a
+precompiled library."
+
+**Claude** pushed #594, whose CI passed, and asked four questions
+before writing anything. **User** chose the first of each. The model
+is `BigFloat`'s for all of them: sign * significand * 2^exponent, the
+significand an odd integer. `.sign` is by the sign bit. The whole
+family has the three statics, `rat64` and down too. And a static that
+is computed is a feature of the language, with a number of its own.
+
+That number is this one, and comes first. `static let T.x = v` is one
+stored value, a global. A `BigFloat` owns its mantissa, so
+`BigFloat.infinity` cannot be one value that every reader shares:
+each read must make one. `static let T.x:R { ... }` is that, a
+type attribute with a body where a stored one has a value, read as
+`T.x`, with no parentheses.
+
+It is a function of the type with no parameters, which the read
+calls. So it has no `self`, and a number type has none, as it has no
+function of the type; a stored one serves a number. It is a let:
+nothing sets it. A module's header writes it `static let x:R { get }`.
+
+kelvinc and kc both have it. The four numbers after it, in Claude's
+order: #596 the statics, #597 `.sign`, #598 the exponent, the
+significand and `F(sign, exponent, significand)`, #599 `<BigNum>`
+precompiled. Details are provisional P607.
+
+**Claude** found one thing and left it: a library's header of a type
+attribute written alone, `static var T.x = v`, does not parse.
+
+There are 1391 tests, and all pass with clang and with gcc 15.

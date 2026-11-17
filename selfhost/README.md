@@ -1197,6 +1197,19 @@ kc reads what it is written in, and little more.
     and `v.x += y` reads it first.
   - `static let T.x:R = v` and `static var T.x = v`, or in `extend`: a
     global, `T__x`, read and written as `T.x`.
+  - `static let T.x:R { }`, or in `extend`, a computed one (#595), as
+    kelvinc's: a function of the type with no parameters, told from a
+    stored one by `static_computed`, a body after its type, and parsed
+    by `parse_static_attribute`; `T.x` is the call `T__x()`, made of
+    the `N_FIELD` by `resolve_attr`.
+    - In a module's header it is `static let x:R { get }`, with no
+      body.
+    - kelvinc's errors of it are kc's, in its words: read with
+      parentheses, declared `static var`, assigned, and a name that is
+      a stored attribute or a function of the type already.
+    - Not kc's yet, as of any function of a type: `self` in its body,
+      one of a number type, and a body with no value, each C's error
+      or none.
   - `Self.f()` and `Self.x` in an expression.
   - A getter reads `self` and never changes it, and `v.x()`, `v.x = y`
     of a let attribute and a member of the name are errors, in

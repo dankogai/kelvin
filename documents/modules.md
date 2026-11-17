@@ -154,6 +154,9 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
     by its template, in each file that uses the type.
   - A `static let f()` of the file, C's static, is left out; a
     `static let` of a type is a function of the type, and kept.
+  - A computed attribute of a type, `static let x:R { ... }` (#595),
+    is written `static let x:R { get }`: with nothing after its type
+    it would read as a stored one's declaration.
   - A type attribute, `static var T.x = v`, waits: a program cannot
     declare one yet, so a library may not hold one.
   - An `#inline C { ... }` at the top level is an `#inline C` of its

@@ -308,6 +308,7 @@ extend rect {
     let perimeter:float64 { 2.0 * (.w + .h) }                 // an attribute
     let scaled(k:float64):Self { (Self){.w * k, .h * k} }     // a method; Self is rect
     static let unit:Self = {1.0, 1.0}                     // a type attribute
+    static let empty:Self { (Self){0.0, 0.0} }            // a computed one: each read makes it (#595)
     static let square(s:float64):Self {                       // a function of the type
         Self.made += 1
         return {s, s}
@@ -328,6 +329,7 @@ t.celsius = 100.0                                         // the setter, on t
 t.celsius += 10.0
 let s = rect.square(4.0)
 println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
+println(rect.empty.area)                                  // 0.0: read as the stored one is, with no parentheses
 ```
 
 Subscripts (#136) read and write a value by indices, as an Array's
@@ -360,6 +362,7 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
 | `var T.x:R { get { } set(v) { } }` | `var x:R { get { } set(v) { } }` | a computed attribute with a setter (#132) | `v.x`, `v.x = y`, `v.x += y` |
 | `static let T.x:R = v` | `static let x:R = v` | a type attribute, a constant (#133) | `T.x` |
 | `static var T.x:R = v` | `static var x:R = v` | a type attribute, a variable (#133) | `T.x`, `T.x = y` |
+| `static let T.x:R { }` | `static let x:R { }` | a computed type attribute, with no `self` (#595) | `T.x` |
 | `let T.cstr():cstr { `...` }` | `let cstr():cstr { `...` }` | the type's own text (#53) | `v.cstr`, `print(v)` |
 | `let T.string:String { }` | `let string:String { }` | the type's own text as a String, of any length (#506) | `print(v)`, `` $`${v}` ``, `v.string` |
 | `let +(a:T, b:T):T { }` | `static let +(a:T, b:T):T { }` | an operator (#42, #135) | `a + b`, `a += b` |
@@ -457,6 +460,24 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
   - Its type is written, or inferred from the value as a declaration's
     is.
   - A type with no tag has no name to read one by, so it has none.
+- **A computed type attribute**, `static let T.x:R { ... }` (#595), has
+  a body where a stored one has a value: `T.x` runs it, at each read.
+  - It is read as a stored one is, with no parentheses: `T.x()` is an
+    error that says so.
+  - So an owner may be one, which a stored one's single value cannot
+    serve: `static let name.anonymous:name { (name){$"nobody"} }`
+    gives a new one at each read, the reader's to keep and to change.
+  - It has no `self`, as a function of the type has none, and `Self`
+    is `T`; its type is written.
+  - It is a `let`: nothing sets it, so `static var x:R { }` and
+    `T.x = v` are errors.
+  - One name is a stored attribute, a computed one, or a function of
+    the type, `static let T.x()`, and not two of them.
+  - `T` is a struct, a union or an enum with values of the program, or
+    `Bytes` or `String` in an `extend`, as for a function of the type;
+    a number type has stored ones alone, `static let f64.half = 0.5`.
+  - It may be read before the line that declares it, as a function
+    may be called (#505).
 
 ## Where it lives
 
@@ -465,6 +486,8 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
 - **In C**, a method is `T__f`, a getter `T__x`, a setter `T__set_x`,
   which takes a pointer to the caller's variable, and a type attribute
   the global `T__x`.
+  - A computed type attribute is the function `T__x`, with no
+    parameters, which `T.x` calls (#595).
   - A subscript is `T__subscript`, and its setter `T__subscript_set`;
     each takes a pointer to the receiver first, and overloads add the
     indices' types, `T__subscript__i64__i64`.

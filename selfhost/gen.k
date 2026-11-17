@@ -1653,6 +1653,7 @@ let resolve_subscript(n:int64) {
 }
 
 var attr_reads:Dictionary<int64, bool>     // the x.y that do: nodes now, calls of its getter
+var static_reads:Dictionary<int64, bool>   // the T.x that read a computed attribute of the type (#595): calls of it now
 
 // x.y of a computed attribute (#131) is the call of its getter, as a + b
 // of an operator is the call of it (#471); else as it was
@@ -1679,6 +1680,14 @@ let resolve_attr(n:int64) {
             nodes[n].kind = N_ID
             nodes[n].t = u
             nodes[n].a = 0 - 1
+            return
+        }
+        if number_named(a) >= 0 { return }
+        let sf:int64 = method_named(nodes[a].t, nodes[n].t)   // static let T.x:R { }, computed (#595): T.x() from here on
+        if sf >= 0 && static_attrs.has(sf) {
+            nodes[n].kind = N_METHOD
+            nodes[n].b = 0 - 1
+            static_reads[n] = true
         }
         return
     }
@@ -7883,6 +7892,19 @@ let gen_method_of(n:int64) {
     let t:int64 = nodes[n].t
     if refuse_valueless_args(n) { return }
     let f:int64 = method_of(n)
+    if f >= 0 && static_attrs.has(f) && !static_reads.has(n) {      // as kelvinc says it (#595)
+        var m = $"'"
+        m += tok_text(nodes[f].c)
+        m += "."
+        m += tok_text(t)
+        m += "' is an attribute of the type: read it as '"
+        m += tok_text(nodes[f].c)
+        m += "."
+        m += tok_text(t)
+        m += "', with no parentheses"
+        gen_error(n, m.cstr)
+        return
+    }
     if f >= 0 && attributes.get(f, 0) != 0 && !attr_reads.has(n) {   // as kelvinc says it (#131)
         var m = $"'"
         m += tok_text(t)
@@ -12226,6 +12248,19 @@ let gen_float_set(n:int64) {
 let attr_assign(n:int64):bool {
     let lhs:int64 = nodes[n].a
     resolve_attr(lhs)
+    if static_reads.has(lhs) {                          // as kelvinc says it (#595)
+        var m = $"'"
+        m += tok_text(nodes[nodes[lhs].a].t)
+        m += "."
+        m += tok_text(nodes[lhs].t)
+        m += "' is computed, and never set: a stored attribute, 'static var "
+        m += tok_text(nodes[nodes[lhs].a].t)
+        m += "."
+        m += tok_text(nodes[lhs].t)
+        m += " = v', is"
+        gen_error(n, m.cstr)
+        return true
+    }
     if !attr_reads.has(lhs) { return false }
     let a:int64 = nodes[lhs].a
     let x:int64 = nodes[lhs].t

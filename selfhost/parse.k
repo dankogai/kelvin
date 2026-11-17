@@ -3265,6 +3265,15 @@ var type_attrs:Dictionary<String, int64>   // T.x by its text: the token of T__x
 // static let T.x:R = v, static var T.x = v, at the name, as kelvinc's #133:
 // a global of the type, named T__x in C
 let parse_type_attribute(recv:int64, is_let:bool) {
+    if static_named(recv, pos) >= 0 {                    // as kelvinc says it (#595)
+        var m = $"'"
+        m += tok_text(pos)
+        m += "' is a computed attribute or a function of "
+        m += tok_text(recv)
+        m += " already: an attribute of a type is stored or computed, not both"
+        parse_error(m.cstr)
+        return
+    }
     let nm:String = tok_text(pos)
     attribute_names[nm] = true
     let t:int64 = pos
@@ -3293,6 +3302,102 @@ let parse_type_attribute(recv:int64, is_let:bool) {
     nodes[n].kind = D_GLOBAL
     if is_let { nodes[n].flag = 1 }
     if declared { extern_decls += n }
+    decls += n
+}
+
+var static_attrs:Dictionary<int64, bool>   // the functions that are a type's computed attributes, static let T.x:R { } (#595)
+
+// whether the static member named at token i is a computed attribute of
+// the type, static let x:R { } (#595), as kelvinc's static_computed: a
+// type and then a body, where a stored one, static let x:R = v, has a
+// value; a { after a : or a word of a type is the type's
+let static_computed(i:int64):bool {
+    if toks[i].kind != T_ID || !tok_is(i + 1, ":") { return false }
+    var j:int64 = i + 2
+    var depth = 0
+    while toks[j].kind != T_EOF {
+        if tok_is(j, "(") || tok_is(j, "[") {
+            depth += 1
+        } else if tok_is(j, ")") || tok_is(j, "]") || tok_is(j, "}") {
+            depth -= 1
+        } else if tok_is(j, "{") {
+            let typed = tok_is(j - 1, ":") || tok_is(j - 1, "enum") || tok_is(j - 1, "struct") || tok_is(j - 1, "union") || tok_is(j - 1, "$")
+            if depth == 0 && !typed { return true }
+            depth += 1
+        } else if depth == 0 && (tok_is(j, "=") || tok_is(j, ":=") || tok_is(j, ";") || toks[j].kind == T_NL) {
+            return false
+        }
+        if depth < 0 { return false }
+        j += 1
+    }
+    return false
+}
+
+// the function of the type at token recv that token nm names, static let
+// T.nm(...) or a computed attribute, static let T.nm:R { }, declared so
+// far; or -1 (#595)
+let static_named(recv:int64, nm:int64):int64 {
+    for d in decls {
+        if nodes[d].kind == D_FN && nodes[d].c >= 0 && nodes[d].flag == 1 && same_text(nodes[d].c, recv) && same_text(nodes[d].t, nm) { return d }
+    }
+    return -1
+}
+
+// one name is an attribute of a type or a function of it, as kelvinc
+// says it (#595): whether f, of the name at nm, is the other kind
+let static_clash(recv:int64, nm:int64, f:int64, computed:bool):bool {
+    if f < 0 || static_attrs.has(f) == computed { return false }
+    var m = $"'"
+    m += tok_text(nm)
+    m += static_attrs.has(f) ? "' is a computed attribute of " : "' is a function of "
+    m += tok_text(recv)
+    m += " already: one name is an attribute of a type, read as "
+    m += tok_text(recv)
+    m += "."
+    m += tok_text(nm)
+    m += ", or a function of it, called"
+    parse_error(m.cstr)
+    return true
+}
+
+// static let T.x:R { ... }, at the name (#595), as kelvinc's: a function
+// of the type with no parameters, T__x(), which each read of T.x calls;
+// in a module's header it is said so, { get }, with no body
+let parse_static_attribute(recv:int64, inl:bool) {
+    if static_clash(recv, pos, static_named(recv, pos), true) { return }
+    var key:String = tok_text(recv)
+    key += "."
+    key += tok_text(pos)
+    if type_attrs.has(key) {                             // as kelvinc says it
+        var m = $"'"
+        m += tok_text(pos)
+        m += "' is a stored attribute of "
+        m += tok_text(recv)
+        m += " already, 'static let "
+        m += &key
+        m += " = ...': an attribute of a type is stored or computed, not both"
+        parse_error(m.cstr)
+        return
+    }
+    let t:int64 = advance()
+    let nm:String = tok_text(t)
+    attribute_names[nm] = true
+    expect(":")
+    let ty:int64 = parse_type()
+    let n:int64 = make_node(D_FN, t)
+    begin_function(n)
+    nodes[n].c = recv
+    nodes[n].flag = 1
+    set_ty(n, ty)
+    static_attrs[n] = true
+    if in_kh(t) && at_word("{") && tok_is(pos + 1, "get") && tok_is(pos + 2, "}") {
+        advance()
+        advance()
+        advance()
+    } else {
+        set_b(n, parse_block())
+    }
+    if inl { inline_fns += n }
     decls += n
 }
 
@@ -3523,6 +3628,15 @@ let parse_extend() {
             is_static = 2
         } else if is_static == 1 && at_word("var") && toks[pos + 1].kind == T_ID && (tok_is(pos + 2, ":") || tok_is(pos + 2, "=")) {
             advance()                                    // static var x = v (#133)
+            if static_computed(pos) {                    // as kelvinc says it (#595)
+                var m = $"a computed attribute of a type is read and never set: write 'static let "
+                m += tok_text(pos)
+                m += ":R { ... }', or 'static var "
+                m += tok_text(pos)
+                m += " = v' for a stored one"
+                parse_error(m.cstr)
+                return
+            }
             parse_type_attribute(recv, false)
             skip_newlines()
             continue
@@ -3618,6 +3732,11 @@ let parse_extend() {
         }
         if toks[pos].kind == T_ID && (tok_is(pos + 1, ":") || tok_is(pos + 1, "=")) {
             let nm:String = tok_text(pos)
+            if is_static == 1 && static_computed(pos) {  // static let x:R { }, computed (#595)
+                parse_static_attribute(recv, inl)
+                skip_newlines()
+                continue
+            }
             if is_static == 1 {
                 parse_type_attribute(recv, true)
                 skip_newlines()
@@ -3637,6 +3756,7 @@ let parse_extend() {
             skip_newlines()
             continue
         }
+        if is_static == 1 && static_clash(recv, pos, static_named(recv, pos), false) { return }   // (#595)
         let n:int64 = parse_function()
         nodes[n].c = recv
         nodes[n].flag = is_static
@@ -3947,7 +4067,11 @@ let parse_program() {
             while pos < path_end { advance() }
             advance()
             self_name = recv
-            parse_type_attribute(recv, is_let)
+            if is_let && static_computed(pos) {          // static let T.x:R { }, computed (#595)
+                parse_static_attribute(recv, inl)
+            } else {
+                parse_type_attribute(recv, is_let)
+            }
             self_name = 0 - 1
             storage = 0
             if at_word(";") { advance() }
@@ -4091,6 +4215,7 @@ let parse_program() {
         if storage > 0 && decls.count as int64 > first {    // (#459)
             let d:int64 = decls[decls.count - 1]
             if nodes[d].kind == D_FN && nodes[d].c >= 0 && storage == 1 {
+                static_clash(nodes[d].c, nodes[d].t, static_named(nodes[d].c, nodes[d].t), false)   // (#595)
                 nodes[d].flag = 1                        // static let T.f(), a function of the type, as in extend (#213)
             } else if nodes[d].kind == D_FN || nodes[d].kind == D_GLOBAL {
                 if storage == 1 { static_decls += d } else { extern_decls += d }   // C's, a body or a value too

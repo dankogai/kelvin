@@ -243,6 +243,7 @@ functions, by one rule.
 | a setter of `T.x` | `T__set_x` |
 | `let T.cstr()` | `_kv_T_cstr`, `static inline` in each file |
 | `static let T.of()`, a function of the type | `T__of` |
+| `static let T.x:R { }`, a computed attribute of the type (#595) | `T__x`, a function with no parameters |
 | `let +(a:T, b:T)` | `_kv_add_op__T__T`; `sub`, `mul`, `div`, `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, and `neg` of `-x` |
 | `let g()` inside `f` (#180) | `_kv_f_g` |
 | an anonymous function | `_kv_main_fn`, `_kv_main_fn1`, ...: `_kv_`, the top-level declaration it is in, and `fn`; `_kv_fn0` outside any |

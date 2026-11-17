@@ -44,7 +44,9 @@ extend point {
     static let ==(a:Self, b:Self):bool { a.x == b.x && a.y == b.y }
     let cstr():cstr { `(${.x}, ${.y})` }                  // its text
     let f64:float64 { .x + .y }                           // point__f64 in C, as point(v:float64) below would be (#575)
+    static let unit:Self { made += 1; return {1.0, 1.0} }    // a computed attribute of the type (#595): { get } in geo.kh
 }
+static let shape.unit:shape { shape.circle(point.unit.x) }   // alone, and by another
 let point.dist(to:Self):float64 { hypot(to.x - .x, to.y - .y) }   // alone
 let point(v:float64):point { return {v, v} }             // point__f64 in C as the attribute f64 is: _kv_fn_point__f64, to geo.kh's reader too (#575)
 inline let point.sum():float64 { .x + .y }               // inline (#392): its body in geo.kh too

@@ -66,7 +66,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `void *p = NULL;` | `var p:any^` (a reference is `nowhere` until assigned) |
 | `(void *)0`, `NULL` | `nowhere` |
 | `static int g(void);` | `static let g():i32`; `static let T.name(...)` is a function of the type, `T.name(...)` (#111) |
-| functions taking `struct T *` and a global per type | `extend T { let f() { } let x:R { } var y:R { get { } set(v) { } } static var n:i64 = 0 }`, used as `v.f()`, `v.x`, `v.y = 1`, `T.n` (#130 to #133) |
+| functions taking `struct T *` and a global per type | `extend T { let f() { } let x:R { } var y:R { get { } set(v) { } } static var n:i64 = 0 static let z:T { } }`, used as `v.f()`, `v.x`, `v.y = 1`, `T.n`, `T.z` (#130 to #133, #595) |
 | `"what??!"`, which C11 reads as `"what|"` (a trigraph) | `"what??!"`, as written: Kelvin has no trigraphs (#220) |
 | `"line one\n" "line two\n"` | `"""`, the two lines, `"""`, each on its own line: the text as it is, no escapes (#115, #118) |
 | a loop of `printf` to show an array or a struct | `println(xs)`, `println(p)`, `println(d)`: the value whole, `[1, 2]`, `{x: 1}`, `{"k": 1}`; `println(v.pretty)` indented (#123, #124) |

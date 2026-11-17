@@ -314,6 +314,8 @@ struct Decl {
     Type *iter_state;
     bool subscript;       /* D_FN: let T[](i):R { }, a function of the type T.[] whose first parameter is
                              _kv_selfp, a pointer self names; T.[]= its setter (#136) */
+    bool static_attr;     /* D_FN type_fn: static let T.x:R { }, a computed attribute of the type (#595), no
+                             parameters, read as T.x: each read calls it */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,
                              called as T.name(...) (#111); name is "T.name" */
     bool kelvin_proto;    /* D_FN: a prototype in a module's header, M.kh (#146): the library's

@@ -4261,6 +4261,21 @@ static Expr *parse_primary(void) {
                     e->target = cands.data[0];
                 else
                     e->cands = cands;
+                if (e->target && e->target->static_attr) {
+                    /* T.x, a computed attribute of the type (#595): each
+                       read calls it, with no parentheses */
+                    if (is_p(peek(), "(") && !line_ends_expression())
+                        error_at(peek()->pos, "'%s' is an attribute of the type: read it as '%s', with no parentheses",
+                                 full, full);
+                    if (is_p(peek(), "=") || is_p(peek(), ":=") || compound_op(peek()))
+                        error_at(peek()->pos, "'%s' is computed, and never set: a stored attribute, 'static var %s = "
+                                              "v', is",
+                                 full, full);
+                    Expr *x = new_expr(E_CALL, t->pos);
+                    x->a = e;
+                    resolve_call(x);
+                    return x;
+                }
                 return e;
             }
         }
@@ -4270,6 +4285,10 @@ static Expr *parse_primary(void) {
         advance();
         Expr *e = new_expr(t->kind == TK_IDENT ? E_IDENT : E_LITERAL, t->pos);
         e->text = t->text;
+        if (t->kind == TK_IDENT && !strcmp(t->text, "self") && parsing_fn && parsing_fn->static_attr)
+            error_at(t->pos, "an attribute of a type has no self: '%s' is read by the type's name, with no value "
+                             "before it; an attribute of a value, 'let %s.name:R { ... }', has one",
+                     parsing_fn->name, parsing_fn->recv_name);
         if (t->kind == TK_IDENT && !strcmp(t->text, "self") && parsing_fn && parsing_fn->type_fn &&
             !parsing_fn->subscript) /* a subscript has self (#136) */
             error_at(t->pos, "a function of a type has no self: '%s' is called as %s(...), with no value before it; "
@@ -15366,8 +15385,9 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
     d->bind_index = scope_names.len - 1; /* a nested function is found by its binding (#180) */
     open_scope();
     params_start = scope_names.len;
-    expect_p("(");
-    while (!is_p(peek(), ")")) {
+    if (!d->static_attr) /* static let T.x:R { } (#595): no parameters, and no parentheses */
+        expect_p("(");
+    while (!d->static_attr && !is_p(peek(), ")")) {
         if (accept_p("...")) {
             if (d->params.len == 0)
                 error_at(pos, "a variadic function needs at least one named parameter");
@@ -15387,7 +15407,8 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
         if (!accept_p(","))
             break;
     }
-    expect_p(")");
+    if (!d->static_attr)
+        expect_p(")");
     params_end = scope_names.len;
     if (accept_p(":")) {
         if (void_result_ahead()) { /* :() is no result, written out (#141) */
@@ -15401,8 +15422,24 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
                          kelvin_type(d->ret));
         }
     }
+    if (d->static_attr && !d->ret)
+        error_at(name->pos, "an attribute has a value: write its type, as in 'static let %s:R { ... }'", d->name);
     check_overload(d, name);
     list_push(&functions, d);
+    /* a module's header says a computed attribute of a type so, { get }
+       (#595): with nothing after its type it would be a stored one's */
+    if (d->static_attr && in_kh(name->pos) && is_p(peek(), "{") && peek2()->kind == TK_IDENT &&
+        !strcmp(peek2()->text, "get") && is_p(peek_at(2), "}")) {
+        advance();
+        advance();
+        advance();
+        d->kelvin_proto = true;
+        close_scope();
+        return d;
+    }
+    if (d->static_attr && !is_p(peek(), "{") && !name->ahead)
+        error_at(peek()->pos, "an attribute is computed by its body: write 'static let %s:%s { ... }'", d->name,
+                 d->ret ? kelvin_type(d->ret) : "R");
     /* a prototype ends with `;` or a new line (#35); a body is a block */
     if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
         Decl *outer = parsing_fn; /* NULL at the top level; the function around a nested one (#180) */
@@ -15516,6 +15553,12 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
            type, Swift's static func, with no self, called as T.name(...);
            T a struct, union or enum with values of the program */
         bool builtin_owner_type = is_kw(recv, "Bytes") || is_kw(recv, "String"); /* Bytes.f(...) too (#168) */
+        bool computed = is_p(peek2(), ":"); /* static let T.x:R { } (#595) */
+        if (recv->kind == TK_KEYWORD && !builtin_owner_type && computed)
+            error_at(recv->pos, "a computed attribute of a type is declared on a struct, union or enum of the program, "
+                                "or on Bytes or String: of '%s', which is built in, write a stored one, 'static let "
+                                "%s.%s = ...'",
+                     recv->text, recv->text, name->text);
         if (recv->kind == TK_KEYWORD && !builtin_owner_type)
             error_at(recv->pos, "a function of a type is declared on a struct, union or enum of the program, or on "
                                 "Bytes or String: '%s' is built in",
@@ -15528,8 +15571,22 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
         Decl *d = new_decl(D_FN, pos, NULL);
         d->imported = name->imported;
         d->type_fn = true;
+        d->static_attr = computed;
         d->recv_name = recv->text;
         d->name = strfmt("%s.%s", recv->text, expect_ident("a function name"));
+        for (int i = 0; i < functions.len; i++) { /* one name, an attribute or a function (#595) */
+            Decl *o = functions.data[i];
+            if (o->type_fn && !strcmp(o->name, d->name) && o->static_attr != computed)
+                error_at(name->pos, "'%s' is %s of %s already: one name is an attribute of a type, read as %s, or a "
+                                    "function of it, called",
+                         name->text, o->static_attr ? "a computed attribute" : "a function", recv->text, d->name);
+        }
+        if (computed) /* one name, a stored attribute or a computed one */
+            for (int i = 0; i < type_attrs.len; i++)
+                if (!strcmp(type_attrs.data[i], strfmt("%s__%s", recv->text, name->text)))
+                    error_at(name->pos, "'%s' is a stored attribute of %s already, 'static let %s = ...': an attribute "
+                                        "of a type is stored or computed, not both",
+                             name->text, recv->text, d->name);
         return parse_fn_tail(d, name, pos);
     }
     Decl *d = new_decl(D_FN, pos, storage);
@@ -15847,6 +15904,10 @@ static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *rec
     if (is_let && !v->init && !declared)
         error_at(v->pos, "a static let needs a value: write 'static let %s.%s = ...', or 'static var' if it changes",
                  recv->text, v->name);
+    if (function_named(strfmt("%s.%s", recv->text, v->name))) /* (#595) */
+        error_at(v->pos, "'%s' is a computed attribute or a function of %s already: an attribute of a type is stored "
+                         "or computed, not both",
+                 v->name, recv->text);
     char *cn = strfmt("%s__%s", recv->text, v->name);
     for (int i = scope_names.len - 1; i >= before; i--)
         if (!strcmp(scope_names.data[i], v->name)) {
@@ -16180,10 +16241,32 @@ static void parse_typealias(void) {
     (void)kw;
 }
 
+static char header_end(int i, int *end);
+
+/* Is the static member named at nm a computed attribute of the type,
+   static let x:R { ... } (#595): a type, and then a body, where a stored
+   one, static let x:R = v, has a value? It is read, T.x, and each read
+   computes it; it is a let, as nothing sets it. */
+static bool static_computed(Token *nm, bool is_let) {
+    int end;
+    if (nm->kind != TK_IDENT || !is_p(nm + 1, ":"))
+        return false;
+    /* its header alone, where kelvinc wrote it ahead as a prototype (#505):
+       a stored one is never written so */
+    if (!nm->ahead && header_end((int)(nm - toks), &end) != 'b')
+        return false;
+    if (!is_let)
+        error_at(nm->pos, "a computed attribute of a type is read and never set: write 'static let %s:R { ... }', or "
+                          "'static var %s = v' for a stored one",
+                 nm->text, nm->text);
+    return true;
+}
+
 /* extend T { ... } (#130), Swift's extension: the members of T without
    writing T: let f() {} a method, static let f() {} a function of the
    type, let x:R {} a computed attribute, var x:R { get set } one with a
-   setter, static let x = v and static var x = v type attributes */
+   setter, static let x = v and static var x = v type attributes, and
+   static let x:R {} a computed one (#595) */
 static void parse_extend(Program *prog) {
     advance(); /* extend */
     Token *recv = peek();
@@ -16274,6 +16357,10 @@ static void parse_extend(Program *prog) {
             advance();
             top_name = strfmt("%s_%s", rname, nm->text);
             var_method_next = !is_let; /* var m(...): self is the caller's var (#318) */
+            add_top_decl(prog, parse_method(m->pos, storage));
+        } else if (storage && static_computed(nm, is_let)) { /* static let x:R { } (#595) */
+            advance();
+            top_name = strfmt("%s_%s", rname, nm->text);
             add_top_decl(prog, parse_method(m->pos, storage));
         } else if (storage) {
             advance();
@@ -17278,8 +17365,10 @@ static void forward_prototypes(void) {
                     int m = j;
                     while (storage_kw(&toks[m]))
                         m++;
-                    bool member_attr = m == j && toks[m + 1].kind == TK_IDENT &&
-                                       is_p(&toks[m + 2], ":"); /* let x:R { }, var x:R { get set } (#544) */
+                    bool member_attr = (m == j || (m == j + 1 && is_kw(&toks[j], "static") && is_kw(&toks[m], "let"))) &&
+                                       toks[m + 1].kind == TK_IDENT &&
+                                       is_p(&toks[m + 2], ":"); /* let x:R { }, var x:R { get set } (#544); static
+                                                                   let x:R { }, computed (#595) */
                     if ((is_kw(&toks[m], "let") || is_kw(&toks[m], "var")) &&
                         (toks[m + 1].kind == TK_IDENT || overloadable_op(&toks[m + 1])) &&
                         (is_p(&toks[m + 2], "(") || member_attr)) {
@@ -17572,7 +17661,19 @@ Program *parse(Token *tokens, int ntoks) {
                 advance();
             expect_p(".");
             Token *nm = peek(), *after = peek2();
-            if (storage && !strcmp(storage, "static")) {
+            if (storage && !strcmp(storage, "static") && static_computed(nm, is_let)) {
+                bool saved = in_extend; /* static let T.x:R { } (#595) */
+                Token *saved_tok = ext_tok;
+                Type *saved_spelled = ext_spelled;
+                in_extend = true; /* parse_method then names no receiver: it is read */
+                ext_tok = recv;
+                ext_spelled = spelled;
+                top_name = strfmt("%s_%s", recv->text, nm->text);
+                add_top_decl(prog, parse_method(t->pos, storage));
+                in_extend = saved;
+                ext_tok = saved_tok;
+                ext_spelled = saved_spelled;
+            } else if (storage && !strcmp(storage, "static")) {
                 parse_type_attribute(prog, t->pos, is_let, recv, spelled);
             } else if (storage) {
                 error_at(t->pos, "extern is not for an attribute");
@@ -18190,6 +18291,10 @@ static char *gen_header_of(Program *prog) {
                 char *text = how == 't' ? type_attribute_decl(prog, m, false) : raw_text(m, end);
                 if (how == 'b' && (is_kw(&toks[m + 1], "cstr") || inl))
                     text = raw_text(m, group_end(end) + 1); /* T.cstr() (#53) is inline: its body too */
+                else if (how == 'b' && h > m && is_kw(&toks[h - 1], "static") && is_kw(&toks[h], "let") &&
+                         toks[h + 1].kind == TK_IDENT && is_p(&toks[h + 2], ":"))
+                    text = strfmt("%s { get }", text); /* static let x:R { }, computed (#595): said so, as with
+                                                          nothing after its type it is a stored one's */
                 if (!text_listed(&block_seen, text)) {
                     list_push(&block_seen, text);
                     buf_printf(&b, "    %s\n", text);
@@ -18209,6 +18314,9 @@ static char *gen_header_of(Program *prog) {
                 char *text = how == 't' ? type_attribute_decl(prog, i, true) : raw_text(i, end);
                 if (how == 'b' && ((is_p(&toks[k + 2], ".") && is_kw(&toks[k + 3], "cstr")) || inl))
                     text = raw_text(i, group_end(end) + 1); /* let T.cstr():cstr { ... } (#53) is inline */
+                else if (how == 'b' && storage && !strcmp(storage, "static") && is_kw(&toks[k], "let") &&
+                         is_p(&toks[k + 2], ".") && toks[k + 3].kind == TK_IDENT && is_p(&toks[k + 4], ":"))
+                    text = strfmt("%s { get }", text); /* static let T.x:R { }, computed (#595) */
                 if (!file_local && !text_listed(&seen, text)) {
                     list_push(&seen, text);
                     if (how == 'b' || text_listed(&defined, text) || (storage && !strcmp(storage, "extern")))

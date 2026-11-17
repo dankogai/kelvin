@@ -278,7 +278,8 @@ So far the changes from C are these, by topic.
   `let f()`, functions `static let f()`, computed attributes
   `let area:f64 { .w * .h }` read as `r.area`, attributes with a setter
   `var celsius:f64 { get { ... } set(v) { ... } }`, type attributes
-  `static var count:i64 = 0` read as `T.count`, operators
+  `static var count:i64 = 0` read as `T.count`, computed ones
+  `static let origin:Self { ... }` read as `T.origin`, operators
   `static let +(a:Self, b:Self):Self`, and subscripts `let [](i:i64):R`;
   in every member `.w` is `self.w` and `Self` is `T`; each also written
   alone, `let T.area:f64 { ... }`
@@ -627,3 +628,8 @@ So far the changes from C are these, by topic.
   result is no value of a body and no argument, as a program's own
   `log(x:i64)` beside math's `log`, and one with a result is a value a
   body drops; both were left to C (#593)
+- A type attribute may be computed, `static let T.x:R { ... }`, read
+  as `T.x` with no parentheses and made at each read, where
+  `static let T.x = v` is one stored value: so an owner may be one,
+  each read a new one; in `extend T { }` it is `static let x:R { ... }`,
+  and a module's header writes it `static let x:R { get }` (#595)

@@ -250,6 +250,7 @@ var tally_box.bump(by:int64):int64 {
     return .n
 }
 extend tally_box {
+    static let empty:Self { (tally_box){0} }             // a computed attribute of the type (#595): tally_box.empty
     var reset() { self.n = 0 }
     var bump_twice():int64 {                            // .m(a), self's method (#444)
         .bump(1)
@@ -1583,6 +1584,8 @@ on a new line`
     println(exp(CBF(BigFloat("7000000000000000000"), BigFloat("0x1p-4000000000000000000"))).hex, " ", exp(CBF(BigFloat("-6393154322601327735"), BigFloat(1))).hex, " ", tanh(CBF(BigFloat("3196577161300663870"), BigFloat(1))).hex, " ", pow(CBF(BigFloat(2), BigFloat("0x1p-4000000000000000000")), CBF(BigFloat("0x1.1p+63"))).hex)   // a part of a CBF's exp is tried as the product it is (#589)
     told593(593)
     println(chosen593(), " ", told593(0.25))   // an overload's call has the result of the one called (#593)
+    var tb595 = tally_box.empty                // a computed attribute of the type, read with no parentheses (#595)
+    println(tb595.bump(5), " ", tally_box.empty.n)
     return 0
 }
 

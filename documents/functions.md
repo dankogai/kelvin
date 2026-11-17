@@ -220,6 +220,10 @@ println(p.dist2())                        // 25; p.origin() is an error: it is c
     `let T.name()`, is not called by the type's name.
 - A `static let T.name()` used to be a method with C's `static`; a
   file-local method had no use, and the plain `let T.name()` serves.
+- With a type and a body in place of its parameters,
+  `static let T.name:R { ... }`, it is a computed attribute of the
+  type, read as `T.name` (#595); see
+  [properties.md](properties.md#attributes-of-your-own-and-extend).
 - In C it is `T__name`, with its parameter types appended when it
   overloads or comes from an imported file, as `point__of__i64__i64`.
 

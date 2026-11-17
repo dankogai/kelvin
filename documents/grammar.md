@@ -100,7 +100,9 @@ static var calls:int32
 - **Storage classes** go in front: `static let f():i32`,
   `static var n:i32`, `extern var e:i32` *(provisional P9)*.
   - On a dotted name, `static let T.name()` is a function of the type,
-    not C's static (#111).
+    not C's static (#111), `static let T.x = v` a value of the type
+    (#133), and `static let T.x:R { ... }` one computed at each read
+    (#595).
 - There is no C-style declaration. `int x;` is an error, and so is `int`
   itself (see [integers.md](integers.md)).
 
