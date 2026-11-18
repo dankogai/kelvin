@@ -9,6 +9,7 @@ bootstraps itself, it reaches a fixpoint (#204).
 
 ```sh
 selfhost/bootstrap.sh                   # kc built in three stages, to a fixpoint
+selfhost/errors.sh                      # kc over the programs kelvinc refuses
 build/selfhost/stage3 program.k -o app  # kc builds a program
 ```
 
@@ -64,12 +65,15 @@ Agreed in #279.
 | [sample.k](sample.k) | a program of the subset, built by both compilers, which must print the same |
 | [bootstrap.sh](bootstrap.sh) | the stages and their checks |
 | [sanitize.sh](sanitize.sh) | kc built with ASan and UBSan, which must write the same C (#228) |
+| [errors.sh](errors.sh) | kc over `tests/error`, the programs kelvinc refuses (#609) |
+| [errors.txt](errors.txt) | the tests kc does not yet refuse in kelvinc's words, which `errors.sh` checks kc against |
 
 ### The stages
 
 ```sh
 selfhost/bootstrap.sh
 selfhost/sanitize.sh
+selfhost/errors.sh
 ```
 
 | Stage | Built by | From |
@@ -92,6 +96,22 @@ selfhost/sanitize.sh
 - **Sanitizers** (#228): `sanitize.sh` builds kc from stage2's C with
   ASan and UBSan, and its C of `kc.k` and of `sample.k` must be the
   stages' own, with no memory error and no undefined behavior.
+- **The errors** (#609): `errors.sh` runs stage3 over every program
+  of `tests/error`, which kelvinc refuses with the text of the test's
+  `// error:` line, and says which of five kc's answer is.
+  - `same`: kc refuses it, and what is printed has that text.
+  - `words`: kc refuses it in words of its own.
+  - `c`: kc writes its C, and the C compiler refuses that.
+  - `built`: kc builds what kelvinc refuses.
+  - `crash`: kc itself ends, with no error of the program.
+  - `errors.txt` lists each test that is not `same`, with which of
+    the four it is: as of #609, 431 of the 928, of which 249 are
+    `words`, 109 `c`, 70 `built` and 3 `crash`.
+  - The check fails where a test is not as listed: one that got
+    worse, and one that got better, whose line is to go. So the list
+    only shrinks, and a new test of `tests/error` is the same in kc,
+    or is listed.
+  - `selfhost/errors.sh --write` writes the list anew, as kc is.
 - Everything goes into `build/selfhost/`; nothing is removed.
 
 ### Using kc

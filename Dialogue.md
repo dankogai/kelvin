@@ -11917,3 +11917,30 @@ release", once CI passed: the tag v0.3.0 and the release Kelvin
 0.3.0, of CHANGELOG.md's notes. Details are provisional P620.
 
 There are 1414 tests, and all pass with clang and with gcc 15.
+
+### 656. kc over the error tests
+
+**User**: "push. then tag v0.3.0 and make a release", which **Claude**
+did: Kelvin 0.3.0 is released. Then:
+
+> add a battery step that runs kc over the error tests
+
+tests/error has 928 programs kelvinc refuses, each with the text of
+its error, and they were kelvinc's alone: what kc did of one was
+found one at a time, as #602's crash was. Claude ran kc over them
+all: it refuses 497 with kelvinc's text, 249 in words of its own and
+109 by the C compiler's, builds 70, and ends itself on 3.
+
+So no step could ask that all pass. Claude asked what fails it, and
+where it runs, and the **user** answered: any change from a list,
+and the battery and CI. `selfhost/errors.sh` says which of five
+kc's answer is, same, words, c, built or crash, and
+selfhost/errors.txt lists the 431 that are not the same. A test that
+got worse fails the check, and so does one that got better, until
+its line is gone: the list only shrinks. A new test of tests/error
+is the same in kc, or is listed.
+
+Neither compiler is changed: the 3 crashes and the 70 built are
+listed and left. Details are provisional P621.
+
+There are 1414 tests, and all pass with clang and with gcc 15.
