@@ -335,6 +335,18 @@ kc reads what it is written in, and little more.
     is `T__f(...)`: kelvinc's names, called straight, since kc sees the
     receiver's type where kelvinc lets C's `_Generic` choose.
   - `return {a, b}` is of the function's type.
+  - **Where there is no self** (#602), `self` and `.x` are kelvinc's
+    errors, in its words: in a function, a function of a type or a
+    type's computed attribute, an anonymous function in a method,
+    which C gives no closure, and a global's value.
+    - gen.k's `self_known` asks it where it types `self` and where it
+      writes it; an anonymous function's own function is found by
+      `anon_outer`.
+    - kc asked the receiver of a function that has none before, and
+      ended with an index out of range; of a function of a type it
+      left `self` to C.
+    - A bare `self` in a function with no receiver kelvinc leaves to
+      C, an undeclared identifier; kc says it, in words of its own.
   - **A var method** (#320), `var T.m(...)` and `var m(...)` in
     extend, as kelvinc's #318: `T__m(T *_kv_selfp, ...)`, `self` the
     caller's var through `#define self (*_kv_selfp)`, called as

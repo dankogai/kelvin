@@ -11743,3 +11743,26 @@ functions whatever the order of its files. Details are provisional
 P613.
 
 There are 1403 tests, and all pass with clang and with gcc 15.
+
+### 649. kc, where there is no self
+
+**User**: "push", for #601, and then: "fix kc's crash on .name with no
+self as #602". **Claude** pushed #601, whose battery was clean, and
+mended this.
+
+`let n:Color = .cooked` in a function is an error: `.cooked` is
+`self.cooked`, and a function has no self. kelvinc says so. kc ended
+with "index 18446744073709551615 is out of range": it typed `self` by
+the receiver of the function it was writing, and a function with none
+has -1 there. An anonymous function did the same, and a global's
+value.
+
+kc asks first now, and says kelvinc's errors in kelvinc's words. The
+same question answered two cases that did not end kc but were left to
+C, `self` in a function of a type and in a type's computed attribute,
+so those are kelvinc's errors in kc too: Claude's choice, a little
+past the order. One case has no words of kelvinc's, a bare `self` in a
+function with no receiver, which kelvinc leaves to C; kc says it in
+words of its own. Details are provisional P614.
+
+There are 1404 tests, and all pass with clang and with gcc 15.

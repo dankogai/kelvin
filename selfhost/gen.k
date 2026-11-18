@@ -1409,6 +1409,72 @@ let recv_type(recv:int64):int64 {
 var method_names_of:Dictionary<int64, int64>   // a method of several by its parameters' types: the token of its name as written (#515)
 var method_targets:Dictionary<int64, int64>    // the method each call of such a name chose
 
+// the function each anonymous function is written in (#602)
+var anon_outer:Dictionary<int64, int64>
+
+// whether a self is there where n is written, self or the self of .x:
+// in a method, an attribute or a subscript of a value. Elsewhere it is
+// kelvinc's error, in its words (#602), where kc asked the receiver of a
+// function that has none, and ended with an index out of range: a
+// function, a function of a type, an anonymous function in a method,
+// which C gives no closure, and a global's value
+let self_known(n:int64):bool {
+    var f:int64 = current
+    var inside = false
+    while f >= 0 && anon_outer.has(f) {
+        f = anon_outer.get(f, 0 - 1)
+        inside = true
+    }
+    let fn = f >= 0 && nodes[f].kind == D_FN
+    let has = fn && nodes[f].c >= 0 && nodes[f].flag != 1
+    if has && !inside { return true }
+    if failed { return false }
+    let t:int64 = nodes[n].t
+    let dot = tok_is(t, ".")
+    var m = $""
+    if dot {
+        m += "'."
+        m += tok_text(t + 1)
+        m += "' is self."
+        m += tok_text(t + 1)
+    }
+    if has && dot {
+        m += ", and an anonymous function cannot use 'self' of the function around it: C has no closures, so pass it as an argument"
+    } else if has {
+        m += "an anonymous function cannot use 'self' of the function around it: C has no closures, so pass it as an argument, or make it a global"
+    } else if !fn && dot {
+        m = $"an expression is expected"
+    } else if dot {
+        m += " in a method, an attribute or a subscript, and "
+        m += nodes[f].c >= 0 ? "a function of a type, called as T.name(...)," : "a function"
+        m += " has no self"
+    } else if fn && nodes[f].c >= 0 {
+        var name:String = tok_text(nodes[f].c)
+        name += "."
+        name += tok_text(method_names_of.get(f, nodes[f].t))
+        if static_attrs.has(f) {
+            m += "an attribute of a type has no self: '"
+            m += &name
+            m += "' is read by the type's name, with no value before it; an attribute of a value, 'let "
+            m += tok_text(nodes[f].c)
+            m += ".name:R { ... }', has one"
+        } else {
+            m += "a function of a type has no self: '"
+            m += &name
+            m += "' is called as "
+            m += &name
+            m += "(...), with no value before it; a method, 'let "
+            m += tok_text(nodes[f].c)
+            m += ".name()', has one"
+        }
+    } else {
+        m += "'self' is the value of a method, an attribute or a subscript, and a function has no self"
+    }
+    gen_error(n, m.cstr)
+    return false
+}
+
+
 // x.m(...) of a number, or of a struct or a union of the program with no
 // member m, which has no method m that another type has: kelvinc's error
 // of #539, in its words, naming each type that has it; whether it was said
@@ -1986,7 +2052,12 @@ let type_of(n:int64):int64 {
     if k == N_TPL { return base_type(nodes[n].flag == 1 ? Y_STRING : Y_CSTR) }   // `a${x}b`, $`a${x}b` a String (#445)
     if k == N_BOOL { return base_type(Y_BOOL) }
     if k == N_NULL { return base_type(Y_C) }
-    if k == N_SELF { return recv_type(nodes[current].c) }      // (#213); a number's, a String's or a Bytes's own (#550)
+    if k == N_SELF {                                     // (#213); a number's, a String's or a Bytes's own (#550)
+        if !self_known(n) { return 0 - 1 }               // where there is one (#602)
+        var f:int64 = current
+        while anon_outer.has(f) { f = anon_outer.get(f, 0 - 1) }
+        return recv_type(nodes[f].c)
+    }
     if float_word(n) { return base_type(Y_F64) }                      // nan, inf (#262)
     if k == N_ID {
         if t < eof_pos && kelvin_word(t) {               // as an unnamed parameter's (#388)
@@ -11032,7 +11103,7 @@ let gen_expr_of(n:int64) {
     } else if k == N_NULL {
         put("NULL")
     } else if k == N_SELF {
-        put("self")
+        if self_known(n) { put("self") }                 // (#602)
     } else if k == N_NUM && widen_ints && !float_tok(t) {
         put("((int64_t)")                                // an i64, as kelvinc casts it (#385)
         put_tok(t)
@@ -13208,6 +13279,7 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
     anon_serial += 1                                 // its own number, where one inside another is made first (#444)
     name += String(anon_serial)
     let d:int64 = make_node(D_FN, made_token(&name))
+    anon_outer[d] = current                          // where it is written (#602)
     if nodes[an].flag == 1 {
         var last:int64 = 0 - 1
         for k in 0..<ps^.count as int64 {
