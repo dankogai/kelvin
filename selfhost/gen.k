@@ -1402,6 +1402,9 @@ let method_of(n:int64):int64 {
     return method_chosen(n, f)
 }
 
+let sees_c_arg(n:int64):bool    // prototypes: a method's tied overloads ask them (#611)
+let struct_of(y:int64):int64
+
 var tied_cands:$[int64]                  // the overloads a call fits alike (#471)
 var builtin_recvs:Dictionary<String, int64>   // String, Bytes and u32 as a receiver's name, a token of each (#515, #527)
 
@@ -1562,6 +1565,20 @@ let method_chosen(n:int64, f:int64):int64 {
     }
     var best:int64 = choose_among(n, &some, false)
     if best == 0 - 1 { best = choose_among(n, &some, true) }   // a T fits a T?, the second look (#222)
+    if best == 0 - 2 && !sees_c_arg(n) && !failed {      // as kelvinc says it (#158, #611); with what only C sees, the first
+        let a:int64 = nodes[n].a
+        let ay:int64 = names_type(a) || nodes[a].kind == N_TYPE ? 0 - 1 : type_of(a)
+        var m = $"'."
+        m += tok_text(w)
+        m += "' of "
+        if ay >= 0 && struct_of(ay) >= 0 { m += nodes[struct_of(ay)].flag == 1 ? "union " : "struct " }   // as kelvinc names a struct here
+        let what:String = ay >= 0 ? kelvin_type_text(ay) : kelvin_name(nodes[f].c)
+        m += &what
+        m += " fits more than one of its overloads equally: convert an argument, as in 'x as f64'"
+        gen_error(n, m.cstr)
+        method_targets[n] = 0 - 1
+        return 0 - 1
+    }
     if best == 0 - 2 { best = tied_cands[0] }
     method_targets[n] = best
     if best < 0 && builtin { return best }              // kc's own method of a String or a Bytes
@@ -3688,6 +3705,27 @@ let tied_call(n:int64, name:const String^, op:bool):bool {
     return true
 }
 
+// whether the functions named name that have a parameter k agree on its
+// type, as kelvinc's call_param_type asks (#41, #611): an anonymous
+// function with $0 takes its parameters' types from it
+let overloads_agree(name:const String^, k:int64):bool {
+    var seen = $""
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 || tok_text(nodes[d].t) != name^ { continue }
+        var p:int64 = nodes[d].a
+        var i = 0
+        while p >= 0 && i < k {
+            p = nodes[p].next
+            i += 1
+        }
+        if p < 0 || nodes[p].ty < 0 { continue }
+        let w:String = kelvin_type_text(nodes[p].ty)
+        if seen.count > 0 && seen != w { return false }
+        seen = w.copy()
+    }
+    return true
+}
+
 // the function call n calls: the one of its name, or the overload its
 // arguments fit, chosen once; -1 C's
 let call_target(n:int64):int64 {
@@ -3697,7 +3735,23 @@ let call_target(n:int64):int64 {
     var name = tok_text(nodes[f].t)
     if fn_overloads.get(name, 0) < 2 { return first }
     if targets.has(n) { return targets.get(n, -1) }
-    var a:int64 = -1
+    var a:int64 = nodes[n].b
+    var k = 0
+    while a >= 0 && !failed {                            // { $0 * 2 } where the overloads differ in its parameter (#41, #611)
+        if nodes[a].kind == N_ANON && nodes[a].flag == 1 && !overloads_agree(&name, k) {
+            var t:int64 = nodes[a].t + 1
+            while t < eof_pos && !(toks[t].kind == T_ID && codes[toks[t].at] == '$') { t += 1 }
+            var m = $"kelvinc cannot see this anonymous function's parameters, so '"
+            m += t < eof_pos ? tok_text(t) : $"$0"
+            m += "' has no type: write them, as in '{ (a:i32, b:i32):bool in ... }'"
+            gen_error(a, m.cstr)
+            targets[n] = first
+            return first
+        }
+        k += 1
+        a = nodes[a].next
+    }
+    a = 0 - 1
     var d = choose_overload(n, &name, false)
     if d == -1 { d = choose_overload(n, &name, true) }   // a T where a T? goes (#222)
     if d == -2 && tied_call(n, &name, false) { return targets.get(n, -1) }
@@ -5524,6 +5578,7 @@ let gen_io_method(n:int64, a:int64) {
         gen_error(n, e.cstr)
         return
     }
+    if tok_is(t, "rename") && std_io(a) < 0 && !may_change(a) { return }   // it changes the IO's path, its var's (#101, #611)
     let glob = tok_is(t, "glob")
     let y:int64 = io_method_type(n)
     if glob { put("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; ") }
@@ -5587,6 +5642,35 @@ let gen_io_method(n:int64, a:int64) {
 // and #177: KV_STRING_TEXT_OR_REF of the searches, text, a cstr or a
 // String borrowed; KV_STRING_APPEND of text, &t or a codepoint;
 // a String an expression gives held around the statement, as escape's
+// whether x, appended to a String, is a borrow of a Bytes, with kelvinc's
+// error (#55, #611): a String takes text it can check
+let bytes_ref_appended(x:int64):bool {
+    let xy:int64 = type_of(x)
+    if failed { return true }
+    if xy < 0 || types[xy].kind != Y_PTR || types[xy].elem < 0 || types[types[xy].elem].kind != Y_BYTES { return false }
+    let b:String = nodes[x].kind == N_ADDR && nodes[nodes[x].a].kind == N_ID ? tok_text(nodes[nodes[x].a].t) : $"b"
+    var m = $"a String takes text, not a borrow of a Bytes, which may not be UTF-8: give 'String(&"
+    m += &b
+    m += ")', checked, or '"
+    m += &b
+    m += ".cstr' up to a NUL"
+    gen_error(x, m.cstr)
+    return true
+}
+
+// whether t names a method that changes a value of kind k (#611), as
+// kelvinc's table of them has it
+let changing_method(k:ykind, t:int64):bool {
+    let all = tok_is(t, "clear") || tok_is(t, "reserve")
+    if k == Y_STRING { return all || tok_is(t, "append") || tok_is(t, "compact") }
+    if k == Y_BYTES { return all || tok_is(t, "append") || tok_is(t, "compact") || tok_is(t, "insert") || tok_is(t, "remove") }
+    if k == Y_ARRAY { return all || tok_is(t, "append") || tok_is(t, "compact") || tok_is(t, "insert") || tok_is(t, "remove") || tok_is(t, "pop") }
+    if k == Y_DICT { return all || tok_is(t, "remove") }
+    if k == Y_SET { return all || tok_is(t, "remove") || tok_is(t, "insert") }
+    if k == Y_IO { return tok_is(t, "close") || tok_is(t, "rename") }
+    return false
+}
+
 let gen_string_method(n:int64, a:int64, y:int64) {
     let t:int64 = nodes[n].t
     let x:int64 = nodes[n].b
@@ -5634,6 +5718,7 @@ let gen_string_method(n:int64, a:int64, y:int64) {
         owner_copy_error(x, "append")
         return
     }
+    if tok_is(t, "append") && x >= 0 && bytes_ref_appended(x) { return }   // (#611)
     if search {
         put("KV_STRING_TEXT_OR_REF(")
         put_tok(t)
@@ -6190,6 +6275,13 @@ let pointer_property(n:int64):int64 {
         gen_error(n, k == Y_FIXED ? "'.addr' of an array: an array is no pointer; write '(&a[0]).addr'" : "'.addr' is a property of pointers and functions")
         return 0 - 1
     }
+    if k == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind == Y_VOID {   // as kelvinc says it (#611)
+        var m = $"an any^ has no '."
+        m += tok_text(t)
+        m += "': its element has no size"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
     if k == Y_PTR { return 3 }
     if k == Y_CSTR {
         gen_error(n, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a 'var p:u8^ := s'")
@@ -6697,6 +6789,7 @@ let text_in_buffer(e:int64):int64 {
     if k == N_TPL { return nodes[e].flag == 0 ? e : 0 - 1 }
     if number_text(e) || shown_cstr(e) || scalar_cstr(e) { return e }   // .cstr of what print shows too (#450), of a number (#462)
     if k == N_CAST { return text_in_buffer(nodes[e].a) }
+    if k == N_ADDR { return nodes[nodes[e].a].kind == N_INDEX ? text_in_buffer(nodes[nodes[e].a].a) : 0 - 1 }   // &text[i], as kelvinc's (#611)
     if k == N_COND {
         let b = text_in_buffer(nodes[e].b)
         return b >= 0 ? b : text_in_buffer(nodes[e].c)
@@ -6944,6 +7037,56 @@ let put_clamp_limits(y:int64) {
 // T(v) and T(text, base), the converter n (#429), as kelvinc's #36: a
 // number C's cast, text the number in it, read as strtol and strtod
 // read it; what only C sees, C's _Generic chooses, as kelvinc's KV_TEXT
+// whether base, a converter's written base, is one, or kelvinc's error
+// of it, as its check_base says it (#611): a floating-point number is
+// none, nor a literal of any radix, or a negated one, outside 2 to 36
+let base_ok(base:int64):bool {
+    let neg = nodes[base].kind == N_UNARY && tok_is(nodes[base].t, "-")
+    let lit:int64 = neg ? nodes[base].a : base
+    let by:int64 = nodes[lit].kind == N_NUM ? (float_tok(nodes[lit].t) ? base_type(Y_F64) : base_type(Y_I64)) : type_of(base)
+    if failed { return false }
+    if by >= 0 && (types[by].kind == Y_F64 || types[by].kind == Y_F32) {
+        gen_error(base, "a base is an integer from 2 to 36")
+        return false
+    }
+    if nodes[lit].kind != N_NUM { return true }
+    let t:int64 = nodes[lit].t
+    let at:int64 = toks[t].at
+    let len:int64 = toks[t].len
+    var radix = 10
+    var i = 0
+    if len > 1 && codes[at] == '0' {
+        radix = 8
+        i = 1
+        if codes[at + 1] == 'x' || codes[at + 1] == 'X' {
+            radix = 16
+            i = 2
+        } else if codes[at + 1] == 'b' || codes[at + 1] == 'B' {
+            radix = 2
+            i = 2
+        }
+    }
+    var v = 0
+    while i < len && v < 1000 {
+        let c:uint32 = codes[at + i]
+        var d = 99
+        if c >= '0' && c <= '9' { d = c as int64 - 48 }
+        if c >= 'a' && c <= 'f' { d = c as int64 - 87 }
+        if c >= 'A' && c <= 'F' { d = c as int64 - 55 }
+        if d >= radix { break }
+        v = v * radix + d
+        i += 1
+    }
+    if neg || v < 2 || v > 36 {
+        var m = $"a base is 2 to 36, not "
+        if neg { m += "-" }
+        m += tok_text(t)
+        gen_error(base, m.cstr)
+        return false
+    }
+    return true
+}
+
 let gen_converter(n:int64) {
     let y:int64 = converter_of(n)
     let name:String = type_text(y)
@@ -7043,6 +7186,10 @@ let gen_converter(n:int64) {
         return
     }
     let text:bool = converter_text(v)
+    if k == Y_BOOL && text && (nodes[v].kind == N_STR || nodes[v].kind == N_TPL) {   // as kelvinc says it (#611)
+        gen_error(n, "bool(...) reads no text, and this text is never nowhere, so it would always be true")
+        return
+    }
     if base >= 0 && (k == Y_F64 || k == Y_F32) {
         var m = $"a base is for reading an integer from text; "
         m += &name
@@ -7060,6 +7207,7 @@ let gen_converter(n:int64) {
         gen_error(base, m.cstr)
         return
     }
+    if base >= 0 && !base_ok(base) { return }            // (#611)
     let number = !unseen && is_number_kind(types[vy].kind)
     if !text && !unseen && k != Y_BOOL && (types[vy].kind == Y_PTR || types[vy].kind == Y_FIXED) {   // as kelvinc says it (#513)
         var m = name.copy()
@@ -7800,6 +7948,17 @@ let gen_method(n:int64) {
         gen_method_of(n)
         return
     }
+    let hy:int64 = type_of(a)
+    if hy >= 0 && changing_method(types[hy].kind, nodes[n].t) && method_of(n) < 0 {   // as kelvinc says it (#187, #611)
+        let hk:ykind = types[hy].kind
+        var m = $"'."
+        m += tok_text(nodes[n].t)
+        m += "' changes "
+        m += hk == Y_BYTES ? "a Bytes" : hk == Y_STRING ? "a String" : hk == Y_DICT ? "a Dictionary" : hk == Y_SET ? "a Set" : hk == Y_IO ? "an IO" : "an Array"
+        m += ", and this one an expression gives would be lost: bind it to a variable first"
+        gen_error(n, m.cstr)
+        return
+    }
     hold_open(a)
     gen_method_of(n)
     hold_close(a)
@@ -8179,6 +8338,20 @@ let gen_method_of(n:int64) {
         gen_error(n, m.cstr)
         return
     }
+    if f >= 0 && nodes[f].flag == 1 && nodes[a].kind != N_TYPE && !names_type(a) && number_named(a) < 0 && !static_reads.has(n) && struct_of(type_of(a)) >= 0 {
+        var m = $"'"                                                  // as kelvinc says it (#111, #611)
+        m += tok_text(t)
+        m += "' is a function of "
+        let w:String = kelvin_name(nodes[f].c)
+        m += &w
+        m += ", not a method: call it as "
+        m += &w
+        m += "."
+        m += tok_text(t)
+        m += "(...)"
+        gen_error(n, m.cstr)
+        return
+    }
     if f >= 0 {                                                       // T__m(x, ...), T__f(...) (#213)
         if nodes[f].flag == 2 {                                       // a var method's receiver, a var (#320)
             var lead = $"'."
@@ -8397,6 +8570,14 @@ let gen_method_of(n:int64) {
             gen_expr(nodes[n].b)
         }
         put(")")
+    } else if yk == Y_DICT && tok_is(t, "get") && is_owner(types[y].elem) {   // as kelvinc says it (#65, #611)
+        var m = $"'.get' copies the value, and "
+        let w:String = kelvin_type_text(types[y].elem)
+        m += &w
+        m += " owns: borrow it with '.find(k)', a "
+        m += &w
+        m += "^ or nowhere"
+        gen_error(n, m.cstr)
     } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get") || tok_is(t, "remove") || tok_is(t, "find")) {   // d.has(k), d.get(k, v) (#211), d.remove(k) (#270), d.find(k) (#337)
         let key:int64 = nodes[n].b
         if tok_is(t, "remove") && !may_change(a) { return }   // (#271)
@@ -8447,11 +8628,25 @@ let gen_method_of(n:int64) {
         gen_expr(v)
         put(")")
     } else if yk == Y_IO && tok_is(t, "close") {
+        if std_io(a) < 0 && !may_change(a) { return }    // it changes the IO itself, its var's (#82, #611)
         put("kv_io_close(")
         gen_place(a)
         put(")")
     } else if yk == Y_IO && (tok_is(t, "print") || tok_is(t, "println")) {   // f.print(...), f.println(...), as print's into f (#452)
         let args:int64 = nodes[n].b
+        var shown:int64 = args
+        while shown >= 0 {                               // as kelvinc says it (#83, #611)
+            let sy:int64 = type_of(shown)
+            if failed { return }
+            if sy >= 0 && types[sy].kind == Y_FN {
+                var m = $"'."
+                m += tok_text(t)
+                m += "' cannot show a function: a function has no text"
+                gen_error(shown, m.cstr)
+                return
+            }
+            shown = nodes[shown].next
+        }
         var opened = hold_args(args, 0 - 1)
         serial += 1
         let s = serial
@@ -8558,8 +8753,164 @@ let gen_string_order(n:int64) {
     if ha { hold_close(a) }
 }
 
+// whether n is a bool by its shape, as kelvinc's bool_shape (#611): a
+// comparison, a struct's too, the call of its operator (#471); &&, ||, !,
+// true, false, x as bool, and a choice of two bools
+let seen_bool(n:int64):bool
+
+let bool_shape(n:int64):bool {
+    let k:nkind = nodes[n].kind
+    let t:int64 = nodes[n].t
+    if k == N_BIN { return is_comparison(t) }
+    if k == N_CALL && nodes[nodes[n].a].kind == N_ID && toks[nodes[nodes[n].a].t].kind == T_PUNCT { return is_comparison(nodes[nodes[n].a].t) }
+    if k == N_UNARY { return tok_is(t, "!") || tok_is(t, "!!") || nodes[n].flag == 1 }
+    if k == N_BOOL { return true }
+    if k == N_CAST { return nodes[n].ty >= 0 && types[nodes[n].ty].kind == Y_BOOL }
+    if k == N_COND { return seen_bool(nodes[n].b) && seen_bool(nodes[n].c) }
+    return false
+}
+
+// the type of n where kc sees it as kelvinc does, for a condition (#611):
+// -1 where it does not, and what only C sees is C's
+let cond_type(n:int64):int64 {
+    let k:nkind = nodes[n].kind
+    if k == N_ID {
+        let y:int64 = var_type(nodes[n].t)
+        if y >= 0 { return y }
+        if fn_named(nodes[n].t) >= 0 { return type_of(n) }
+        return c_headers ? base_type(Y_C) : 0 - 1
+    }
+    if k == N_INDEX && !int_bit_index(n) && !is_slice(n) {
+        let y:int64 = cond_type(nodes[n].a)
+        if y < 0 { return 0 - 1 }
+        let yk:ykind = types[y].kind
+        if yk == Y_PTR { return types[y].elem }
+        if yk == Y_C || yk == Y_STRUCT { return yk == Y_C ? y : 0 - 1 }
+        return type_of(n)
+    }
+    if k == N_METHOD {                                   // of no method kc knows, none
+        let y:int64 = type_of(n)
+        return y >= 0 && types[y].kind == Y_VOID ? 0 - 1 : y
+    }
+    if k == N_CALL || k == N_FIELD || k == N_DEREF || k == N_CAST || k == N_UNARY || k == N_BIN || k == N_COND || k == N_AWAIT || k == N_DSTR || k == N_SELF || k == N_ADDR {
+        return type_of(n)
+    }
+    return 0 - 1
+}
+
+let seen_bool(n:int64):bool {
+    if bool_shape(n) { return true }
+    let y:int64 = cond_type(n)
+    return y >= 0 && types[y].kind == Y_BOOL
+}
+
+// a condition, and an operand of &&, || and !, is a bool, as kelvinc's
+// require_bool says it (#23, #611): 0 where it is one, 1 where only C
+// sees its type, which C checks, 2 where kc sees none, and -1 with
+// kelvinc's error of a number, a pointer and the rest
+let require_bool(n:int64):int64 {
+    if failed { return 0 - 1 }
+    if bool_shape(n) { return 0 }
+    let k:nkind = nodes[n].kind
+    let t:int64 = nodes[n].t
+    var what = $""
+    var hint = $""
+    if k == N_NULL {
+        what = $"any^"
+        hint = $"p != nowhere"
+    } else if k == N_NUM && !float_tok(t) {
+        gen_error(n, "a condition must be a bool, not a number: write 'true' or 'false'")
+        return 0 - 1
+    } else if k == N_NUM || k == N_CHAR {
+        what = $"a number"
+        hint = k == N_CHAR ? $"c != 0" : $"x != 0.0"
+    } else if k == N_STR {
+        what = $"a string"
+        hint = $"s != nowhere"
+    } else if k == N_FIELD && tagged_named(nodes[n].a) < 0 && (value_align(n) || pointer_property(n) == 1 || pointer_property(n) == 2) {
+        let addr = tok_is(t, "addr")
+        what = addr ? $"uintptr_t" : $"size_t"
+        hint = $"x."
+        hint += tok_text(t)
+        hint += " != 0"
+    } else {
+        let y:int64 = cond_type(n)
+        if failed { return 0 - 1 }
+        if y < 0 { return 2 }
+        let yk:ykind = types[y].kind
+        if yk == Y_BOOL { return 0 }
+        if yk == Y_C { return 1 }
+        if yk == Y_VOID || yk == Y_TYPEOF { return 2 }
+        if yk == Y_STRUCT && types[y].name >= 0 && tok_is(types[y].name, "bool") { return 0 }   // self of a bool's method
+        if yk == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return 1 }   // a C header's type
+        what = kelvin_type_text(y)
+        if yk == Y_PTR || yk == Y_FIXED || yk == Y_CSTR || yk == Y_ARGV {
+            hint = $"p != nowhere"
+        } else if yk == Y_FN {
+            hint = $"f != nowhere"
+        } else if is_int_kind(yk) || enum_int(y) {
+            hint = $"x != 0"
+        } else if yk == Y_F64 || yk == Y_F32 {
+            hint = $"x != 0.0"
+        }
+    }
+    var m = $"a condition must be a bool, not "
+    m += &what
+    if hint.count > 0 {
+        m += ": compare it, as in '"
+        m += &hint
+        m += "'"
+    }
+    gen_error(n, m.cstr)
+    return 0 - 1
+}
+
+// n where a bool goes (#611): checked, and what only C sees through the
+// _Generic that only a bool passes, as kelvinc's cond writes it: C says
+// kv_condition_is_not_bool of any other type
+let gen_bool(n:int64) {
+    let r:int64 = require_bool(n)
+    if r < 0 { return }
+    if r == 1 {
+        put("({ __auto_type _kv_cond = (")
+        gen_expr(n)
+        put("); _Generic((_kv_cond), bool: kv_bool, default: kv_condition_is_not_bool)(_kv_cond); })")
+        return
+    }
+    gen_expr(n)
+}
+
+// whether b, a bound of for i in a..<b, is no integer where kc sees its
+// type, with kelvinc's error (#28, #611): a floating-point literal, and a
+// name, a call, a member or a cast of another type
+let range_bound_wrong(b:int64):bool {
+    if b < 0 || failed { return failed }
+    let prefixed = nodes[b].kind == N_UNARY && (tok_is(nodes[b].t, "-") || tok_is(nodes[b].t, "+"))
+    let lit:int64 = prefixed ? nodes[b].a : b
+    let k:nkind = nodes[b].kind
+    var what = $""
+    if nodes[lit].kind == N_NUM || float_word(lit) {
+        if !float_word(lit) && !float_tok(nodes[lit].t) { return false }
+        what = $"f64"
+    } else {
+        if k != N_ID && k != N_CALL && k != N_FIELD && k != N_CAST && k != N_DEREF && k != N_INDEX && k != N_METHOD { return false }
+        let y:int64 = cond_type(b)
+        if failed { return true }
+        if y < 0 { return false }
+        let yk:ykind = types[y].kind
+        if is_int_kind(yk) || enum_int(y) || yk == Y_C || yk == Y_VOID || yk == Y_TYPEOF { return false }
+        if yk == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 { return false }   // a C header's
+        what = kelvin_type_text(y)
+    }
+    var m = $"a range is of integers, not "
+    m += &what
+    gen_error(b, m.cstr)
+    return true
+}
+
 // a condition: a comparison without the parentheses C would warn of
 let gen_cond(n:int64) {
+    if require_bool(n) < 0 { return }                    // before a struct's == is the call of it (#611)
     resolve_op(n)
     resolve_attr(n)
     if is_range_eq(n) {                                  // (#376)
@@ -8571,15 +8922,16 @@ let gen_cond(n:int64) {
         let y:int64 = type_of(nodes[n].a)
         let owners = tagged_side(n) >= 0 || builtin_kind(y) != Y_VOID || builtin_kind(type_of(nodes[n].b)) != Y_VOID   // an Optional's == (#343), String ==, xs == ys (#288), refusals (#287)
         if !owners {
-            gen_expr(nodes[n].a)
+            let logic = tok_is(nodes[n].t, "&&") || tok_is(nodes[n].t, "||")   // each side a bool (#611)
+            if logic { gen_bool(nodes[n].a) } else { gen_expr(nodes[n].a) }
             put(" ")
             put_tok(nodes[n].t)
             put(" ")
-            gen_expr(nodes[n].b)
+            if logic { gen_bool(nodes[n].b) } else { gen_expr(nodes[n].b) }
             return
         }
     }
-    gen_expr(n)
+    gen_bool(n)
 }
 
 // {a, b} of the struct s (#225): each member by its field's type, so that
@@ -9389,8 +9741,22 @@ let gen_value_of(n:int64, y:int64)    // a prototype: gen_value writes n by it
 let init_as_case(n:int64, y:int64) {
     if !bare_init(n) || tagged_of(y) < 0 { return }
     let x:int64 = nodes[n].b
-    if x < 0 || nodes[x].next >= 0 { return }
+    if x < 0 { return }
     let d:int64 = tagged_of(y)
+    if nodes[x].next >= 0 {                              // {a, b} names no case (#611)
+        if value_case(y) < 0 && nodes[x].kind != N_DESIG && !(nodes[x].kind == N_FIELD && nodes[nodes[x].a].kind == N_SELF) {
+            let first:int64 = nodes[d].a
+            var m = $"a case of "
+            let w:String = kelvin_type_text(y)
+            m += &w
+            m += " is written by its name: {."
+            m += tok_text(nodes[first].t)
+            if nodes[first].ty >= 0 { m += " = ..." }
+            m += "}"
+            gen_error(x, m.cstr)
+        }
+        return
+    }
     if nodes[x].kind == N_DESIG && case_named(d, nodes[x].t).is(some) {
         let f:int64 = make_node(N_ID, nodes[x].t)
         nodes[n].kind = N_CALL
@@ -9407,6 +9773,16 @@ let init_as_case(n:int64, y:int64) {
         nodes[n].a = f
         nodes[n].b = x
         nodes[n].ty = y
+    } else if value_case(y) < 0 && nodes[x].kind != N_DESIG && !(nodes[x].kind == N_FIELD && nodes[nodes[x].a].kind == N_SELF) {
+        let first:int64 = nodes[d].a                     // a case is written by its name, as kelvinc says it (#61, #611)
+        var m = $"a case of "
+        let w:String = kelvin_type_text(y)
+        m += &w
+        m += " is written by its name: {."
+        m += tok_text(nodes[first].t)
+        if nodes[first].ty >= 0 { m += " = ..." }
+        m += "}"
+        gen_error(x, m.cstr)
     }
 }
 
@@ -9485,7 +9861,7 @@ let gen_value_of(n:int64, y:int64) {
             return
         }
         put("(")
-        gen_expr(nodes[n].a)
+        gen_bool(nodes[n].a)                             // (#611)
         put(" ? ")
         gen_value(nodes[n].b, y)
         put(" : ")
@@ -9936,7 +10312,7 @@ let owner_choice(n:int64):bool {
 let gen_choice(n:int64) {
     if !owner_choice(n) { return }
     put("(")
-    gen_expr(nodes[n].a)
+    gen_bool(nodes[n].a)                                 // (#611)
     put(" ? ")
     gen_expr(nodes[n].b)
     put(" : ")
@@ -9949,7 +10325,7 @@ let gen_choice(n:int64) {
 let gen_moved(n:int64, y:int64) {
     if nodes[n].kind == N_COND {
         put("(")
-        gen_expr(nodes[n].a)
+        gen_bool(nodes[n].a)                             // (#611)
         put(" ? ")
         gen_moved(nodes[n].b, y)
         put(" : ")
@@ -10105,9 +10481,9 @@ let gen_async(n:int64) {
             gen_error(a, "'async' would share this text with the call's thread: the parameter is a cstr, where a String would move in")
             return
         }
-        if k == Y_PTR || k == Y_ARGV {
+        if k == Y_PTR || k == Y_ARGV || k == Y_FIXED {    // an array too, the pointer C makes of it (#312, #611)
             var m = $"'async' would share what this points to with the call's thread: the parameter is "
-            let w:String = kelvin_type_text(nodes[p].ty)
+            let w:String = kelvin_type_text(param_arrays.get(p, nodes[p].ty))
             m += &w
             m += ", and the function takes values, copied, and owners, moved"
             gen_error(a, m.cstr)
@@ -11212,11 +11588,22 @@ let gen_expr_of(n:int64) {
         gen_element(n)
     } else if k == N_UNARY && plus_value(n) {
         gen_plus_value(n)                            // +x of a struct, its value (#564)
+    } else if k == N_UNARY && tok_is(t, "!") {
+        put("(bool)(!")                              // C's ! gives an int, which prints as 1; its operand a bool (#611)
+        gen_bool(nodes[n].a)
+        put(")")
     } else if k == N_UNARY {
-        if tok_is(t, "!") { put("(bool)") }          // C's ! gives an int, which prints as 1
         put("(")
         put_tok(t)
         gen_expr(nodes[n].a)
+        put(")")
+    } else if k == N_BIN && (tok_is(t, "&&") || tok_is(t, "||")) {
+        put("(bool)(")                               // each side a bool (#611)
+        gen_bool(nodes[n].a)
+        put(" ")
+        put_tok(t)
+        put(" ")
+        gen_bool(nodes[n].b)
         put(")")
     } else if k == N_BIN && tok_is(t, "??") {
         gen_coalesce(n)
@@ -12725,7 +13112,49 @@ let no_place(n:int64):String {
     return $""
 }
 
+// whether e, a statement's expression or what it assigns to, is name:T
+// from the statement's first token, T a type kc sees: a declaration with
+// no let or var, with kelvinc's error (#27, #611)
+let bare_declaration(e:int64):bool {
+    if nodes[e].kind != N_CAST || !tok_is(nodes[e].t, ":") { return false }
+    let x:int64 = nodes[e].a
+    if nodes[x].kind != N_ID { return false }
+    let first:int64 = nodes[x].t
+    if nodes[e].t != first + 1 || first < 1 || first >= eof_pos { return false }
+    if toks[first - 1].kind != T_NL && !tok_is(first - 1, "{") && !tok_is(first - 1, ";") { return false }
+    let y:int64 = nodes[e].ty
+    if y < 0 || types[y].kind == Y_C || types[y].kind == Y_TYPEOF { return false }
+    if types[y].kind == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return false }   // a C header's type, or a label
+    var m = $"declarations start with let or var: write 'var "
+    m += tok_text(first)
+    m += ":...', or 'let "
+    m += tok_text(first)
+    m += ":...' if it never changes"
+    gen_error(x, m.cstr)
+    return true
+}
+
 let gen_assign(n:int64) {
+    if (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && bare_declaration(nodes[n].a) { return }
+    let borrowed:int64 = nodes[n].b >= 0 && nodes[nodes[n].b].kind == N_ADDR ? nodes[nodes[n].b].a : 0 - 1
+    if borrowed >= 0 && (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && nodes[borrowed].kind == N_ID && nodes[nodes[n].a].kind == N_ID && marks.count > 0 {
+        let here:int64 = marks[marks.count - 1]          // r := &a of a local owner of this block, r of an outer one: the
+        let b:int64 = local_at(nodes[borrowed].t)        // borrow outlives it, as kelvinc says it (#54, #611)
+        let i:int64 = local_at(nodes[nodes[n].a].t)
+        let outer = i >= 0 ? i < here : decl_named(nodes[nodes[n].a].t, D_GLOBAL) >= 0
+        if b >= here && outer && is_owner(locals[b].ty) {
+            let w:String = tok_text(nodes[borrowed].t)
+            var m = $"a borrow of '"
+            m += &w
+            m += "' outlives it: '"
+            m += &w
+            m += "' is freed when this block ends, and '"
+            m += tok_text(nodes[nodes[n].a].t)
+            m += "' is of an outer one"
+            gen_error(n, m.cstr)
+            return
+        }
+    }
     resolve_bigbits(nodes[n].a)
     if big_bit_reads.has(nodes[n].a) {                  // b.bits[k] = v and its kin, of a BigInt (#531)
         gen_big_bit_set(n)
@@ -12793,6 +13222,10 @@ let gen_assign(n:int64) {
             gen_error(n, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a 'var p:u8^ := s'")
             return
         }
+        if y >= 0 && types[y].kind == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind == Y_VOID {   // as kelvinc says it (#26, #51, #611)
+            gen_error(n, "an any^ cannot step: its element has no size")
+            return
+        }
         if y >= 0 && types[y].kind != Y_PTR && types[y].kind != Y_C {
             var m = $"'"
             m += tok_text(t)
@@ -12849,6 +13282,17 @@ let gen_assign(n:int64) {
     let named = nodes[lhs].kind == N_ID || nodes[lhs].kind == N_FIELD
     if named && (tok_is(t, "=") || tok_is(t, ":=")) && !assigns_as(n, nodes[lhs].t, y, tok_is(t, ":=")) { return }
     let yk:ykind = types[y].kind
+    if !named && tok_is(t, "=") && (yk == Y_PTR || yk == Y_FN || yk == Y_CSTR) {   // p^ = &x of a reference, as kelvinc says it (#611)
+        let by:int64 = nodes[lhs].kind == N_DEREF || nodes[lhs].kind == N_INDEX ? type_of(nodes[lhs].a) : 0 - 1
+        let bk:ykind = by >= 0 ? types[by].kind : Y_C
+        if (nodes[lhs].kind == N_DEREF && (bk == Y_PTR || bk == Y_FIXED)) || (nodes[lhs].kind == N_INDEX && (bk == Y_ARRAY || bk == Y_FIXED)) {
+            var m = $"this target is a reference ("
+            m += type_text(y)
+            m += "): assign it with ':=', not '='"
+            gen_error(n, m.cstr)
+            return
+        }
+    }
     if nodes[lhs].kind == N_FIELD && tok_is(t, "=") && tagged_of(type_of(nodes[lhs].a)) >= 0 {
         put("_kv_")                                     // v.c = x sets the case, freeing what it held (#215)
         put_tok(types[type_of(nodes[lhs].a)].name)
@@ -12908,6 +13352,7 @@ let gen_assign(n:int64) {
             owner_copy_error(nodes[n].b, "+=")
             return
         }
+        if bytes_ref_appended(nodes[n].b) { return }     // (#611)
         put("KV_STRING_APPEND(")
         gen_place(lhs)
         put(", ")
@@ -13069,6 +13514,49 @@ let owner_assign_error(v:int64) {
     gen_error(v, m.cstr)
 }
 
+// whether a, returned where the result is a bool, is one (#239, #240), or
+// kelvinc's error of it, as its require_bool_return says it (#611): a
+// number C would convert is none; what only C sees, C checks
+let bool_return_ok(a:int64):bool {
+    let ry:int64 = nodes[current].ty
+    if ry < 0 || types[ry].kind != Y_BOOL || bool_shape(a) { return true }
+    if nodes[current].t >= eof_pos || anon_fns.contains(current) { return true }   // a function kc made, whose words are its own
+    let k:nkind = nodes[a].kind
+    var what = $""
+    if k == N_NUM {
+    } else if (k == N_BIN && !is_string_plus(a)) || k == N_UNARY || k == N_CHAR || k == N_SIZEOF || k == N_ALIGN {
+        let y:int64 = type_of(a)                         // arithmetic, whose type kelvinc does not tell
+        if failed { return false }
+        if y < 0 || !(is_number_kind(types[y].kind) || enum_int(y)) { return true }
+        what = $"a number"
+    } else {
+        let y:int64 = cond_type(a)
+        if failed { return false }
+        if y < 0 { return true }
+        let yk:ykind = types[y].kind
+        if yk == Y_BOOL || yk == Y_C || yk == Y_VOID || yk == Y_TYPEOF { return true }
+        if yk == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return true }
+        what = kelvin_type_text(y)
+    }
+    var m = $"'"
+    if nodes[current].c >= 0 {
+        let r:String = kelvin_name(nodes[current].c)
+        m += &r
+        m += "."
+    }
+    m += tok_text(nodes[current].t)
+    m += "' returns a bool, and this "
+    if k == N_NUM {
+        m += "is a number: write 'true' or 'false'"
+    } else {
+        m += "gives "
+        m += &what
+        m += ": compare it, as in 'x != 0'"
+    }
+    gen_error(a, m.cstr)
+    return false
+}
+
 let gen_return(n:int64) {
     let a:int64 = nodes[n].a
     if a < 0 {
@@ -13078,6 +13566,7 @@ let gen_return(n:int64) {
     if void_return(a) { return }
     pick_overload(a, nodes[current].ty)                  // return over, the overload of the result's type (#537)
     if failed { return }
+    if !bool_return_ok(a) { return }
     let text:int64 = text_in_buffer(a)
     if text >= 0 && nodes[text].kind == N_TPL {         // as kelvinc's reject_returned_text (#445)
         gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
@@ -13116,8 +13605,25 @@ let gen_return(n:int64) {
         gen_error(a, "an owner is returned as a whole variable, which moves out: a part of one is copied with .copy()")
         return
     }
+    if nodes[a].kind == N_ADDR && nodes[nodes[a].a].kind == N_ID && local_at(nodes[nodes[a].a].t) >= 0 && is_owner(type_of(nodes[a].a)) {
+        let w:String = tok_text(nodes[nodes[a].a].t)     // a borrow of a local owner dies with it, as kelvinc says it (#54, #611)
+        var m = $"a borrow of '"
+        m += &w
+        m += "' is returned, and '"
+        m += &w
+        m += "' is freed when this function returns: return '"
+        m += &w
+        m += "' itself, which moves it out"
+        gen_error(a, m.cstr)
+        return
+    }
+    if bare_init(a) && !(types[nodes[current].ty].kind == Y_STRUCT && !enum_int(nodes[current].ty)) {   // return {1} of a number, as kelvinc says it (#77, #611)
+        gen_error(a, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+        return
+    }
     put("return ")
     init_as_case(a, nodes[current].ty)                   // return {.some = v}, {.none} (#121)
+    if failed { return }
     if bare_init(a) {                                    // return {a, b}: of the function's type (#213)
         put("(")
         put_ctype(nodes[current].ty)
@@ -13327,7 +13833,45 @@ let lazy_method(recv:int64, name:cstr, y:int64, flag:int64):int64 {
 // ps: a function of the program kc writes after the others, its
 // parameters $0, $1, ... of ps, or those written; its result written, ry
 // where one is asked (#329), or its one expression's
+// the one number type of e's arithmetic, as kelvinc's arithmetic_type has
+// it (#182, #611), where a function's result is inferred: -1 where kc
+// sees none, and -3 where its operands are of two number types, or a
+// floating literal meets an integer, which C would promote and kelvinc
+// asks to be written
+let arith_one_type(e:int64):int64 {
+    let k:nkind = nodes[e].kind
+    let t:int64 = nodes[e].t
+    if k == N_UNARY && (tok_is(t, "-") || tok_is(t, "~")) { return arith_one_type(nodes[e].a) }
+    let arith = k == N_BIN && (tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "&") || tok_is(t, "|") || tok_is(t, "~") || tok_is(t, "<<") || tok_is(t, ">>"))
+    if !arith {
+        let y:int64 = k == N_NUM || k == N_CHAR || k == N_BIN ? 0 - 1 : type_of(e)
+        return y >= 0 && is_number_kind(types[y].kind) ? y : 0 - 1
+    }
+    let a:int64 = nodes[e].a
+    let b:int64 = nodes[e].b
+    let la = nodes[a].kind == N_NUM || nodes[a].kind == N_CHAR || nodes[a].kind == N_BOOL
+    let lb = nodes[b].kind == N_NUM || nodes[b].kind == N_CHAR || nodes[b].kind == N_BOOL
+    let ta:int64 = la ? 0 - 1 : arith_one_type(a)
+    let tb:int64 = lb ? 0 - 1 : arith_one_type(b)
+    if ta == 0 - 3 || tb == 0 - 3 { return 0 - 3 }
+    if tok_is(t, "<<") || tok_is(t, ">>") { return ta }
+    if ta >= 0 && tb >= 0 { return type_text(ta) == type_text(tb) ? ta : 0 - 3 }
+    let seen:int64 = ta >= 0 ? ta : tb
+    let lit:int64 = ta >= 0 ? b : a
+    if seen < 0 || nodes[lit].kind != N_NUM { return 0 - 1 }
+    if float_tok(nodes[lit].t) && types[seen].kind != Y_F64 && types[seen].kind != Y_F32 { return 0 - 3 }
+    return seen
+}
+
+// the parameter from which the function kc makes next of { ... } is lent
+// its owners, a container's elements, as kelvinc's lend_anon_from (#242,
+// #244, #611): -1 of none; and each such function's, by its declaration
+var lending:int64 = 0 - 1
+var lent_from:Dictionary<int64, int64>
+
 let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):int64 {
+    let lend:int64 = lending
+    lending = 0 - 1
     var name = $"_kv_"
     name += maker_name(current)
     name += "_fn"
@@ -13335,6 +13879,7 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
     name += String(anon_serial)
     let d:int64 = make_node(D_FN, made_token(&name))
     anon_outer[d] = current                          // where it is written (#602)
+    if lend >= 0 { lent_from[d] = lend }
     if nodes[an].flag == 1 {
         var last:int64 = 0 - 1
         for k in 0..<ps^.count as int64 {
@@ -13387,6 +13932,11 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
         while p >= 0 {
             declare_as(nodes[p].t, nodes[p].ty, 2)
             p = nodes[p].next
+        }
+        if arith_one_type(nodes[st].a) == 0 - 3 {    // as kelvinc says it (#182, #611)
+            gen_error(nodes[st].a, "the result of this function is not a type kelvinc sees: write its parameters and result, as in '{ (v:i64):i64 in v * 2 }', or convert the value, as in 'i64(...)'")
+            close_scope()
+            return 0 - 1
         }
         nodes[d].ty = told(type_of(nodes[st].a))     // $0.type told (#424)
         close_scope()
@@ -13678,6 +14228,20 @@ let gen_fn_value(n:int64, y:int64) {
         let me = $"this function"
         d = anon_function_of(n, &ps, types[y].elem >= 0 ? types[y].elem : base_type(Y_VOID), &me)
         if d < 0 { return }
+        let only:int64 = nodes[nodes[d].b].a             // one expression with no effect, of a function with no result (#32, #611)
+        if only >= 0 && nodes[only].next < 0 && nodes[only].kind == S_EXPR && types[nodes[d].ty].kind == Y_VOID {
+            let e:int64 = nodes[only].a
+            let ek:nkind = nodes[e].kind
+            let effect = ek == N_CALL || ek == N_METHOD || ek == N_CHAIN || ek == N_TRY || ek == N_AWAIT || ek == N_ASYNC || ek == N_COND
+            if !effect {
+                var m = $"this function, of type "
+                let w:String = kelvin_type_text(y)
+                m += &w
+                m += ", has no result, so its body would discard this value: write a call or an assignment, or give the type a result"
+                gen_error(e, m.cstr)
+                return
+            }
+        }
         anon_made[n] = d
     }
     put_tok(nodes[d].t)
@@ -13748,6 +14312,7 @@ let lazy_fn_of(n:int64, ey:int64, is_map:bool, me:const String^):int64 {
     let f:int64 = nodes[n].b
     var fn:int64 = 0 - 1
     if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ANON {
+        lending = 0                                      // each value lent (#244, #611)
         fn = anon_function(f, ey, me)
         if fn < 0 { return 0 - 1 }
     } else if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
@@ -15200,6 +15765,7 @@ let eager_of(n:int64):int64 {
     ps += ey
     var fn:int64 = 0 - 1
     if nodes[f].kind == N_ANON {
+        lending = kind == 3 ? 1 : 0                      // the elements lent, a reduce's value so far moved in (#244, #611)
         fn = anon_function_of(f, &ps, kind == 3 ? acc : 0 - 1, &me)
         if fn < 0 { return 0 - 1 }
     } else if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
@@ -15448,6 +16014,7 @@ let sort_fn_of(n:int64, f:int64, ey:int64):int64 {
             var me = $"'."
             me += tok_text(nodes[n].t)
             me += "'"
+            lending = 0                                  // its elements lent, not copied (#242, #611)
             d = anon_function_of(f, &ps, one ? 0 - 1 : base_type(Y_BOOL), &me)   // one expression tells its own type
             if d < 0 { return 0 - 2 }
             anon_made[f] = d
@@ -16573,6 +17140,7 @@ let search_of(n:int64):int64 {
     if with_key { ps += kt }
     ps += vy
     if nodes[f].kind == N_ANON {
+        lending = 0                                      // (#244, #611)
         fn = anon_function_of(f, &ps, 0 - 1, &me)
         if fn < 0 { return 0 - 1 }
     } else if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) >= 0 {
@@ -17107,6 +17675,27 @@ let gen_lines_each(n:int64, depth:int64) {
     put("}\n")
 }
 
+// whether e, the declared length of an array parameter, read again in the
+// body, still gives what it gave at the call, as kelvinc's length_holds
+// (#30, #611): numbers, lets and C's constants, with no call, no var and
+// no name that a local hides
+let length_holds(e:int64):bool {
+    let k:nkind = nodes[e].kind
+    let t:int64 = nodes[e].t
+    if k == N_NUM || k == N_CHAR { return true }
+    if k == N_ID {
+        let i:int64 = local_at(t)
+        if i >= 0 { return locals[i].how == 2 || locals[i].how == 5 }   // a let parameter; a var, or a local that hides it, not
+        let g:int64 = decl_named(t, D_GLOBAL)
+        return g < 0 || nodes[g].flag == 1
+    }
+    if k == N_BIN { return length_holds(nodes[e].a) && length_holds(nodes[e].b) }
+    if k == N_UNARY || k == N_CAST { return length_holds(nodes[e].a) }
+    if k == N_COND { return length_holds(nodes[e].a) && length_holds(nodes[e].b) && length_holds(nodes[e].c) }
+    if k == N_FIELD && tok_is(t, "size") { return length_holds(nodes[e].a) }
+    return false
+}
+
 var codepoint_loops:Dictionary<int64, bool>     // for c in s.codepoints, by codepoint (#521)
 
 let gen_each(n:int64, depth:int64) {
@@ -17347,6 +17936,13 @@ let gen_each(n:int64, depth:int64) {
                 if same_text(nodes[p].t, nodes[nodes[n].a].t) && nodes[p].flag == 1 { declared = param_arrays.get(p, -1) }
                 p = nodes[p].next
             }
+        }
+        if declared >= 0 && types[declared].name <= 0 - 10 && !length_holds(0 - 10 - types[declared].name) {   // as kelvinc says it (#30, #611)
+            var m = $"for over "
+            m += tok_text(nodes[nodes[n].a].t)
+            m += ": its declared length uses a call, a var or a name that a local hides, so it may not be what it was at the call; index it, as in 'for i in 0..<n'"
+            gen_error(nodes[n].a, m.cstr)
+            return
         }
         let counted = types[y].kind == Y_FIXED && !param
         let records = types[ey].kind == Y_STRUCT
@@ -17793,6 +18389,19 @@ let gen_switch(n:int64, depth:int64) {
         indent(depth + 1)
         put("{\n")
         open_scope()
+        var bound:int64 = td >= 0 && first >= 0 && nodes[first].next >= 0 ? first : 0 - 1
+        while bound >= 0 && !failed {                    // a case that binds stands alone, as kelvinc says it (#119, #611)
+            if nodes[bound].kind == N_CALL && nodes[bound].b >= 0 {
+                var e = $"a case that binds a value, 'case "
+                e += tok_text(case_word(bound))
+                e += "("
+                e += tok_text(nodes[nodes[bound].b].t)
+                e += "):', stands alone: it cannot share a body with another case"
+                gen_error(bound, e.cstr)
+                return
+            }
+            bound = nodes[bound].next
+        }
         if td >= 0 && first >= 0 && nodes[first].kind == N_CALL && !failed {
             let m = case_named(td, case_word(first)) ?? 0 - 1    // case n(x): x is the case's value, the enum's still
             let x = nodes[first].b
@@ -17971,6 +18580,7 @@ let gen_stmt_of(n:int64, depth:int64) {
             gen_error(n, at_end == 2 ? "main's end returns 0, as in C, so it does not return this value: write 'return' before it" : "this value would be dropped: a body returns its value without 'return' only when it is one expression, so write 'return' before it")
             return
         }
+        if bare_declaration(v) { return }                // count:i32 alone (#611)
         let vy = type_of(v)
         if vy >= 0 && types[vy].kind == Y_TASK && !is_place(v) {     // as kelvinc's (#313)
             gen_error(v, "a Task dropped here would be awaited at once: bind it, 'let t = async f(x)', and await it when its value is wanted")
@@ -17979,6 +18589,8 @@ let gen_stmt_of(n:int64, depth:int64) {
         if nodes[v].kind == N_TRY {                   // try f() alone: its value dropped, the err passed up (#449)
             gen_try(v, false)
             put(";\n")
+        } else if needs_hold(v) && types[type_of(v)].kind == Y_STRUCT {   // as kelvinc says it (O4, #611)
+            gen_error(n, "a struct that owns is given and dropped here: bind it to a variable, which frees it")
         } else if needs_hold(v) {                     // an owner no one takes, freed (#227)
             let y = type_of(v)
             put("{ __attribute__((cleanup(")
@@ -18050,6 +18662,7 @@ let gen_stmt_of(n:int64, depth:int64) {
         put("}\n")
     case S_FOR:
         if range_type_wrong(n) { return }
+        if range_bound_wrong(nodes[n].a) || range_bound_wrong(nodes[n].b) { return }   // (#611)
         serial += 1
         put("for (")
         if nodes[n].ty >= 0 {                            // for i:u8 in a..<b, the type written (#523)
@@ -18106,7 +18719,12 @@ let gen_stmt_of(n:int64, depth:int64) {
     case S_EACH: gen_each(n, depth)
     case S_SWITCH: gen_switch(n, depth)
     case S_IFLET: gen_iflet(n, depth)
-    case S_RETURN: gen_return(n)
+    case S_RETURN:
+        gen_return(n)
+        let after:int64 = nodes[n].next                  // as kelvinc says it (#611)
+        if nodes[n].a < 0 && after >= 0 && !failed && nodes[n].t < eof_pos && !tok_is(nodes[n].t + 1, ";") && (nodes[current].ty < 0 || types[nodes[current].ty].kind == Y_VOID) {
+            gen_error(after, "this never runs: in a function with no result, 'return' ends at the end of its line, and this follows it in the same block")
+        }
     case S_BREAK: put("break;\n")
     case S_CONTINUE: put("continue;\n")
     case S_ASSERT: gen_assert(n)                                 // (#394)
@@ -18446,6 +19064,7 @@ let gen_function(d:int64) {
         return
     }
     open_scope()
+    var pk:int64 = 0                                     // which parameter (#611)
     var p:int64 = nodes[d].a
     while p >= 0 {
         let pty:int64 = nodes[p].ty
@@ -18485,7 +19104,9 @@ let gen_function(d:int64) {
             gen_error(p, m.cstr)
             return
         }
-        declare_as(nodes[p].t, nodes[p].ty, lent_param(d, p) ? 5 : nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271); lent (#501, #510)
+        let each = lent_from.get(d, 0 - 1) >= 0 && pk >= lent_from.get(d, 0 - 1) && nodes[p].flag == 1 && is_owner(nodes[p].ty)   // a container's element, lent (#611)
+        declare_as(nodes[p].t, nodes[p].ty, lent_param(d, p) ? 5 : each ? 3 : nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271); lent (#501, #510)
+        pk += 1
         p = nodes[p].next
     }
     implicit_return(d)                                   // which sees the parameters, as await t asks t's type (#313)

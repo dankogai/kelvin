@@ -11966,3 +11966,38 @@ three lines to go, and they went; three tests more say the siblings.
 Details are provisional P622.
 
 There are 1417 tests, and all pass with clang and with gcc 15.
+
+### 658. The 70 that kc built
+
+**User**: "push", for #610, which **Claude** pushed, its battery
+clean and CI's nine jobs passed. Then:
+
+> fix the 70 that kc builds as #611
+
+The 70 that #609's list had as `built`: programs kelvinc refuses,
+and kc built. Each is kelvinc's error now, in its words, said where
+kelvinc says it and for all that reaches it, so thirteen tests more
+that kc left to C or said in its own words are the same with them.
+
+- Names: a word kelvinc keeps, `_kv_` and `kv_` names, C's type
+  words.
+- A bool where one goes: a condition, an operand of `&&`, `||` and
+  `!`, and what a function of a bool result returns. What only C
+  sees is checked by C, through the `_Generic` kelvinc writes.
+- Numbers, `#import`'s line, declarations, owners, anonymous
+  functions and overloads, and a dozen single ones: the row has them.
+
+Of one thing **Claude** asked: a `$/.../` literal is checked by
+kelvinc with `rx_check`, C of the runtime's written for it, and kc
+calls no C of the project's own. The user's answer was the
+recommended, call `rx_check`: kc.k imports `kRegExp.h` as C, as
+modules/RegExp.k does.
+
+No test that kc passed is refused: the C kc writes of every program
+of tests/run is as it was, but of one condition, and of the tests
+run with kc as their compiler 883 pass where 802 did.
+selfhost/sample.k has a section of what both compilers build beside
+each check. The list has 345 lines, 245 `words` and 100 `c`, and no
+`built`. Details are provisional P623.
+
+There are 1417 tests, and all pass with clang and with gcc 15.

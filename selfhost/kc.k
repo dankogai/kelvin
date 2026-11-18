@@ -21,6 +21,7 @@
 #import <math.h> as C             // pow, of a power of literals (#380)
 #import <string.h> as C           // strpbrk
 #import <unistd.h> as C           // getpid
+#import <kRegExp.h> as C          // rx_check, the runtime's, of a $/.../ literal (#611)
 #import "ident.k"                 // the codepoints of a name past ASCII (#385)
 #import "lex.k"
 #import "parse.k"
@@ -177,6 +178,16 @@ let load_imports():bool {
             var seen = false
             for k in 0..<fnames.count as int64 {
                 if fnames[k] == path { seen = true }
+            }
+            if !seen && import_line(i) {                 // a file, and no directory, as kelvinc says it (#40, #611)
+                var probe:IO = IO(path.cstr, "r")
+                if probe.error != 0 || !probe.isfile {
+                    var why = $"cannot find "
+                    why += tok_text(i)
+                    why += " next to the file that imports it"
+                    lex_error(toks[i].file, toks[i].line, why.cstr)
+                    return false
+                }
             }
             reading_by = i                               // whose aliases reach what follows the #import (#550)
             let read = seen || loads(&path)

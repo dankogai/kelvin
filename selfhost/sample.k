@@ -577,6 +577,18 @@ let chosen593():float64 { told593(atof("1.5")) }
 var erfc:i64 = 41
 let nfkd = 9
 
+// a struct, a function of it and its overloads, and an enum with values,
+// of what kc checks as kelvinc does (#611)
+struct ck611 { n: int64; on: bool }
+extend ck611 {
+    static let made(n:int64):Self { return {n, false} }
+    let off():bool { !.on }
+    let plus(k:int64):int64 { .n + k }
+    let plus(x:float64):float64 { .n as float64 + x }
+}
+enum ck_case { none; dot: int64 }
+var ck_tally:int64 = 0
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1598,8 +1610,56 @@ on a new line`
     println(erfc, " ", Kelvin.erfc(0.0), " ", nfkd, " ", Kelvin.nfkd as i64)
     let trunc = 2.5                            // Kelvin.name, the prelude's, whatever the program calls its own (#600)
     println(ns600(0.0), " ", fmin(3.0, 4.0), " ", Kelvin.fmin(3.0, 4.0), " ", Kelvin.trunc(trunc), " ", Kelvin.abs(-3), " ", Kelvin.nfd as i64, " ", Kelvin.BigInt(7) + 1n)
+    // what kc refuses as kelvinc does (#611), beside what both build: a
+    // bool where a condition and an operand of &&, || and ! go, a bool a
+    // bool's function returns, a range of integers, a base of 2 to 36
+    let ck_n:int32 = 3
+    let ck_p:const uint8^ := "text"
+    let ck_box:ck611 = {4, true}
+    var ck_said = $""
+    if ck_box.on && !ck_box.off() && ck_odd(ck_n) || ck_p == nowhere { ck_said += "bool " }
+    if strlen("abc") == 3 && ck_p != nowhere && ck_n != 0 { ck_said += "compared " }
+    ck_said += ck_box.on ? "chosen" : "not"
+    var ck_sum:int64 = 0
+    for ck_i in ck_n..<ck_box.n + 2 { ck_sum += ck_i }
+    println(ck_said, " ", ck_sum, " ", int32("777", 8), " ", int32("z", 36), " ", ck611.made(2).n, " ", ck_box.plus(1), " ", ck_box.plus(0.5))
+    // an owner an expression gives, bound; a container's elements lent to
+    // its function, read there; a borrow of the block's own; a case by name
+    var ck_names = $[$"kelvin", $"c", $"swift"]
+    ck_names.sort { a, b in a.count < b.count }
+    let ck_lens = ck_names.map { $0.count }
+    var ck_all = $""
+    for ck_name in ck_names {
+        let ck_r:const String^ := &ck_name
+        ck_all += ck_r
+    }
+    var ck_tail = $"!"
+    ck_all += &ck_tail
+    var ck_d:${int64: int64} = ${1: 10}
+    var ck_shape:ck_case = {.dot = 3}
+    var ck_three:[int64](3) = [7, 8, 9]
+    ck_each(2) { ck_tally += $0 }
+    ck_done()
+    println(ck_lens, " ", ck_all, " ", ck_d.get(1, 0), " ", ck_d.get(2, -1), " ", ck_shape, " ", ck_tally, " ", ck_first(ck_three), " ", ck_apply({ $0 + 1 }, 4))
     return 0
 }
+
+// the functions of what kc checks as kelvinc does (#611)
+let ck_odd(n:int32):bool { return n % 2 != 0 }
+let ck_each(n:int64, f:(int64)) { for i in 0..<n { f(i + 1) } }
+let ck_done() {
+    if ck_tally > 0 {
+        return
+    }
+    ck_tally = 0 - 1
+}
+let ck_first(xs:[int64](3)):int64 {
+    var t:int64 = 0
+    for x in xs { t += x }
+    return t
+}
+let ck_apply(f:(int64):int64, n:int64):int64 { f(n) }
+let ck_apply(f:(int64):int64, x:float64):float64 { f(x as int64) as float64 }
 
 // a parameter of the prelude's function's name, and a function of the
 // program's own with its name and its types (#600)

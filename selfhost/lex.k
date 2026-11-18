@@ -91,6 +91,16 @@ let prelude_file(f:int64):bool {
     return file_prelude[f] == 1
 }
 
+// whether the T_IMPORT token t is of a line written #import, and not of
+// another line with a #, which kc reads no further (#611)
+let import_line(t:int64):bool {
+    var w:int64 = toks[t].at
+    while w > 0 && codes[w - 1] != '#' && codes[w - 1] != '\n' { w -= 1 }
+    if w == 0 || codes[w - 1] != '#' { return false }
+    while codes[w] == ' ' || codes[w] == '\t' { w += 1 }
+    return codes[w] == 'i' && codes[w + 1] == 'm' && codes[w + 2] == 'p' && codes[w + 3] == 'o' && codes[w + 4] == 'r' && codes[w + 5] == 't'
+}
+
 // tokens a and b have the same text
 let same_text(a:int64, b:int64):bool {
     let n:int64 = toks[a].len
@@ -367,6 +377,18 @@ let lex_regexp(i:int64, to:int64, line:int64, file:int64):int64 {
     k += 1
     let fs:int64 = k
     while k < to && is_alpha(codes[k]) && codes[k] != '_' { k += 1 }
+    var pattern = $""                                    // checked now, by the runtime's parser of RegExp, its rx_check,
+    for q in s..<e { pattern += codes[q] }               // as kelvinc checks it (#163, #611)
+    var flags = $""
+    for q in fs..<k { flags += codes[q] }
+    var where:size_t = 0
+    let wrong:cstr := rx_check(pattern.cstr, flags.cstr, &where) as cstr
+    if wrong != nowhere {
+        var m = $"a $/.../ literal that is not a regular expression: "
+        m += wrong
+        lex_error(file, line, m.cstr)
+        return k
+    }
     add_made(T_ID, "RegExp", line, file)
     rx_lits += toks.count as int64 - 1
     add_made(T_PUNCT, ".", line, file)
@@ -695,6 +717,34 @@ let lex_range(from:int64, to:int64, file:int64) {
             var b:int64 = i
             while b > a && codes[b - 1] != '>' && codes[b - 1] != '"' { b -= 1 }
             if a >= b { lex_error(file, line, "only #import <x>, #import \"x.k\" and #import <x.h> as C are known") }
+            var w:int64 = s + 1
+            while w < a && (codes[w] == ' ' || codes[w] == '\t') { w += 1 }
+            let imports = w + 6 <= a && codes[w] == 'i' && codes[w + 1] == 'm' && codes[w + 2] == 'p' && codes[w + 3] == 'o' && codes[w + 4] == 'r' && codes[w + 5] == 't'
+            if a < b && imports {                        // a Kelvin file's line ends at its name, as kelvinc says it (#40, #611)
+                var dot = false
+                for j in a + 1..<b - 1 {
+                    if codes[j] == '.' { dot = true }
+                }
+                let kelvin = !dot || (b - a > 4 && codes[b - 3] == '.' && codes[b - 2] == 'k') || (b - a > 5 && codes[b - 4] == '.' && codes[b - 3] == 'k' && codes[b - 2] == 'h')
+                var r:int64 = b
+                while r < i && (codes[r] == ' ' || codes[r] == '\t' || codes[r] == '\r') { r += 1 }
+                let ended = r >= i || (codes[r] == '/' && r + 1 < i && codes[r + 1] == '/')
+                if kelvin && !ended {
+                    var name = $""
+                    for j in a..<b { name += codes[j] }
+                    var m = $""
+                    if r + 2 <= i && codes[r] == 'a' && codes[r + 1] == 's' && (r + 2 == i || !(is_alpha(codes[r + 2]) || is_digit(codes[r + 2]))) {
+                        m = $"a Kelvin file is imported as it is: write '#import "
+                        m += &name
+                        m += "' without 'as C'"
+                    } else {
+                        m = $"unexpected text after '#import "
+                        m += &name
+                        m += "'"
+                    }
+                    lex_error(file, line, m.cstr)
+                }
+            }
             add_tok(T_IMPORT, a, b - a, line, file)
         } else if c >= 128 {                             // as kelvinc says it (#385)
             var m = $"'"

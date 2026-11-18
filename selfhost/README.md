@@ -26,6 +26,9 @@ build/selfhost/stage3 program.k -o app  # kc builds a program
     and libraries written for it.
   - kc uses less still: the prelude (`String`, `Array`, `println`) and
     `<IO>` to read the source, write the C and run `cc`.
+  - Of the runtime's C it calls one function by name, `rx_check` of
+    `kRegExp.h`, the parser of the prelude's RegExp, which says what is
+    wrong with a `$/.../` literal as kelvinc's says it (#163, #611).
 - **In CI** (#228): the `selfhost` jobs run `bootstrap.sh` and
   `sanitize.sh` with gcc and clang on Ubuntu, and clang on macOS.
 
@@ -105,8 +108,42 @@ selfhost/errors.sh
   - `built`: kc builds what kelvinc refuses.
   - `crash`: kc itself ends, with no error of the program.
   - `errors.txt` lists each test that is not `same`, with which of
-    the four it is: as of #610, 428 of the 931, of which 249 are
-    `words`, 109 `c` and 70 `built`, and none a `crash`.
+    the four it is: as of #611, 345 of the 931, of which 245 are
+    `words` and 100 `c`, and none is `built` or a `crash`.
+    - The 70 that kc built (#611) are kelvinc's errors in its words.
+      - Names: a word kelvinc keeps names no variable, `var typeof`;
+        `_kv_` and `kv_` names are kelvinc's and its runtime's; C's
+        type words, `int`, `char`, `void`, are no types.
+      - A bool where one goes: a condition, an operand of `&&`, `||`
+        and `!`, and what a function of a bool result returns. What
+        only C sees goes through the `_Generic` that only a bool
+        passes, as kelvinc writes it.
+      - Numbers: a base of 2 to 36, `bool("text")`, a range of
+        integers, an `any^` that steps.
+      - `#import`: a directory, `as C` after a Kelvin file, text after
+        the name; a `$/.../` literal that is no regular expression, by
+        the runtime's `rx_check`.
+      - Declarations: a `let` with no value, `count:i32` with no `let`
+        or `var`, `static var T.f()`, a function or a computed
+        attribute of a built-in type, a case with a number, a `cstr`
+        key.
+      - Owners: a struct that owns dropped, a borrow that outlives
+        its owner or is returned, `.get` of a value that owns, a
+        change to what an expression gives, a borrow of a Bytes
+        appended to a String, an element lent to a `map` or `sort`
+        function and moved or returned there.
+      - Functions: `{ $0 + 1 }` in parentheses or given to overloads
+        that differ, a body whose value is discarded, a `.map` result
+        of two number types, a tie of a method's overloads, a
+        function of a type called on a value, `async` of an array
+        parameter.
+      - The rest: an IO's `close` and `rename` on a `let` and `print`
+        of a function, `return {1}` of a number, what follows a bare
+        `return`, `{1.0}` for a case, a case that binds beside
+        another, `p^ = &x` of a reference, `for` over a parameter's
+        array whose length a var gives.
+    - Thirteen more that kc left to C or said in its own words are
+      kelvinc's with them, `no_char.k` and `void_return.k` among them.
     - The three that were (#610), each an index out of range in
       gen.k, are kelvinc's errors in its words: `for x in n` of what
       has no elements, a number, a bool, a struct, which `gen_each`
