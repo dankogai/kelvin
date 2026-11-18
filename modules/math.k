@@ -182,7 +182,7 @@ let polar(r:f64, theta:f64):c64 { (c64){r * cos(theta), r * sin(theta)} }
 let polar(r:f32, theta:f32):c32 { c32(polar(f64(r), f64(theta))) }
 
 // (real.hex imag.hex .i) of two texts (#558): each part's text carries its
-// own sign, which joins them, (+0x1.8p+0-0x1p+1.i); a nan has none, so a
+// own sign, which joins them, (+0x1.8p0-0x1p+1.i); a nan has none, so a
 // + is written before one
 let complex_text(real:cstr, imag:cstr):String {
     var s = $"("
@@ -872,7 +872,7 @@ extend c64 {
     let pow(w:Self):Self { pow(self, w) }
     let i:Self { Self(0.0 - .imag, .real) }
 
-    // its text as its parts' (#558): (+0x1.8p+0-0x1p+1.i), and (+1.5-2.0.i)
+    // its text as its parts' (#558): (+0x1.8p0-0x1p+1.i), and (+1.5-2.0.i)
     let hex:String { complex_text(self.real.hex, self.imag.hex) }
     let dec:String { complex_text(self.real.dec, self.imag.dec) }
 

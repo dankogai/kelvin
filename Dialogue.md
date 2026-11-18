@@ -11766,3 +11766,28 @@ function with no receiver, which kelvinc leaves to C; kc says it in
 words of its own. Details are provisional P614.
 
 There are 1404 tests, and all pass with clang and with gcc 15.
+
+### 650. `x.hex`, an exponent of 0 with no sign
+
+**User**, while #602 was being recorded: "`fp.hex` (fp is any
+floating-point instance) always puts sign of the value. let us put
+the sign of the exponent as well. when it is zero, the sign is
+omitted (`p0`)." Then "push", for #602, which **Claude** pushed, its
+battery clean.
+
+The exponent had its sign already: `x.hex` is C's `%a` with the
+value's sign, and `%a` writes `p+1`, `p-2` and `p+0`. So the change
+is the last: an exponent of 0 has no sign, `+0x1p0`. It is so of an
+`f64` and an `f32`, of a `BigFloat`, and of the parts of the complex
+numbers.
+
+`SION.stringify` writes a number from `x.hex`, so its text would
+change with it, and Claude asked whether it should. **User**: "SION
+follows .hex. SION spec is not very strict on this. It is okay to
+express it even in .dec, .oct or .bin so long as it is not ambiguous
+and lossless. so `+0x1p0` is fine." So 1.0 is `0x1p0` in SION's text.
+
+Both texts read back, the old `p+0` too, from text and as a literal.
+Details are provisional P615.
+
+There are 1405 tests, and all pass with clang and with gcc 15.

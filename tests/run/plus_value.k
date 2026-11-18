@@ -55,7 +55,7 @@ let main():int32 {
 // out: 6n 5n 5n BigInt 10n -5n -5n
 // out: 10n +0x5n 2n 5n
 // out: 12n 7n 5n 10n
-// out: 1.5 -2.0 c64 (+0x1.8p+0-0x1p+1.i) (+1.0+2.0.i)
+// out: 1.5 -2.0 c64 (+0x1.8p0-0x1p+1.i) (+1.0+2.0.i)
 // out: 9 3 8 2 -3 -3 vec
 // out: (1/3) (2/3) (-1/3) (1/2) rat64 (+0x1/0x3)
 // out: (1n/3n) (2n/3n) (1n/3n) BigRat ((+0x1n/0x2n)+(-0x1n/0x3n).i) (1n/2n)

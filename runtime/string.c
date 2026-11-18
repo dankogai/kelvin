@@ -320,8 +320,20 @@ uint8_t *kv_dec_f64(double v, uint8_t *buf) {
     char t[96];
     return signed_text(kv_f64_text(v, t), buf);
 }
-uint8_t *kv_hex_f32(float v, uint8_t *buf) { return float_text(v, "%+a", buf); }
-uint8_t *kv_hex_f64(double v, uint8_t *buf) { return float_text(v, "%+a", buf); }
+
+/* .hex of a float is C's %a with the sign of its value, and its exponent
+   has its sign too, +0x1.8p+1 and -0x1p-2, but an exponent of 0, which has
+   none (#603): +0x1p0, where %a writes p+0 */
+static uint8_t *hex_text(double v, uint8_t *buf) {
+    float_text(v, "%+a", buf);
+    size_t n = strlen((char *)buf);
+    if (n >= 3 && !strcmp((char *)buf + n - 3, "p+0"))
+        strcpy((char *)buf + n - 2, "0");
+    return buf;
+}
+
+uint8_t *kv_hex_f32(float v, uint8_t *buf) { return hex_text(v, buf); }
+uint8_t *kv_hex_f64(double v, uint8_t *buf) { return hex_text(v, buf); }
 
 /* ---------- p.hex (#37) ---------- */
 

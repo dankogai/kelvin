@@ -368,7 +368,7 @@ let main():int32 {
   - `print`, a template and `.cstr` give it, and `.string` a String;
     a struct's member, an Optional's value and an element show it.
   - `z.dec` has the real part's sign too, `(+0.1-0.2.i)`, and `z.hex`
-    is of the parts' `.hex`, `(+0x1.8p+0-0x1p+1.i)`, its value exactly.
+    is of the parts' `.hex`, `(+0x1.8p0-0x1p+1.i)`, its value exactly.
 - **From text**: `CBF(text)` reads what `print` writes, and `z.dec`'s
   and `z.hex`'s, so `CBF(&z.string)` is `z`; `CBF(text, precision)` has
   each part at a precision.
@@ -612,7 +612,7 @@ atan2(y:BigFloat, x:BigFloat):BigFloat, atan2(y:BigFloat, x:BigFloat, precision:
 | | `.round(precision)`, `.round(precision, rule)` | each part at `precision` bits, to the nearest and the even one, or by a rule |
 | | `.string`, `${z}`, `println(z)` | `(0.1-0.2.i)`: each part a `BigFloat`'s text, the imaginary part's sign joining them; a `String` |
 | | `.cstr` | the same text, a `cstr` |
-| | `.dec`, `.hex` | `(+0.1-0.2.i)` and `(+0x1.8p+0-0x1p+1.i)`, exact: its parts' texts and `.i`, a `String` |
+| | `.dec`, `.hex` | `(+0.1-0.2.i)` and `(+0x1.8p0-0x1p+1.i)`, exact: its parts' texts and `.i`, a `String` |
 | | `CBF(text)`, `CBF(text, precision)` | of its text: `(0.1-0.2.i)`, `z.dec`, `z.hex`, `{real: 0.1, imag: -0.2}`, or a part alone, `1.5`, `2.0.i`; a `cstr` or a `String` by reference; text that is none is a NaN in both parts |
 | | `CBF(z)`, `CBF(z, precision)` | of a `c64` or a `CBR`: each part the nearest |
 | | `.abs()`, `.arg()`, `.abs(p)`, `.arg(p)` | to `BigFloat.precision` significant bits, or to `p`, a `BigFloat` (#582) |

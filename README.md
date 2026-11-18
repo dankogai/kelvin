@@ -462,7 +462,7 @@ So far the changes from C are these, by topic.
   - and a `CBR` too: `exp(z, 64)`, `z.sqrt()`, `abs(z)`, each part
     within `2^-precision`, the inverses with C99's branch cuts (#554)
 - a complex number has the texts of its parts: `c64(1.5, -2.0).hex` is
-  `(+0x1.8p+0-0x1p+1.i)` and its `.dec` `(+1.5-2.0.i)`, which paste
+  `(+0x1.8p0-0x1p+1.i)` and its `.dec` `(+1.5-2.0.i)`, which paste
   back as the number; a `CBR` has `.hex`, `.oct` and `.bin`, as a
   BigRat (#559)
 - `+x`, the prefix, of a struct is its value where the type has a unary
@@ -521,7 +521,7 @@ So far the changes from C are these, by topic.
   `BigFloat("0.1")` is `0.1` and `BigFloat(1) / 3`
   `0.333333333333333333333333333333333333334`, laid out as an
   `f64`'s; `x.dec` has a sign and `x.hex` is C's `%a`,
-  `+0x1.8p+0`, exact; `BigFloat(text)` reads a decimal, a fraction,
+  `+0x1.8p0`, exact; `BigFloat(text)` reads a decimal, a fraction,
   a hex float, `inf` and `nan`, and text that is none is a NaN (#577)
 - the else arm of `c ? a : b` may begin with a type's attribute:
   `c ? -f64.infinity : f64.infinity` and `c ? x : i64.max`, which
@@ -668,3 +668,8 @@ So far the changes from C are these, by topic.
   import stands: a module's header that names `c64`, imported before
   `<BigNum>`, whose header writes that import, came before math, and
   C did not know its type (#601)
+- `x.hex` of a floating-point number writes an exponent of 0 with no
+  sign, `+0x1p0`, where it was C's `p+0`; any other has its sign, as
+  before, `+0x1.8p+1` and `-0x1.8p-2`. So of an `f64`, an `f32`, a
+  `BigFloat` and the parts of a complex number, and of the number
+  SION writes (#603)

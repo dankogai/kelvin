@@ -2002,12 +2002,13 @@ extend BigFloat {
     let dec:String { BigFloat_text(self, true) }
 
     // C's %a with a sign, +0x1.8p+1, its value exactly: the bits after
-    // the first as hex digits, and the power of 2 of the first
+    // the first as hex digits, and the power of 2 of the first, with its
+    // sign, but of 0, +0x1p0 (#603)
     let hex:String {
         if self.special == 2 { return $"nan" }
         let sign:cstr := self.mantissa.isNegative ? "-" : "+"
         if self.special == 1 { return $`${sign}inf` }
-        if self.mantissa.isZero { return $`${sign}0x0p+0` }
+        if self.mantissa.isZero { return $`${sign}0x0p0` }
         var s = $""
         s += sign
         let a = self.mantissa.abs
@@ -2026,7 +2027,7 @@ extend BigFloat {
         }
         let p:i128 = self.exponent as i128 + n as i128 - 1
         s += 'p'
-        s += p < 0 ? '-' : '+'
+        if p != 0 { s += p < 0 ? '-' : '+' }           // an exponent of 0 has no sign, p0 (#603)
         let size:i128 = p < 0 ? 0 - p : p
         let tail = $`${size}`
         s += &tail
@@ -2568,7 +2569,7 @@ let CBF_nan_at(text:cstr, at:i64):bool {
 }
 
 // a CBF of its text, to precision bits in each part: what print writes,
-// (0.1-0.2.i), z.dec's, (+0.1-0.2.i), and z.hex's, (+0x1.8p+0-0x1p+1.i), as
+// (0.1-0.2.i), z.dec's, (+0.1-0.2.i), and z.hex's, (+0x1.8p0-0x1p+1.i), as
 // a c64's is laid out and read (#569): with the parentheses or with none,
 // a part alone, 1.5 or 2.0.i, spaces about the sign that joins. A part is
 // read as BigFloat(text) reads it. Text that is none is an error, a NaN
@@ -2877,7 +2878,7 @@ extend CBF {
     // its text, which print shows whole and .cstr gives: (0.1-0.2.i), each
     // part a BigFloat's text, the imaginary part's sign joining the two,
     // as a c64's (#570); .dec has the real part's sign too, (+0.1-0.2.i),
-    // and .hex is of the parts' .hex, (+0x1.8p+0-0x1p+1.i), exact
+    // and .hex is of the parts' .hex, (+0x1.8p0-0x1p+1.i), exact
     let string:String {
         let real = self.real.string
         let imag = self.imag.string

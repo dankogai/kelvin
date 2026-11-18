@@ -51,14 +51,14 @@ let main():int32 {
 // out: -256
 // out: -2147483648
 // out: -2
-// out: 0x1.8p+0
-// out: 0x1.8p+0
+// out: 0x1.8p0
+// out: 0x1.8p0
 // out: "hi"
 // out: "abc"
 // out: .Data("AQI=")
 // out: .Date(0x1.5p+5)
 // out: .Date(0x1.5p+5)
-// out: .Date(-0x1p+0)
+// out: .Date(-0x1p0)
 // out: .Ext("1NTU")
 // out: .Ext("xwIFAQI=")
 // out: [1,"x"]

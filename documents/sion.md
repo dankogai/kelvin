@@ -68,7 +68,8 @@ writes it back; [msgpack.md](msgpack.md) packs one into MessagePack.
     spaces, 0 to 10, one entry a line with ` : ` between a key and its
     value.
   - A double is written as C's `%a`, the hex float that reads back
-    exactly, `0x1.8p+0` for 1.5, and `nan`, `inf` and `-inf`; an
+    exactly, `0x1.8p0` for 1.5, as `x.hex` writes it (#603), an
+    exponent of 0 with no sign, and `nan`, `inf` and `-inf`; an
     integer in decimal; a date as `.Date(%a)`; data and an ext in
     base64; a string as Swift quotes it, `\n`, `\t`, `\0`, `\u{1}`.
 - **`s["key"]` and `s[i]`** (#136) give a copy of the value under a

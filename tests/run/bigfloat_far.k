@@ -47,5 +47,5 @@ let main():int32 {
 // out: 0.0 true true true 0.0 true
 // out: 0.0 inf 0.0 1.0 inf 0.0 inf 0.0
 // out: 0.0 inf nan 1.0 +0x1p+2000000000000 true -0x1p+3000000000000 nan
-// out: inf 0.0 +0x1p+1099511627776 +0x1.e0de009318bafff96de6c717ef102102p+0
+// out: inf 0.0 +0x1p+1099511627776 +0x1.e0de009318bafff96de6c717ef102102p0
 // out: true true 1.0 0.99988 true

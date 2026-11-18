@@ -693,7 +693,7 @@ kc reads what it is written in, and little more.
   - A line that begins with `+` goes on with the line before it, as
     it did: the binary one.
   - So a text with a sign pastes back into kc too: `+2.0`,
-    `+0x1.8p+0`, `(+0x1.8p+0-0x1p+1.i)` of a `c64` (#558, #559).
+    `+0x1.8p0`, `(+0x1.8p0-0x1p+1.i)` of a `c64` (#558, #559).
   - tests/run's unary_plus.k, float_dec.k and complex_text.k are
     built by kc, and print what kelvinc's builds print; sample.k has
     a line of them.

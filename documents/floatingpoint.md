@@ -11,7 +11,7 @@ var f:float32 = 1.5                     // no 1.5f: the type is on the declarati
 let half = float64(n) / 2               // a converter
 let x = float64("0x1.8p1")              // read from text: 3.0
 println(0.1, " ", $[1.0, 0.5])      // 0.10000000000000001 [1.0, 0.5]
-println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
+println(1.5.hex, " ", 3.9.int32)      // +0x1.8p0 3
 println(f64.pi, " ", f64.infinity, " ", f64.ulpOfOne)   // 3.1415926535897931 inf 2.2204460492503131e-16
 println(1.5.sign, " ", 1.5.exponent, " ", 1.5.significand, " ", f64(1, -1, 3))   // 1 -1 3 1.5: sign * significand * 2 ** exponent
 println(f64.random(), " ", f64.random(-1.0, 1.0))       // from 0.0 up to 1.0, and from -1.0 up to 1.0
@@ -85,8 +85,11 @@ text, print and show as text. Integers are in
   - `.cstr`, `${x}` and `print` agree, and so does a float inside a
     value: a struct's member, an Array's element, an Optional's value.
   - `.dec` is the same text with a sign, `+0.10000000000000001`, `+2.0`,
-    `-0.0`, and `.hex` C's `%a` with a sign, `+0x1.8p+0`.
+    `-0.0`, and `.hex` C's `%a` with a sign, `+0x1.8p0`.
     - Each pastes back as the float: `+2.0` keeps its point (#558).
+    - `.hex`'s exponent has its sign too, `+0x1.8p+1` and
+      `-0x1.8p-2`, but an exponent of 0, which has none: `+0x1p0`,
+      where C's `%a` writes `p+0` (#603). Both read back.
     - A NaN has no sign: `nan`.
   - `.oct` and `.bin` of a float are errors.
   - A float inside a value shows as alone, `[11.0]`, `{x: 1.0}`,
@@ -231,7 +234,7 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 | | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text `print` shows, every digit with a point, `1.0`, `0.10000000000000001` (#258, #259), in the block's buffer |
-| | `.dec`, `.hex` | its text, `+2.0`, and C's `%a`, each with a sign |
+| | `.dec`, `.hex` | its text, `+2.0`, and C's `%a`, each with a sign; `.hex`'s exponent has its sign, but of 0, `+0x1p0` (#603) |
 | | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
 | | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
 | | `.sign` | -1 or 1, an `i64`, by its sign bit: a zero's and a NaN's too (#597) |

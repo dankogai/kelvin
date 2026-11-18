@@ -1,5 +1,5 @@
 // z.hex and z.dec of a c64 or a c32 (#559): its parts' texts and .i, in
-// parentheses, (+0x1.8p+0-0x1p+1.i); each part's own sign joins them,
+// parentheses, (+0x1.8p0-0x1p+1.i); each part's own sign joins them,
 // so the text pastes back as the number. Of a CBR, with <BigNum>,
 // z.hex, z.oct and z.bin: its parts are BigRats, each in its own
 // parentheses, with a + between
@@ -26,12 +26,12 @@ let main():int32 {
     println(CBR(255, 16).hex, " ", CBR(3, -4).i.bin, " ", (b / 0).oct, " ", 1n.over(7n).i.hex)
     return 0
 }
-// out: (+0x1.8p+0-0x1p+1.i) (+1.5-2.0.i) (+0x1.8p+0+0x1p+1.i) (+1.5+2.0.i) String
-// out: (+0.10000000000000001+1e+22.i) (-0x0p+0+0x0p+0.i) (+0.0-0.0.i) (-1.75-6.0.i)
+// out: (+0x1.8p0-0x1p+1.i) (+1.5-2.0.i) (+0x1.8p0+0x1p+1.i) (+1.5+2.0.i) String
+// out: (+0.10000000000000001+1e+22.i) (-0x0p0+0x0p0.i) (+0.0-0.0.i) (-1.75-6.0.i)
 // out: (nan+nan.i) (+inf-inf.i) (+1.0+nan.i)
-// out: (+0x1.99999ap-4-0x1p+1.i) (+0.100000001-2.0.i) (+0x0p+0+0x1p+0.i) (+0.0+2.0.i) String
+// out: (+0x1.99999ap-4-0x1p+1.i) (+0.100000001-2.0.i) (+0x0p0+0x1p0.i) (+0.0+2.0.i) String
 // out: true true true true
 // out: (1.5-2.0.i) c64 (0.0-0.0.i) (-0.0-0.0.i)
-// out: (+1.5-2.0.i)! 20 (+0x1.8p+0-0x1p+1.i) true
+// out: (+1.5-2.0.i)! 19 (+0x1.8p0-0x1p+1.i) true
 // out: ((+0x1n/0x2n)+(-0x1n/0x3n).i) ((+0o1n/0o2n)+(-0o1n/0o3n).i) ((+0b1n/0b10n)+(-0b1n/0b11n).i) String
 // out: ((+0xffn/0x1n)+(+0x10n/0x1n).i) ((+0b100n/0b1n)+(+0b11n/0b1n).i) ((+0o1n/0o0n)+(-0o1n/0o0n).i) ((+0x0n/0x1n)+(+0x1n/0x7n).i)

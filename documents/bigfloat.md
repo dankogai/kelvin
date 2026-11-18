@@ -170,9 +170,11 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
     give it, and a member, an element and an Optional's value show it:
     `{name: "t", x: 0.1}`, `[1.5, 0.1, inf]`, `some(2.5)`.
   - **`x.dec`** is the same with a sign, `+0.1`, and **`x.hex`** C's
-    `%a` with a sign, `+0x1.8p+0`: the bits after the first as hex
+    `%a` with a sign, `+0x1.8p0`: the bits after the first as hex
     digits, and the power of 2 of the first, its value exactly, of any
     length.
+    - The exponent has its sign, `+0x1.8p+1` and `+0x1.8p-2`, but of
+      0, which has none (#603), as an `f64`'s.
 - **`BigFloat(text)`** reads one, all of the text, blanks at its ends
   aside; text that is none is a NaN, `BigFloat("1.5x")`.
   - A decimal, with a point and an exponent, read exactly and then
@@ -252,7 +254,7 @@ modules/BigFloat.k, `#import <BigFloat>`.
 | | `.sign` | -1 where it is negative, else 1, an `i64` (#597) |
 | | `.f64` | the nearest `f64`; `inf`, `-inf`, 0 or `nan` |
 | | `print(x)`, `.cstr`, `${x}`, `.string` | the fewest digits that `BigFloat(text)` reads back, `0.1`; `.string` a String (#577) |
-| | `.dec`, `.hex` | the same with a sign, `+0.1`, and C's `%a` with a sign, `+0x1.8p+0`, exact; each a String |
+| | `.dec`, `.hex` | the same with a sign, `+0.1`, and C's `%a` with a sign, `+0x1.8p0`, exact; each a String |
 | | `.sqrt()`, `.exp()`, `.log()`, `.sin()`, ..., `.atanh()` (#580) | the function to `BigFloat.precision` significant bits; `.exp(p)` to `p` |
 | | `.pow(y)`, `.pow(y, p)`, `.atan2(x)`, `.atan2(x, p)` | the two-argument ones |
 | | `BigFloat.pi()`, `BigFloat.pi(p)` | pi to `BigFloat.precision` bits, or to `p` |

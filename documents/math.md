@@ -147,7 +147,7 @@ have these built in, JavaScript and Perl among them.
 - **`z.hex` and `z.dec`** are its parts' `.hex` and `.dec`
   ([floatingpoint.md](floatingpoint.md)) and `.i`, in parentheses, a
   `String` (#559).
-  - `c64(1.5, -2.0).hex` is `(+0x1.8p+0-0x1p+1.i)`, and its `.dec`
+  - `c64(1.5, -2.0).hex` is `(+0x1.8p0-0x1p+1.i)`, and its `.dec`
     `(+1.5-2.0.i)`.
   - Each part's text has a sign, and the imaginary part's joins the
     two: `(+1.5+2.0.i)` of the conjugate.
@@ -232,5 +232,5 @@ c64(text:cstr):c64, c32(text:cstr):c32                                      // a
 | | `.i` | `z` times `i` |
 | | `.string`, `${z}`, `println(z)` | `(1.5-2.0.i)`: each part as `print` writes a float, the imaginary part's sign joining them, both parts always; a `String` (#570) |
 | | `.cstr` | the same text, a `cstr` |
-| | `.hex`, `.dec` | `(+0x1.8p+0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
+| | `.hex`, `.dec` | `(+0x1.8p0-0x1p+1.i)` and `(+1.5-2.0.i)`: its parts' texts and `.i`, a `String` (#559) |
 | | `c64(text)`, `c32(text)` | of its text: `(1.5-2.0.i)`, `(+1.5-2.0.i)`, `{real: 1.5, imag: -2.0}`, or a part alone, `1.5`, `2.0.i`; a `cstr` or a `String` by reference; text that is none is a NaN in both parts (#569) |
