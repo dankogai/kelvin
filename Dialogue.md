@@ -11910,7 +11910,10 @@ and `<BigNum>`; a moved owner by its path; and kc, which reads the
 prelude's modules and any import now.
 
 The benchmark is the Benchmark workflow's, run by hand once the
-commit is on main. No tag and no release are made: the user asks for
-those. Details are provisional P620.
+commit was on main: of `kelvinc 0.3.0`, Kelvin's `BigInt` is faster
+than Python's integers in each of the 11 cases, on Ubuntu and on
+macOS. Then, as the **user** asked, "push. then tag v0.3.0 and make a
+release", once CI passed: the tag v0.3.0 and the release Kelvin
+0.3.0, of CHANGELOG.md's notes. Details are provisional P620.
 
 There are 1414 tests, and all pass with clang and with gcc 15.
