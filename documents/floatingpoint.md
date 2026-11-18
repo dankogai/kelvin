@@ -90,6 +90,11 @@ text, print and show as text. Integers are in
     - `.hex`'s exponent has its sign too, `+0x1.8p+1` and
       `-0x1.8p-2`, but an exponent of 0, which has none: `+0x1p0`,
       where C's `%a` writes `p+0` (#603). Both read back.
+    - The text is Kelvin's own, on every system (#607), where it was
+      the C library's `%a`: a subnormal is written as any other
+      number, by its first 1, `5e-324.hex` is `+0x1p-1074`, as a
+      `BigFloat`'s is. glibc's `%a` writes it
+      `0x0.0000000000001p-1022`, which is read still.
     - A NaN has no sign: `nan`.
   - `.oct` and `.bin` of a float are errors.
   - A float inside a value shows as alone, `[11.0]`, `{x: 1.0}`,
@@ -234,7 +239,7 @@ The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing 
 | | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text `print` shows, every digit with a point, `1.0`, `0.10000000000000001` (#258, #259), in the block's buffer |
-| | `.dec`, `.hex` | its text, `+2.0`, and C's `%a`, each with a sign; `.hex`'s exponent has its sign, but of 0, `+0x1p0` (#603) |
+| | `.dec`, `.hex` | its text, `+2.0`, and its hex float, as C's `%a`, each with a sign; `.hex`'s exponent has its sign, but of 0, `+0x1p0` (#603), and a subnormal's is by its first 1, `+0x1p-1074` (#607) |
 | | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
 | | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
 | | `.sign` | -1 or 1, an `i64`, by its sign bit: a zero's and a NaN's too (#597) |

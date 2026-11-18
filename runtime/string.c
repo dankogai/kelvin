@@ -291,13 +291,6 @@ KV_INT128_PROPERTIES(bin, 2)
 #endif
 
 /* floats: always signed; a NaN has no meaningful sign and is "nan" */
-static uint8_t *float_text(double v, const char *format, uint8_t *buf) {
-    char text[64] = "nan";
-    if (!isnan(v))
-        snprintf(text, sizeof text, format, v);
-    strcpy((char *)buf, text); /* kelvinc sizes buf for the longest text */
-    return buf;
-}
 
 /* .dec of a float is the text print shows (#258), every digit with a
    point, after its sign (#558): +2.0, not %+.17g's +2, which pastes back
@@ -321,14 +314,56 @@ uint8_t *kv_dec_f64(double v, uint8_t *buf) {
     return signed_text(kv_f64_text(v, t), buf);
 }
 
-/* .hex of a float is C's %a with the sign of its value, and its exponent
-   has its sign too, +0x1.8p+1 and -0x1p-2, but an exponent of 0, which has
-   none (#603): +0x1p0, where %a writes p+0 */
+/* .hex of a float is a hex float with the sign of its value, +0x1.8p+1,
+   its value exactly: 0x1, the bits after its first 1 as hex digits, the
+   last zeros left out, and the power of 2 of that 1, with its sign but of
+   0, +0x1p0 (#603). Kelvin writes it itself (#607), where it was C's %a
+   with the p+0 mended: a subnormal is written as any other, +0x1p-1074,
+   its first 1 found, as a BigFloat's is, whatever the C library does,
+   glibc's %a writing it 0x0.0000000000001p-1022. A zero is 0x0p0, an
+   infinity inf, each with its sign, and a NaN nan */
 static uint8_t *hex_text(double v, uint8_t *buf) {
-    float_text(v, "%+a", buf);
-    size_t n = strlen((char *)buf);
-    if (n >= 3 && !strcmp((char *)buf + n - 3, "p+0"))
-        strcpy((char *)buf + n - 2, "0");
+    char *p = (char *)buf;
+    if (isnan(v)) {
+        strcpy(p, "nan");
+        return buf;
+    }
+    uint64_t bits;
+    memcpy(&bits, &v, sizeof bits);
+    *p++ = bits >> 63 ? '-' : '+';
+    uint64_t frac = bits & 0xfffffffffffffull;
+    int field = (int)(bits >> 52 & 0x7ff), e = field - 1023;
+    if (field == 0x7ff) {
+        strcpy(p, "inf");
+        return buf;
+    }
+    if (!field && !frac) {
+        strcpy(p, "0x0p0");
+        return buf;
+    }
+    if (!field) { /* a subnormal: its first 1 brought to the place of a normal's */
+        e = -1022;
+        while (!(frac >> 52)) {
+            frac <<= 1;
+            e--;
+        }
+        frac &= 0xfffffffffffffull;
+    }
+    *p++ = '0';
+    *p++ = 'x';
+    *p++ = '1';
+    if (frac) {
+        *p++ = '.';
+        for (int shift = 48; shift >= 0; shift -= 4) {
+            *p++ = "0123456789abcdef"[frac >> shift & 0xf];
+            if (!(frac & ((1ull << shift) - 1))) /* zeros alone after it */
+                break;
+        }
+    }
+    *p++ = 'p';
+    if (e)
+        *p++ = e < 0 ? '-' : '+';
+    snprintf(p, 8, "%d", e < 0 ? -e : e);
     return buf;
 }
 

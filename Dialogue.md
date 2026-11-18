@@ -11866,3 +11866,28 @@ kc left the two to the linker too, and says kelvinc's words. Details
 are provisional P618.
 
 There are 1413 tests, and all pass with clang and with gcc 15.
+
+### 654. Hex text, Kelvin's own
+
+**User**: "push", for #606, which **Claude** pushed, its battery
+clean; this is the last of the four.
+
+`x.hex` of a floating-point number was the C library's `%a`, with a
+sign put before it and its `p+0` mended (#603). Of a subnormal the
+libraries differ: macOS writes `0x1p-1074` of the least `f64`, by its
+first 1, and glibc `0x0.0000000000001p-1022`, the bits as they are
+stored. Both read back, so print pastes back either way, but one
+number had two texts.
+
+Claude asked which, and the **user** answered: normalized. Kelvin
+writes the text itself now, from the number's bits, and calls no
+`%a`: `5e-324.hex` is `+0x1p-1074` on every system, as a `BigFloat`'s
+of the same number is. Every other text is as it was: of 12,000,000
+numbers, `f64`s and `f32`s, none differs from macOS's `%a`, and each
+`f64`'s reads back.
+
+glibc's text was not run here, as there is no Linux at hand; the new
+test pins the normalized text, and CI's Linux jobs run it. Details
+are provisional P619.
+
+There are 1414 tests, and all pass with clang and with gcc 15.

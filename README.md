@@ -689,3 +689,8 @@ So far the changes from C are these, by topic.
   was the linker's, a duplicate symbol, as an operator has no
   `Kelvin.` to say which is meant; an operator of other types stands
   beside the prelude's (#606)
+- `x.hex` of an `f64` and an `f32` is Kelvin's own text, the same on
+  every system, where it was the C library's `%a`: a subnormal is
+  written by its first 1, `5e-324.hex` is `+0x1p-1074`, as a
+  `BigFloat`'s is, where glibc's `%a` writes
+  `0x0.0000000000001p-1022` (#607)
