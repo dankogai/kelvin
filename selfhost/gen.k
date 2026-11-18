@@ -7147,6 +7147,10 @@ let gen_call(n:int64) {
     if refuse_valueless_args(n) { return }
     if nodes[f].kind == N_TYPE {
         if tok_is(nodes[f].t, "IO") {
+            if args < 0 || (nodes[args].next >= 0 && nodes[nodes[args].next].next >= 0) {   // one or two, as kelvinc says it (#610)
+                gen_error(n, "IO takes a path and a mode, as in IO(\"log.txt\", \"w\"): text, a String or a Bytes; a path alone opens for reading (#101); or a file descriptor and a mode, IO(fd, \"r\")")
+                return
+            }
             let fy:int64 = type_of(args)
             let by_fd = fy >= 0 && is_number_kind(types[fy].kind) && types[fy].kind != Y_F64 && types[fy].kind != Y_F32
             put(by_fd ? "kv_io_fdopen(" : "kv_io_open(")     // IO(fd, mode), a descriptor's, as kelvinc's #86 (#452)
@@ -17524,6 +17528,16 @@ let gen_each(n:int64, depth:int64) {
     } else if types[y].kind == Y_PTR {
         gen_error(nodes[n].a, "kc walks a pointer only as a list, a struct's along its next: not yet up to a 0 or nowhere")
         return
+    } else if types[y].kind == Y_C || (types[y].kind == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y)) {
+        gen_error(nodes[n].a, "kc does not walk what only C sees, a C header's type: not yet")   // kelvinc walks it as a pointer, up to a 0 (#610)
+        return
+    } else if types[y].kind != Y_ARRAY && types[y].kind != Y_BYTES {   // a number, a struct: as kelvinc says it (#610)
+        var m = $"for x in s walks a pointer, a list or an array, and this is "
+        let w:String = kelvin_type_text(y)
+        m += &w
+        m += "; for a count, write 'for i in 0..<n'"
+        gen_error(nodes[n].a, m.cstr)
+        return
     } else {
         let ey:int64 = types[y].kind == Y_BYTES ? base_type(Y_U8) : types[y].elem    // a Bytes's bytes (#439)
         put("for (size_t _kv_i")
@@ -17782,6 +17796,18 @@ let gen_switch(n:int64, depth:int64) {
         if td >= 0 && first >= 0 && nodes[first].kind == N_CALL && !failed {
             let m = case_named(td, case_word(first)) ?? 0 - 1    // case n(x): x is the case's value, the enum's still
             let x = nodes[first].b
+            if nodes[m].ty < 0 {                         // a case of no value binds nothing, as kelvinc says it (#610)
+                var e = $"case '"
+                e += tok_text(case_word(first))
+                e += "' of "
+                let w:String = kelvin_type_text(type_of(nodes[n].a))
+                e += &w
+                e += " carries no value: nothing to bind, write 'case "
+                e += tok_text(case_word(first))
+                e += ":'"
+                gen_error(first, e.cstr)
+                return
+            }
             indent(depth + 2)
             if fixed_case(m) {                           // a copy of the elements, a local's array (#360)
                 put_fixed_decl(nodes[m].ty, nodes[x].t)

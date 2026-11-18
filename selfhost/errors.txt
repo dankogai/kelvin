@@ -150,7 +150,6 @@ c each_any.k
 words each_c_struct.k
 c each_list_written.k
 words each_no_next.k
-crash each_number.k
 c each_param_hidden.k
 built each_param_length.k
 c each_temporary.k
@@ -227,7 +226,6 @@ words inline_c_trigraph.k
 words inline_c_unterminated.k
 words inline_c_word.k
 c inline_extern.k
-crash io_args.k
 built io_close_let.k
 words io_converter.k
 c io_exec_args.k
@@ -375,7 +373,6 @@ c suffix_long_double.k
 c suffix_u.k
 c suffix_ul.k
 built switch_bind_chain.k
-crash switch_bind_no_value.k
 words switch_default_needed.k
 words switch_empty_case.k
 words switch_exhaustive_enum.k

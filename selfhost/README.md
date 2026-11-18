@@ -105,8 +105,16 @@ selfhost/errors.sh
   - `built`: kc builds what kelvinc refuses.
   - `crash`: kc itself ends, with no error of the program.
   - `errors.txt` lists each test that is not `same`, with which of
-    the four it is: as of #609, 431 of the 928, of which 249 are
-    `words`, 109 `c`, 70 `built` and 3 `crash`.
+    the four it is: as of #610, 428 of the 931, of which 249 are
+    `words`, 109 `c` and 70 `built`, and none a `crash`.
+    - The three that were (#610), each an index out of range in
+      gen.k, are kelvinc's errors in its words: `for x in n` of what
+      has no elements, a number, a bool, a struct, which `gen_each`
+      took for an Array; `IO()` and `IO(a, b, c)`, whose first
+      argument `gen_call` read where there is none; and
+      `case none(x):`, a case of no value, whose type `gen_switch`
+      wrote. Of a C header's type kc's `for` says "not yet", in
+      words of its own, where kelvinc walks it as a pointer.
   - The check fails where a test is not as listed: one that got
     worse, and one that got better, whose line is to go. So the list
     only shrinks, and a new test of `tests/error` is the same in kc,

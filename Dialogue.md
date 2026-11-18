@@ -11944,3 +11944,25 @@ Neither compiler is changed: the 3 crashes and the 70 built are
 listed and left. Details are provisional P621.
 
 There are 1414 tests, and all pass with clang and with gcc 15.
+
+### 657. kc's three crashes
+
+**User**: "push", for #609, which **Claude** pushed, its battery
+clean; CI's Linux jobs agree with the list of all 928. Then:
+
+> fix kc's three crashes as #610
+
+The three #609's list had as `crash`: `for x in n` of a number,
+`IO()` and `case none(x):`. Each ended kc with an index out of
+range, a type or a node asked of what has none, as #602's did. Each
+is kelvinc's error now, in its words, and the site is mended for all
+that reaches it: a `for` of a bool, a struct, an IO or an Optional,
+and `case plain(x):` of an enum's case of no value. `IO(a, b, c)`,
+which kc built with its third argument dropped, is the error too.
+
+Of a C header's type kc's `for` says "not yet", in words of its own:
+kelvinc walks that as a pointer. The step of #609 asked for the
+three lines to go, and they went; three tests more say the siblings.
+Details are provisional P622.
+
+There are 1417 tests, and all pass with clang and with gcc 15.
