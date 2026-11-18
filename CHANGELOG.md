@@ -1,5 +1,160 @@
 # Changelog
 
+## 0.3.0 (#608)
+
+math and `UnicodeData` in the prelude, beside `RegExp` and `BigInt`,
+with `Kelvin.name` to reach the prelude past a program's own names; a
+String of graphemes; and the numbers of any size, `<Rational>` and
+`<BigNum>`: #515 to #607.
+
+### The prelude
+
+- **math** needs no import (#591) ([math.md](documents/math.md)):
+  `sin(0.5)`, `2.0.sqrt()`, `f64.tau` and `c64(1.0, 2.0) * 1.0.i`.
+  - libkelvin holds it; a program that names none of its names compiles
+    as before, and `#import <math>` still builds.
+  - `abs(-3)` of an integer is Kelvin's, an `i64`.
+- **`UnicodeData`** is in every program (#520)
+  ([unicodedata.md](documents/unicodedata.md)).
+- **`Kelvin.name`** is the prelude's `name`, whatever the program calls
+  its own, as `Swift.print` is Swift's (#600)
+  ([namespace.md](documents/namespace.md)): `Kelvin.log(x)`,
+  `Kelvin.BigInt`, `Kelvin.nfc`.
+  - A function of the program's with the name and the types of one of
+    the prelude's is another function, and a type of its own with the
+    name of one of the prelude's another type (#600).
+  - A variable or an enum's word of the program's top level hides the
+    prelude's of that name: `let exp = 2.5`, `let nfc = 5` (#604).
+  - An operator of the prelude's own types is the prelude's alone:
+    `let +(a:c64, b:c64):c64` is an error (#606).
+  - `Kelvin` is no name of a program's own; `kelvin` is free.
+- A module of the prelude that an import writes is read first, wherever
+  the import stands (#601).
+
+### Strings
+
+- **A String's elements are its graphemes**, each a String, as Swift's
+  (#522) ([strings.md](documents/strings.md)): `for c in s`, `s[i]`,
+  the slices, `s.count`, `s.find` and `s.prefix` count them, and
+  RegExp's offsets are of graphemes.
+- **`s.codepoints`** is its codepoints, an `Array<u32>`;
+  `for c in s.codepoints` walks the String in place (#521, #527).
+- **`grapheme(c0, c1, ...)`** and
+  **`String.fromCodepoints(c0, c1, ...)`** make a String of
+  codepoints, each a `Result<String, CodepointError>` (#526).
+- **`uchr` is no more**: a codepoint is a `u32`, and the word is an
+  error that says what to write (#527, #528).
+- C's text has a document of its own, [cstr.md](documents/cstr.md)
+  (#525).
+
+### Numbers
+
+- **`x.bits`** of an integer and of a `BigInt` (#530, #531)
+  ([bits.md](documents/bits.md)): its bits, an `Array<bool>`, place 0
+  first; `x.bits[n]` is read and set where it is, and `T(bools)` is the
+  way back.
+  - `Bits`, the type, is no more (#532).
+- **Of a number's type:** `T.min` and `T.max` of an integer type
+  (#545); Swift's constants of a floating-point type, `f64.infinity`,
+  `f64.nan`, `f64.pi`, `f64.ulpOfOne` and the rest (#546), and
+  `f64.zero` (#596); `T.random()` of the number types and of `bool`
+  (#547).
+- **A floating-point number is
+  `sign * significand * 2 ** exponent`**, three integers (#597, #598)
+  ([floatingpoint.md](documents/floatingpoint.md)):
+  - `x.sign` is -1 or 1, an `i64`, where it was a `bool?`;
+  - `x.exponent` and `x.significand` are the power of 2 and an odd
+    integer, `1.5` is 3 times `2^-1`, where they were IEEE 754's raw
+    fields;
+  - `f64(sign, exponent, significand)` makes the number of the three.
+- **Text that pastes back:**
+  - `x.dec` of a float is what print shows, after its sign, `+2.0`
+    (#558);
+  - `x.hex` of a float is Kelvin's own text on every system: an
+    exponent of 0 has no sign, `+0x1p0`, and a subnormal is written by
+    its first 1, `+0x1p-1074` (#603, #607);
+  - `0o52` is an octal number, the text `n.oct` writes, and `0o17n` a
+    `BigInt` (#561);
+  - a complex number prints as `(1.5-2.0.i)`, has `z.hex` and `z.dec`,
+    and is read from its text, `c64(text)` (#559, #569, #570);
+  - an enum with values prints as it is written, `num.n(1.5)` (#529).
+- `+x` of a struct is its value where the type has a unary `-`: `+1n`
+  (#563).
+
+### The library
+
+- **`#import <Rational>`**, rational numbers (#538 to #540)
+  ([rational.md](documents/rational.md)):
+  - `rat64`, `rat32`, `rat16` and `rat8`, of two signed integers, and
+    `BigRat`, of two `BigInt`s, which every result fits (#566);
+  - `1.over(3)` is `(1/3)`; `+ - * /` and the comparisons, exact; an
+    infinity, `(1/0)`, and a NaN, `(0/0)`, which what does not fit is;
+  - read from its text, exactly: `rat64("8/-12")` is `(-2/3)` and
+    `rat64("0.1")` `(1/10)` (#565, #567, #568).
+- **`#import <BigNum>`**, the numbers of any size (#590)
+  ([bignum.md](documents/bignum.md)):
+  - `BigFloat`, a float of any precision, each result rounded to
+    `BigFloat.precision` significant bits, 128 (#576, #577)
+    ([bigfloat.md](documents/bigfloat.md));
+  - `CBR` and `CBF`, complex numbers of two `BigRat`s and of two
+    `BigFloat`s (#552, #581);
+  - math's functions of each, `sqrt(BigFloat(2))` and
+    `exp(CBF(0, 1))`, a `BigRat`'s to a precision (#553, #554, #580,
+    #582), of numbers far from 1 too (#583 to #589).
+- `F.zero`, `F.infinity`, `F.nan` and
+  `F(sign, exponent, significand)` are of every one of them, as of an
+  `f64` (#596, #598).
+- Both are libraries built once, as `<JSON>` is: a program that imports
+  `<BigNum>` builds in a quarter of a second, where it took four
+  (#599).
+- **An overlay**, as Swift's cross-import overlay: where `<A>` and
+  `<B>` are both imported, `A+B` is imported too (#551, #579)
+  ([modules.md](documents/modules.md)).
+- **`BigInt`** is faster than Python's integers, and than those of a
+  Ruby without GMP, in each case of
+  [benchmarks/bigint](benchmarks/bigint/README.md) (#517 to #519).
+
+### The language
+
+- **A moved owner is dead on the path that moved it** (#605)
+  ([ownership.md](documents/ownership.md)): `if c { return s }` and
+  then `return s` builds, and so does a move in each branch of an `if`
+  or in each case of a `switch`.
+- **A type attribute may be computed**, `static let T.x:R { ... }`,
+  read as `T.x` (#595).
+- **Used before written**, as a function is (#505): a built-in type's
+  method (#543), and an attribute and its setter (#544).
+- **A value of a type's own**, `bool.random()` or `f64.pi * 2.0`, may
+  begin a statement (#549), stand in parentheses (#545) and begin the
+  else of `c ? a : b` (#578); an attribute of an `i64` is read on a
+  literal, `7.half` (#548).
+- A function may be named by its types as a member of a type is:
+  `meters(x:f64)` beside the attribute `meters.f64` (#575).
+
+### Fixes
+
+- Kelvin errors in words where C's came before: an assignment to what
+  is no place, `f() = 2` (#534); `&` of what has no address (#535); a
+  call of an overload with no result where a value is asked (#593).
+- A `)` or a `]` too many is said where it is (#555).
+- A rational's infinity divided by a negative number is the other
+  infinity (#574); a `CBR` by a real one, or times it, keeps a part
+  that is 0 (#571 to #573).
+
+### kc
+
+- kc, the compiler in Kelvin, reads the prelude's modules and links
+  libkelvin (#515), and `#import <M>` of any module (#516): it builds
+  programs of `BigInt`, `RegExp`, math, `<Rational>` and `<BigNum>`
+  (#542, #550), and does the same of each change above.
+- It reads more of kelvinc's Kelvin: typed loops of every kind (#523,
+  #524), `v.T` as `T(v)` (#533), `&f` and an overload chosen by a
+  function's type (#536, #537), hex floats (#556), fixed arrays of
+  pointers (#557), the prefix `+` (#560, #564) and `0o52` (#562).
+- It says kelvinc's errors where it built the program or ended: a
+  method's value dropped at a body's end (#594), `.x` and `self` where
+  there is no self (#602).
+
 ## 0.2.0 (#514)
 
 `RegExp` and `BigInt` in the prelude, as JS and Swift have `RegExp` and

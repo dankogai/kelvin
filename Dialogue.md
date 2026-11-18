@@ -11891,3 +11891,26 @@ test pins the normalized text, and CI's Linux jobs run it. Details
 are provisional P619.
 
 There are 1414 tests, and all pass with clang and with gcc 15.
+
+### 655. Version 0.3.0
+
+**User**: "push", for #607, which **Claude** pushed, its battery
+clean: the four fixes ordered before 0.3.0 are in. Then:
+
+> Let's do the release chores for 0.3.0
+
+**Claude** had listed four: a CHANGELOG entry, KELVIN_VERSION, the
+README's release line and the benchmark run. The version is 0.3.0,
+kelvinc's and the VS Code package's, with Design.md's status and the
+README's line. CHANGELOG.md's notes are of #515 to #607: math and
+UnicodeData in the prelude, with `Kelvin.name`; a String of
+graphemes, and no `uchr`; a number's bits, its type's constants, a
+float's three integers and the texts that paste back; `<Rational>`
+and `<BigNum>`; a moved owner by its path; and kc, which reads the
+prelude's modules and any import now.
+
+The benchmark is the Benchmark workflow's, run by hand once the
+commit is on main. No tag and no release are made: the user asks for
+those. Details are provisional P620.
+
+There are 1414 tests, and all pass with clang and with gcc 15.

@@ -46,8 +46,10 @@ let main(argc:i32, argv:[cstr]): i32 {
   - Each document says whether what it covers is the core, the
     prelude, or loaded with an `#import`; versusC.md sums that up.
 - [CHANGELOG.md](CHANGELOG.md) has the release notes, 0.1.0 the first
-  (#467), 0.1.1 with `fetch()` (#496), 0.2.0 the latest, with `RegExp`
-  and `BigInt` in the prelude (#514).
+  (#467), 0.1.1 with `fetch()` (#496), 0.2.0 with `RegExp` and
+  `BigInt` in the prelude (#514), 0.3.0 the latest, with math in the
+  prelude, `Kelvin.name`, a String of graphemes and the numbers of any
+  size (#608).
 - [Design.md](Design.md) has the design decisions, and
   [Dialogue.md](Dialogue.md) how they were made.
 - [Style.md](Style.md) is how Kelvin code is written.
