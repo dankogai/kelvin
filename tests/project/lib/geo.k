@@ -65,3 +65,6 @@ let abs(n:int64):int64 { n < 0 ? 0 - n * 2 : n * 2 }
 struct Match { score: int64 }
 let best(a:Match, b:Match):Match { a.score > b.score ? a : b }
 let far(m:Match):Kelvin.BigInt { Kelvin.BigInt(Kelvin.abs(m.score)) * 1000000000000n }
+// a function of a type of math's (#601): geo.kh names c64 and writes no
+// import of math, which every program has
+let turned(z:c64):c64 { z * 1.0.i }

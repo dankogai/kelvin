@@ -33,7 +33,8 @@ flags)` the same from text.
   names `RegExp`, or writes a `$/.../` literal, has it, with `Match` and
   `BytesMatch`, and no import.
   - `#import <RegExp>`, which it once needed, still builds, and does
-    nothing more.
+    nothing more: `RegExp` is read first, where the prelude's is,
+    wherever the import stands (#601).
   - A program with a type of its own named `RegExp` keeps it, under
     the bare name; the prelude's is `Kelvin.RegExp` there (#600), and
     a `$/.../` literal is the prelude's, where it was an error: see

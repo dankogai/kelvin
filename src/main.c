@@ -506,6 +506,47 @@ static bool own_name(const Token *toks, int i) {
     return name_in(&src_file_of(toks[i].pos.file)->sees, toks[i].text);
 }
 
+/* A module of the prelude that an #import writes, #import <math>, is
+   read where the prelude's is (#601): before all else, as it would be
+   were the import not written, and not where the import stands. A
+   module's header does not write the prelude's imports, so one that
+   names c64 counts on math's being read before it; and BigNum's header
+   writes #import <math>, as a program from before #591 may, which put
+   math after a header imported before it, whose c64 C then did not know.
+   The tokens the import was followed by, the file's and its end, go to
+   the front after an import of their own, and the one written stays, an
+   import of what is read already */
+static Token *prelude_first(Token *toks, int n, int *out_n, const char *path, const char *argv0) {
+    *out_n = n;
+    char *id = file_id(path);
+    int at = -1, end = -1;
+    for (int i = 0; i < n && at < 0; i++)
+        if (toks[i].kind == TK_IMPORT_K && !strcmp(file_id(import_path(&toks[i], argv0)), id))
+            at = i;
+    for (int j = at + 1; at >= 0 && j < n && end < 0; j++)
+        if (toks[j].kind == TK_FILE_END && !strcmp(file_id(toks[j].text), id))
+            end = j;
+    if (at < 0 || end < 0)
+        return toks;
+    bool first = true; /* nothing but imports before it: it is where the prelude's is */
+    for (int i = 0; i < at && first; i++)
+        first = toks[i].kind == TK_IMPORT || toks[i].kind == TK_IMPORT_K;
+    if (first)
+        return toks;
+    Token imp = {TK_IMPORT_K, toks[0].pos, toks[at].text, toks[0].pos.line, false, false, false, false, true, false};
+    Token *all = xmalloc(sizeof(Token) * (size_t)(n + 2));
+    int m = 0;
+    all[m++] = imp;
+    memcpy(all + m, toks + at + 1, sizeof(Token) * (size_t)(end - at));
+    m += end - at;
+    memcpy(all + m, toks, sizeof(Token) * (size_t)(at + 1));
+    m += at + 1;
+    memcpy(all + m, toks + end + 1, sizeof(Token) * (size_t)(n - end - 1));
+    m += n - end - 1;
+    *out_n = m;
+    return all;
+}
+
 /* The modules of the prelude (#504), which libkelvin holds: a program
    that names one, RegExp, a $/.../ literal's too, imports it as if it
    began with #import <RegExp>, unless it defines a type of that name or
@@ -533,7 +574,12 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
             named = !source_name || strcmp(source_name, "UnicodeData");
         Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false, false,
                      true, false}; /* implied: the prelude's, which a module's header does not write (#520) */
-        if (!named || imported_has(import_path(&imp, argv0))) /* none, or #import <RegExp> written */
+        if (imported_has(import_path(&imp, argv0))) { /* #import <RegExp> written: read first all the same (#601) */
+            toks = prelude_first(toks, n, &n, import_path(&imp, argv0), argv0);
+            *out_n = n;
+            continue;
+        }
+        if (!named)
             continue;
         if (source_name && !strcmp(source_name, names[k])) /* the module itself, which its own type kept out before (#600) */
             continue;
@@ -573,8 +619,10 @@ static Token *with_math(Token *toks, int n, int *out_n, const char *argv0) {
         else if (dirs[d] && kelvin_file(strfmt("%s/math.k", dirs[d])))
             path = strfmt("%s/math.k", dirs[d]);
     }
-    if (!path || imported_has(path)) /* none, or #import <math> written */
+    if (!path)
         return toks;
+    if (imported_has(path)) /* #import <math> written: read first all the same (#601) */
+        return prelude_first(toks, n, out_n, path, argv0);
     int m;
     Token *mt = lex(path, read_file(path), &m);
     List names = {0}, types = {0}, members = {0};

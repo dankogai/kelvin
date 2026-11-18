@@ -40,6 +40,10 @@ have these built in, JavaScript and Perl among them.
     there; its calls do, and the function stands beside math's, told
     apart by its types.
 - **`#import <math>`** is accepted, and does nothing more.
+  - Math is read where the prelude's is, before all else, wherever
+    the import stands (#601): a file imported before it that names
+    `c64` and writes no import of math, as a module's header does
+    not, has it all the same.
 - **A type of the program's own** named `c64`, `c32`, `complex64` or
   `complex32` hides math's under the bare name, and `Kelvin.c64` is
   math's (#600), as with a `RegExp` of its own.

@@ -11720,3 +11720,26 @@ the note: where an own type hides, the literals, the enum's words.
 Details are provisional P612.
 
 There are 1401 tests, and all pass with clang and with gcc 15.
+
+### 648. A written import of the prelude's, read first
+
+**User**: "push", for #600, while its battery ran, and then: "fix the
+c64 header import order as #601". **Claude** pushed #600 when the
+battery was clean, and mended this in a copy of the tree meanwhile.
+
+It was found with #600: a library whose header names `c64`, imported
+before `<BigNum>`, did not build, and C said "unknown type name
+'c64'". A header writes no import of the prelude's, as every program
+has them, and kelvinc reads them first. But BigNum's header writes
+`#import <math>`, and kelvinc read math where that import stood: after
+the library's header. A program's own `#import <math>`, which is
+still accepted, did the same to a file before it.
+
+A module of the prelude that an import writes is read first now, where
+the prelude's is; the import stays where it was written, of a file
+read already. It is so of the four alike, math, BigInt, RegExp and
+UnicodeData. kc was not wrong: it writes a program's types before its
+functions whatever the order of its files. Details are provisional
+P613.
+
+There are 1403 tests, and all pass with clang and with gcc 15.

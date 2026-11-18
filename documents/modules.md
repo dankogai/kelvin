@@ -115,6 +115,13 @@ let main():int32 {
   - `math` ([math.md](math.md), #43) is a module of the prelude too
     (#591), written in Kelvin over C's `math.h`: a program that names
     one of its names, `sin`, `c64`, `f64.tau`, has it.
+  - A module of the prelude is read before all else, written
+    `#import <math>` or not, wherever that import stands (#601).
+    - A module's header does not write the prelude's imports, so one
+      that names `c64` counts on math's being read before it.
+    - `BigNum.kh` writes `#import <math>`: a header that named `c64`
+      and was imported before `<BigNum>` came before math, and C did
+      not know its `c64`.
   - A module of the prelude is linked from the static libkelvin.a, as
     the rest of it: a program that uses none of it links none of it.
   - `JSON` ([json.md](json.md)) is built the same from `JSON.k` alone

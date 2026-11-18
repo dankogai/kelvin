@@ -663,3 +663,8 @@ So far the changes from C are these, by topic.
   another function, where it took its place or did not link, and a
   type with the name of one of its types no longer keeps the prelude's
   out; `Kelvin` is no name of a program's own (#600)
+- A module of the prelude that an import writes, `#import <math>`, is
+  read where the prelude's is, before all else, and not where the
+  import stands: a module's header that names `c64`, imported before
+  `<BigNum>`, whose header writes that import, came before math, and
+  C did not know its type (#601)
