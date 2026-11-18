@@ -684,3 +684,8 @@ So far the changes from C are these, by topic.
   leaves `s` for what follows, and the two branches of an `if` and the
   cases of a `switch` may each move it, as only one of them runs;
   after them it is dead where any that goes on moved it (#605)
+- An operator of the prelude's own types is the prelude's alone:
+  `let +(a:c64, b:c64):c64` in a program is kelvinc's error, where it
+  was the linker's, a duplicate symbol, as an operator has no
+  `Kelvin.` to say which is meant; an operator of other types stands
+  beside the prelude's (#606)

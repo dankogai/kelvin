@@ -11841,3 +11841,28 @@ kc had the same list and the same false errors, as it was kelvinc's
 rule, and follows the same paths. Details are provisional P617.
 
 There are 1410 tests, and all pass with clang and with gcc 15.
+
+### 653. An operator of the prelude's own types
+
+**User**: "push", for #605, which **Claude** pushed, its battery
+clean; this is the third of the four.
+
+`let +(a:c64, b:c64):c64` in a program did not link: a duplicate
+symbol, as the prelude has that operator. Since #600 a function of
+the program's with the name and the types of one of the prelude's is
+another function, and `Kelvin.name` says which is meant. An operator
+is written between its values, and has no `Kelvin.` to say it.
+
+Claude asked whether it is Kelvin's error or both live, and the
+**user** answered: Kelvin's error. So it is, at the program's
+operator: operator + of (c64, c64) is the prelude's, and a program
+defines no other of the same types. An extend of the prelude's type
+is held to the same.
+
+An operator of other types stands beside the prelude's as before: of
+a `c64` and a type of the program's, and of a type of the program's
+own that has the name of one of the prelude's, which is another type.
+kc left the two to the linker too, and says kelvinc's words. Details
+are provisional P618.
+
+There are 1413 tests, and all pass with clang and with gcc 15.

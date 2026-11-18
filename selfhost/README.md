@@ -1120,6 +1120,11 @@ kc reads what it is written in, and little more.
     - Where the files have such a name of math's, math is read,
       named or not, as C's `math.h` declares its functions in every
       program; kelvinc keeps math's names instead.
+  - **An operator of the prelude's own types** in the files (#606)
+    is kelvinc's error, in its words: `count_overloads` keeps the
+    prelude's operators by their types, `prelude_ops`, and refuses
+    one of the files' own of the same. kc wrote both before, and the
+    linker refused them.
   - **`Kelvin.f` that stays so** is called through `_kv_ns_f`, a
     constant pointer to the function written before the functions,
     which a variable of the name does not hide in C: `put_ns_name`.

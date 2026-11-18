@@ -67,6 +67,12 @@ prelude uses; `Kelvin.name` then still reaches the prelude's.
   `let f(exp:f64):f64 { Kelvin.exp(exp) }`.
 - **A function's name is a value** with `Kelvin.` too:
   `let f:(f64):f64 := Kelvin.sqrt`.
+- **An operator has no `Kelvin.`**, so one of the prelude's own
+  types is the prelude's alone (#606): a program's
+  `let +(a:c64, b:c64):c64` is an error.
+  - An operator of other types stands beside the prelude's: of one
+    of its types and one of the program's, and of a type of the
+    program's own that has the name of one of the prelude's.
 
 ### Types
 

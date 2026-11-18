@@ -15695,6 +15695,19 @@ static void check_overload(Decl *d, Token *name) {
             continue;
         if (!d->op && e->prelude != d->prelude) /* the program's own beside the prelude's (#600): two functions */
             continue;
+        if (d->op && e->prelude != d->prelude) { /* an operator has no Kelvin. to say which (#606): the prelude's alone */
+            Buf types = {0};
+            buf_puts(&types, "");
+            bare_tags = true;
+            for (int k = 0; k < d->params.len; k++)
+                buf_printf(&types, "%s%s", k ? ", " : "", kelvin_type(unqualified(((Var *)d->params.data[k])->type)));
+            bare_tags = false;
+            error_at(d->prelude ? e->pos : name->pos,
+                     "operator %s of (%s) is the prelude's, and a program defines no other of the same types (#606): "
+                     "an operator has no Kelvin. to say which is meant, as Kelvin.name says of a function; write a "
+                     "function of a name of its own",
+                     d->op, types.buf);
+        }
         if ((!e->ret) != (!d->ret) || (e->ret && strcmp(kelvin_type(e->ret), kelvin_type(d->ret))))
             error_at(name->pos, "'%s' is declared with these parameter types already, with another result: "
                                 "overloads differ in their parameter types",

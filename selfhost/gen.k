@@ -3369,10 +3369,15 @@ let count_overloads() {
     name_subscripts(&sub_getters)
     name_subscripts(&sub_setters)
     name_methods()
+    var prelude_ops:Dictionary<String, int64> = ${:}     // and its operators (#606), by their types
     for i in 0..<decls.count as int64 {                  // the prelude's functions (#600), before any is keyed
         let d:int64 = decls[i]
-        if nodes[d].kind != D_FN || nodes[d].c >= 0 || toks[nodes[d].t].kind != T_ID || !prelude_file(toks[nodes[d].t].file) { continue }
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 || !prelude_file(toks[nodes[d].t].file) { continue }
         var key = plain_key(d)
+        if toks[nodes[d].t].kind != T_ID {
+            if is_operator(d) { prelude_ops[key] = d }
+            continue
+        }
         if !prelude_keys.has(key) { prelude_keys[key] = d }
         prelude_keyed = true
     }
@@ -3380,6 +3385,23 @@ let count_overloads() {
         let d:int64 = decls[i]
         if nodes[d].kind != D_FN || nodes[d].c >= 0 { continue }
         if is_operator(d) && !operator_fits(d) { return }
+        if is_operator(d) && !prelude_file(toks[nodes[d].t].file) && prelude_ops.has(plain_key(d)) {   // as kelvinc says it (#606)
+            var m = $"operator "
+            m += tok_text(nodes[d].t)
+            m += " of ("
+            var p:int64 = nodes[d].a
+            var first = true
+            while p >= 0 {
+                if !first { m += ", " }
+                let w:String = kelvin_type_text(nodes[p].ty)
+                m += &w
+                first = false
+                p = nodes[p].next
+            }
+            m += ") is the prelude's, and a program defines no other of the same types (#606): an operator has no Kelvin. to say which is meant, as Kelvin.name says of a function; write a function of a name of its own"
+            gen_error(d, m.cstr)
+            return
+        }
         var key = sig_key(d)
         if !fn_sigs.has(key) {
             fn_sigs[key] = d

@@ -361,6 +361,11 @@ let main():int32 {
     has none (#563, [operators.md](operators.md)).
   - `x op= y`, `+=` and the rest, is defined apart (#518), below.
   - Other operators (`!`, `&&`) cannot be defined.
+  - An operator of the prelude's own types is the prelude's alone
+    (#606): `let +(a:c64, b:c64):c64` in a program is an error, where
+    it did not link, as no `Kelvin.` says which of two operators is
+    meant ([namespace.md](namespace.md)). One of other types stands
+    beside it, `let +(a:c64, b:vec):c64`.
   - Precedence is C's, and `**`'s Python's, as Kelvin's `**` is
     ([operators.md](operators.md)); `x **= y` is `x = x ** y`.
   - A definition is a `let` at the top level, `let +(a:T, b:U):R`, or a
