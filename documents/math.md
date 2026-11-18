@@ -53,6 +53,9 @@ have these built in, JavaScript and Perl among them.
   one of math's**, `let log(x:f64):f64 { ... }`, is another function
   (#600): `log(x)` calls it and `Kelvin.log(x)` math's. See
   [namespace.md](namespace.md).
+- **A variable of the program's top level named as one of math's
+  functions**, `let exp = 2.5`, is the program's own (#604), where C
+  refused it; `Kelvin.exp(x)` is math's.
 - **`abs` of an integer** is Kelvin's now, of an `i64`: `abs(-3)` is
   an `i64`. With no import it was C's, of an `int`, which cut a larger
   number short.

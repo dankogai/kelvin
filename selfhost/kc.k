@@ -241,24 +241,89 @@ let defines_type(t:int64):bool {
     return tok_is(t + 2, "{") || tok_is(t + 2, "<") || tok_is(t + 2, ":")
 }
 
-// each file's own types among names, tokens of the prelude's types'
-// names: what it defines at its top level, and what the files it imports
-// see. A file of the prelude sees none
-let own_types(names:$[int64]^) {
+// whether token t begins an enum with a name and a body, enum E { ... }
+let enum_at(t:int64):bool {
+    return t + 2 < toks.count as int64 && toks[t].kind == T_ID && tok_is(t, "enum") && toks[t + 1].kind == T_ID && toks[t + 2].kind == T_PUNCT && tok_is(t + 2, "{")
+}
+
+// the words of the enum at t, enum E { a, b = 2 }, as the places of their
+// tokens, as kelvinc's enum_words: of an enum of words alone, which are
+// names of the whole program; none of an enum with values, whose cases
+// are the enum's own
+let enum_words(t:int64):$[int64] {
+    var words:$[int64] = $[]
+    var end:int64 = t + 3
+    var values = false
+    while end < toks.count as int64 && !(toks[end].kind == T_PUNCT && tok_is(end, "}")) {
+        if toks[end].kind == T_PUNCT && (tok_is(end, ":") || tok_is(end, "{")) { values = true }
+        end += 1
+    }
+    for k in t + 3..<end {
+        if values || toks[k].kind != T_ID { continue }
+        let first = toks[k - 1].kind == T_NL || (toks[k - 1].kind == T_PUNCT && (tok_is(k - 1, "{") || tok_is(k - 1, ",") || tok_is(k - 1, ";")))
+        if first { words += k }
+    }
+    return words
+}
+
+// the tokens that declare a member, a struct's x: T or an extend's let x,
+// which no name of the top level hides: it is read after a dot (#604)
+var member_toks:$[int64] = $[]
+
+// each file's own names among the prelude's (#600, #604), as kelvinc's
+// own_types: its types', its functions' and the words of its enums. A
+// file has one where it defines, at its top level, a type of the name,
+// a variable of it, a word of an enum of its own, or, of a word of the
+// prelude's, a function; a function of the name of one of the prelude's
+// functions is an overload, and no such name. It sees those and what the
+// files it imports see. A file of the prelude sees none
+let own_types(types:$[int64]^, fns:$[int64]^, words:$[int64]^) {
     while sees_file.count > 0 { sees_file.pop() }
     while sees_name.count > 0 { sees_name.pop() }
-    var depth = 0
+    while member_toks.count > 0 { member_toks.pop() }
+    var kinds:$[int64] = $[]                             // what each brace belongs to: 1 a struct's or a union's body, 2 an extend's, 0 any other
     var found = false
     for t in 0..<toks.count as int64 - 2 {
-        if t > 0 && toks[t].file != toks[t - 1].file { depth = 0 }
+        if t > 0 && toks[t].file != toks[t - 1].file {
+            while kinds.count > 0 { kinds.pop() }
+        }
+        let depth:int64 = kinds.count as int64
+        let inside:int64 = depth > 0 ? kinds[depth - 1] : 0 - 1
+        var own:$[int64] = $[]                           // the names defined here
         if toks[t].kind == T_PUNCT && tok_is(t, "{") {
-            depth += 1
+            var kind:int64 = 0
+            if t >= 2 && toks[t - 1].kind == T_ID && toks[t - 2].kind == T_ID {
+                if tok_is(t - 2, "struct") || tok_is(t - 2, "union") { kind = 1 }
+                if tok_is(t - 2, "extend") { kind = 2 }
+            }
+            kinds += kind
         } else if toks[t].kind == T_PUNCT && tok_is(t, "}") {
-            depth -= 1
-        } else if depth == 0 && toks[t].kind == T_ID && defines_type(t) && !prelude_file(toks[t].file) && text_among(t + 1, names) && !file_sees(toks[t].file, t + 1) {
-            sees_file += toks[t].file
-            sees_name += t + 1
-            found = true
+            if depth > 0 { kinds.pop() }
+        } else if toks[t].kind != T_ID {
+            continue
+        } else if inside == 1 && toks[t + 1].kind == T_PUNCT && tok_is(t + 1, ":") {
+            member_toks += t
+        } else if inside == 2 && t > 0 && toks[t - 1].kind == T_ID && (tok_is(t - 1, "let") || tok_is(t - 1, "var")) {
+            member_toks += t
+        } else if depth != 0 || prelude_file(toks[t].file) {
+            continue
+        } else if enum_at(t) {
+            own = enum_words(t)
+            own += t + 1
+        } else if defines_type(t) {
+            own += t + 1
+        } else if (tok_is(t, "let") || tok_is(t, "var")) && toks[t + 1].kind == T_ID && toks[t + 2].kind == T_PUNCT {
+            let variable = tok_is(t + 2, ":") || tok_is(t + 2, "=") || tok_is(t + 2, ":=")
+            let function = tok_is(t + 2, "(")
+            if variable || (function && text_among(t + 1, words)) { own += t + 1 }
+        }
+        for u in own {
+            let theirs = text_among(u, types) || text_among(u, fns) || text_among(u, words)
+            if theirs && !file_sees(toks[u].file, u) {
+                sees_file += toks[u].file
+                sees_name += u
+                found = true
+            }
         }
     }
     var more = found
@@ -280,14 +345,15 @@ let own_types(names:$[int64]^) {
     }
 }
 
-// whether the name at t is the files' own type, which hides the prelude's
+// whether the name at t is the files' own, which hides the prelude's
 // there, as kelvinc's own_name: not after a dot, Kelvin.T or a member's,
-// nor a literal's, $/.../ or 123n, which are the prelude's
+// nor where it declares a member, nor a literal's, $/.../ or 123n, which
+// are the prelude's
 let own_name(t:int64):bool {
     if sees_file.count == 0 || toks[t].kind != T_ID { return false }
     if t > 0 && toks[t - 1].kind == T_PUNCT && tok_is(t - 1, ".") { return false }
     if !file_sees(toks[t].file, t) { return false }
-    return !big_lits.contains(t) && !rx_lits.contains(t)
+    return !big_lits.contains(t) && !rx_lits.contains(t) && !member_toks.contains(t)
 }
 
 // ---------- the modules, of the prelude too (#504, #515, #516) ----------
@@ -641,7 +707,9 @@ let load_math(mods:String^, ucd:int64):bool {
         }
     }
     var named = false
-    own_types(&types)                                    // a type of the files' own with one of its types' names (#600)
+    var none:$[int64] = $[]
+    own_types(&types, &names, &none)                     // a type of the files' own with one of its types' names (#600), a variable with one of its functions' (#604)
+    if sees_file.count > 0 { named = true }              // math is read then, named or not: its names hide, as C's math.h declares its functions in every program
     for t in 1..<first {
         if toks[t].kind != T_ID || toks[t].file == ucd { continue }
         if toks[t - 1].kind == T_ID && (tok_is(t - 1, "let") || tok_is(t - 1, "var")) { continue }
@@ -696,7 +764,8 @@ let load_prelude(mods:String^):bool {
             if one.count == 0 && toks[t].kind == T_ID && tok_is(t, w) { one += t }
         }
         if one.count == 0 { continue }
-        own_types(&one)
+        var none:$[int64] = $[]
+        own_types(&one, &none, &none)
         var named = false
         for t in 0..<first {
             if !named && toks[t].kind == T_ID && tok_is(t, w) && !own_name(t) { named = true }
@@ -791,6 +860,7 @@ let nothing_named(x:int64):bool {
     for u in 1..<toks.count as int64 - 1 {
         if toks[u].kind != T_ID || prelude_file(toks[u].file) || !same_text(u, x) { continue }
         if toks[u - 1].kind == T_PUNCT && tok_is(u - 1, ".") { continue }
+        if own_name(u) || member_toks.contains(u) { continue }   // the files' own of the name is _kv_own_x, another name (#604); a member's is read after a dot
         let declared = toks[u - 1].kind == T_ID && (tok_is(u - 1, "let") || tok_is(u - 1, "var"))
         let called = toks[u + 1].kind == T_PUNCT && tok_is(u + 1, "(")
         if declared || !called { return false }
@@ -863,26 +933,17 @@ let kelvin_names():bool {
     // the words of the prelude's enums of words alone, nfc of NormalForm,
     // which are names of every program: each, its enum's name, and its
     // number, or -1 where kc does not see it
-    var enum_words:$[int64] = $[]
+    var prelude_words:$[int64] = $[]
     var word_enum:$[int64] = $[]
     var word_value:$[int64] = $[]
     var depth = 0
     for t in 0..<toks.count as int64 - 2 {
         if t > 0 && toks[t].file != toks[t - 1].file { depth = 0 }
         if !prelude_file(toks[t].file) { continue }
-        if depth == 0 && toks[t].kind == T_ID && tok_is(t, "enum") && toks[t + 1].kind == T_ID && toks[t + 2].kind == T_PUNCT && tok_is(t + 2, "{") {
-            var end:int64 = t + 3
-            var values = false
-            while end < toks.count as int64 && !(toks[end].kind == T_PUNCT && tok_is(end, "}")) {
-                if toks[end].kind == T_PUNCT && (tok_is(end, ":") || tok_is(end, "{")) { values = true }
-                end += 1
-            }
+        if depth == 0 && enum_at(t) {
             var at:int64 = 0
             var known = true
-            for k in t + 3..<end {
-                if values || toks[k].kind != T_ID { continue }
-                let first = toks[k - 1].kind == T_NL || (toks[k - 1].kind == T_PUNCT && (tok_is(k - 1, "{") || tok_is(k - 1, ",") || tok_is(k - 1, ";")))
-                if !first { continue }
+            for k in enum_words(t) {
                 if toks[k + 1].kind == T_PUNCT && tok_is(k + 1, "=") {   // a number written is its own; any other value is C's to see
                     var v:int64 = 0
                     var digits = toks[k + 2].kind == T_NUM && toks[k + 3].kind != T_ID && toks[k + 3].kind != T_NUM
@@ -893,7 +954,7 @@ let kelvin_names():bool {
                     }
                     if digits { at = v } else { known = false }
                 }
-                enum_words += k
+                prelude_words += k
                 word_enum += t + 1
                 word_value += known ? at : 0 - 1
                 at += 1
@@ -911,7 +972,7 @@ let kelvin_names():bool {
             fns += t + 1                                 // not static let T.x, a member
         }
     }
-    own_types(&types)
+    own_types(&types, &fns, &prelude_words)
     var out:$[tok] = $[]
     var place:$[int64] = $[]                             // where each token is among them now
     let n:int64 = toks.count as int64
@@ -971,11 +1032,11 @@ let kelvin_names():bool {
             return false
         } else if text_among(x, &fns) && (call || !text_among(x, &types)) {
             if !nothing_named(x) { retext(&name, "Kelvin.") }   // the prelude's function, gen.k's to choose
-        } else if !text_among(x, &types) && text_among(x, &enum_words) {
+        } else if !text_among(x, &types) && text_among(x, &prelude_words) {
             // a word of an enum of the prelude's, Kelvin.nfc: (0 as NormalForm), its number as its type,
             // which a variable of its name hides neither here nor in C
             var w:int64 = 0
-            while !same_text(enum_words[w], x) { w += 1 }
+            while !same_text(prelude_words[w], x) { w += 1 }
             if word_value[w] < 0 {
                 lex_error(name.file, name.line, "this word of an enum of the prelude's has a number kc does not see: not yet (#600)")
                 return false

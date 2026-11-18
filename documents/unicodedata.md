@@ -32,6 +32,8 @@ codepoints, after Python's `unicodedata`.
   - Each is `Kelvin.nfc`, `Kelvin.grapheme(...)` and
     `Kelvin.NormalForm` too (#600), whatever the program calls its
     own: see [namespace.md](namespace.md).
+  - A program's own `nfc` at its top level, `let nfc = 5`, hides the
+    word (#604), where it did not build.
 - It is a header, `UnicodeData.kh` in `modules/`, whose code libkelvin
   holds (#504), as the prelude's `RegExp` uses it; a program links its
   tables only where it uses them.

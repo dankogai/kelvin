@@ -18452,7 +18452,9 @@ static char *gen_header_of(Program *prog) {
                     for (int m = 0; m < d->members.len; m++) {
                         Var *v = d->members.data[m];
                         buf_printf(&b, "extern %s%s %s:%s\n", v->first_use ? "lazy " : "", /* (#493) */
-                                   is_kw(&toks[k], "let") ? "let" : "var", v->name, kelvin_type(v->type));
+                                   is_kw(&toks[k], "let") ? "let" : "var",
+                                   !strncmp(v->name, KV_OWN, strlen(KV_OWN)) ? v->name + strlen(KV_OWN) : v->name, /* as written (#604) */
+                                   kv_shown(kelvin_type(v->type)));
                     }
                 }
             }

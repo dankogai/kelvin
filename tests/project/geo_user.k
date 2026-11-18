@@ -17,6 +17,7 @@ let main():int32 {
     println(point.unit, " ", made, " ", shape.unit.area(), " ", made)   // computed attributes of the types, each read a call (#595)
     let m:Match = {0 - 3}                        // the module's own abs and Match, beside the prelude's (#600)
     println(abs(-3), " ", Kelvin.abs(-3), " ", best(m, (Match){7}).score, " ", far(m), " ", m.typename)
+    println(turn(), " ", turn(), " ", round, " ", read() == nfc, " ", Kelvin.round(2.5), " ", Kelvin.nfc as i64)   // its round and its nfc (#604)
     return 0
 }
 // out: (3.0, 4.0) 7.0 4.0 3.0 (6.0, 8.0) 5.0 1
@@ -26,3 +27,4 @@ let main():int32 {
 // out: (2.5, 2.5) 5.0
 // out: (1.0, 1.0) 4 3.0 5
 // out: 6 3 7 3000000000000n Match
+// out: 1 2 2 true 3.0 0

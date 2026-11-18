@@ -1108,6 +1108,18 @@ kc reads what it is written in, and little more.
       call, and takes the prelude's alone of `Kelvin.f`.
     - Where libkelvin defines the prelude's, the files' own is
       `_kv_own_f__types` in C, as kelvinc's.
+  - **A name of the files' own top level that is no function**
+    (#604) hides the prelude's of that name the same way, `_kv_own_x`:
+    a variable named as a function of the prelude's, a word of an
+    enum of the files' own, anything named as a word of the
+    prelude's enum.
+    - `own_types` takes the prelude's types, functions and words;
+      `enum_words` reads an enum's.
+    - A member's declaration, a struct's `x: T` and an extend's
+      `let x`, is not renamed: `member_toks`.
+    - Where the files have such a name of math's, math is read,
+      named or not, as C's `math.h` declares its functions in every
+      program; kelvinc keeps math's names instead.
   - **`Kelvin.f` that stays so** is called through `_kv_ns_f`, a
     constant pointer to the function written before the functions,
     which a variable of the name does not hide in C: `put_ns_name`.

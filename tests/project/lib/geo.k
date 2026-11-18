@@ -68,3 +68,10 @@ let far(m:Match):Kelvin.BigInt { Kelvin.BigInt(Kelvin.abs(m.score)) * 1000000000
 // a function of a type of math's (#601): geo.kh names c64 and writes no
 // import of math, which every program has
 let turned(z:c64):c64 { z * 1.0.i }
+// a variable of the module's own with the name of one of math's
+// functions, and a word of an enum of its own with the name of one of
+// the prelude's (#604): each the module's, to geo.kh's reader too
+var round:int64 = 0
+enum reading { nfc, plain }
+let turn():int64 { round += 1; return round }
+let read():reading { nfc }

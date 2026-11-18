@@ -402,6 +402,7 @@ typedef struct {
     char *id;      /* its device and inode, as imported_already's, or its path */
     bool prelude;  /* a file of the prelude, which defines none of them */
     int depth;
+    char kinds[64]; /* what each brace it is in belongs to: 's' a struct's or a union's body, 'x' an extend's, 'o' any other */
     List imports;  /* char *: the ids of the files it imports */
     List sees;     /* char *: the names */
 } SrcFile;
@@ -454,28 +455,100 @@ static bool defines_type(const Token *toks, int n, int i) {
     return tok_is(&toks[i + 2], TK_PUNCT, "{") || tok_is(&toks[i + 2], TK_PUNCT, "<") || tok_is(&toks[i + 2], TK_PUNCT, ":");
 }
 
-/* Each file's own types among names, the prelude's types' names: what it
-   defines at its top level, and what the files it imports see, as it reads
-   them too. A file of the prelude sees none */
-static void own_types(Token *toks, int n, List *names, const char *argv0) {
+/* The words of the enum at i, enum E { a, b = 2 }, as the places of their
+   tokens: of an enum of words alone, which are names of the whole program;
+   none of an enum with values, whose cases are the enum's own. *end is its
+   closing brace */
+static List enum_words(const Token *toks, int n, int i, int *end) {
+    List words = {0};
+    *end = i + 3;
+    bool values = false;
+    while (*end < n && !tok_is(&toks[*end], TK_PUNCT, "}")) {
+        values = values || tok_is(&toks[*end], TK_PUNCT, ":") || tok_is(&toks[*end], TK_PUNCT, "{");
+        (*end)++;
+    }
+    for (int k = i + 3; !values && k < *end; k++) {
+        bool first = tok_is(&toks[k - 1], TK_PUNCT, "{") || tok_is(&toks[k - 1], TK_PUNCT, ",") ||
+                     tok_is(&toks[k - 1], TK_PUNCT, ";") ||
+                     (toks[k].pos.line > toks[k - 1].end_line && !tok_is(&toks[k - 1], TK_PUNCT, "="));
+        if (toks[k].kind == TK_IDENT && first)
+            list_push(&words, (void *)(intptr_t)k);
+    }
+    return words;
+}
+
+static bool enum_at(const Token *toks, int n, int i) {
+    return i + 2 < n && tok_is(&toks[i], TK_KEYWORD, "enum") && toks[i + 1].kind == TK_IDENT &&
+           tok_is(&toks[i + 2], TK_PUNCT, "{");
+}
+
+/* the tokens that declare a member, a struct's x: T or an extend's let x,
+   which no name of the top level hides: it is read after a dot (#604) */
+static bool *own_skip;
+static int own_skip_n;
+
+/* Each file's own names among the prelude's (#600, #604): its types', its
+   functions' and the words of its enums. A file has one where it defines,
+   at its top level, a type of the name, a variable of it, a word of an
+   enum of its own, or, of a word of the prelude's, a function; a function
+   of the name of one of the prelude's functions is an overload, and no
+   such name (#600). It sees those and what the files it imports see, as
+   it reads them too. A file of the prelude sees none */
+static void own_types(Token *toks, int n, List *types, List *fns, List *words, const char *argv0) {
     for (int i = 0; i < src_files.len; i++) {
         SrcFile *f = src_files.data[i];
         f->depth = 0;
         f->imports.len = f->sees.len = 0;
     }
+    own_skip = xcalloc((size_t)n + 1, sizeof *own_skip);
+    own_skip_n = n;
     bool any = false;
     for (int i = 0; i < n; i++) {
         SrcFile *f = src_file_of(toks[i].pos.file);
-        if (tok_is(&toks[i], TK_PUNCT, "{"))
+        char in = f->depth > 0 && f->depth <= 64 ? f->kinds[f->depth - 1] : 0;
+        List own = {0}; /* the places of the names defined here */
+        if (tok_is(&toks[i], TK_PUNCT, "{")) {
+            char kind = 'o';
+            if (i >= 2 && toks[i - 1].kind == TK_IDENT && toks[i - 2].kind == TK_KEYWORD &&
+                (!strcmp(toks[i - 2].text, "struct") || !strcmp(toks[i - 2].text, "union")))
+                kind = 's';
+            else if (i >= 2 && toks[i - 1].kind == TK_IDENT && tok_is(&toks[i - 2], TK_IDENT, "extend"))
+                kind = 'x';
+            if (f->depth >= 0 && f->depth < 64)
+                f->kinds[f->depth] = kind;
             f->depth++;
-        else if (tok_is(&toks[i], TK_PUNCT, "}"))
+        } else if (tok_is(&toks[i], TK_PUNCT, "}")) {
             f->depth--;
-        else if (toks[i].kind == TK_IMPORT_K)
+        } else if (toks[i].kind == TK_IMPORT_K) {
             list_push(&f->imports, file_id(import_path(&toks[i], argv0)));
-        else if (!f->prelude && f->depth == 0 && defines_type(toks, n, i) && name_in(names, toks[i + 1].text) &&
-                 !name_in(&f->sees, toks[i + 1].text)) {
-            list_push(&f->sees, toks[i + 1].text);
-            any = true;
+        } else if (toks[i].kind == TK_IDENT && in == 's' && i + 1 < n && tok_is(&toks[i + 1], TK_PUNCT, ":")) {
+            own_skip[i] = true;
+        } else if (toks[i].kind == TK_IDENT && in == 'x' && i > 0 && toks[i - 1].kind == TK_KEYWORD &&
+                   (!strcmp(toks[i - 1].text, "let") || !strcmp(toks[i - 1].text, "var"))) {
+            own_skip[i] = true;
+        } else if (f->prelude || f->depth != 0) {
+            continue;
+        } else if (enum_at(toks, n, i)) {
+            int end;
+            own = enum_words(toks, n, i, &end);
+            list_push(&own, (void *)(intptr_t)(i + 1));
+        } else if (defines_type(toks, n, i)) {
+            list_push(&own, (void *)(intptr_t)(i + 1));
+        } else if (toks[i].kind == TK_KEYWORD && (!strcmp(toks[i].text, "let") || !strcmp(toks[i].text, "var")) &&
+                   i + 2 < n && toks[i + 1].kind == TK_IDENT) {
+            const Token *after = &toks[i + 2];
+            bool variable = tok_is(after, TK_PUNCT, ":") || tok_is(after, TK_PUNCT, "=") || tok_is(after, TK_PUNCT, ":=");
+            bool function = tok_is(after, TK_PUNCT, "(");
+            if (variable || (function && words && name_in(words, toks[i + 1].text)))
+                list_push(&own, (void *)(intptr_t)(i + 1));
+        }
+        for (int k = 0; k < own.len; k++) {
+            const char *name = toks[(int)(intptr_t)own.data[k]].text;
+            bool theirs = (types && name_in(types, name)) || (fns && name_in(fns, name)) || (words && name_in(words, name));
+            if (theirs && !name_in(&f->sees, name)) {
+                list_push(&f->sees, (void *)name);
+                any = true;
+            }
         }
     }
     for (bool more = any; more;) {
@@ -497,11 +570,14 @@ static void own_types(Token *toks, int n, List *names, const char *argv0) {
     }
 }
 
-/* is the name at i the program's own type, which hides the prelude's
-   there? Not after Kelvin., nor after another dot, a member's name, nor
-   where it is a literal's, $/.../ or 123n, which are the prelude's */
+/* is the name at i the program's own, which hides the prelude's there?
+   Not after Kelvin., nor after another dot, a member's name, nor where it
+   declares a member, nor where it is a literal's, $/.../ or 123n, which
+   are the prelude's */
 static bool own_name(const Token *toks, int i) {
     if (toks[i].kind != TK_IDENT || toks[i].regexp || toks[i].bigint || (i > 0 && tok_is(&toks[i - 1], TK_PUNCT, ".")))
+        return false;
+    if (own_skip && i < own_skip_n && own_skip[i])
         return false;
     return name_in(&src_file_of(toks[i].pos.file)->sees, toks[i].text);
 }
@@ -567,7 +643,7 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
            program's own, where it sees that type */
         List one = {0};
         list_push(&one, (void *)names[k]);
-        own_types(toks, n, &one, argv0);
+        own_types(toks, n, &one, NULL, NULL, argv0);
         for (int i = 0; i < n && !named; i++)
             named = toks[i].kind == TK_IDENT && !strcmp(toks[i].text, names[k]) && !own_name(toks, i);
         if (!strcmp(names[k], "UnicodeData")) /* (#520) */
@@ -607,6 +683,8 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
    there and names no math (#600), where it kept all of math out: what
    else the program names of it brings it in, and Kelvin.c64 is math's.
    A module of the prelude is built without it, and so is math */
+static List math_fns, math_types; /* char *: math's names, read or not: C's math.h declares its functions in every program (#604) */
+
 static Token *with_math(Token *toks, int n, int *out_n, const char *argv0) {
     *out_n = n;
     if (source_name && !strcmp(source_name, "math"))
@@ -649,7 +727,9 @@ static Token *with_math(Token *toks, int n, int *out_n, const char *argv0) {
         }
     }
     bool named = false;
-    own_types(toks, n, &types, argv0); /* a type of the program's own with one of its types' names (#600) */
+    math_fns = names;
+    math_types = types;
+    own_types(toks, n, &types, &names, NULL, argv0); /* a type of the program's own with one of its types' names (#600), a variable with one of its functions' (#604) */
     for (int i = 0; i < n && !named; i++) {
         if (toks[i].kind != TK_IDENT)
             continue;
@@ -800,22 +880,13 @@ static Token *with_kelvin(Token *toks, int n, int *out_n, const char *argv0) {
         uses += tok_is(&toks[i], TK_IDENT, "Kelvin");
         if (!f->prelude)
             continue;
-        if (f->depth == 0 && tok_is(&toks[i], TK_KEYWORD, "enum") && toks[i + 1].kind == TK_IDENT &&
-            tok_is(&toks[i + 2], TK_PUNCT, "{")) {
-            int end = i + 3;
-            bool values = false;
-            while (end < n && !tok_is(&toks[end], TK_PUNCT, "}")) {
-                values = values || tok_is(&toks[end], TK_PUNCT, ":") || tok_is(&toks[end], TK_PUNCT, "{");
-                end++;
-            }
+        if (f->depth == 0 && enum_at(toks, n, i)) {
+            int end;
+            List words = enum_words(toks, n, i, &end);
             long at = 0;
             bool known = true;
-            for (int k = i + 3; !values && k < end; k++) {
-                bool first = tok_is(&toks[k - 1], TK_PUNCT, "{") || tok_is(&toks[k - 1], TK_PUNCT, ",") ||
-                             tok_is(&toks[k - 1], TK_PUNCT, ";") ||
-                             (toks[k].pos.line > toks[k - 1].end_line && !tok_is(&toks[k - 1], TK_PUNCT, "="));
-                if (toks[k].kind != TK_IDENT || !first)
-                    continue;
+            for (int w = 0; w < words.len; w++) {
+                int k = (int)(intptr_t)words.data[w];
                 if (tok_is(&toks[k + 1], TK_PUNCT, "=")) { /* a number written is its own; any other value kelvinc leaves to C */
                     char *rest = NULL;
                     at = toks[k + 2].kind == TK_NUMBER ? strtol(toks[k + 2].text, &rest, 0) : 0;
@@ -839,7 +910,16 @@ static Token *with_kelvin(Token *toks, int n, int *out_n, const char *argv0) {
                  toks[i + 1].kind == TK_IDENT && !tok_is(&toks[i + 2], TK_PUNCT, ".")) /* not static let T.x, a member */
             list_push(&fns, toks[i + 1].text);
     }
-    own_types(toks, n, &types, argv0);
+    /* math's names hide whether math is read or not (#604): kelvin_prelude.h includes C's math.h, whose exp
+       a variable of the program's own named exp would meet in C */
+    for (int i = 0; i < math_fns.len; i++)
+        list_push(&fns, math_fns.data[i]);
+    List hidden = {0}; /* the types' names that hide; types stays those read, which Kelvin.T names */
+    for (int i = 0; i < types.len; i++)
+        list_push(&hidden, types.data[i]);
+    for (int i = 0; i < math_types.len; i++)
+        list_push(&hidden, math_types.data[i]);
+    own_types(toks, n, &hidden, &fns, &words_of, argv0);
     Token *out = xmalloc(sizeof(Token) * (size_t)(n + 2 * uses + 1));
     int m = 0;
     for (int i = 0; i < n; i++) {

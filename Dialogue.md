@@ -11791,3 +11791,29 @@ Both texts read back, the old `p+0` too, from text and as a literal.
 Details are provisional P615.
 
 There are 1405 tests, and all pass with clang and with gcc 15.
+
+### 651. A name of the program's own top level
+
+**User**: "push", for #603, and asked: "What else should we fix before
+v0.3.0?" **Claude** tried the faults left against the tree and listed
+four to fix first, a step for the battery, kc's gaps, and what may
+wait. **User**: "Let's fix 'fix before 0.3.0', all of them." They are
+#604 to #607, and this is the first.
+
+`let nfc = 5` did not build: the prelude's enum has the words `nfc`,
+`nfd`, `nfkc` and `nfkd`, every program has them since #520, and C
+said "redefinition of 'nfc'". Trying it, Claude found the same of a
+commoner name: `let exp = 2.5` meets C's `exp`, which `math.h`
+declares in every program. Asked whether #604 should mend both, the
+user said both.
+
+So a name of the program's own top level that is no function hides
+the prelude's of that name: a variable, a word of an enum, a type.
+`Kelvin.exp(x)` and `Kelvin.nfc` are the prelude's. A function named
+as one of the prelude's functions is an overload still. It is #600's
+way, the program's own given a name of its own in the tokens; and a
+member's declaration is left alone now, so a struct may have a member
+`exp`, or one named as a type the program hides, which #600 could
+not. Details are provisional P616.
+
+There are 1406 tests, and all pass with clang and with gcc 15.

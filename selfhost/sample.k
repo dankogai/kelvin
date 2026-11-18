@@ -572,6 +572,11 @@ extend nm_len {
 let told593(x:int64) { println("told ", x) }
 let told593(x:float64):float64 { return x * 2.0 }
 let chosen593():float64 { told593(atof("1.5")) }
+// a variable named as one of math's functions, and one named as a word
+// of the prelude's enum (#604)
+var erfc:i64 = 41
+let nfkd = 9
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1589,6 +1594,8 @@ on a new line`
     println(f64(1, -1, 3), " ", 1.5.exponent, " ", 1.5.significand, " ", f32(-1, 2, 5), " ", BigFloat(1, -1, 3n), " ", BigRat(-1, -2, 5), " ", rat64(1, -1, 3))   // sign * significand * 2^exponent (#598)
     println(f64.zero, " ", f32.zero.typename, " ", rat64.zero, " ", rat8.infinity, " ", BigRat.nan, " ", BigFloat.infinity, " ", BigFloat.zero.isFinite)   // F.zero, F.infinity and F.nan (#596)
     println(1.0.hex, " ", 3.0.hex, " ", (0.375:f32).hex, " ", BigFloat(1).hex, " ", c64(1.5, -2.0).hex)   // an exponent of 0 has no sign (#603)
+    erfc += 1                                  // a variable of the top level named as one of math's functions (#604)
+    println(erfc, " ", Kelvin.erfc(0.0), " ", nfkd, " ", Kelvin.nfkd as i64)
     let trunc = 2.5                            // Kelvin.name, the prelude's, whatever the program calls its own (#600)
     println(ns600(0.0), " ", fmin(3.0, 4.0), " ", Kelvin.fmin(3.0, 4.0), " ", Kelvin.trunc(trunc), " ", Kelvin.abs(-3), " ", Kelvin.nfd as i64, " ", Kelvin.BigInt(7) + 1n)
     return 0

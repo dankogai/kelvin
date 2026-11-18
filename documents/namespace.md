@@ -84,9 +84,31 @@ prelude uses; `Kelvin.name` then still reaches the prelude's.
   `$/.../` a `Kelvin.RegExp`, where each was an error beside a type
   of the program's own of the name.
 - **`x.typename`** is the type's own name, `BigInt` of either.
-- A member is not renamed: a program that has its own `BigInt` and
-  also a member named `BigInt` declares one name and reads another.
-  Call the member otherwise.
+- **A member of the name is a member still** (#604), a struct's
+  `BigInt: i64` and an extend's `let BigInt`, read after a dot: no
+  name of the top level hides it.
+
+### Names of the top level
+
+- **A name of the program's own top level that is no function hides
+  the prelude's of that name** (#604), and `Kelvin.name` is the
+  prelude's.
+  - A variable named as one of the prelude's functions:
+    `let exp = 2.5` and `var floor:i64 = 3`, beside `Kelvin.exp(x)`
+    and `Kelvin.floor(x)`.
+    - C refused it before, "redefinition of 'exp' as different kind of
+      symbol": C's `math.h` declares `exp` in every program.
+    - `exp(x)` there calls the variable, which is no function, as it
+      does of any variable.
+  - A word of an enum of the program's own, `enum Tag { nfc, log }`.
+  - Anything named as a word of the prelude's enum, `nfc`, `nfd`,
+    `nfkc` or `nfkd`: a variable, a function, a type. Every program
+    has those four words since #520, so `let nfc = 5` did not build.
+- **A function of the program's named as one of the prelude's
+  functions** is an overload of it, or another function of its types,
+  as above, and hides nothing.
+- It hides in the file that defines it and in the files that import
+  that file, as a type does.
 
 ### A library
 

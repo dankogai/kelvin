@@ -673,3 +673,9 @@ So far the changes from C are these, by topic.
   before, `+0x1.8p+1` and `-0x1.8p-2`. So of an `f64`, an `f32`, a
   `BigFloat` and the parts of a complex number, and of the number
   SION writes (#603)
+- A name of the program's own top level that is no function hides the
+  prelude's of that name, and `Kelvin.name` is the prelude's: a
+  variable named as one of its functions, `let exp = 2.5`, which C
+  refused, and anything named as a word of its enum, `let nfc = 5`,
+  which every program has had since #520; a member of such a name is
+  a member still (#604)
