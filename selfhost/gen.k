@@ -672,6 +672,35 @@ let move_back(v:int64, returned:bool):bool {
     return true
 }
 
+// What is moved out is kept by the path that moved it (#605), as
+// kelvinc's: the branches of an if and the cases of a switch are not both
+// run, so what one moved is not moved in the other, and after them a name
+// is moved where any path that goes on moved it; a block that ends in a
+// return goes on nowhere. The locals' flags, copied, put back and added
+let moved_now():$[bool] {
+    var m:$[bool] = $[]
+    for i in 0..<locals.count as int64 { m += locals[i].moved }
+    return m
+}
+
+let moved_back(m:$[bool]^) {
+    for i in 0..<m^.count as int64 {
+        if i < locals.count as int64 { locals[i].moved = m^[i] }
+    }
+}
+
+let moved_add(m:$[bool]^) {
+    for i in 0..<m^.count as int64 {
+        if i < locals.count as int64 && m^[i] { locals[i].moved = true }
+    }
+}
+
+let moved_into(all:$[bool]^) {
+    for i in 0..<all^.count as int64 {
+        if i < locals.count as int64 && locals[i].moved { all^[i] = true }
+    }
+}
+
 // the moves of what was just written, made (#441)
 let moves_done() {
     for k in 0..<moving.count as int64 {
@@ -17542,6 +17571,7 @@ let gen_iflet(n:int64, depth:int64) {
         gen_error(n, "this is no case of a value of this enum")
         return
     }
+    var began:$[bool] = moved_now()                      // what was moved when it began (#605)
     serial += 1
     let s = serial
     put("{\n")
@@ -17603,17 +17633,23 @@ let gen_iflet(n:int64, depth:int64) {
     }
     declare_as(nodes[n].flag, nodes[m].ty, 3)              // a case's value (#271)
     var st = nodes[nodes[n].b].a
+    var last_st:int64 = 0 - 1
     while st >= 0 && !failed {
         gen_stmt(st, depth + 2)
+        last_st = st
         st = nodes[st].next
     }
     close_scope()
+    if last_st >= 0 && nodes[last_st].kind == S_RETURN { moved_back(&began) }   // (#605)
     indent(depth + 1)
     put("}\n")
     if nodes[n].c >= 0 {
         indent(depth + 1)
         put("else\n")
+        var then:$[bool] = moved_now()
+        moved_back(&began)
         gen_stmt(nodes[n].c, depth + 1)
+        moved_add(&then)
     }
     indent(depth)
     put("}\n")
@@ -17672,9 +17708,12 @@ let gen_switch(n:int64, depth:int64) {
     let outer_to = fall_to
     let outer_from = fall_from
     fall_from = 0 - 1
+    var began:$[bool] = moved_now()                      // what was moved when it began (#605),
+    var after:$[bool] = moved_now()                      // and in a case that goes on to what follows it
     var c:int64 = nodes[n].b
     while c >= 0 && !failed {
         let fell = fall_from
+        if fell < 0 { moved_back(&began) }               // a case begins as the switch did, or as the one before left it, fallen through
         fall_to = nodes[c].next
         fall_from = 0 - 1
         if nodes[c].flag == 1 {
@@ -17757,12 +17796,14 @@ let gen_switch(n:int64, depth:int64) {
             put("break;\n")
         }
         close_scope()
+        if !(last >= 0 && nodes[last].kind == S_RETURN) { moved_into(&after) }   // it goes on, unless it ended in a return (#605)
         indent(depth + 1)
         put("}\n")
         c = nodes[c].next
     }
     fall_to = outer_to
     fall_from = outer_from
+    moved_back(&after)                                   // after it, what any case that goes on moved (#605)
     if !whole {
         let y:int64 = type_of(nodes[n].a)
         var d = -1
@@ -17909,11 +17950,15 @@ let gen_stmt_of(n:int64, depth:int64) {
         gen_cond(nodes[n].a)
         put(")\n")
         indent(depth)
+        var began:$[bool] = moved_now()                  // (#605)
         gen_block(nodes[n].b, depth)
         if nodes[n].c >= 0 {
             indent(depth)
             put("else\n")
+            var then:$[bool] = moved_now()               // the else begins as the if did, and after both what either moved is moved
+            moved_back(&began)
             gen_stmt(nodes[n].c, depth)
+            moved_add(&then)
         }
     case S_WHILE:
         put("while (")
@@ -18031,13 +18076,17 @@ let gen_stmt_of(n:int64, depth:int64) {
 // { statements }, written after an indent
 let gen_block(n:int64, depth:int64) {
     put("{\n")
+    var began:$[bool] = moved_now()                      // (#605)
     open_scope()
     var s:int64 = nodes[n].a
+    var last:int64 = 0 - 1
     while s >= 0 && !failed {
         gen_stmt(s, depth + 1)
+        last = s
         s = nodes[s].next
     }
     close_scope()
+    if last >= 0 && nodes[last].kind == S_RETURN { moved_back(&began) }   // left by its return: what it moved is not moved after it
     indent(depth)
     put("}\n")
 }

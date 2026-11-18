@@ -12330,8 +12330,68 @@ static void reject_inner_import(void) {
 }
 
 /* the statements of a block whose `{` (t) has been read, and its `}` */
+/* What is moved out is kept by the path that moved it (#605), where one
+   list of the names served every path: the branches of an if and the
+   cases of a switch are not both run, so what one moved is not moved in
+   the other, and after them a name is moved where any path that goes on
+   moved it; a block that ends in a return goes on nowhere. Its copies,
+   put back and added: */
+typedef struct {
+    void **flags;
+    int len;
+} Moved;
+
+static Moved moved_now(void) {
+    Moved m = {xmalloc(sizeof(void *) * (size_t)(scope_moved.len + 1)), scope_moved.len};
+    memcpy(m.flags, scope_moved.data, sizeof(void *) * (size_t)m.len);
+    return m;
+}
+
+static void moved_back(Moved m) {
+    for (int i = 0; i < m.len && i < scope_moved.len; i++)
+        scope_moved.data[i] = m.flags[i];
+}
+
+static void moved_add(Moved m) {
+    for (int i = 0; i < m.len && i < scope_moved.len; i++)
+        if (m.flags[i])
+            scope_moved.data[i] = m.flags[i];
+}
+
+static void moved_into(Moved *all) { /* what is moved now, added to all */
+    for (int i = 0; i < all->len && i < scope_moved.len; i++)
+        if (scope_moved.data[i])
+            all->flags[i] = scope_moved.data[i];
+}
+
+/* the switch being read: what was moved when it began, and in a case of
+   it that goes on to what follows the switch; the kind of the statement
+   read last in a block, a return before a case's label ending that case */
+static Moved switch_began, switch_after;
+static bool in_switch_moves;
+static int last_stmt_kind = -1;
+
+/* a case's or the default's label: the case before it is over. What it
+   moved goes on after the switch unless it ended in a return, and this
+   case begins as the switch did, or as the one before left it where that
+   ended in fallthrough */
+static void case_begins(bool fell) {
+    if (!in_switch_moves)
+        return;
+    if (last_stmt_kind != S_RETURN)
+        moved_into(&switch_after);
+    if (!fell)
+        moved_back(switch_began);
+}
+
 static Stmt *parse_block_rest(Token *t) {
     Stmt *s = new_stmt(S_BLOCK, t->pos);
+    /* a block that ends in a return is left by it, so what it moved is
+       not moved for what follows the block, which is reached only where
+       the block was not entered (#605): if c { return s } and then s */
+    Moved began = moved_now();
+    int outer = began.len;
+    void **before = began.flags;
     open_scope();
     block_depth++;
     int depth = expr_depth, pending = moves_pending.len;
@@ -12342,11 +12402,15 @@ static Stmt *parse_block_rest(Token *t) {
         if (peek()->kind != TK_INLINE_C) /* a statement of a function's (#198) */
             reject_inner_import();
         list_push(&s->stmts, parse_stmt());
+        last_stmt_kind = ((Stmt *)s->stmts.data[s->stmts.len - 1])->kind;
     }
     expr_depth = depth;
     moves_pending.len = pending;
     block_depth--;
     close_scope();
+    if (s->stmts.len && ((Stmt *)s->stmts.data[s->stmts.len - 1])->kind == S_RETURN && scope_moved.len >= outer)
+        memcpy(scope_moved.data, before, sizeof(void *) * (size_t)outer);
+    free(before);
     advance();
     return s;
 }
@@ -15027,6 +15091,7 @@ static Stmt *parse_stmt_here(void) {
             s->type = vt;
             s->closed = s->expr->kind == E_IDENT || s->expr->kind == E_FIELD || s->expr->kind == E_INDEX ||
                         s->expr->kind == E_DEREF; /* a place: read where it is */
+            Moved began = moved_now(); /* (#605) */
             open_scope();
             declare_binding(s->name, vt, LET_EACH);
             s->body = parse_block_body("if let");
@@ -15034,16 +15099,23 @@ static Stmt *parse_stmt_here(void) {
             if (accept_kw("else")) {
                 if (!is_kw(peek(), "if") && !is_p(peek(), "{"))
                     error_at(peek()->pos, "expected '{' or 'if' after 'else': the body of 'else' is a block");
+                Moved then = moved_now(); /* the else begins as the if did, and after both what either moved is moved */
+                moved_back(began);
                 s->els = is_p(peek(), "{") ? parse_block() : parse_stmt();
+                moved_add(then);
             }
             return s;
         }
         s->expr = parse_condition("if");
+        Moved began = moved_now(); /* (#605) */
         s->body = parse_block_body("if");
         if (accept_kw("else")) {
             if (!is_kw(peek(), "if") && !is_p(peek(), "{"))
                 error_at(peek()->pos, "expected '{' or 'if' after 'else': the body of 'else' is a block");
+            Moved then = moved_now(); /* the else begins as the if did, and after both what either moved is moved */
+            moved_back(began);
             s->els = is_p(peek(), "{") ? parse_block() : parse_stmt();
+            moved_add(then);
         }
         return s;
     }
@@ -15116,7 +15188,18 @@ static Stmt *parse_stmt_here(void) {
         switch_record = tr;
         case_depth = block_depth + 1;
         fall_pending = false;
+        Moved saved_began = switch_began, saved_after = switch_after; /* (#605) */
+        bool saved_moves = in_switch_moves;
+        switch_began = moved_now();
+        switch_after = moved_now();
+        in_switch_moves = true;
         s->body = parse_block();
+        /* after it, what any case that goes on moved; the last case goes
+           on too unless it ended in a return, which the block put back */
+        moved_add(switch_after);
+        switch_began = saved_began;
+        switch_after = saved_after;
+        in_switch_moves = saved_moves;
         if (fall_pending)
             error_at(fall_pos, "'fallthrough' in the last case of a switch, which has no next case to go on into");
         fall_pending = saved_fall;
@@ -15150,6 +15233,7 @@ static Stmt *parse_stmt_here(void) {
         if (fall_pending && s->name2)
             error_at(fall_pos, "'fallthrough' cannot go on into a case that binds a value, 'case %s(%s):'", s->name,
                      s->name2);
+        case_begins(fall_pending); /* (#605) */
         fall_pending = false;
         expect_p(":");
         return s;
@@ -15159,6 +15243,7 @@ static Stmt *parse_stmt_here(void) {
             error_at(pos, "'default' outside a switch");
         if (case_depth != block_depth)
             error_at(pos, "'default' is written at the top of the switch's block, not inside a statement of it");
+        case_begins(fall_pending); /* (#605) */
         fall_pending = false;
         expect_p(":");
         return new_stmt(S_DEFAULT, pos);

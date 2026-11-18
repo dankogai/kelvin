@@ -679,3 +679,8 @@ So far the changes from C are these, by topic.
   refused, and anything named as a word of its enum, `let nfc = 5`,
   which every program has had since #520; a member of such a name is
   a member still (#604)
+- An owner that is moved out is dead on the path that moved it, where
+  it was dead for all that followed in the block: `if c { return s }`
+  leaves `s` for what follows, and the two branches of an `if` and the
+  cases of a `switch` may each move it, as only one of them runs;
+  after them it is dead where any that goes on moved it (#605)

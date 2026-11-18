@@ -1465,8 +1465,16 @@ kc reads what it is written in, and little more.
   `Iterator(...)`, `.reduce` or `.merge`, returned or awaited, is dead
   until `t = v` gives it anew; a use is kelvinc's error.
   - The moves of a call are made where it ends: `f(t, t)` built, as
-    kelvinc's, until #500; a move in a branch counts after it, in the
-    order written.
+    kelvinc's, until #500.
+  - A move is kept by the path that made it (#605), as kelvinc's: an
+    `if`'s else begins as the if did, a `switch`'s case as the switch
+    did, or as the case before left it, fallen through; after them
+    what any of them that goes on moved is moved; a block that ends
+    in a `return` puts back what it found. gen.k's `moved_now`,
+    `moved_back`, `moved_add` and `moved_into`, of the locals' flags.
+    - It counted after a branch in the order written before, so
+      `if c { return s }` and then `s` was kelvinc's error, falsely,
+      in both.
   - A global moved in, and each element of a for or an `if let`'s
     value moved or returned, are kelvinc's errors, in its words.
   - Found: `{ $0 }` of `.map`, returning what the closure borrows, is

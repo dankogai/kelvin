@@ -11817,3 +11817,27 @@ member's declaration is left alone now, so a struct may have a member
 not. Details are provisional P616.
 
 There are 1406 tests, and all pass with clang and with gcc 15.
+
+### 652. A move, by the path that made it
+
+**User**: "push", for #604, which **Claude** pushed, its battery
+clean; this is the second of the four.
+
+`if c { return s }` and then `return s` was refused: 's' was moved
+out and holds nothing now. It was the rule as it stood: kelvinc kept
+one list of the names moved, "without flow analysis", so a move
+anywhere in a block killed the name for all that followed. Claude had
+met it again writing kc for #600, and written around it.
+
+The list follows the paths now. The else of an `if` begins as the if
+did, and a case of a `switch` as the switch did, so each may move the
+same owner, as only one of them runs. After them a name is dead where
+any path that goes on moved it. A block that ends in a `return` goes
+on nowhere, and what it moved is whole after it. A loop is not
+followed. What is truly used after a move is refused as before, and
+three tests say so.
+
+kc had the same list and the same false errors, as it was kelvinc's
+rule, and follows the same paths. Details are provisional P617.
+
+There are 1410 tests, and all pass with clang and with gcc 15.
