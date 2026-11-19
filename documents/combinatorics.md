@@ -16,7 +16,7 @@ indexed by a number of any size, as [js-combinatorics] and
 let main():int32 {
     let p = Permutation(4)                       // of 4, each of size 4
     println(p.count, " ", p[0], " ", p[5])       // 24n [0, 1, 2, 3] [0, 3, 2, 1]
-    let seed = $[$"a", $"b", $"c", $"d"]
+    let seed = $["a", "b", "c", "d"]
     for ix in Combination(4, 2) {                // [0, 1], [0, 2], ... [2, 3]
         print(pick(&seed, ix), " ")              // ["a", "b"] ["a", "c"] ... ["c", "d"]
     }
@@ -45,7 +45,7 @@ but `CartesianProduct`, `UniquePermutation`, `Permutations` and
   - Kelvin has no generic struct of a program's own, so no
     `Permutation<T>` of a seed's elements, as Swift's.
   - **`pick(&seed, ix)`** turns them into the elements of a program's
-    own seed, in their order (#615): `pick(&$[$"a", $"b", $"c"],
+    own seed, in their order (#615): `pick(&$["a", "b", "c"],
     $[2, 0])` is `["c", "a"]`.
     - The seed is an Array of `String`, `cstr`, `i64`, `i32`, `u8`,
       `u32`, `f64` or `bool`, which gives an Array of it, or a String,

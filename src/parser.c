@@ -803,7 +803,7 @@ static bool is_array_owner(Type *t);
 static Program *program; /* the program being parsed: its Array<T> types (#57) */
 static Type *parse_array_elem(void);
 static void check_array_elem(Type *elem);
-static Expr *array_of_list(Token *t, Type *at);
+static Expr *array_of_list(Token *t, Type *at, bool dollar);
 static Type *array_type(Token *at, Type *elem);
 static Type *list_type(Expr *e, Pos pos);
 static char *mangled_type(Type *t);
@@ -1189,8 +1189,10 @@ static Type *shown_value_type(Expr *x);
 static bool length_holds(Expr *e);
 static Type *parse_set_type(Token *kw);
 static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first);
+static Expr *dollar_text(Expr *x);
+static Expr *dollar_retarget(Expr *x, Type *target);
 static Type *parse_dict_types(Token *kw);
-static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first);
+static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first, bool dollar);
 static Expr *dict_key(Expr *k, Type *dt);
 static Expr *string_of_literal(Expr *x, Type *target);
 static Expr *string_of_ranged(Expr *x, Type *target);
@@ -1495,6 +1497,16 @@ static Type *parse_type_in(TypeContext ctx) {
         Type *t = qualified_owner(base, array_type(kw, parse_array_elem()), "an Array");
         type_start = cur;
         return parse_type_suffixes(t, ctx);
+    }
+    if (is_p(peek(), "$") && peek2()->kind == TK_STRING) {
+        /* $"" is String, the type (#616), as $"text" is a String: the text empty, as nothing else is told by it */
+        Token *d = advance();
+        Token *q = advance();
+        if (strcmp(q->text, "\"\""))
+            error_at(d->pos, "$\"\" is the type String; a type has no text: write $\"\" or String");
+        base->name = "String"; /* as the word String is read */
+        parse_qualifiers(base);
+        return parse_type_suffixes(base, ctx);
     }
     if (is_p(peek(), "$")) { /* $[T] is Array<T>, $[[T]] Array<Array<T>> (#64); ${K: V} Dictionary<K, V> (#70) */
         Token *d = advance();
@@ -4169,7 +4181,7 @@ static Expr *parse_primary(void) {
     if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && is_p(peek2(), "{")) {
         /* ${k: v, ...} is a Dictionary of the entries, ${:} an empty one (#65, #69) */
         advance();
-        return dict_of_list(t, NULL, NULL, NULL);
+        return dict_of_list(t, NULL, NULL, NULL, true);
     }
     if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && peek2()->kind == TK_STRING) {
         /* $"text" is String("text") (#62) */
@@ -4186,7 +4198,7 @@ static Expr *parse_primary(void) {
         /* $[a, b, c] is Array([a, b, c]) (#62); in an anonymous function,
            $[k] of one token is still its parameter k */
         advance();
-        return array_of_list(t, NULL);
+        return array_of_list(t, NULL, true);
     }
     if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && is_p(peek2(), "(")) {
         /* $(...) (#181): a call of the function being written, itself, as
@@ -4419,7 +4431,7 @@ static Expr *parse_primary(void) {
         if (is_p(peek(), "{") || (is_p(peek(), "$") && is_p(peek2(), "{"))) {
             if (is_p(peek(), "$"))
                 advance();
-            e = dict_of_list(t, dt, NULL, NULL);
+            e = dict_of_list(t, dt, NULL, NULL, false);
         } else {
             e = new_expr(E_CALL, t->pos);
             e->a = new_expr(E_IDENT, t->pos);
@@ -4461,7 +4473,7 @@ static Expr *parse_primary(void) {
         bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
         brace_ends_condition = brace_in_for = false;
         if (is_p(peek(), "[")) { /* the elements (#58) */
-            e = array_of_list(t, at);
+            e = array_of_list(t, at, false);
             brace_ends_condition = saved_brace;
             brace_in_for = saved_for;
             if (!is_p(peek(), ")"))
@@ -7780,6 +7792,7 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
         want = want->elem;
     if (!want)
         return;
+    dollar_retarget(v, want); /* $["a"] where a $[cstr] goes is of cstrs, in place (#616) */
     want = unqualified(want);
     Decl *rec;
     if (want->kind == T_BASE && type_class(want, &rec) == 'u')
@@ -10467,12 +10480,12 @@ static Expr *parse_initializer_for(Type *t) {
     if (is_p(open, "$") && is_p(peek2(), "[") && t && is_array_owner(t)) {
         /* $[...] of the declared Array type (#62) */
         Token *d = advance();
-        return array_of_list(d, t);
+        return array_of_list(d, t, true);
     }
     if (t && (is_dict_owner(t) || is_set_owner(t)) && (is_p(open, "{") || (is_p(open, "$") && is_p(peek2(), "{")))) {
         /* {k: v, ...} or ${k: v, ...} of the declared Dictionary type (#65, #69); {a, b} of a Set (#71) */
         Token *d = is_p(open, "$") ? advance() : open;
-        return is_set_owner(t) ? set_of_list(d, t, NULL, NULL) : dict_of_list(d, t, NULL, NULL);
+        return is_set_owner(t) ? set_of_list(d, t, NULL, NULL) : dict_of_list(d, t, NULL, NULL, is_p(open, "$"));
     }
     if (!bracket && !is_p(open, "{"))
         return parse_assign();
@@ -10662,7 +10675,29 @@ static bool list_is_dict(int i) {
     return false;
 }
 
-static Expr *array_of_list(Token *t, Type *at) {
+/* a text literal among the elements of a $[...] or a ${...} whose type
+   kelvinc infers (#616): a String of it, as $"..." and $`...` are; the
+   outer $ reaches every literal inside, at any depth */
+static Expr *dollar_text(Expr *x) {
+    if (x->kind == E_STRING) {
+        Expr *e = new_expr(E_CALL, x->pos);
+        e->a = new_expr(E_IDENT, x->pos);
+        e->a->text = "String";
+        e->op = "string";
+        e->dollar = true;
+        list_push(&e->items, x);
+        return e;
+    }
+    if (x->kind == E_TEMPLATE && !(x->op && !strcmp(x->op, "string"))) {
+        x->op = "string";
+        for (int i = 1; i < x->items.len; i += 2)
+            x->items.data[i] = string_piece(x->items.data[i]);
+    }
+    return x;
+}
+
+static Expr *array_of_list(Token *t, Type *at, bool dollar) {
+    bool inferred = false;
     if ((at && is_dict_owner(at)) || list_is_dict(cur)) /* [k: v] was a Dictionary's until #69 */
         error_at(peek()->pos, "a Dictionary's entries are written in braces: ${k: v, ...}, and ${:} for none");
     Token *open = expect_p("[");
@@ -10679,9 +10714,13 @@ static Expr *array_of_list(Token *t, Type *at) {
             if (at && !is_array_owner(elem))
                 error_at(peek()->pos, "'[...]' here makes an Array, and an element of %s is %s", kelvin_type(at),
                          kelvin_type(elem));
-            x = array_of_list(t, at ? elem : NULL);
+            x = array_of_list(t, at ? elem : NULL, dollar);
+        } else if (dollar && !at && is_p(peek(), "{") && brace_has_colon(cur)) {
+            x = dict_of_list(t, NULL, NULL, NULL, true); /* {k: v} within $[...] is a Dictionary (#616) */
         } else {
             x = string_of_literal(drop_cstr(parse_initializer_for(elem), elem), elem); /* a cstr into a u8^ element (#52) */
+            if (dollar && !at)
+                x = dollar_text(x); /* $["a"] is of Strings, where no type is written (#616) */
             x = optional_of(x, elem, x->pos); /* a T into a T? element (#72) */
             reject_owner_copy(x, elem, x->pos);
             if (at)
@@ -10705,12 +10744,14 @@ static Expr *array_of_list(Token *t, Type *at) {
         elem = lt->elem;
         for (int i = 0; i < list->items.len; i++)
             reject_owner_copy(list->items.data[i], elem, ((Expr *)list->items.data[i])->pos);
+        inferred = dollar;
     }
     Expr *e = new_expr(E_CALL, t->pos);
     e->a = new_expr(E_IDENT, t->pos);
     e->a->text = "Array";
     e->op = "array";
     e->type = at;
+    e->dollar = inferred; /* its type the elements', which a written one may yet take (#616) */
     if (!list->items.len)
         return e; /* Array<T>([]) is empty */
     Type *fixed = xcalloc(1, sizeof *fixed);
@@ -11228,7 +11269,41 @@ static Expr *string_of_ranged(Expr *x, Type *target) { return is_range_literal(x
 
 /* a string literal where a String is expected (#70): String("...") of it,
    as an Array's, a Dictionary's or a struct's String takes it */
+/* a $[...] or ${...} of no written type, given where a type is written
+   (#616): of that type, where its text, which the $ made Strings, is
+   the written type's text, a cstr; NULL where it is not of it */
+static Expr *dollar_retarget(Expr *x, Type *target) {
+    if (!x || !x->dollar || !target)
+        return x;
+    Type *t = unqualified(target);
+    if (x->kind == E_CALL && x->op && !strcmp(x->op, "string")) /* a text literal */
+        return t->kind == T_PTR && t->cstr && x->items.len == 1 && ((Expr *)x->items.data[0])->kind == E_STRING
+                   ? x->items.data[0]
+                   : x;
+    bool array = x->kind == E_CALL && x->op && !strcmp(x->op, "array") && is_array_owner(t);
+    bool dict = x->kind == E_CALL && x->op && !strcmp(x->op, "dict") && is_dict_owner(t);
+    if ((!array && !dict) || !strcmp(kelvin_type(unqualified(x->type)), kelvin_type(t)))
+        return x;
+    if (dict && strcmp(kelvin_type(unqualified(x->type)->key), kelvin_type(t->key)))
+        return x;
+    List *items = array ? (x->items.len ? &((Expr *)((Expr *)x->items.data[0])->a)->items : NULL) : &x->items;
+    for (int i = 0; items && i < items->len; i++) {
+        Expr *y = dollar_retarget(items->data[i], t->elem);
+        Type *yt = y->kind == E_STRING ? NULL : value_type(y);
+        bool text = y->kind == E_STRING && is_cstr(unqualified(t->elem));
+        if (!text && (!yt || strcmp(kelvin_type(unqualified(yt)), kelvin_type(unqualified(t->elem)))))
+            return x; /* not of it: the mismatch is said where it is checked */
+        items->data[i] = y;
+    }
+    if (array && x->items.len)
+        ((Expr *)x->items.data[0])->type->elem = t->elem;
+    x->type = target;
+    x->dollar = false;
+    return x;
+}
+
 static Expr *string_of_literal(Expr *x, Type *target) {
+    x = dollar_retarget(x, target); /* (#616) */
     Decl *opt = target && is_range_literal(x) && !is_range(target) ? optional_record(target) : NULL;
     for (int i = 0; opt && i < opt->members.len; i++) /* a Range<T>? takes one too */
         if (!strcmp(((Var *)opt->members.data[i])->name, "some"))
@@ -11271,7 +11346,7 @@ static Expr *dict_key(Expr *k, Type *dt) {
    the entries written; K and V inferred from the first entry as a
    variable's type is, every other entry alike, or given. The C sets each entry into an
    empty Dictionary; a value that owns is moved in */
-static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
+static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first, bool dollar) {
     bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
     brace_ends_condition = brace_in_for = false;
     init_depth++;
@@ -11323,7 +11398,12 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
         }
         if (!accept_p(":"))
             error_at(peek()->pos, "an entry of a Dictionary is written key: value");
-        Expr *v = is_p(peek(), "[") ? array_of_list(t, vt) : string_of_literal(drop_cstr(parse_initializer_for(vt), vt), vt);
+        Expr *v = is_p(peek(), "[") ? array_of_list(t, vt, dollar)
+                  : dollar && !dt && is_p(peek(), "{") && brace_has_colon(cur)
+                      ? dict_of_list(t, NULL, NULL, NULL, true) /* {k: v} within ${...} is a Dictionary (#616) */
+                      : string_of_literal(drop_cstr(parse_initializer_for(vt), vt), vt);
+        if (dollar && !dt)
+            v = dollar_text(v); /* ${"k": "v"} is of Strings, where no type is written (#616) */
         v = optional_of(v, vt, v->pos); /* a T into a T? value (#72) */
         if (v->kind == E_INIT && vt) { /* {...} of a struct or array value, as its compound literal */
             Expr *c = new_expr(E_COMPOUND, v->pos);
@@ -11358,8 +11438,10 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
             break;
     }
     expect_p("}");
-    if (!dt)
+    if (!dt) {
         dt = e->type = dict_type(t, kt, vt);
+        e->dollar = dollar; /* (#616) */
+    }
     List temps = {0}, *saved_temps = chain_temps; /* a key's text held, as a Set's element's (#315) */
     chain_temps = &temps;
     for (int i = 0; i < e->designators.len; i++)
@@ -15335,7 +15417,7 @@ static Stmt *parse_stmt_here(void) {
             if (!result && parsing_fn)
                 reject_void_return(s->expr, parsing_fn); /* (#427) */
             if (result)
-                s->expr = optional_of(string_of_ranged(s->expr, parsing_fn->ret), parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
+                s->expr = optional_of(string_of_ranged(dollar_retarget(s->expr, parsing_fn->ret), parsing_fn->ret), parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
             reject_record_mismatch(s->expr, parsing_fn->ret, s->expr->pos);  /* a T? where a T goes (#218) */
             if (result)
                 require_bool_return(s->expr, parsing_fn); /* a bool of a bool function (#240) */

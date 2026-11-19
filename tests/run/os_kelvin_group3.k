@@ -11,7 +11,7 @@ let touch(path:cstr) {
 let main():int32 {
     println(OS.makedirs("os_g3/b/deep"), OS.mkdir("os_g3/A"), OS.mkdir("os_g3/empty"))
     for p in $["os_g3/a.txt", "os_g3/B.txt", "os_g3/.hidden", "os_g3/z z.k", "os_g3/b/one.txt", "os_g3/b/two.k", "os_g3/b/deep/three.txt", "os_g3/A/x.txt"] {
-        touch(p)
+        touch(p.cstr)                              // p a String (#616)
     }
     println(OS.symlink("b", "os_g3/linkdir"))
     println(OS.listdir("os_g3").ok)

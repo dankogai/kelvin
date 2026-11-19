@@ -30,7 +30,7 @@ let main():i32 {
     println(planets.sorted { $0.au > $1.au }.map { $0.name })
     println(planets.filter { $0.moons == 0 }.map { $0.name })
 
-    var names = $[$"kelvin", $"celsius", $"rankine", $"fahrenheit"]
+    var names = $["kelvin", "celsius", "rankine", "fahrenheit"]
     names.sort()                                     // Strings, by <
     println(names.join(" "), "; longest first: ", names.sorted { $0.count > $1.count }.join(" "))
     return 0

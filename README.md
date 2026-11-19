@@ -717,3 +717,11 @@ So far the changes from C are these, by topic.
   indices a kind gives, of an Array of one of eight types or of a
   String's graphemes, `pick(&$"kelvin", Permutation(6)[719])` is
   `"nivlek"` (#615)
+- The `$` of `$[...]` and `${...}` reaches every literal inside it:
+  text becomes a String, as `$"..."` makes one, so `$["a", "b"]` is an
+  `Array<String>` where it was an `Array<cstr>`, `$[["a"], ["b"]]` an
+  `Array<Array<String>>`, and `${"k": "v"}` a
+  `Dictionary<String, String>`; a `{k: v}` inside is a Dictionary. A
+  written type wins, `var cs:$[cstr] = $["x"]`, and what is no literal
+  keeps its type. And `$""` is the type String, wherever a type goes:
+  `$[$""]` is `Array<String>` (#616)

@@ -19,7 +19,7 @@ ages.remove("bob")                       // true if it was there
 var names = ages.keys                    // an Array<String>, copies, in order
 var counts = ages.values                 // an Array<i64>
 var words:${String: $[String]} = ${:}    // empty; a value may own
-words["a"] = $[$"apple"]
+words["a"] = $["apple"]
 println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chains (#218)
 ```
 
@@ -38,6 +38,13 @@ in [ownership.md](ownership.md); this is the summary.
   Dictionary then owns.
 - **Making one:** `${k: v, ...}` with `K` and `V` inferred from the
   first entry.
+  - The `$` reaches every literal inside it (#616), as `$[...]`'s does:
+    a text value is a String, so `${"k": "v"}` is a
+    `Dictionary<String, String>`; a `[...]` value is an Array of
+    Strings, and a `{k: v}` value a Dictionary, at any depth.
+    - Where the type is written, it wins: `var d:${String: cstr} =
+      ${"k": "v"}` keeps a `cstr`; `Dictionary<K, V>({...})`, with no
+      `$`, is as written.
   - `${:}` where the type is written; `Dictionary<K, V>()`; a
     declaration without a value is empty.
   - `Dictionary<K, V>({k: v, ...})`; `Dictionary<K, V>(&other)` a copy.

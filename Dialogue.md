@@ -12164,3 +12164,31 @@ The seed is a local now, in the synopsis, the module's comment and
 its test, which kc builds now that it has no global.
 
 There are 1427 tests, and all pass with clang and with gcc 15.
+
+### 663. The `$` of `$[...]` reaches inside
+
+**User**: "push", for #615 with `pick`, which **Claude** pushed, its
+battery clean; CI's nine jobs passed. Then:
+
+> not yet for 0.4.0. Kelvin the language hasn't changed a bit. We just added a module. But behold for the big one. Subtle but significant.
+
+> Okay. here is the change worth 0.4.0. ... the first `$` should make all enclosed elements also `$`'ed. $["a"] is `Array<String>`, not `Array<cstr>`. ... Also add `$""` as a shortand of `String`, the typename.
+
+`$[[0, 1], [2, 3]]` was an `Array<Array<i64>>` already. **Claude**
+asked four things, each answered with the recommended:
+
+- **A type written wins**: `var cs:$[cstr] = $["x"]` keeps cstrs.
+- **`${...}` too**: `${"k": "v"}` is a `Dictionary<String, String>`.
+- **Literals at any depth**: `$[["a"], ["b", "c"]]` is an
+  `Array<Array<String>>`, and a template and `"""..."""` are Strings;
+  a variable or a call's result keeps its type.
+- **`$""` anywhere a type goes**: `(s:$""):$""`, `$[$""]`,
+  `${$"": $[$""]}`, `$""?`.
+
+The written type wins wherever it is written: an assignment, an
+argument, a return and a member, as a declaration. kc does the same,
+and reads `$[[cstr]]` as an `Array<Array<cstr>>` now. The documents
+and `examples/sort.k` write `$["a", "b"]`. Details are provisional
+P628.
+
+There are 1429 tests, and all pass with clang and with gcc 15.

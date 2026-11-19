@@ -1229,6 +1229,7 @@ let parse_type():int64 {
 
 // [T] in $[...], an Array in turn, as kelvinc reads $[[i64]] (#369)
 let grown(y:int64):int64 {
+    if types[y].kind == Y_ARGV { return type_of_kind(Y_ARRAY, base_type(Y_CSTR), -1) }   // $[[cstr]], as kelvinc's (#616)
     if types[y].kind == Y_FIXED && (types[y].name == 0 - 1 || types[y].name == 0 - 3) {
         return type_of_kind(Y_ARRAY, grown(types[y].elem), -1)
     }
@@ -1247,6 +1248,33 @@ let lists_grow(e:int64) {
     while x >= 0 {
         lists_grow(x)
         x = nodes[x].next
+    }
+}
+
+// the text of $[...] and ${...} at any depth (#616): a String, as $"..."
+// is, c 1 of a literal, a template's flag 1 and c 1, where the $ made
+// it so; gen takes it back where the type written has a cstr. In an
+// Array its elements, in a Dictionary its values; a key is a String
+// already, and a Set's elements
+let dollar_mark(e:int64) {
+    let k:nkind = nodes[e].kind
+    if k == N_STR {
+        nodes[e].c = 1
+    } else if k == N_TPL && nodes[e].flag == 0 {
+        nodes[e].flag = 1
+        nodes[e].c = 1
+    } else if k == N_ARRAY {
+        var x:int64 = nodes[e].b
+        while x >= 0 {
+            dollar_mark(x)
+            x = nodes[x].next
+        }
+    } else if k == N_DICT {
+        var x:int64 = nodes[e].b
+        while x >= 0 && nodes[x].next >= 0 {
+            dollar_mark(nodes[x].next)
+            x = nodes[nodes[x].next].next
+        }
     }
 }
 
@@ -1319,6 +1347,17 @@ let cstr_key(key:int64) {
 }
 
 let parse_bare_type():int64 {
+    if at_kind(T_DSTR) {                         // $"" is String, the type (#616), as kelvinc's
+        let at:int64 = toks[pos].at
+        let len:int64 = toks[pos].len
+        if !(len == 2 || (len == 3 && codes[at] == '$')) {   // its text, from its " or its $
+            parse_error("$\"\" is the type String; a type has no text: write $\"\" or String")
+            advance()
+            return base_type(Y_VOID)
+        }
+        advance()
+        return type_suffixes(base_type(Y_STRING))
+    }
     if at_word("$[") || at_word("${") {
         let brace:bool = at_word("${")
         advance()
@@ -2304,6 +2343,7 @@ let parse_primary():int64 {
         while !failed {
             let e:int64 = parse_expr()
             lists_grow(e)                            // $[[1, 2], [3]], an Array of Arrays, as kelvinc's (#369)
+            dollar_mark(e)                           // $["a"], of Strings (#616)
             if last < 0 {
                 nodes[n].b = e
             } else {
@@ -2319,7 +2359,9 @@ let parse_primary():int64 {
     }
     if at_word("${") {                          // ${:}, ${}, ${a, b}, ${k: v} (#211, #267, #274)
         advance()
-        return parse_brace_body(t)
+        let n:int64 = parse_brace_body(t)
+        dollar_mark(n)                          // ${"k": "v"}, of Strings (#616)
+        return n
     }
     if !braced && anon_ahead() { return parse_anon() }          // (#324)
     if at_word("{") {

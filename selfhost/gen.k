@@ -2205,7 +2205,7 @@ let type_of(n:int64):int64 {
         return ry >= 0 ? type_of_kind(Y_ITER, types[ry].elem, -1) : 0 - 1
     }
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
-    if k == N_STR { return base_type(Y_CSTR) }
+    if k == N_STR { return base_type(nodes[n].c == 1 ? Y_STRING : Y_CSTR) }   // a String in $[...] (#616)
     if k == N_DSTR { return base_type(Y_STRING) }
     if k == N_TPL { return base_type(nodes[n].flag == 1 ? Y_STRING : Y_CSTR) }   // `a${x}b`, $`a${x}b` a String (#445)
     if k == N_BOOL { return base_type(Y_BOOL) }
@@ -9805,6 +9805,47 @@ let fits_value(n:int64, t:int64):bool {
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
 
+// whether n, a $[...] or ${...} or what is in one, is of y once the
+// text its $ made Strings is a cstr where y's is (#616), as kelvinc's
+// dollar_retarget; and, where apply, made so: the type written wins
+let dollar_fit(n:int64, y:int64, apply:bool):bool {
+    if y < 0 { return false }
+    let k:nkind = nodes[n].kind
+    let yk:ykind = types[y].kind
+    if (k == N_STR || k == N_TPL) && nodes[n].c == 1 {
+        if yk == Y_CSTR && apply {
+            nodes[n].c = 0
+            if k == N_TPL { nodes[n].flag = 0 }
+        }
+        return yk == Y_CSTR || yk == Y_STRING
+    }
+    if k == N_ARRAY && yk == Y_ARRAY {
+        var e:int64 = nodes[n].b
+        while e >= 0 {
+            if !dollar_fit(e, types[y].elem, apply) { return false }
+            e = nodes[e].next
+        }
+        return true
+    }
+    if k == N_DICT && yk == Y_DICT {
+        var e:int64 = nodes[n].b
+        while e >= 0 {
+            let v:int64 = nodes[e].next
+            if v < 0 || dict_key_type(type_of(e)) != types[y].name || !dollar_fit(v, types[y].elem, apply) { return false }
+            e = nodes[v].next
+        }
+        return true
+    }
+    if k == N_EMPTY { return true }
+    let bad:String = value_mismatch_text(n, y)
+    return bad.count == 0
+}
+
+// $[...] or ${...} of the type y written, where it fits it (#616)
+let dollar_retarget(n:int64, y:int64) {
+    if dollar_fit(n, y, false) { dollar_fit(n, y, true) }
+}
+
 // whether the elements of $[a, b] have one type, as kelvinc asks of a
 // list where no type is written (#266)
 let one_type(n:int64):bool {
@@ -10230,6 +10271,7 @@ let gen_value(n:int64, y:int64) {
 }
 
 let gen_value_of(n:int64, y:int64) {
+    if (nodes[n].kind == N_ARRAY || nodes[n].kind == N_DICT) && y >= 0 { dollar_retarget(n, y) }   // $["a"] where a $[cstr] goes (#616)
     if y >= 0 && types[y].kind == Y_FN && nodes[n].kind != N_COND {   // a function where a function type goes (#428)
         gen_fn_value(n, y)
         return

@@ -158,6 +158,7 @@ struct Expr {
     ExprKind kind;
     Pos pos;
     bool paren;       /* written inside parentheses */
+    bool dollar;      /* a $[...] or ${...} of no written type, or a text literal its $ made a String (#616) */
     bool first_use;   /* E_IDENT: names a global given its value at its first use (#493), read by its accessor */
     bool global;      /* E_IDENT: names a global, no local or parameter in sight (#493) */
     bool is_bool;     /* kelvinc saw that it is a bool (#23) */

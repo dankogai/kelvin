@@ -48,6 +48,12 @@ printed; the ownership rules of `String` and `Bytes` are in
 
 - A literal is a `cstr`, and becomes a String where one is expected
   (#70): `var s:String = "x"`; `$"text"` is one always.
+  - So does every text literal inside `$[...]` and `${...}` (#616):
+    `$["a", "b"]` is an `Array<String>`, where no type is written.
+- **`$""` is the type String** (#616), wherever a type goes, as `$[T]`
+  is `Array<T>`: `var s:$""`, `(s:$""):$""`, `$[$""]` an
+  `Array<String>`, `${$"": i64}` a `Dictionary<String, i64>`,
+  `$""?`. A `$"text"` with text is a value, never a type.
 - `s.cstr` lends a String's text to C, NUL-ended; `String(c)` copies a
   `cstr` into a String.
 

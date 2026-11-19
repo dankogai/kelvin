@@ -13,7 +13,7 @@ for i in 0..<a.count { a[i] = a[i] * 2 }
 var xs = $[1, 2, 3]                   // Array<i64>, on the heap
 xs += 4                               // append; also xs.append(4)
 println(b.count, " ", m[1][0], " ", z.size, " ", xs.count, " ", xs[3])   // 3 3 256 4 4
-println(xs.join(", "), " ", $[$"a", $"b"].joined())                   // 1, 2, 3, 4 ab
+println(xs.join(", "), " ", $["a", "b"].joined())                   // 1, 2, 3, 4 ab
 ```
 
 ## Description
@@ -185,11 +185,27 @@ xs.insert(0, 100); xs.remove(1, 2); let last = xs.pop()
 println(xs.count, " ", xs[0], " ", xs.capacity)   // xs[i] is checked: out of range ends the program
 for x in xs { }                  // each element, a let
 var m:$[[int64]] = $[[1, 0], [0, 1]]   // Arrays of Arrays; of Strings, Bytes, Dictionaries, structs that own
+var names = $["ann", "bob"]      // Array<String>: the $ makes the text inside Strings (#616)
+var rows = $[["a"], ["b", "c"]]  // Array<Array<String>>, at any depth
+var cs:$[cstr] = $["x", "y"]     // Array<cstr>: a written type wins
 let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy of an Array
 ```
 
 - **Making one:** `$[a, b, c]` or `Array([a, b, c])` with `T` inferred
   from the elements.
+  - **The `$` reaches every literal inside it** (#616): text becomes a
+    String, as `$"..."` would make it, so `$["a", "b"]` is an
+    `Array<String>`, and a `[...]` within is an Array in turn, so
+    `$[["a"], ["b"]]` is an `Array<Array<String>>`.
+    - A template, `` `n=${n}` ``, and `"""..."""` become Strings too,
+      and a `{k: v}` within is a Dictionary, as `${k: v}` is.
+    - What is no literal keeps its type: a variable, a call's result,
+      and an argument inside a call, `$[f("a")]`.
+    - Where the type is written, it wins: `var cs:$[cstr] = $["x"]`
+      is an `Array<cstr>`, and so is `$["y"]` assigned to `cs`, given
+      to a parameter, returned from a function or set in a member of
+      that type; and `Array(["a"])`, with no `$`, is too.
+    - `$[$"a", $"b"]`, which wrote each `$`, is the same Array.
   - `Array<T>()`, `Array<T>(n)` of n zero elements.
   - `Array(a)` of a fixed array, `Array(&other)` a copy.
   - A declaration without a value is empty.
@@ -307,7 +323,7 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   - `sep` is a `cstr` or a String in a variable, evaluated once; with
     none, `xs.joined()`, the elements are joined with nothing between.
   - Of an Array an expression gives, that one is held and freed after.
-  - `$[1, 2, 3].join(", ")` is `"1, 2, 3"`, and `$[$"a", $"b"].joined()`
+  - `$[1, 2, 3].join(", ")` is `"1, 2, 3"`, and `$["a", "b"].joined()`
     is `"ab"`.
 - **`a0 == a1`** (#247): as many elements, each equal to the one in
   its place by its own `==`; `!=` the opposite.

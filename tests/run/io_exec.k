@@ -28,11 +28,11 @@ let main():int32 {
     }
     var back = IO(path, "r")
     for line in back.lines { println(line.ok) }
-    var args = $["printf", "%s-%s", "a", "b"]
+    var args:$[cstr] = $["printf", "%s-%s", "a", "b"]   // cstrs, as written: $[...] alone is of Strings (#616)
     var a = IO.exec(args, "r")
     var s = a.string ?? $"?"                     // a Result, err where the UTF-8 breaks (#406)
     println(s)
-    var sargs:$[String] = $[$"printf", $"strings"]
+    var sargs = $["printf", "strings"]           // Strings (#616)
     var b = IO.exec(sargs, "r")
     var t = b.string ?? $"?"
     println(t, " ", b.typename)

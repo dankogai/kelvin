@@ -1613,6 +1613,10 @@ on a new line`
     println(erfc, " ", Kelvin.erfc(0.0), " ", nfkd, " ", Kelvin.nfkd as i64)
     let trunc = 2.5                            // Kelvin.name, the prelude's, whatever the program calls its own (#600)
     println(ns600(0.0), " ", fmin(3.0, 4.0), " ", Kelvin.fmin(3.0, 4.0), " ", Kelvin.trunc(trunc), " ", Kelvin.abs(-3), " ", Kelvin.nfd as i64, " ", Kelvin.BigInt(7) + 1n)
+    var ds616:$[cstr] = $["x"]                 // $[...]'s text Strings at any depth, a cstr where the type written has one; $"" the type String (#616)
+    ds616 = $["y", "z"]
+    let dd616:${$"": $[$""]} = ${"k": ["v"]}
+    println($["a", "b"].typename, " ", $[["a"], [`b${1}`]], " ", ${"k": {"x": "y"}}.typename, " ", ds616.typename, " ", ds616, " ", dd616.typename)
     // what kc refuses as kelvinc does (#611), beside what both build: a
     // bool where a condition and an operand of &&, || and ! go, a bool a
     // bool's function returns, a range of integers, a base of 2 to 36

@@ -7,7 +7,7 @@
 //     #import <Combinatorics>
 //     let p = Permutation(4)                     // of 4, each of size 4
 //     println(p.count, " ", p[5])                // 24n [0, 3, 2, 1]
-//     let seed = $[$"a", $"b", $"c", $"d"]
+//     let seed = $["a", "b", "c", "d"]
 //     for ix in Combination(4, 2) { println(pick(&seed, ix)) }   // ["a", "b"] ...
 //
 // Kelvin has no generic struct of a program's own, so each gives indices,
