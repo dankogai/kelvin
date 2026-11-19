@@ -69,6 +69,13 @@ by codepoint, text always.
 - **`b.count`** is the bytes held, `b.capacity` the room, `b.isUTF8`
   whether it would pass as a String; `b.string()` says where it would
   not.
+- **In memory** it is `{at, count, cap}`, with no hidden header.
+  - `at[count]` is always a NUL that `count` does not count, so
+    `b.cstr` is its text in O(1), which every C function taking
+    `const char *` accepts; the bytes themselves may hold NULs.
+  - An empty `Bytes` has nothing on the heap.
+  - Growth doubles the capacity from 16; out of memory ends the
+    program with a message, as an index out of range does.
 - **`b[lo..<hi]`**, `b[lo...hi]`, `b[lo...]`, `b[..<hi]` and
   `b[...hi]` (#68) are new Bytes of those bytes; a range past the count
   ends the program; `b[r]` slices by a Range value (#377).

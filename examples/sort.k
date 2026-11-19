@@ -1,9 +1,7 @@
 // Sorting an Array<T>, $[T]: in place with .sort, or a new one with
 // .sorted, by < or by a function, an anonymous one with $0 and $1 or a
 // named one; the sort is stable. map, filter, reduce and prefix chain,
-// and C's qsort still sorts a fixed array, by a comparator it writes.
-#import <stdlib.h> as C
-#import <string.h> as C
+// and Strings sort by their codepoints, joined into one by join.
 
 struct planet {
     name:  cstr
@@ -32,14 +30,9 @@ let main():i32 {
     println(planets.sorted { $0.au > $1.au }.map { $0.name })
     println(planets.filter { $0.moons == 0 }.map { $0.name })
 
-    var names:[cstr](4) = ["kelvin", "celsius", "rankine", "fahrenheit"]
-    qsort(names, names.count, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
-        strcmp((a as const cstr^)^, (b as const cstr^)^)
-    }
-    for i in 0..<names.count {
-        print(i == 0 ? "" : " ", names[i])
-    }
-    println()
+    var names = $[$"kelvin", $"celsius", $"rankine", $"fahrenheit"]
+    names.sort()                                     // Strings, by <
+    println(names.join(" "), "; longest first: ", names.sorted { $0.count > $1.count }.join(" "))
     return 0
 }
 // out: [1, 2, 3, 4, 5, 7, 8, 9]
@@ -50,4 +43,4 @@ let main():i32 {
 // out: Uranus has 28 moons
 // out: ["Neptune", "Uranus", "Saturn", "Jupiter", "Mars", "Earth", "Venus", "Mercury"]
 // out: ["Mercury", "Venus"]
-// out: celsius fahrenheit kelvin rankine
+// out: celsius fahrenheit kelvin rankine; longest first: fahrenheit celsius rankine kelvin

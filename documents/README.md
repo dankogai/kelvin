@@ -69,7 +69,7 @@ the design decisions, numbered `#N` throughout, are in
   `if let`, `try`, switching on it.
 - [ownership.md](ownership.md): the owners on the heap and their rules:
   freed by their block, moved by `return` and by passing, copied by
-  `.copy()`, borrowed by `&`.
+  `.copy()`, borrowed by `&`; an owner's name starts with a capital.
 
 ## Reading and writing
 

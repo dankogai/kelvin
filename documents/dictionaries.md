@@ -71,6 +71,10 @@ in [ownership.md](ownership.md); this is the summary.
     which a variable then owns.
 - **Walking:** `for k, v in d` gives each entry's key and value as lets
   the Dictionary owns, in the order added; `for k in d` the keys.
+- **In memory** it is an array of the entries in order, and a chain
+  for each bucket, twice as many buckets as entries, the keys' hashes
+  kept.
+  - Growth doubles from 16 and compacts removed entries.
 - **Text:** `print(d)` shows `{"ann": 31, "bob": 42}`, in the order
   added, and `d.pretty` the same indented, a line for each entry (#123,
   #124); String keys and values are quoted; `${d}` in a template is the

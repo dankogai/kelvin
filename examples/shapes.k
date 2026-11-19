@@ -1,10 +1,7 @@
 // Structs, methods and attributes in extend blocks (#130, #131): .x is
 // self.x (#139) and Self is the type (#140), an attribute is read without
-// parentheses, every struct has derived text (.cstr), and C's <math.h> is
-// a header away.
-#import <math.h> as C
-
-let PI = 3.141592653589793
+// parentheses, every struct has derived text (.cstr), and math is the
+// prelude's, with no import: hypot, and f64.pi, a constant of the type.
 
 struct point { x: f64; y: f64 }
 struct circle { center: point; radius: f64 }
@@ -17,7 +14,7 @@ extend point {
 }
 
 extend circle {
-    let area:f64 { PI * .radius * .radius }                       // an attribute: c.area
+    let area:f64 { f64.pi * .radius * .radius }                   // an attribute: c.area
     let contains(p:point):bool { .center.distance(p) <= .radius }
 }
 

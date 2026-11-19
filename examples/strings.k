@@ -1,15 +1,15 @@
-// C strings: cstr is immutable text, for c in s walks one, a u8^ cursor
-// steps with p++ and p-- and may write, C's <string.h> and <ctype.h> just
-// work, and numbers have text properties.
-#import <ctype.h> as C
-#import <string.h> as C
+// Strings: a String is Unicode text, an owner, whose elements are its
+// graphemes, with its codepoints and its bytes beside them; the prelude
+// changes its case and searches it with a RegExp, with no import. A cstr
+// is C's text, immutable, which for walks byte by byte; a u8^ cursor
+// steps with p++ and p-- and may write; and numbers have text properties.
 
-// count the vowels: for c in s walks the string up to its NUL
+// count the vowels: for c in s walks a cstr up to its NUL
 let vowels(s:cstr):i64 {
     var n = 0
     for c in s {
-        if strchr("aeiouAEIOU", c) != nowhere {
-            n += 1
+        for v in "aeiouAEIOU" {
+            if c == v { n += 1 }
         }
     }
     return n
@@ -18,11 +18,11 @@ let vowels(s:cstr):i64 {
 // reverse in place: a cstr cannot change, so the text comes as u8^, and
 // two cursors meet in the middle
 let reverse(s:u8^):() {
-    if strlen(s) == 0 {
-        return
-    }
     var lo:u8^ := s
-    var hi:u8^ := &s[strlen(s) - 1]
+    var hi:u8^ := s
+    while hi^ != 0 { hi++ }                               // to its NUL
+    if hi == lo { return }
+    hi--
     while lo < hi {
         let c:u8 = lo^
         lo^ = hi^
@@ -32,16 +32,30 @@ let reverse(s:u8^):() {
     }
 }
 
+// a String reversed, a new one: by its graphemes, so that é and a flag,
+// of two codepoints each, stay whole
+let reversed(s:const String^):String {
+    var r = $""
+    for g in s^ { r = g + r }
+    return r
+}
+
 let main():i32 {
+    let hello:cstr := "Hello, Kelvin"
     var buf:[u8](32)
-    strcpy(buf, "Hello, Kelvin")
-    println(buf, ": ", strlen(buf), " bytes, ", vowels(buf), " vowels")
+    for i in 0..<hello.count { buf[i] = hello[i] }        // a copy that may change
+    println(buf, ": ", hello.count, " bytes, ", vowels(buf), " vowels")
     reverse(buf)
     println(buf)
-    for i in 0..<strlen(buf) {
-        buf[i] = toupper(buf[i]) as u8
+    for i in 0..<hello.count {
+        if buf[i] >= 'a' && buf[i] <= 'z' { buf[i] -= 32 }
     }
     println(buf)
+
+    let city = $"Zu\u{308}rich 🇨🇭 café"                   // u and a combining diaeresis, a flag of two letters
+    println(city, ": ", city.count, " graphemes, ", city.codepoints.count, " codepoints, ", city.bytes^.count, " bytes")
+    println(city[1], " ", city[7], " ", city[0..<6].upper(), " ", city.find("café"), " ", reversed(&city))
+    println(city.split($/\s+/), " ", city.replace($/\s+/g, "_"), " ", city.normalize(nfc).codepoints.count)
 
     let answer:i32 = 42
     println(answer.cstr, " ", answer.hex, " ", answer.bin, " ", (255:u8).oct)
@@ -50,4 +64,7 @@ let main():i32 {
 // out: Hello, Kelvin: 13 bytes, 4 vowels
 // out: nivleK ,olleH
 // out: NIVLEK ,OLLEH
+// out: Zürich 🇨🇭 café: 13 graphemes, 15 codepoints, 23 bytes
+// out: ü 🇨🇭 ZÜRICH 9 éfac 🇨🇭 hcirüZ
+// out: ["Zürich", "🇨🇭", "café"] Zürich_🇨🇭_café 14
 // out: 42 +0x2a +0b101010 0o377

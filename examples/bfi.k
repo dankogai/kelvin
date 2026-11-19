@@ -3,7 +3,9 @@
 // does. A `!` ends the program and starts its input, as swift-bf has it,
 // so a source carries its own data; without one, `,` reads stdin. With no
 // input left, `,` halts. Unmatched brackets are reported with their offset.
-#import <stdio.h> as C
+// The file and the three streams are IO's: f.bytes is the whole file,
+// IO.stdin.byte the next byte or none, and a byte is written as a Bytes of one.
+#import <IO>
 
 struct program {
     code: Bytes          // the commands, comments stripped
@@ -54,6 +56,7 @@ extend program {
         var sp:i64 = 0
         var ip:i64 = 0
         var at:i64 = 0                 // the next byte of the embedded input
+        var cell = Bytes(1)            // the byte . writes
         let n = .code.count as i64
         while ip < n {
             switch .code[ip] {
@@ -61,16 +64,16 @@ extend program {
             case '<': sp = (sp + 65535) % 65536
             case '+': tape[sp] += 1
             case '-': tape[sp] -= 1
-            case '.': putchar(tape[sp])
+            case '.':
+                cell[0] = tape[sp]
+                IO.stdout.write(&cell)
             case ',':
                 if .embedded {
                     if at >= .input.count as i64 { return }
                     tape[sp] = .input[at]
                     at += 1
                 } else {
-                    let c:i32 = getchar()
-                    if c < 0 { return }
-                    tape[sp] = c as u8
+                    if let c = IO.stdin.byte { tape[sp] = c } else { return }
                 }
             case '[': if tape[sp] == 0 { ip = .jump[ip] }
             case ']': if tape[sp] != 0 { ip = .jump[ip] }
@@ -85,11 +88,11 @@ extend program {
 let interpret(src:Bytes^):i32 {
     var parsed = program.parse(src)
     if let err(why) = parsed {
-        fprintf(stderr, "%s\n", why.cstr)
+        IO.stderr.println(why)
         return 1
     }
     parsed.ok.run()
-    fflush(stdout)
+    IO.stdout.flush()
     return 0
 }
 
@@ -98,18 +101,12 @@ let echo := "+[,<>.]-!Hello, Kelvin!\n"   // the eight commands, and their input
 
 let main(argc:i32, argv:[cstr]):i32 {
     if argc > 1 {
-        let f:FILE^ := fopen(argv[1], "r")
-        if f.isNull {
-            perror(argv[1])
+        let f = IO(argv[1], "r")
+        if f.error != 0 {              // the errno when it did not open
+            IO.stderr.println(argv[1], ": ", IO.strerror(f.error))
             return 1
         }
-        var src = Bytes()
-        var c:i32 = fgetc(f)
-        while c >= 0 {
-            src += c as u8
-            c = fgetc(f)
-        }
-        fclose(f)
+        var src = f.bytes              // the whole file
         return interpret(&src)
     }
     var h = Bytes(hello)

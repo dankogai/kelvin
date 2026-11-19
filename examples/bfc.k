@@ -4,33 +4,38 @@
 // does. A `!` ends the program and starts its input, as swift-bf has it:
 // the input is then baked into the program, and `,` reads it, giving 0 at
 // its end; without one, `,` reads stdin, giving 0 at its end. Unmatched
-// brackets are reported with their offset.
+// brackets are reported with their offset. The compiler and what it
+// writes read and write by IO, with no header of C's.
 
 //     kelvinc -o bfc examples/bfc.k && ./bfc hello.b > hello.k && kelvinc -o hello hello.k
-#import <stdio.h> as C
+#import <IO>
 
 // the input as a Kelvin string literal: C's escapes, octal for the rest
-let literal(input:Bytes^):() {
-    putchar('"')
+let literal(input:Bytes^):String {
+    var s = $"\""
     for c in input^ {
         if c == '"' || c == '\\' {
-            putchar('\\')
-            putchar(c)
+            s += '\\'
+            s += c                       // a number appended is its codepoint
         } else if c == '\n' {
-            fputs("\\n", stdout)
+            s += "\\n"
         } else if c == '\t' {
-            fputs("\\t", stdout)
+            s += "\\t"
         } else if c >= ' ' && c < 127 {
-            putchar(c)
+            s += c
         } else {
-            printf("\\%03o", c)
+            s += '\\'
+            s += '0' + c / 64
+            s += '0' + c / 8 % 8
+            s += '0' + c % 8
         }
     }
-    putchar('"')
+    s += '"'
+    return s
 }
 
 let indent(depth:i64):() {
-    for _ in 0..<depth { fputs("    ", stdout) }
+    for _ in 0..<depth { print("    ") }
 }
 
 // compiles src to Kelvin on stdout; 1 and a message on stderr for brackets
@@ -49,20 +54,13 @@ let compile(src:Bytes^):i32 {
     let embedded = end < n
     var input = Bytes()
     if embedded { input = src^[end + 1...] }
-    println("#import <stdio.h> as C")
-    if !embedded {
-        println("let read():u8 {")
-        println("    let c:i32 = getchar()")
-        println("    return c < 0 ? 0 : c as u8")
-        println("}")
-    }
+    println("#import <IO>")
     println("let main():i32 {")
     println("    var tape = Bytes(65536)")
     println("    var sp:i64 = 0")
+    println("    var cell = Bytes(1)")
     if embedded {
-        print("    var input = Bytes(")
-        literal(&input)
-        println(")")
+        println("    var input = Bytes(", literal(&input), ")")
         println("    var at:i64 = 0")
     }
     var depth:i64 = 1
@@ -72,7 +70,7 @@ let compile(src:Bytes^):i32 {
         let c = src^[i]
         if c == ']' {
             if opens.count == 0 {
-                fprintf(stderr, "unmatched ] at offset %s\n", i.cstr)
+                IO.stderr.println("unmatched ] at offset ", i)
                 return 1
             }
             opens.pop()
@@ -86,14 +84,17 @@ let compile(src:Bytes^):i32 {
         case '<': println("sp = (sp + 65535) % 65536")
         case '+': println("tape[sp] += 1")
         case '-': println("tape[sp] -= 1")
-        case '.': println("putchar(tape[sp])")
+        case '.':
+            println("cell[0] = tape[sp]")
+            indent(depth)
+            println("IO.stdout.write(&cell)")
         case ',':
             if embedded {
                 println("if at < input.count as i64 { tape[sp] = input[at] } else { tape[sp] = 0 }")
                 indent(depth)
                 println("at += 1")
             } else {
-                println("tape[sp] = read()")
+                println("tape[sp] = IO.stdin.byte ?? 0")
             }
         case '[':
             println("while tape[sp] != 0 {")
@@ -105,7 +106,7 @@ let compile(src:Bytes^):i32 {
         i += 1
     }
     if opens.count > 0 {
-        fprintf(stderr, "unmatched [ at offset %s\n", opens[0].cstr)
+        IO.stderr.println("unmatched [ at offset ", opens[0])
         return 1
     }
     println("    return 0")
@@ -117,27 +118,22 @@ let echo := "+[,<>.]-!Hello, Kelvin!\n"   // the eight commands, and their input
 
 let main(argc:i32, argv:[cstr]):i32 {
     if argc > 1 {
-        let f:FILE^ := fopen(argv[1], "r")
-        if f.isNull {
-            perror(argv[1])
+        let f = IO(argv[1], "r")
+        if f.error != 0 {              // the errno when it did not open
+            IO.stderr.println(argv[1], ": ", IO.strerror(f.error))
             return 1
         }
-        var src = Bytes()
-        var c:i32 = fgetc(f)
-        while c >= 0 {
-            src += c as u8
-            c = fgetc(f)
-        }
-        fclose(f)
+        var src = f.bytes              // the whole file
         return compile(&src)
     }
     var e = Bytes(echo)
     return compile(&e)
 }
-// out: #import <stdio.h> as C
+// out: #import <IO>
 // out: let main():i32 {
 // out:     var tape = Bytes(65536)
 // out:     var sp:i64 = 0
+// out:     var cell = Bytes(1)
 // out:     var input = Bytes("Hello, Kelvin!\n")
 // out:     var at:i64 = 0
 // out:     tape[sp] += 1
@@ -146,7 +142,8 @@ let main(argc:i32, argv:[cstr]):i32 {
 // out:         at += 1
 // out:         sp = (sp + 65535) % 65536
 // out:         sp = (sp + 1) % 65536
-// out:         putchar(tape[sp])
+// out:         cell[0] = tape[sp]
+// out:         IO.stdout.write(&cell)
 // out:     }
 // out:     tape[sp] -= 1
 // out:     return 0

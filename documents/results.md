@@ -210,7 +210,8 @@ if s.is(err) { println(strerror(s.err)) }    // No such file or directory
   as its runtime does for itself, so the C headers a program imports
   show their POSIX functions on every platform.
   - [examples/results.k](../examples/results.k) does the same with ISO
-    C's `timespec_get`, `fopen` and `getenv`, and runs with the tests.
+    C's `timespec_get`, beside an `IO`'s `f.error` and `OS.env`'s
+    `cstr?`, and runs with the tests.
 
 ### `T?`: the special case
 

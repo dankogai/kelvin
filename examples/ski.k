@@ -14,7 +14,6 @@
 //   kelvinc --run examples/ski.k -- 'S(K(SI))Kab'   a term of SKI
 //   kelvinc --run examples/ski.k -- -iota '*i*i*ii' a term of Iota
 //   kelvinc --run examples/ski.k -- -jot 11100      a term of Jot
-#import <string.h> as C
 
 struct node {
     kind: u8         // 'S', 'K', 'I', a variable, or '@', an application
@@ -183,11 +182,11 @@ let apply(name:cstr, t:i64, vars:cstr):() {
 }
 
 let main(argc:i32, argv:[cstr]):i32 {
-    if argc > 2 && strcmp(argv[1], "-iota") == 0 {
+    if argc > 2 && String(argv[1]) == "-iota" {
         println(normal(iota(argv[2]), limit))
         return 0
     }
-    if argc > 2 && strcmp(argv[1], "-jot") == 0 {
+    if argc > 2 && String(argv[1]) == "-jot" {
         println(normal(jot(argv[2]), limit))
         return 0
     }

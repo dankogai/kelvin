@@ -12038,3 +12038,47 @@ test of tests/error to C, builds none and ends on none. Details are
 provisional P624.
 
 There are 1417 tests, and all pass with clang and with gcc 15.
+
+### 660. ownership.md's owners, and the examples
+
+**User**: "push", for #612, which **Claude** pushed, its battery
+clean; CI's nine jobs passed. Then:
+
+> * `BigInt` is not mentioned in `documents/ownership.md`
+> * `examples/*.k` is stale after recent changes.  for example.`let PI = 3.141592653589793` is no longer needed since we have `f64.pi`.  Update them, reducing the use of `#import <X> as C`.
+
+One number for the two. **Claude** first gave ownership.md a section
+of `BigInt`, as `IO` and `Task<T>` had one, and the user, before any
+push:
+
+> * Mention RegExp in ownership.md.  You can remove IO since it is not in the prelude.  Just mention types in the prelude and let T.md explain it is owned. Emphasize the convention that owned types are named with a first letter capitalized.
+
+So ownership.md is the convention, a list and the rules:
+
+- **An owner's name starts with a capital letter**, `String`,
+  `BigInt`, `RegExp`; a name in lower case never owns, `i64`, `cstr`,
+  `rat64`. The name says what `=` does.
+- **The prelude's owners are a table**, a line each, with the
+  document that says how each is made and that it is owned: `BigInt`
+  and `RegExp` among them, and no `IO`, a module's.
+- The sections of each type are gone, which said again what the
+  type's document says; what only they said, a Bytes's layout and a
+  Dictionary's, is in bytes.md and dictionaries.md. The rules, O1 to
+  O12, are as they were.
+
+Eight of the nineteen examples are written for the language as it
+is, and fifteen C headers are three:
+
+- `f64.pi`, and math with no import: shapes.k, complex.k, whose four
+  decimals are a template's now.
+- `IO` where `<stdio.h>` was: bfi.k, bfc.k and what it writes,
+  results.k, which uses `OS` too.
+- A String's own: ski.k's comparison, sort.k's sort and join, and
+  half of strings.k, its graphemes, codepoints and bytes.
+
+linkedlist.k keeps `<stdlib.h>`, and results.k `<time.h>` and
+`<errno.h>`: C is what each shows there. What each example prints is
+what it printed, but strings.k and sort.k, which print more. Details
+are provisional P625.
+
+There are 1417 tests, and all pass with clang and with gcc 15.
