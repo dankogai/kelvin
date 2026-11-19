@@ -1,15 +1,17 @@
 // modules/Combinatorics.k - permutations, combinations, power sets, base-n
-// numbers and Cartesian products, each a Sequence of $[i64]s that is also
-// indexed, as js-combinatorics and swift-combinatorics have them (#614).
+// numbers and Cartesian products (#614), the arrangements of a multiset and
+// permutations and combinations of several sizes (#615), each a Sequence
+// of $[i64]s that is also indexed, as js-combinatorics and
+// swift-combinatorics have them.
 //
 //     #import <Combinatorics>
-//     let seed = $["a", "b", "c", "d"]
 //     let p = Permutation(4)                     // of 4, each of size 4
 //     println(p.count, " ", p[5])                // 24n [0, 3, 2, 1]
-//     for ix in Combination(4, 2) { println(ix.map { seed[$0] }) }
+//     let seed = $[$"a", $"b", $"c", $"d"]
+//     for ix in Combination(4, 2) { println(pick(&seed, ix)) }   // ["a", "b"] ...
 //
 // Kelvin has no generic struct of a program's own, so each gives indices,
-// 0 to n - 1, and a program picks its own elements by them. Each counts
+// 0 to n - 1, and pick(&seed, ix) turns them into a seed's own elements. Each counts
 // in a BigInt, which any count fits: Permutation(36).count is 36!, some
 // 3.7e41. p[i] takes an i64 or a BigInt, and gives its element straight;
 // for walks them from one to the next, with no BigInt in each step.
@@ -144,6 +146,70 @@ let combinatorics_index(i:lent BigInt, count:lent BigInt, kind:cstr):BigInt {
         combinatorics_fail(&m)
     }
     return i.copy()
+}
+
+// ---------- pick: the elements at the indices ----------
+
+// pick(&seed, ix) is the elements of seed at the indices ix, which each
+// kind gives, in their order: Kelvin has no generic struct, so the kinds
+// give indices, and pick turns them into the elements of a program's own
+// seed, an Array of one of these types, or a String's graphemes (#615).
+// ix is lent: a walk's element, or one an index gives, stays its own
+let pick(seed:const $[String]^, ix:lent $[i64]):$[String] {
+    var out:$[String] = $[]
+    for i in ix { out += seed^[i].copy() }
+    return out
+}
+
+let pick(seed:const $[cstr]^, ix:lent $[i64]):$[cstr] {
+    var out:$[cstr] = $[]
+    for i in ix { out += seed^[i] }
+    return out
+}
+
+let pick(seed:const $[i64]^, ix:lent $[i64]):$[i64] {
+    var out:$[i64] = $[]
+    for i in ix { out += seed^[i] }
+    return out
+}
+
+let pick(seed:const $[i32]^, ix:lent $[i64]):$[i32] {
+    var out:$[i32] = $[]
+    for i in ix { out += seed^[i] }
+    return out
+}
+
+let pick(seed:const $[u8]^, ix:lent $[i64]):$[u8] {
+    var out:$[u8] = $[]
+    for i in ix { out += seed^[i] }
+    return out
+}
+
+let pick(seed:const $[u32]^, ix:lent $[i64]):$[u32] {
+    var out:$[u32] = $[]
+    for i in ix { out += seed^[i] }
+    return out
+}
+
+let pick(seed:const $[f64]^, ix:lent $[i64]):$[f64] {
+    var out:$[f64] = $[]
+    for i in ix { out += seed^[i] }
+    return out
+}
+
+let pick(seed:const $[bool]^, ix:lent $[i64]):$[bool] {
+    var out:$[bool] = $[]
+    for i in ix { out += seed^[i] }
+    return out
+}
+
+// of a String, the String of its graphemes at the indices
+let pick(seed:const String^, ix:lent $[i64]):String {
+    var gs:$[String] = $[]
+    for g in seed^ { gs += g.copy() }
+    var out = $""
+    for i in ix { out += &gs[i] }
+    return out
 }
 
 // ---------- Permutation ----------
@@ -545,4 +611,307 @@ extend CartesianProduct {
     }
 
     let makeIterator():Digits_iterator { combinatorics_walk(&.sizes) }
+}
+
+// ---------- UniquePermutation ----------
+
+// the arrangements of k of a multiset, each distinct one once: of the
+// values given, which may repeat, as swift-combinatorics' UniquePermutation
+// of a seed with duplicates (#615). The distinct values are ranked in the
+// order they first appear, and the arrangements are in lexicographic
+// order of those ranks
+struct UniquePermutation {
+    values: $[i64]       // each distinct value, in the order it first appears
+    counts: $[i64]       // and how many of it there are
+    k: i64
+}
+
+// the distinct sequences of slots values drawn from a multiset of the
+// counts, swift-combinatorics' sequences(): D_t(s) = sum over j copies of
+// value t of C(s, j) D_(t-1)(s - j)
+let combinatorics_sequences(counts:const $[i64]^, slots:i64):BigInt {
+    var h:$[BigInt] = $[]
+    for _ in 0...slots { h += BigInt(0) }
+    h[0] = BigInt(1)
+    var filled:i64 = 0
+    for c in counts^ {
+        let reach:i64 = slots < filled + c ? slots : filled + c
+        var next:$[BigInt] = $[]
+        for _ in 0...slots { next += BigInt(0) }
+        for s in 0...reach {
+            var sum = BigInt(0)
+            let lo:i64 = s - filled > 0 ? s - filled : 0
+            let hi:i64 = c < s ? c : s
+            for j in lo...hi { sum += combination(s, j) * h[s - j] }
+            next[s] = sum.copy()
+        }
+        h = next.copy()
+        filled = reach
+    }
+    return h[slots].copy()
+}
+
+let UniquePermutation(vals:const $[i64]^, k:i64):UniquePermutation {
+    combinatorics_check(k >= 0, "UniquePermutation(values, k) is of a k of 0 or more")
+    var values:$[i64] = $[]
+    var counts:$[i64] = $[]
+    for v in vals^ {
+        var at:i64 = 0 - 1
+        for i in 0..<values.count as i64 {
+            if values[i] == v { at = i }
+        }
+        if at < 0 {
+            values += v
+            counts += 1
+        } else {
+            counts[at] += 1
+        }
+    }
+    return {values, counts, k}
+}
+
+let UniquePermutation(vals:const $[i64]^):UniquePermutation { UniquePermutation(vals, vals^.count as i64) }
+
+// the walk of a UniquePermutation: the ranks of all n values, the first k
+// the element, the rest ascending, as a Permutation's walk, whose next
+// permutation passes over what is the same
+struct UniquePermutation_iterator {
+    a: $[i64]
+    values: $[i64]
+    k: i64
+    started: bool
+    done: bool
+}
+
+let combinatorics_valued(ranks:const $[i64]^, values:const $[i64]^, k:i64):$[i64] {
+    var out:$[i64] = $[]
+    for i in 0..<k { out += values^[ranks^[i]] }
+    return out
+}
+
+var UniquePermutation_iterator.next():$[i64]? {
+    if .done { return none }
+    let n = .a.count as i64
+    if !.started {
+        .started = true
+        if .k > n {
+            .done = true
+            return none
+        }
+        return combinatorics_valued(&.a, &.values, .k)
+    }
+    combinatorics_reverse(&.a, .k, n)
+    var i:i64 = n - 2
+    while i >= 0 && .a[i] >= .a[i + 1] { i -= 1 }
+    if i < 0 {
+        .done = true
+        return none
+    }
+    var j:i64 = n - 1
+    while .a[j] <= .a[i] { j -= 1 }
+    let t = .a[i]
+    .a[i] = .a[j]
+    .a[j] = t
+    combinatorics_reverse(&.a, i + 1, n)
+    return combinatorics_valued(&.a, &.values, .k)
+}
+
+extend UniquePermutation {
+    // the distinct arrangements of k of them
+    let count:BigInt { combinatorics_sequences(&.counts, .k) }
+
+    // the element at i: at each place, each value in turn that is left,
+    // passing over the arrangements of the rest that begin with it
+    let [](i:lent BigInt):$[i64] {
+        let total = combinatorics_sequences(&.counts, .k)
+        var rest = combinatorics_index(i, total, "UniquePermutation")
+        var left = .counts.copy()
+        var out:$[i64] = $[]
+        var slots:i64 = .k - 1
+        while slots >= 0 {
+            for t in 0..<left.count as i64 {
+                if left[t] > 0 {
+                    left[t] -= 1
+                    let block = combinatorics_sequences(&left, slots)
+                    if rest < block {
+                        out += .values[t]
+                        break
+                    }
+                    rest -= block
+                    left[t] += 1
+                }
+            }
+            slots -= 1
+        }
+        return out
+    }
+
+    let [](i:i64):$[i64] { self[BigInt(i)] }
+
+    let sample():$[i64] {
+        let total = combinatorics_sequences(&.counts, .k)
+        let r = combinatorics_random(total)
+        return self[r]
+    }
+
+    let makeIterator():UniquePermutation_iterator {
+        var a:$[i64] = $[]
+        for t in 0..<.counts.count as i64 {
+            for _ in 0..<.counts[t] { a += t }
+        }
+        return {a, .values.copy(), .k, false, false}
+    }
+}
+
+// ---------- Permutations and Combinations ----------
+
+// the sizes of a Range that a set of n has: its values from 0 to n, an
+// end past n, or none, being all of them up to n (#615)
+let combinatorics_sizes(n:i64, r:Range<i64>):$[i64] {
+    combinatorics_check(r.lowerBound >= 0, "the sizes of Permutations and Combinations are 0 or more")
+    var out:$[i64] = $[]
+    for s in r.prefix(n + 1) {
+        if s > n { break }
+        out += s
+    }
+    return out
+}
+
+let combinatorics_sizes_checked(n:i64, sizes:const $[i64]^):$[i64] {
+    for s in sizes^ {
+        combinatorics_check(s >= 0 && s <= n, "the sizes of Permutations and Combinations are from 0 to n")
+    }
+    return sizes^.copy()
+}
+
+// the k-permutations of n for each size k given, in the order given, each
+// size's in Permutation(n, k)'s order: swift-combinatorics' Permutations(of:sizes:)
+struct Permutations {
+    n: i64
+    sizes: $[i64]
+}
+
+let Permutations(n:i64, sizes:const $[i64]^):Permutations {
+    combinatorics_check(n >= 0, "Permutations(n, sizes) is of an n of 0 or more")
+    return {n, combinatorics_sizes_checked(n, sizes)}
+}
+
+let Permutations(n:i64, sizes:Range<i64>):Permutations {
+    combinatorics_check(n >= 0, "Permutations(n, sizes) is of an n of 0 or more")
+    return {n, combinatorics_sizes(n, sizes)}
+}
+
+struct Permutations_iterator {
+    n: i64
+    sizes: $[i64]
+    at: i64
+    inner: Permutation_iterator
+}
+
+var Permutations_iterator.next():$[i64]? {
+    while .at < .sizes.count as i64 {
+        if let x = .inner.next() { return x.copy() }
+        .at += 1
+        if .at < .sizes.count as i64 { .inner = Permutation(.n, .sizes[.at]).makeIterator() }
+    }
+    return none
+}
+
+extend Permutations {
+    // the sum of nPk over the sizes
+    let count:BigInt {
+        var c = BigInt(0)
+        for k in .sizes { c += permutation(.n, k) }
+        return c
+    }
+
+    let [](i:lent BigInt):$[i64] {
+        let total = self.count
+        var rest = combinatorics_index(i, total, "Permutations")
+        for k in .sizes {
+            let block = permutation(.n, k)
+            if rest < block { return Permutation(.n, k)[rest] }
+            rest -= block
+        }
+        return Array<i64>()                           // never: the index is checked
+    }
+
+    let [](i:i64):$[i64] { self[BigInt(i)] }
+
+    let sample():$[i64] {
+        let total = self.count
+        let r = combinatorics_random(total)
+        return self[r]
+    }
+
+    let makeIterator():Permutations_iterator {
+        let first:i64 = .sizes.count > 0 ? .sizes[0] : 0
+        return {.n, .sizes.copy(), 0, Permutation(.n, first).makeIterator()}
+    }
+}
+
+// the k-combinations of n for each size k given, in the order given, each
+// size's in Combination(n, k)'s order: swift-combinatorics' Combinations(of:sizes:)
+struct Combinations {
+    n: i64
+    sizes: $[i64]
+}
+
+let Combinations(n:i64, sizes:const $[i64]^):Combinations {
+    combinatorics_check(n >= 0, "Combinations(n, sizes) is of an n of 0 or more")
+    return {n, combinatorics_sizes_checked(n, sizes)}
+}
+
+let Combinations(n:i64, sizes:Range<i64>):Combinations {
+    combinatorics_check(n >= 0, "Combinations(n, sizes) is of an n of 0 or more")
+    return {n, combinatorics_sizes(n, sizes)}
+}
+
+struct Combinations_iterator {
+    n: i64
+    sizes: $[i64]
+    at: i64
+    inner: Combination_iterator
+}
+
+var Combinations_iterator.next():$[i64]? {
+    while .at < .sizes.count as i64 {
+        if let x = .inner.next() { return x.copy() }
+        .at += 1
+        if .at < .sizes.count as i64 { .inner = Combination(.n, .sizes[.at]).makeIterator() }
+    }
+    return none
+}
+
+extend Combinations {
+    // the sum of nCk over the sizes
+    let count:BigInt {
+        var c = BigInt(0)
+        for k in .sizes { c += combination(.n, k) }
+        return c
+    }
+
+    let [](i:lent BigInt):$[i64] {
+        let total = self.count
+        var rest = combinatorics_index(i, total, "Combinations")
+        for k in .sizes {
+            let block = combination(.n, k)
+            if rest < block { return Combination(.n, k)[rest] }
+            rest -= block
+        }
+        return Array<i64>()                           // never: the index is checked
+    }
+
+    let [](i:i64):$[i64] { self[BigInt(i)] }
+
+    let sample():$[i64] {
+        let total = self.count
+        let r = combinatorics_random(total)
+        return self[r]
+    }
+
+    let makeIterator():Combinations_iterator {
+        let first:i64 = .sizes.count > 0 ? .sizes[0] : 0
+        return {.n, .sizes.copy(), 0, Combination(.n, first).makeIterator()}
+    }
 }

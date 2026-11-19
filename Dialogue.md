@@ -12124,3 +12124,43 @@ nothing with it. It does now, as of a function's parameter (#510).
 Details are provisional P626.
 
 There are 1423 tests, and all pass with clang and with gcc 15.
+
+### 662. UniquePermutation, Permutations and Combinations
+
+**User**: "push", for #614, which **Claude** pushed, its battery clean;
+CI's nine jobs passed. Then:
+
+> add UniquePermutation, Permutations and Combinations as #615
+
+**Claude** asked three things, each answered with the recommended:
+
+- **The multiset** is a `$[i64]` that may repeat, and the elements are
+  those values: `UniquePermutation(&$[1, 1, 2])` is three
+  arrangements, and of mississippi's codepoints 34650.
+- **A size**, as Swift's: `UniquePermutation(&values, k)`.
+- **The sizes** of `Permutations` and `Combinations` are a Range or an
+  Array: `Combinations(4, 2...3)` is ten, and
+  `Combinations(4, 0...)` every subset of 4, by size.
+
+The order of the arrangements is Swift's, the distinct values ranked
+as they first appear; Python's `itertools` gives the same counts and
+the same first and last elements. Details are provisional P627.
+
+**User**: "push", said while #615's battery ran, which did not finish
+before the session ended. Then, before any push:
+
+> Your example on `documents/combinatorics.md` is ugly: ... seed being global variable is unforgivable.  Write a conversion function and let it convert from indices to combination elements
+
+The synopsis had `let seed` at the top level, for `ix.map { seed[$0] }`
+to read: an anonymous function reads no local of the function around
+it. **Claude** asked two things, each answered with the recommended:
+
+- **`pick(&seed, ix)`** is the elements of `seed` at the indices.
+- **Its seeds** are Arrays of eight types, and a String, whose
+  graphemes it picks: `pick(&$"kelvin", Permutation(6)[719])` is
+  `"nivlek"`.
+
+The seed is a local now, in the synopsis, the module's comment and
+its test, which kc builds now that it has no global.
+
+There are 1427 tests, and all pass with clang and with gcc 15.

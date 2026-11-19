@@ -709,3 +709,11 @@ So far the changes from C are these, by topic.
 - A subscript's index may be lent, `let [](i:lent BigInt):R`, as a
   function's parameter is (#510): its caller keeps it, where
   `lent` was read and the owner moved in all the same (#614)
+- `<Combinatorics>` has swift-combinatorics' `UniquePermutation`, the
+  arrangements of a multiset of `i64`s each distinct one once,
+  `UniquePermutation(&$[1, 1, 2])` three, and `Permutations` and
+  `Combinations` of several sizes, `Combinations(4, 2...3)`; and
+  `pick(&seed, ix)`, the elements of a program's own seed at the
+  indices a kind gives, of an Array of one of eight types or of a
+  String's graphemes, `pick(&$"kelvin", Permutation(6)[719])` is
+  `"nivlek"` (#615)

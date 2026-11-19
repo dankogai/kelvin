@@ -295,7 +295,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     BigNum.kh             <BigNum>'s header, built so too (#599)
     libkBigNum.a|.dylib|.so     its library, linked before Rational's, which it uses
     BigNum.k              #import <BigNum> (#590, bignum.md): BigFloat, a float of any precision (#576, bigfloat.md), CBR and CBF, complex numbers of two BigRats and of two BigFloats, and math's functions of them and of a BigRat; it imports <math> and <Rational>
-    Combinatorics.k       #import <Combinatorics> (#614, combinatorics.md): Permutation, Combination, PowerSet, BaseN, CartesianProduct
+    Combinatorics.k       #import <Combinatorics> (#614, combinatorics.md): Permutation, Combination, PowerSet, BaseN, CartesianProduct, UniquePermutation, Permutations, Combinations
     Combinatorics.kh      its header, built by make so too
     libkCombinatorics.a|.dylib|.so   its library
     JSON.k                #import <JSON> (#113, json.md)
@@ -406,7 +406,8 @@ as an enum with values keyed by any value, with `SION.parse(text)` and
 
 `#import <Combinatorics>` (#614) brings in `Permutation`, `Combination`,
 `PowerSet`, `BaseN` and `CartesianProduct`, each a Sequence of the
-indices of its elements that is indexed by an `i64` or a `BigInt`, and
+indices of its elements that is indexed by an `i64` or a `BigInt`,
+`UniquePermutation`, `Permutations` and `Combinations` (#615), and
 `factorial`, `permutation`, `combination`, `factoradic` and
 `combinadic`: see [combinatorics.md](combinatorics.md).
 

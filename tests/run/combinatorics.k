@@ -4,12 +4,11 @@
 // factoradic and combinadic, js-combinatorics' values
 #import <Combinatorics>
 
-let seed = $["a", "b", "c", "d"]
-
 let main():int32 {
+    let seed = $[$"a", $"b", $"c", $"d"]
     let p = Permutation(4)
     println(p.count, " ", p[0], " ", p[5], " ", p[23], " ", p)
-    for ix in Combination(4, 2) { print(ix.map { seed[$0] }, " ") }
+    for ix in Combination(4, 2) { print(pick(&seed, ix), " ") }
     println()
     var n = 0
     var last:$[i64] = $[]

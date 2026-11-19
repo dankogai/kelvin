@@ -113,7 +113,8 @@ the design decisions, numbered `#N` throughout, are in
 - [combinatorics.md](combinatorics.md): `#import <Combinatorics>`,
   `Permutation`, `Combination`, `PowerSet`, `BaseN` and
   `CartesianProduct`, walked and indexed by a `BigInt`, and
-  `factorial`, `combination` and their kin (#614).
+  `factorial`, `combination` and their kin (#614);
+  `UniquePermutation`, `Permutations` and `Combinations` (#615).
 - [json.md](json.md): `#import <JSON>`, `JSON.parse` and
   `JSON.stringify` as JS has them.
 - [sion.md](sion.md): `#import <SION>`, SION values, JSON with more.
