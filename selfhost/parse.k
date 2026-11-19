@@ -1093,6 +1093,13 @@ let value_type(t:int64):int64 {
     }
     while !failed {
         if at_word(".") && tok_is(pos + 1, "type") {
+            if types[y].kind == Y_VOID && !tok_is(pos + 2, "^") {   // as kelvinc says it (#612)
+                var e = $"'"
+                for k in t..<pos { e += tok_text(k) }
+                e += ".type' is any, which exists only as 'any^', C's void *"
+                parse_error_at(t, e.cstr)
+                return y
+            }
             advance()
             advance()
             return y
@@ -1260,7 +1267,6 @@ let array_type(elem:int64):int64 {
 }
 
 let parse_anon_record():int64    // a prototype: {x:f64, y:f64} where a type goes (#476)
-let kelvin_word(t:int64):bool    // and _kv_anon1 is kelvinc's
 
 // the suffixes after a type: T^, T?, T?? (#217, #229), T^ restrict (#393)
 let type_suffixes(y0:int64):int64 {
@@ -1280,6 +1286,28 @@ let type_suffixes(y0:int64):int64 {
     }
     refuse_restrict()
     return y
+}
+
+// what kelvinc says to use for token t, a type word of C's that is none
+// of Kelvin's, as its dead_words have it (#611, #612); "" of any other
+let c_word_hint(t:int64):cstr {
+    return tok_is(t, "char") ? "u8 (or i8)" : tok_is(t, "short") ? "i16 or u16" : tok_is(t, "int") ? "i32 or u32" : tok_is(t, "long") && tok_is(t + 1, "double") ? "f64 (long double has no Kelvin type yet)" : tok_is(t, "long") ? "i64 or u64 (or i128/u128)" : tok_is(t, "signed") ? "i8, i16, i32, i64 or i128" : tok_is(t, "unsigned") ? "u8, u16, u32, u64 or u128" : tok_is(t, "float") ? "f32" : tok_is(t, "double") ? "f64" : tok_is(t, "_Bool") ? "bool" : tok_is(t, "void") ? "any^ for C's void *; a function without a result omits ': type'" : ""
+}
+
+// IO is a module, which a program imports (#144, #612): its name at token
+// t where no file has #import <IO> is kelvinc's error
+var io_imported:int64 = 0 - 1      // whether a file imports it: 1, 0, or not asked yet
+
+let io_required(t:int64) {
+    if io_imported < 0 {
+        io_imported = 0
+        for k in 0..<eof_pos {
+            if toks[k].kind == T_IMPORT && tok_is(k, "<IO>") { io_imported = 1 }
+        }
+    }
+    if io_imported == 0 && t < eof_pos && !failed {
+        parse_error_at(t, "IO is a module: write '#import <IO>' at the top of the file")
+    }
 }
 
 // a Dictionary's key is no cstr, as kelvinc says it (#65, #611): it keeps
@@ -1400,7 +1428,7 @@ let parse_bare_type():int64 {
     reject_kv_name(pos)                          // _kv_anon1, as kelvinc says it (#476), and kv_s, the runtime's (#611)
     if failed { return base_type(Y_VOID) }
     if tag == 0 - 1 && pos < eof_pos {           // C's type words are no types of Kelvin's, as kelvinc says it (#611)
-        let ws:cstr := tok_is(pos, "char") ? "u8 (or i8)" : tok_is(pos, "short") ? "i16 or u16" : tok_is(pos, "int") ? "i32 or u32" : tok_is(pos, "long") && tok_is(pos + 1, "double") ? "f64 (long double has no Kelvin type yet)" : tok_is(pos, "long") ? "i64 or u64 (or i128/u128)" : tok_is(pos, "signed") ? "i8, i16, i32, i64 or i128" : tok_is(pos, "unsigned") ? "u8, u16, u32, u64 or u128" : tok_is(pos, "float") ? "f32" : tok_is(pos, "double") ? "f64" : tok_is(pos, "_Bool") ? "bool" : tok_is(pos, "void") ? "any^ for C's void *; a function without a result omits ': type'" : ""
+        let ws:cstr := c_word_hint(pos)
         if ws[0] != 0 {
             var m = $"'"
             m += tok_text(pos)
@@ -1426,11 +1454,16 @@ let parse_bare_type():int64 {
         y = base_type(Y_CSTR)
     } else if tok_is(t, "any") {                 // any^, C's void * (#470)
         y = base_type(Y_VOID)
+        if !at_word("^") && t < eof_pos {        // and nothing else, as kelvinc says it (#612)
+            parse_error_at(t, "'any' exists only as 'any^', C's void *")
+            return y
+        }
     } else if tok_is(t, "String") {
         y = base_type(Y_STRING)
     } else if tok_is(t, "Bytes") {               // (#439)
         y = base_type(Y_BYTES)
     } else if tok_is(t, "IO") {
+        io_required(t)                           // (#612)
         y = base_type(Y_IO)
     } else if tok_is(t, "typeof") {             // typeof(T), typeof(x) (#398), C23's
         if !at_word("(") {
@@ -1456,6 +1489,9 @@ let parse_bare_type():int64 {
         y = base_type(tok_is(self_name, "String") ? Y_STRING : Y_BYTES)
     } else if tok_is(t, "Self") && self_name >= 0 {   // the type of the method (#213)
         y = type_of_kind(Y_STRUCT, -1, self_name)
+    } else if tok_is(t, "Self") && t < eof_pos && !far_records.has(tok_text(t)) {   // a plain function has no T, as kelvinc says it (#140, #612)
+        parse_error_at(t, "'Self' is the type's name inside 'extend T { }' and in a method, an attribute or a subscript of T: here there is no T")
+        return base_type(Y_VOID)
     } else if tok_is(t, "Optional") {            // Optional<T>, T? (#217)
         expect("<")
         let inner = parse_type()
@@ -1670,6 +1706,7 @@ let anon_ahead():bool {
         }
         if depth == 0 && inner == 0 && tok_is(i, ",") { return false }   // {a, { $0 }}, a list that holds one (#428)
         if toks[i].kind == T_ID && codes[toks[i].at] == '$' { return true }
+        if tok_is(i, "$[") && toks[i + 1].kind == T_NUM && tok_is(i + 2, "]") { return true }   // $[0], as $0 (#612)
         i += 1
     }
     return false
@@ -1966,7 +2003,36 @@ let parse_iterator():int64 {
 
 // the function trailing the call n, x.m(a) { ... } (#328) or f(a) { ... }
 // (#470), its last argument
+var body_after_call:int64 = 0 - 1   // the { after a call's ) in the head of if, while or for, which starts the body (#612)
+var block_after_call:int64 = 0 - 1  // the { on the line after a call's ), which starts a block
+var next_blocks:Dictionary<int64, int64>   // and that {, by the call's node, which gen asks of a call that lacks its function
+
+// whether token t is in the braces that open at token o
+let in_braces(o:int64, t:int64):bool {
+    if o < 0 || t <= o { return false }
+    var depth = 0
+    var k:int64 = o
+    while k < eof_pos {
+        if tok_is(k, "{") || tok_is(k, "${") { depth += 1 }
+        if tok_is(k, "}") {
+            depth -= 1
+            if depth == 0 { return t < k }
+        }
+        k += 1
+    }
+    return false
+}
+
 let take_trailing(n:int64) {
+    if brace_ends && at_word("{") { body_after_call = pos }   // (#612)
+    if at_kind(T_NL) {
+        var k:int64 = pos
+        while toks[k].kind == T_NL { k += 1 }
+        if tok_is(k, "{") {
+            block_after_call = k
+            next_blocks[n] = k
+        }
+    }
     if brace_ends || !at_word("{") { return }            // any { after a call, on its line, as kelvinc's (#32)
     let told = anon_ahead()
     let an:int64 = parse_anon()
@@ -1997,7 +2063,13 @@ let parse_method_call(e:int64, t:int64):int64 {
 
 // `a${x}b` from its head (#445), as kelvinc's parse_template: its parts,
 // each an N_STR of its text, and its values in turn; dollar of $`...`
+var static_init = false            // the cursor is in a static's initializer, which C wants constant (#612)
+
 let parse_template(dollar:bool):int64 {
+    if static_init || (block_depth == 0 && fn_tok < 0) {   // as kelvinc says it (#39, #612)
+        parse_error(static_init ? "a template literal with ${...} is made at run time, and a static's initializer must be constant: make it in a function" : "a template literal with ${...} is made at run time, and a global's initializer must be constant: make it in a function")
+        return make_node(N_NULL, pos)
+    }
     let n:int64 = make_node(N_TPL, pos)
     if dollar { nodes[n].flag = 1 }
     var last:int64 = -1
@@ -2198,6 +2270,35 @@ let parse_primary():int64 {
             advance()
             return make_node(N_EMPTY, t)
         }
+        if anon_depth > 0 && tok_is(pos + 1, "]") {      // $[k] of one token, in an anonymous function: its parameter k (#32, #612)
+            var digits = toks[pos].kind == T_NUM
+            for q in 0..<toks[pos].len {
+                if !is_digit(codes[toks[pos].at + q]) { digits = false }
+            }
+            if !digits {
+                parse_error("$[...] takes a number, as in $[0]: each parameter may have a type of its own")
+                return make_node(N_NULL, t)
+            }
+            if toks[pos].len > 1 && codes[toks[pos].at] == '0' {
+                var m = $"'$["
+                m += tok_text(pos)
+                m += "]' has a leading zero: write $["
+                var z:int64 = 0
+                while z < toks[pos].len - 1 && codes[toks[pos].at + z] == '0' { z += 1 }
+                for q in z..<toks[pos].len { m += codes[toks[pos].at + q] }
+                m += "]"
+                parse_error_at(t, m.cstr)
+                return make_node(N_NULL, t)
+            }
+            var name = $"$"
+            name += tok_text(pos)
+            let u:int64 = made_token(&name)
+            toks[u].line = toks[t].line
+            toks[u].file = toks[t].file
+            advance()
+            advance()
+            return make_node(N_ID, u)
+        }
         let n:int64 = make_node(N_ARRAY, t)          // $[a, b] (#266)
         var last = -1
         while !failed {
@@ -2268,10 +2369,35 @@ let parse_primary():int64 {
             return make_node(N_NULL, t)
         }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
+        if codes[toks[t].at] == '$' && t < eof_pos {     // $k, an anonymous function's parameter, as kelvinc's parse_dollar (#32, #612)
+            if toks[t].len > 2 && codes[toks[t].at + 1] == '0' {
+                var m = $"'"
+                m += tok_text(t)
+                m += "' has a leading zero: write $"
+                var z:int64 = 1
+                while z < toks[t].len - 1 && codes[toks[t].at + z] == '0' { z += 1 }
+                for q in z..<toks[t].len { m += codes[toks[t].at + q] }
+                parse_error_at(t, m.cstr)
+                return make_node(N_NULL, t)
+            }
+            if anon_depth == 0 {
+                var m = $"'"
+                m += tok_text(t)
+                m += "' is a parameter of an anonymous function, and this is not in one"
+                if in_braces(body_after_call, t) {
+                    m += "; in the head of if, while or for, a '{' after a call starts the body, so pass the function inside the parentheses"
+                } else if in_braces(block_after_call, t) {
+                    m += "; a trailing function starts on the line of the call's ')': on the next line, '{' starts a block"
+                }
+                parse_error_at(t, m.cstr)
+                return make_node(N_NULL, t)
+            }
+        }
         if tok_is(t, "Self") && self_name >= 0 && at_word(".") { return make_node(N_ID, self_name) }   // Self.f(), Self.x (#140)
         if tok_is(t, "Self") && self_name >= 0 && at_word("(") {   // Self(x), the type's own maker, c64(x), or a number's converter (#550)
             return make_node(tok_is(self_name, "String") || tok_is(self_name, "Bytes") ? N_TYPE : N_ID, self_name)
         }
+        if tok_is(t, "IO") { io_required(t) }            // (#612)
         if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bytes(x) (#439)
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
         if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#391)
@@ -2463,6 +2589,14 @@ let parse_unary():int64 {
     if at_word("sizeof") {                       // sizeof(T), sizeof x (#420), as kelvinc's
         let t:int64 = advance()
         let n:int64 = make_node(N_SIZEOF, t)
+        if at_word("(") && c_word_hint(pos + 1)[0] != 0 && pos + 1 < eof_pos {   // sizeof(int), as kelvinc says it (#612)
+            var m = $"'"
+            m += tok_text(pos + 1)
+            m += "' is not a Kelvin type; use "
+            m += c_word_hint(pos + 1)
+            parse_error_at(pos + 1, m.cstr)
+            return n
+        }
         if at_word("(") && !literal_ahead() && !array_literal_ahead() && sizeof_type_at(pos + 1) {
             advance()                            // a compound literal's size is a value's, sizeof (T){...}
             set_ty(n, parse_type())
@@ -2720,6 +2854,7 @@ let parse_vars():int64    // prototypes: C's for and several declarators (#458)
 let parse_cfor():int64
 let parse_simple():int64
 let parse_simples():int64
+let reject_c_declaration()    // and C's declaration where a statement starts (#612)
 
 // switch e { case a, b: ... default: ... } (#210): its cases a list of
 // S_CASE, each with its values and its statements, up to the next case
@@ -2876,7 +3011,9 @@ let parse_statement():int64 {
     }
     if at_word("static") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {   // a local that lives on, C's (#459)
         advance()
+        static_init = true                               // (#612)
         let n:int64 = parse_vars()
+        static_init = false
         var v:int64 = n
         while v >= 0 {
             static_decls += v
@@ -2994,6 +3131,8 @@ let parse_statement():int64 {
     if at_word("{") {
         return parse_block()
     }
+    reject_c_declaration()                               // size_t * b[3]; (#612)
+    if failed { return make_node(S_BLOCK, t) }
     let n:int64 = parse_simples()                        // x = 1, y = 2, C's comma, each a statement (#458)
     end_statement()
     return n
@@ -3062,10 +3201,213 @@ let parse_cfor():int64 {
         set_c(n, parse_block())
     } else {
         let b:int64 = make_node(S_BLOCK, pos)
+        if at_word("var") || at_word("let") || (at_word("static") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let"))) {   // as kelvinc says it (#612)
+            parse_error("a declaration cannot be the body of a statement or follow a label; put it in a block, or write 'label: ;' before it")
+            return n
+        }
         nodes[b].a = parse_statement()
         set_c(n, b)
     }
     return n
+}
+
+// the token after the group that opens at token i, ( ) or [ ]
+let group_end(i:int64):int64 {
+    var depth = 0
+    var k:int64 = i
+    while k < eof_pos {
+        if tok_is(k, "(") || tok_is(k, "[") || tok_is(k, "$[") { depth += 1 }
+        if tok_is(k, ")") || tok_is(k, "]") {
+            depth -= 1
+            if depth == 0 { return k + 1 }
+        }
+        k += 1
+    }
+    return k
+}
+
+// whether token t is const or volatile
+let qualifier_tok(t:int64):bool {
+    return tok_is(t, "const") || tok_is(t, "volatile")
+}
+
+// whether token t names a value so far: a local, a parameter, a global
+// or a function, as kelvinc's binding of it (#612)
+let value_named(t:int64):bool {
+    if toks[t].kind != T_ID { return false }
+    if codes[toks[t].at] == '$' || local_named(t) || anon_param(t) { return true }
+    for d in nodes {
+        if (d.kind == D_GLOBAL || d.kind == D_FN) && same_text(d.t, t) { return true }
+    }
+    return false
+}
+
+// C's declaration where a statement starts, `size_t * b[3];`, `FILE *fp`,
+// `T (*f)(int)`, as kelvinc's reject_c_declaration finds one (#27, #31,
+// #612): a type's name, stars, a name and its (...) and [...], then the
+// statement's end, = or a comma; kelvinc's error says how Kelvin writes
+// it. `a * b` of a value a is an expression, and so is a body's one
+let reject_c_declaration() {
+    if failed { return }
+    var i:int64 = pos
+    var storage:int64 = 0 - 1
+    if tok_is(i, "static") || tok_is(i, "extern") || tok_is(i, "register") || tok_is(i, "auto") {
+        storage = i
+        i += 1
+    }
+    var base_const = false
+    var base_volatile = false
+    while qualifier_tok(i) {
+        if tok_is(i, "const") { base_const = true } else { base_volatile = true }
+        i += 1
+    }
+    var type = $""
+    var spaced = false
+    let type_at:int64 = i
+    if tok_is(i, "struct") || tok_is(i, "union") || tok_is(i, "enum") {
+        if toks[i + 1].kind != T_ID { return }
+        type = tok_text(i)
+        type += " "
+        type += tok_text(i + 1)
+        spaced = true
+        i += 2
+    } else if toks[i].kind == T_ID && i < eof_pos {
+        let base = number_word(i) >= 0 || tok_is(i, "bool") || tok_is(i, "any") || tok_is(i, "cstr") || tok_is(i, "String") || tok_is(i, "Bytes") || tok_is(i, "IO")
+        if (kept_word(i) && !base) || tok_is(i, "__attribute__") || tok_is(i, "_Pragma") || tok_is(i, "self") || tok_is(i, "Self") { return }
+        if tok_is(i + 1, "(") { return }
+        type = tok_text(i)
+        i += 1
+    } else {
+        return
+    }
+    while qualifier_tok(i) {
+        if tok_is(i, "const") { base_const = true } else { base_volatile = true }
+        i += 1
+    }
+    var suffix = $""
+    var block = false
+    while tok_is(i, "*") || tok_is(i, "**") {            // **, a power's token since #380, is two here
+        suffix += tok_is(i, "**") ? "^^" : "^"
+        i += 1
+        while qualifier_tok(i) {
+            suffix += " "
+            suffix += tok_text(i)
+            i += 1
+        }
+    }
+    if suffix.count == 0 && tok_is(i, "~") {
+        block = true
+        i += 1
+    }
+    var quals = base_const ? $"const " : $""
+    if base_volatile { quals += "volatile " }
+    var name_at:int64 = i
+    if tok_is(i, "(") && tok_is(i + 1, "*") && toks[i + 2].kind == T_ID && tok_is(i + 3, ")") && tok_is(i + 4, "(") {
+        let end:int64 = group_end(i + 4)                 // T (*f)(...): a pointer to a function (#31)
+        if tok_is(end, ";") || tok_is(end, ",") || tok_is(end, "=") {
+            var m = $"'"
+            m += tok_text(i + 2)
+            m += "' looks like a C function-pointer declaration: write 'var "
+            m += tok_text(i + 2)
+            m += ":(...):"
+            m += &quals
+            m += &type
+            m += &suffix
+            m += "' (#31)"
+            parse_error(m.cstr)
+            return
+        }
+    }
+    if tok_is(i, "(") && (suffix.count > 0 || block) {
+        let end:int64 = group_end(i)
+        name_at = i
+        while name_at < end && toks[name_at].kind != T_ID { name_at += 1 }
+        if name_at >= end { return }
+        i = end
+    } else if toks[i].kind == T_ID && !kept_word(i) {
+        i += 1
+    } else {
+        return
+    }
+    var function = false
+    var function_pointer = false
+    var dims:$[String] = $[]
+    while tok_is(i, "(") || tok_is(i, "[") || tok_is(i, "^") {   // a ( on the next line is after a T_NL, and no part of it
+        if tok_is(i, "^") { suffix += "^" }
+        if tok_is(i, "(") {
+            if tok_is(i - 1, "^") { function_pointer = true }
+            function = true
+        }
+        let end:int64 = tok_is(i, "^") ? i + 1 : group_end(i)
+        if tok_is(i, "[") {
+            var d = $""
+            for k in i + 1..<end - 1 { d += tok_text(k) }
+            dims += d.copy()
+        }
+        i = end
+    }
+    var after:int64 = i
+    while toks[after].kind == T_NL { after += 1 }
+    let ends = toks[i].kind == T_NL || toks[i].kind == T_EOF || tok_is(i, "}")
+    if !tok_is(i, ";") && !tok_is(i, ",") && !tok_is(i, "=") && !ends { return }
+    var before:int64 = pos - 1
+    while before > 0 && toks[before].kind == T_NL { before -= 1 }
+    let alone = tok_is(before, "{") && tok_is(after, "}") && !tok_is(i, "=") && (block_depth == 1 || anon_depth > 0)   // a body's one expression, which it returns
+    if (suffix.count > 0 || block) && storage < 0 && !base_const && !base_volatile && !spaced && ((value_named(type_at) && !tok_is(i, "=")) || alone || value_named(name_at)) { return }
+    let name:String = tok_text(name_at)
+    var m = $""
+    if block {
+        m = $"'"
+        m += &type
+        m += " ~ "
+        m += &name
+        m += "' as a statement would be read by C as a block-pointer declaration; declarations are written 'var name:type'"
+    } else if function_pointer {
+        m = $"'"
+        m += &name
+        m += "' looks like a C function-pointer declaration: write 'var "
+        m += &name
+        m += ":(...):"
+        m += &quals
+        m += &type
+        m += "' (#31)"
+    } else if function {
+        m = $"functions are declared at the top level as 'let "
+        m += &name
+        m += "(...):"
+        m += &quals
+        m += &type
+        m += &suffix
+        m += "'"
+    } else {
+        var spelled:String = quals.copy()
+        spelled += &type
+        spelled += &suffix
+        var k:int64 = dims.count as int64 - 1
+        while k >= 0 {                                   // int a[2][3] is [[i32](3)](2) (#49)
+            var outer = $"["
+            outer += &spelled
+            outer += "]"
+            if dims[k].count > 0 {
+                outer += "("
+                outer += &dims[k]
+                outer += ")"
+            }
+            spelled = outer.copy()
+            k -= 1
+        }
+        m = $"declarations are written 'var name:type', as in '"
+        if storage >= 0 {
+            m += tok_text(storage)
+            m += " "
+        }
+        m += "var "
+        m += &name
+        m += ":"
+        m += &spelled
+        m += "'"
+    }
+    parse_error(m.cstr)
 }
 
 // a, b, ...: expressions or assignments, a C for's init or steps (#458)
@@ -3754,12 +4096,58 @@ let builtin_static(recv:int64, computed:bool):bool {
     return true
 }
 
+// whether recv, the type a method, or an extend, is of, written from
+// token at, is one of the program's, with kelvinc's error (#130, #612):
+// any and cstr have no methods, nor a plain enum outside extend, which C
+// cannot tell from its integer; and a name of no struct, union or enum
+// names none. kc reads every file's types before any (#550), so a type
+// declared after its method is not told from one before it
+let receiver_wrong(recv:int64, at:int64, extends:bool):bool {
+    if failed || recv >= eof_pos || is_nested(recv) { return failed }
+    if !extends && (tok_is(recv, "any") || tok_is(recv, "cstr")) {
+        var m = $"'"
+        m += tok_text(recv)
+        m += "' cannot have methods"
+        parse_error_at(at, m.cstr)
+        return true
+    }
+    if number_word(recv) >= 0 || tok_is(recv, "bool") || tok_is(recv, "any") || tok_is(recv, "cstr") || tok_is(recv, "String") || tok_is(recv, "Bytes") || tok_is(recv, "IO") { return false }
+    if tok_is(recv, "{") || tok_is(recv, "struct") || tok_is(recv, "union") || tok_is(recv, "enum") { return false }   // a type with no tag
+    let name:String = tok_text(recv)
+    let word:int64 = far_records.get(name, 0 - 1)
+    if word < 0 && records_seen.get(name, 0 - 1) < 0 && !c_tags.has(name) && local_own_of.get(name, 0 - 1) < 0 {
+        var m = $"'"
+        m += &name
+        m += extends ? "' is not a struct, union or enum declared before this extend" : "' is not a struct or union declared before this method"
+        parse_error_at(at, m.cstr)
+        return true
+    }
+    if !extends && word >= 0 && tok_is(word, "enum") {
+        var k:int64 = word + 3                           // past enum name {
+        var depth = 1
+        var values = false
+        while depth > 0 && k < eof_pos {
+            if tok_is(k, "{") { depth += 1 }
+            if tok_is(k, "}") { depth -= 1 }
+            if depth == 1 && tok_is(k, ":") { values = true }
+            k += 1
+        }
+        if !values {
+            parse_error_at(at, "enums cannot have methods: C cannot tell an enum from its integer type")
+            return true
+        }
+    }
+    return false
+}
+
 // extend T { let m(...) ... static let f(...) ... } (#213): a method takes
 // self, a T, first; a function of the type, static, does not; each goes
 // into decls as a D_FN whose c is T's token, its flag 1 where static, 2
 // for a var method, var m(...), whose self is the caller's var (#320)
 let parse_extend() {
+    let recv_at:int64 = pos
     let recv:int64 = type_path(pos)                      // extend point.kind { } (#389)
+    if toks[recv_at].kind == T_ID && receiver_wrong(recv, recv_at, true) { return }   // (#612)
     while pos < path_end { advance() }
     self_name = recv
     expect("{")
@@ -4205,7 +4593,11 @@ let parse_program() {
         }
         parse_alignas()                                  // alignas(64) var line:[u8](64) (#396)
         parse_alignas()                                  // a second, kelvinc's error
+        let inline_at:int64 = pos
         var inl:bool = parse_inline(false)              // inline let f(...) (#392)
+        if inl && storage == 2 && !failed {             // as kelvinc says it (#612)
+            parse_error_at(inline_at, "an extern function is defined elsewhere: 'inline' is for one defined here")
+        }
         if storage == 0 && at_word("static") {          // inline static let f(...)
             storage = 1
             advance()
@@ -4285,6 +4677,12 @@ let parse_program() {
             m += tok_text(pos)
             m += "' cannot be defined: an operator a struct defines is one of + - * / % ** == != < <= > >= & | ~ << >>, unary - and ~, or x op= y of one of them (#518)"
             parse_error(m.cstr)
+        } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") && (tok_is(pos + 1, "print") || tok_is(pos + 1, "println")) && !prelude_file(toks[pos].file) {
+            advance()                                    // as kelvinc says it (#612)
+            var m = $"'"
+            m += tok_text(pos)
+            m += "' is part of the Kelvin prelude and cannot be redefined"
+            parse_error(m.cstr)
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
             let f:int64 = parse_function()
@@ -4336,9 +4734,17 @@ let parse_program() {
                 parse_error(m.cstr)
             }
             advance()
+            let recv_at:int64 = pos
             let recv:int64 = type_path(pos)                 // let point.kind.m(...) (#389)
             while pos < path_end { advance() }
             advance()
+            if storage != 1 && receiver_wrong(recv, recv_at, false) { continue }   // (#612)
+            if !failed && (tok_is(pos, "toString") || tok_is(pos, "fmt")) {   // shelved (#22), as kelvinc says it (#612)
+                var m:String = tok_text(pos)
+                m += "() is not a method: a value's text is 'x.cstr', and String(x.cstr) a String (#22, #55)"
+                parse_error(m.cstr)
+                continue
+            }
             self_name = recv
             if storage == 1 && !failed && builtin_static(recv, false) { continue }   // (#611)
             let n:int64 = parse_function()

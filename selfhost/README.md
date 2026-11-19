@@ -108,8 +108,51 @@ selfhost/errors.sh
   - `built`: kc builds what kelvinc refuses.
   - `crash`: kc itself ends, with no error of the program.
   - `errors.txt` lists each test that is not `same`, with which of
-    the four it is: as of #611, 345 of the 931, of which 245 are
-    `words` and 100 `c`, and none is `built` or a `crash`.
+    the four it is: as of #612, 226 of the 931, each of them `words`,
+    and none is left to C, `built` or a `crash`.
+    - The 100 that kc left to C (#612) are kelvinc's errors in its
+      words.
+      - The lexer's: a literal with C's suffix, `10UL`, and a
+        malformed number; a C compiler's keyword, `__typeof__`;
+        `#include`, and a C header's line that is not `as C`.
+      - A type's word where a value goes, `i32 + 1`, `int(x)`,
+        `cstr(p)`, `u8^(p)`, `sizeof(int)`; `any` alone, `Self` with
+        no type, a method of `any`, of a plain enum, of no type of
+        the program's; `toString()`; `extern inline`; `println`
+        defined anew.
+      - Functions of one name in C: two methods, a function and an
+        overload named by its types, a second `main`, an overload
+        that differs in its result alone.
+      - An anonymous function: a variable of the function around it,
+        `$1` past its parameters, `$00`, `$[i]`, `$0` outside one,
+        with kelvinc's word of a `{` after a call in a condition's
+        head or on the next line; a list given to a function.
+        `$[k]`, its parameter k, is read now.
+      - A value of its target's type, in Kelvin's words: `'x' of
+        'half' is an f64, and this is text`, of an argument, a
+        declaration, an assignment, a member and an element; a
+        struct of another struct; C's function hidden by a Kelvin
+        one of its name.
+      - Containers: a key of its Dictionary's, a Set indexed, a
+        Set's elements of two types, rows of two counts, a `cstr`
+        written through.
+      - `for`: an `any^`, a list's variable that is no pointer, an
+        array in what a call gives.
+      - IO: `IO` with no `#import <IO>`, `IO.exec` of one text,
+        `IO(f, "r")` of an IO, `print` of more than 16 values.
+      - The rest: an enum's case that is none of its, `ok(5)` and
+        `some(5)` alone, an owner given to C's function, a borrow
+        of what an expression gives kept, a static's template,
+        `_Pragma` as an operand, `p^ := 1`, a `let` method `next`
+        that `.filter` walks, a local that hides a global given
+        its value at its first use, and C's declarations where a
+        statement starts, `size_t * b[3];`.
+    - Four of them kelvinc leaves to C too, and their test's text is
+      the file and its line: kc's C has `#line` now, so C names them.
+    - `x.hex` of what only C sees goes through `_Generic`, as
+      kelvinc writes it: C says `kv_no_such_property` of a struct.
+    - Nineteen more that kc said in its own words are kelvinc's with
+      them, `c_decl_ptrptr.k` and `suffix_f.k` among them.
     - The 70 that kc built (#611) are kelvinc's errors in its words.
       - Names: a word kelvinc keeps names no variable, `var typeof`;
         `_kv_` and `kv_` names are kelvinc's and its runtime's; C's
@@ -162,14 +205,20 @@ selfhost/errors.sh
 ### Using kc
 
 ```sh
-build/selfhost/stage3 [-c | --emit-c] program.k [-o path] [-m modules] [-cc compiler]
+build/selfhost/stage3 [-c | --emit-c] [--no-line] program.k [-o path] [-m modules] [-cc compiler]
 ```
 
 - The options are kelvinc's (#281).
   - `-c` makes an object, `program.o` or the `-o` path, which
     `kelvinc -o program program.o` links.
   - `--emit-c` writes the C, to the `-o` path or stdout, and stops.
+  - `--no-line` leaves the `#line` directives out of the C (#612).
   - Else kc builds the program, `a.out` or the `-o` path.
+- The C has `#line N "file.k"` before each statement and each function,
+  as kelvinc's has (#612): what the C compiler says of the C, and a
+  debugger, name the Kelvin source and its line.
+- `#import "x.h" as C` is looked for next to the `.k` file, by `-I` of
+  its directory, as kelvinc's (#612).
 - The C is a temporary file, `$TMPDIR/kc-<pid>.c`, or in `/tmp`, removed
   once `cc` is done (#207).
 - `-m` names the directory of `kelvin_prelude.h` and the libraries.
@@ -2091,11 +2140,9 @@ steps can take them on one at a time.
   - methods and attributes of a built-in type;
   - nested functions, and of function types (#428) arrays and
     collections of them, and `((T):R)^`;
-  - `"""` and `$/.../` with its check;
   - `union`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
-  - `#line`;
   - and kelvinc's hundreds of messages.
 - **There is no specification but kelvinc:** grammar.md is partial, and
   the 834 tests of tests/run.sh are the nearest thing. A Kelvin kelvinc

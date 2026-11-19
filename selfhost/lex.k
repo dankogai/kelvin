@@ -228,6 +228,73 @@ let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
     return true
 }
 
+// what kelvinc says to use for token t, a keyword of a C compiler's and
+// none of Kelvin's, as its foreign_keywords list them (#612): "" of one
+// with nothing to use, nowhere of any other word
+let foreign_hint(t:int64):cstr {
+    if toks[t].len < 5 || codes[toks[t].at] != '_' {
+        return tok_is(t, "typeof_unqual") ? "x.type, whose own qualifiers do not come along" : nowhere
+    }
+    if tok_is(t, "__alignof__") || tok_is(t, "__alignof") { return "alignof(T) or x.align" }
+    if tok_is(t, "__typeof__") || tok_is(t, "__typeof") { return "typeof(x) or x.type" }
+    if tok_is(t, "__typeof_unqual__") { return "x.type, whose own qualifiers do not come along" }
+    if tok_is(t, "__int128") { return "i128 or u128" }
+    if tok_is(t, "__complex__") || tok_is(t, "__complex") { return "c64 or c32 of #import <math> (#404)" }
+    if tok_is(t, "__asm__") || tok_is(t, "__asm") { return "#inline C { __asm__ __volatile__(\"...\"); }, as C" }
+    if tok_is(t, "__volatile__") || tok_is(t, "__volatile") { return "volatile" }
+    if tok_is(t, "__extension__") || tok_is(t, "__real__") || tok_is(t, "__real") || tok_is(t, "__imag__") || tok_is(t, "__imag") || tok_is(t, "_BitInt") || tok_is(t, "__auto_type") || tok_is(t, "__label__") || tok_is(t, "_Float16") || tok_is(t, "_Float128") || tok_is(t, "__float128") || tok_is(t, "__fp16") || tok_is(t, "__bf16") || tok_is(t, "_Decimal32") || tok_is(t, "_Decimal64") || tok_is(t, "_Decimal128") || tok_is(t, "__signed__") || tok_is(t, "__signed") { return "" }
+    return nowhere
+}
+
+// a number from s to e is digits, a fraction and an exponent and no more,
+// as kelvinc's check_number has it (#612): C's suffixes, 10UL, 1.5f, are
+// its error, the type goes on the declaration; and what else follows the
+// digits, 12ab, is a malformed number
+let check_number(s:int64, e:int64, line:int64, file:int64) {
+    var p:int64 = s
+    let hex = e - s > 1 && codes[s] == '0' && (codes[s + 1] == 'x' || codes[s + 1] == 'X')
+    let bin = e - s > 1 && codes[s] == '0' && (codes[s + 1] == 'b' || codes[s + 1] == 'B')
+    var floating = false
+    if hex || bin { p += 2 }
+    while p < e && (is_digit(codes[p]) || (hex && ((codes[p] >= 'a' && codes[p] <= 'f') || (codes[p] >= 'A' && codes[p] <= 'F')))) { p += 1 }
+    if !bin && p < e && codes[p] == '.' {
+        floating = true
+        p += 1
+        while p < e && (is_digit(codes[p]) || (hex && ((codes[p] >= 'a' && codes[p] <= 'f') || (codes[p] >= 'A' && codes[p] <= 'F')))) { p += 1 }
+    }
+    if !bin && p < e && (hex ? codes[p] == 'p' || codes[p] == 'P' : codes[p] == 'e' || codes[p] == 'E') {
+        floating = true
+        p += 1
+        if p < e && (codes[p] == '+' || codes[p] == '-') { p += 1 }
+        while p < e && is_digit(codes[p]) { p += 1 }
+    }
+    if p == e { return }
+    var text = $""
+    for q in s..<e { text += codes[q] }
+    var suffix = true
+    var has_f = false
+    var has_u = false
+    for q in p..<e {
+        let c:uint32 = codes[q]
+        if c == 'f' || c == 'F' { has_f = true } else if c == 'u' || c == 'U' { has_u = true } else if c != 'l' && c != 'L' { suffix = false }
+    }
+    var m = $""
+    if suffix {
+        m = $"'"
+        m += &text
+        m += "': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'x:"
+        m += floating ? (has_f ? "f32" : "f64") : has_u ? "u64" : "i64"
+        m += " = "
+        for q in s..<p { m += codes[q] }
+        m += "'"
+    } else {
+        m = $"malformed number '"
+        m += &text
+        m += "'"
+    }
+    lex_error(file, line, m.cstr)
+}
+
 // 0o52 from s to e (#562), as kelvinc reads it (#561): 0o or 0O and
 // digits of 0 to 7, the text n.oct writes; from here on C's own octal,
 // 052, which gen.k and the C compiler know. What is not one, 0o18, 0o,
@@ -626,6 +693,18 @@ let lex_range(from:int64, to:int64, file:int64) {
             if tok_is(toks.count as int64 - 1, "Bits") {       // removed (#532): an integer's and a BigInt's bits are .bits (#530, #531), as kelvinc says it
                 lex_error(file, line, "Bits is no more (#532): an integer's bits are x.bits, an Array<bool>, and x.bits[n] its bit n; a BigInt's are b.bits, of any width; and bools that grow are an Array<bool>")
             }
+            let hint:cstr := foreign_hint(toks.count as int64 - 1)   // a C compiler's keyword, as kelvinc says it (#612)
+            if hint != nowhere {
+                var m = $"'"
+                m += tok_text(toks.count as int64 - 1)
+                if hint[0] != 0 {
+                    m += "' is a C compiler keyword; use "
+                    m += hint
+                } else {
+                    m += "' is a C compiler keyword, not available in Kelvin"
+                }
+                lex_error(file, line, m.cstr)
+            }
             if tok_is(toks.count as int64 - 1, "_Complex") {   // C99's, left out on purpose (#404), as kelvinc says it
                 lex_error(file, line, "'_Complex' is C99's complex type, left out on purpose: #import <math> and write c64 or c32, Kelvin's own")
             }
@@ -656,6 +735,7 @@ let lex_range(from:int64, to:int64, file:int64) {
             } else if c == '0' && (code_at(s + 1) == 'o' || code_at(s + 1) == 'O') {
                 octal_literal(s, i, line, file)                         // 0o52 (#562)
             } else {
+                check_number(s, i, line, file)                          // 10UL, 12ab (#612)
                 add_tok(T_NUM, s, i - s, line, file)
             }
         } else if c == '`' || (c == '$' && code_at(i + 1) == '`') || (c == '}' && tpls.count > 0 && tpls[tpls.count as int64 - 1] == outer.count as int64 - 1) {
@@ -716,10 +796,15 @@ let lex_range(from:int64, to:int64, file:int64) {
             while a < i && codes[a] != '<' && codes[a] != '"' { a += 1 }
             var b:int64 = i
             while b > a && codes[b - 1] != '>' && codes[b - 1] != '"' { b -= 1 }
-            if a >= b { lex_error(file, line, "only #import <x>, #import \"x.k\" and #import <x.h> as C are known") }
             var w:int64 = s + 1
-            while w < a && (codes[w] == ' ' || codes[w] == '\t') { w += 1 }
-            let imports = w + 6 <= a && codes[w] == 'i' && codes[w + 1] == 'm' && codes[w + 2] == 'p' && codes[w + 3] == 'o' && codes[w + 4] == 'r' && codes[w + 5] == 't'
+            while w < i && (codes[w] == ' ' || codes[w] == '\t') { w += 1 }
+            let imports = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'm' && codes[w + 2] == 'p' && codes[w + 3] == 'o' && codes[w + 4] == 'r' && codes[w + 5] == 't' && !(is_alpha(code_at(w + 6)) || is_digit(code_at(w + 6)))
+            let inlines = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'n' && codes[w + 2] == 'l' && codes[w + 3] == 'i' && codes[w + 4] == 'n' && codes[w + 5] == 'e'
+            if !imports && !inlines {                    // #include, #define: as kelvinc says it (#296, #612)
+                lex_error(file, line, "only '#import <header.h> as C' and '#inline C { ... }' are supported; C's preprocessor Kelvin leaves out (#296)")
+            } else if a >= b {
+                lex_error(file, line, "only #import <x>, #import \"x.k\" and #import <x.h> as C are known")
+            }
             if a < b && imports {                        // a Kelvin file's line ends at its name, as kelvinc says it (#40, #611)
                 var dot = false
                 for j in a + 1..<b - 1 {
@@ -743,6 +828,32 @@ let lex_range(from:int64, to:int64, file:int64) {
                         m += "'"
                     }
                     lex_error(file, line, m.cstr)
+                }
+                if !kelvin && !failed {                  // a C header's line is its name and 'as C', as kelvinc says it (#612)
+                    var q:int64 = r
+                    let has_as = q + 2 <= i && codes[q] == 'a' && codes[q + 1] == 's' && !(is_alpha(code_at(q + 2)) || is_digit(code_at(q + 2)))
+                    if has_as {
+                        q += 2
+                        while q < i && (codes[q] == ' ' || codes[q] == '\t') { q += 1 }
+                    }
+                    let has_c = has_as && q < i && codes[q] == 'C' && !(is_alpha(code_at(q + 1)) || is_digit(code_at(q + 1)))
+                    if has_c {
+                        q += 1
+                        while q < i && (codes[q] == ' ' || codes[q] == '\t' || codes[q] == '\r') { q += 1 }
+                    }
+                    var trigraph = false
+                    for j in a..<b - 1 {
+                        if codes[j] == '?' && codes[j + 1] == '?' { trigraph = true }
+                    }
+                    if !has_as {
+                        lex_error(file, line, "expected 'as C' after the header name")
+                    } else if !has_c {
+                        lex_error(file, line, "only 'as C' is supported")
+                    } else if q < i && !(codes[q] == '/' && code_at(q + 1) == '/') {
+                        lex_error(file, line, "unexpected text after '#import ... as C'")
+                    } else if trigraph {
+                        lex_error(file, line, "a header name with '??' is a trigraph of C, which Kelvin does not have (#220)")
+                    }
                 }
             }
             add_tok(T_IMPORT, a, b - a, line, file)

@@ -1,7 +1,7 @@
 // kc.k - a Kelvin compiler written in Kelvin, experimental (#230), of
 // selfhost/README.md. It reads the subset of Kelvin it is written in,
 // writes C as kelvinc does, for the same runtime, and hands it to cc:
-//   kc [-c | --emit-c] file.k [-o path] [-m modules] [-cc compiler]
+//   kc [-c | --emit-c] [--no-line] file.k [-o path] [-m modules] [-cc compiler]
 // as kelvinc's options (#281): -c makes an object, file.o or the -o
 // path; --emit-c writes the C, to the -o path or stdout, and stops,
 // which is how the stages are compared; else the C is a temporary file,
@@ -1114,6 +1114,8 @@ let main(argc:int32, argv:[cstr]):int32 {
             compile_only = true
         } else if a == $"--emit-c" {
             emit_c = true
+        } else if a == $"--no-line" {              // no #line in the C, as kelvinc's (#612)
+            line_marks = false
         } else if a == $"-m" && i + 1 < argc as int64 {
             mods = String(argv[i + 1])
             i += 1
@@ -1126,7 +1128,7 @@ let main(argc:int32, argv:[cstr]):int32 {
         i += 1
     }
     if input.count == 0 {
-        println("usage: kc [-c | --emit-c] file.k [-o path] [-m modules] [-cc compiler]")
+        println("usage: kc [-c | --emit-c] [--no-line] file.k [-o path] [-m modules] [-cc compiler]")
         return 2
     }
     if compile_only && emit_c {
@@ -1195,6 +1197,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     cc_arg(&args, "-Wno-tautological-constant-out-of-range-compare")   // a converter's clamp (#513)
     cc_arg(&args, "-Wno-psabi")
     cc_arg(&args, "-ffp-contract=off")             // a * b + c rounded twice, as kelvinc has it: z * w == w * z in <math> (#43, #550)
+    var beside = $"-I"                             // #import "x.h" as C looks next to the .k file, as kelvinc's (#612)
+    beside += dir_of(&input)
+    if beside.count == 2 { beside += "." }
+    args += beside.copy()
     var here = $"./modules"
     if exists(&here) {                          // C's headers of a module of ./modules, as kelvinc's (#516)
         var pre = $"./modules/kelvin_prelude.h"

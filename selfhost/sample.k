@@ -577,6 +577,9 @@ let chosen593():float64 { told593(atof("1.5")) }
 var erfc:i64 = 41
 let nfkd = 9
 
+// a list's node and a struct that holds an array, of #612's section
+struct cz_node { v: int64; next: cz_node^ }
+struct cz_holder { xs: [int64](3) }
 // a struct, a function of it and its overloads, and an enum with values,
 // of what kc checks as kelvinc does (#611)
 struct ck611 { n: int64; on: bool }
@@ -1641,8 +1644,51 @@ on a new line`
     ck_each(2) { ck_tally += $0 }
     ck_done()
     println(ck_lens, " ", ck_all, " ", ck_d.get(1, 0), " ", ck_d.get(2, -1), " ", ck_shape, " ", ck_tally, " ", ck_first(ck_three), " ", ck_apply({ $0 + 1 }, 4))
+    // what kc left to C and says as kelvinc does (#612), beside what both
+    // build: numbers with no suffix, a type's word where a type goes, a
+    // value of its target's type, a key of its Dictionary's, $[k]
+    let cz_mask:uint32 = 0x1F
+    let cz_big = 2e10
+    let cz_half = 0x1.8p1
+    var cz_p:any^ := &ck_tally
+    var cz_n:int64 = 3
+    var cz_s:String = "text"
+    var cz_box:ck611 = ck611.made(1)
+    cz_box = ck_box
+    cz_box.n = cz_n
+    var cz_xs = $[1, 2]
+    cz_xs[1] = cz_n
+    var cz_by_text:${String: int64} = ${"a": 1}
+    let cz_key:cstr := "a"
+    let cz_word = $"b"
+    cz_by_text[cz_word] = 2
+    var cz_set = ${1, 2, cz_n}
+    println(cz_mask, " ", cz_big, " ", cz_half, " ", cz_p != nowhere, " ", sizeof(int64), " ", i64.max.typename, " ", int64(cz_half))
+    println(cz_s, " ", cz_box.n, " ", cz_xs)
+    println(cz_by_text[cz_key] ?? 0, " ", cz_by_text[cz_word] ?? 0, " ", ck_d[cz_n] ?? -1, " ", cz_set.has(2), " ", ck_apply({ $[0] * 2 }, 4), " ", cz_mul(6, 7), " ", cz_len(&cz_s), " ", cz_len($"lent"))
+    // a function that uses a global, and its own parameter in one inside
+    // it; a list walked by its nodes; an array a variable's member holds;
+    // ok and none where their type is expected; a value only C sees
+    var cz_last:cz_node = {3, nowhere}
+    var cz_first:cz_node = {4, &cz_last}
+    var cz_total:int64 = 0
+    for cz_at in &cz_first { cz_total += cz_at^.v }
+    let cz_h:cz_holder = {[7, 8, 9]}
+    for cz_x in cz_h.xs { cz_total += cz_x }
+    ck_each(2) { ck_each($0) { ck_tally += $0 } }
+    let cz_r:Result<int64, String> = ok(5)
+    let cz_o:int64? = none
+    println(cz_total, " ", ck_tally, " ", cz_r ?? 0, " ", cz_o ?? 9, " ", strlen("kelvin").dec, " ", cz_n.hex, " ", cz_twice(2).n, 1, 2, 3)
     return 0
 }
+
+// what both compilers build beside kc's checks of #612: a body's one
+// expression of two names, which is no declaration of C's; a borrow
+// taken, of a variable's and of what an expression gives; a function
+// that gives a struct
+let cz_mul(a:int64, b:int64):int64 { a * b }
+let cz_len(s:const String^):int64 { s^.count }
+let cz_twice(n:int64):ck611 { ck611.made(n * 2) }
 
 // the functions of what kc checks as kelvinc does (#611)
 let ck_odd(n:int32):bool { return n % 2 != 0 }

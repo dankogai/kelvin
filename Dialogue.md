@@ -12001,3 +12001,40 @@ each check. The list has 345 lines, 245 `words` and 100 `c`, and no
 `built`. Details are provisional P623.
 
 There are 1417 tests, and all pass with clang and with gcc 15.
+
+### 659. The 100 that kc left to C
+
+**User**: "push", for #611, said while its battery ran; **Claude**
+held the commit until the battery was clean, then pushed it. Two of
+CI's jobs, macOS's, were cancelled for want of a runner and passed
+when run again: nine of nine. While the battery ran:
+
+> fix the 100 that kc leaves to C as #612
+
+The 100 that #609's list had as `c`: kc wrote C of each, and the C
+compiler refused it. Each is kelvinc's error now, in its words.
+
+- The lexer's: a literal's suffix, a malformed number, a C
+  compiler's keyword, `#include`, a C header's line.
+- A type's word where a value goes, `any` alone, `Self` with no
+  type, methods of what has none, names that meet in C.
+- An anonymous function: a variable of the function around it, `$1`
+  past its parameters, `$0` outside one. `$[k]` is read now.
+- A value of its target's type, in Kelvin's words: `'x' of 'half' is
+  an f64, and this is text`.
+- Keys, Sets, rows, `for`, IO, and C's declarations where a
+  statement starts, by kelvinc's own reading of them.
+
+Of one thing **Claude** asked. Four of the 100 are C's errors in
+kelvinc too, and their test's text is the file and its line, which C
+says because kelvinc writes `#line`. The user's answer was the
+recommended: kc writes `#line` before each statement and each
+function, and `--no-line` leaves them out. C's errors of any program
+kc builds name the Kelvin source now.
+
+Nineteen tests more that kc said in its own words are the same with
+these. The list has 226 lines, each of them `words`: kc leaves no
+test of tests/error to C, builds none and ends on none. Details are
+provisional P624.
+
+There are 1417 tests, and all pass with clang and with gcc 15.
