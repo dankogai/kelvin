@@ -298,13 +298,21 @@ let main():int32 {
   `(7:i64).inc()` *(provisional P30)*.
   - Hex floats like `0x1.f4p+9` are still numbers.
   - Annotated values need parentheses: `(0.1:f32).cstr`.
-- **`toString()`, `fmt()` and `String` are shelved** until Kelvin has a
-  true string type (#22).
-  - Calling or defining the methods `x.toString()` and `x.fmt(...)`, or
-    naming the type `String`, is an error that points at `.cstr`
-    *(provisional P36)*.
+- **`toString()` and `fmt()` are no methods** (#22): a value's text is
+  `x.cstr`, and a String of it `String(x.cstr)` (#55).
+  - Calling or defining either as a method is an error that says so
+    *(provisional P36)*: `p.toString()`, `let point.fmt(f:cstr):cstr`.
+    - A built-in type's too: `extend i64 { let toString() ... }`, and
+      a BigInt's `b.toString(16)`, which is `b.text(16)`
+      ([bigint.md](bigint.md)).
   - Plain functions, variables and parameters may still be named
     `toString` or `fmt`, as in `let printf(fmt:const u8^, ...):i32`.
+    - So may a field, read as `b.toString`.
+- **`String` is a type** (#55), the prelude's text on the heap
+  ([strings.md](strings.md)).
+  - It is a keyword *(provisional P67)*: a struct, a variable or a
+    function named `String` is an error, `expected a name, found
+    'String'`.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
   rules *(provisional P26)*:
   - A method may be called before it is written (#505): kelvinc writes

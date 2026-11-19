@@ -304,7 +304,8 @@ So far the changes from C are these, by topic.
     `let point.cstr():cstr { `(${.x}, ${.y})` }`, where `.x` is `self.x`
   - `cstr` is immutable text, C's `const uint8_t *`, with `s.count` for
     its length
-  - `toString()` waits for a true string type
+  - a String of it is `String(x.cstr)`; `toString()` and `fmt()` are no
+    methods (#22)
 - `print` and `println` show any value whole: `println(xs, " ", ages)`
   prints `[1, 2] {"ann": 31}`, with Strings inside quoted, and
   `println(cfg.pretty)` the same indented, a line for each item
