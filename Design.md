@@ -1306,6 +1306,17 @@ Notes:
       grapheme; its C half reads no header, `strlen`, `strchr`,
       `strcpy` and `toupper` written in Kelvin.
     - The eleven others are left: nothing of theirs is stale.
+  - The fix, after the push of 3c81a1c: CI's `ubuntu-latest / gcc`
+    failed, eight of the nine jobs passing.
+    - strings.k copied its text into a `[u8](32)` byte by byte and
+      left out the NUL, which `strcpy` had copied: a local array is
+      not zeroed, and it printed `Hello, Kelvin]`.
+    - The battery's clang and gcc 15 passed it, the stack being zero
+      there: the battery does not find what an unset local hides.
+    - The copy takes the NUL, `for i in 0...hello.count`. The eight
+      examples were then built with every local filled with a
+      pattern, clang's `-ftrivial-auto-var-init=pattern`, and each
+      prints what it expects.
   - Found and left:
     - tests/run/complex.k and semicolons_more.k write `let PI` too:
       tests, which stay.

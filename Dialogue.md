@@ -12081,4 +12081,11 @@ linkedlist.k keeps `<stdlib.h>`, and results.k `<time.h>` and
 what it printed, but strings.k and sort.k, which print more. Details
 are provisional P625.
 
+**User**: "push", which **Claude** did, the battery clean. CI's
+`ubuntu-latest / gcc` then failed, eight of nine passing: strings.k
+copied its text into a local array without its NUL, which `strcpy`
+had copied, and printed `Hello, Kelvin]` where the stack was not
+zero. The copy takes the NUL now, and the eight examples, built with
+every local filled with a pattern, print what they expect.
+
 There are 1417 tests, and all pass with clang and with gcc 15.

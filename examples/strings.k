@@ -43,7 +43,7 @@ let reversed(s:const String^):String {
 let main():i32 {
     let hello:cstr := "Hello, Kelvin"
     var buf:[u8](32)
-    for i in 0..<hello.count { buf[i] = hello[i] }        // a copy that may change
+    for i in 0...hello.count { buf[i] = hello[i] }        // a copy that may change, its NUL too
     println(buf, ": ", hello.count, " bytes, ", vowels(buf), " vowels")
     reverse(buf)
     println(buf)
