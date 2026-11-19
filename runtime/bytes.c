@@ -31,6 +31,14 @@ void kv_array_range(size_t i, size_t count) {
     kv_bytes_fail(msg);
 }
 
+/* xs.gather(ix) (#618): an index of a $[i64] or an [i64](N), a negative
+   one as itself */
+void kv_array_index_range(int64_t i, size_t count) {
+    char msg[96];
+    snprintf(msg, sizeof msg, "index %lld is out of range: the Array has %zu", (long long)i, count);
+    kv_bytes_fail(msg);
+}
+
 /* an enum with values (#61): a case read that is not the current one */
 void kv_case_fail(const char *type, const char *want, const char *have) {
     char msg[160];

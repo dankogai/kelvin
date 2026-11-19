@@ -237,6 +237,7 @@ kv_string kv_string_lit(const void *p, size_t n);
    copy(), and its block frees it, elements included. */
 void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
+void kv_array_index_range(int64_t i, size_t count); /* of a signed index, -1 as itself: xs.gather(ix) (#618) */
 /* A floating-point number as sign * significand * 2^exponent (#598), all
    integers, the significand odd, or 0 of a zero with an exponent of 0, as
    a BigFloat's mantissa and exponent are: 1.0 is (1, 0, 1), 1.5 (1, -1, 3).
@@ -603,7 +604,8 @@ void kv_dict_missing_text(const void *k);
     __attribute__((unused)) static inline A A##_gather(const A *a, const int64_t *ix, size_t n) { \
         A v = {0}; A##_reserve(&v, n); \
         for (size_t k = 0; k < n; k++) { \
-            size_t i = (size_t)ix[k]; if (i >= a->count) { A##_free(&v); kv_array_range(i, a->count); } \
+            int64_t i = ix[k]; \
+            if (i < 0 || (uint64_t)i >= a->count) { A##_free(&v); kv_array_index_range(i, a->count); } \
             v.at[v.count++] = COPY(&a->at[i]); } \
         return v; } \
     __attribute__((unused)) static inline A A##_copy(const A *a) { \

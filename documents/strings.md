@@ -126,8 +126,8 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
   the end ends the program: `kelvin: index 5 is out of range: the String
   has 5 graphemes`.
 - **`s.gather(ix)`** (#617) is a new String of the graphemes at the
-  indices `ix`, a `$[i64]`, in `ix`'s order: `$"kelvin".gather($[5, 4])`
-  is `"ni"`.
+  indices `ix`, a `$[i64]` or an `[i64](N)` (#618), in `ix`'s order:
+  `$"kelvin".gather($[5, 4])` and `$"kelvin".gather([5, 4])` are `"ni"`.
   - The graphemes are found once, not once an index.
   - `ix` is looked at, not moved; an index past the graphemes ends the
     program, as `s[i]` does.
@@ -223,7 +223,7 @@ The prelude's, `libkelvin`, linked without an import: `String` (#55), with the g
 | | `.codepoints` | its codepoints, an `Array<u32>` (#527); `for c in s.codepoints` walks them in place, each a `u32` (#521) |
 | | `s[lo..<hi]` | a slice by grapheme, a new String (#68, #522) |
 | | `s[r]` | a slice by a Range value, a new String (#377) |
-| | `.gather(ix)` | a new String of the graphemes at the indices of a `$[i64]`, in its order (#617) |
+| | `.gather(ix)` | a new String of the graphemes at the indices of a `$[i64]` or an `[i64](N)`, in its order (#617, #618) |
 | | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` graphemes, or of those before the first `f` says false for, `f` of each, a String (#372, #522) |
 | | `String.fromCodepoints(c0, c1, ...)` | a `Result<String, CodepointError>` of the codepoints, integers or one `Array<u32>` (#526): [unicodedata.md](unicodedata.md) |
 | | `grapheme(c0, c1, ...)` | the same of the first grapheme alone, the rest checked and dropped (#526) |

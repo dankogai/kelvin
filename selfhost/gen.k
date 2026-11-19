@@ -16817,6 +16817,16 @@ let gen_array_sort(n:int64) {
     put("; _kv_so; })")
 }
 
+// the C function of xs.gather(ix) or s.gather(ix) (#617)
+let put_gather_fn(y:int64) {
+    if types[y].kind == Y_STRING {
+        put("kv_string_gather")
+    } else {
+        put_array_name(y)
+        put("_gather")
+    }
+}
+
 // xs.gather(ix) and s.gather(ix), as kelvinc's #617: a new Array of the
 // elements at the indices ix, in ix's order, each copied, and of a String
 // the String of its graphemes at them; ix, a $[i64], is looked at, not
@@ -16830,18 +16840,57 @@ let gen_gather(n:int64) {
         return
     }
     if nodes[ix].next >= 0 {
-        gen_error(nodes[ix].next, "'.gather' takes one $[i64] of indices")
+        gen_error(nodes[ix].next, "'.gather' takes one $[i64] or [i64] of indices")
         return
     }
     if nodes[ix].kind == N_EMPTY && !tok_is(nodes[ix].t, "$[") {   // ${:}, ${}: of no type here, as kelvinc says it
         empty_error(ix)
         return
     }
+    if nodes[ix].kind == N_LIST && nodes[ix].flag == 0 {  // [2, 0] in place, its elements C's array (#618)
+        var opened:$[int64] = $[]
+        if needs_hold(a) {
+            hold_open(a)
+            opened += a
+        }
+        put_gather_fn(y)
+        put("(&(")
+        gen_expr(a)
+        if nodes[ix].b < 0 {
+            put("), (const int64_t *)0, 0)")
+        } else {
+            put("), (const int64_t[]){")
+            var x:int64 = nodes[ix].b
+            var count:int64 = 0
+            while x >= 0 && !failed {
+                if count > 0 { put(", ") }
+                gen_value(x, base_type(Y_I64))
+                count += 1
+                x = nodes[x].next
+            }
+            put("}, ")
+            put_int(count)
+            put(")")
+        }
+        close_holds(&opened)
+        return
+    }
     let literal = nodes[ix].kind == N_ARRAY || (nodes[ix].kind == N_EMPTY && tok_is(nodes[ix].t, "$["))
     let iy:int64 = literal ? type_of_kind(Y_ARRAY, base_type(Y_I64), -1) : type_of(ix)   // $[] too, of i64s
     if failed { return }
-    if iy < 0 || types[iy].kind != Y_ARRAY || types[types[iy].elem].kind != Y_I64 {
-        var m = $"'.gather' takes the indices as a $[i64], and this is "
+    let counted_fixed = iy >= 0 && types[iy].kind == Y_FIXED && types[iy].name != 0 - 1 && types[iy].name != 0 - 2 && types[iy].name != 0 - 4
+    let fixed = counted_fixed && types[types[iy].elem].kind == Y_I64   // an [i64](N) of a place (#618)
+    let pointer = iy >= 0 && (types[iy].kind == Y_PTR || (types[iy].kind == Y_FIXED && !counted_fixed))   // a parameter's [i64], as kelvinc says it
+    if pointer && types[iy].elem >= 0 && types[types[iy].elem].kind == Y_I64 {
+        var m = $"'.gather' takes the indices as a $[i64] or an [i64](N), and this is "
+        let w:String = kelvin_type_text(types[iy].elem)
+        m += &w
+        m += "^, a pointer: an array passed to a function is one, with no count"
+        gen_error(ix, m.cstr)
+        return
+    }
+    if !fixed && (iy < 0 || types[iy].kind != Y_ARRAY || types[types[iy].elem].kind != Y_I64) {
+        var m = $"'.gather' takes the indices as a $[i64] or an [i64](N), and this is "
         let w:String = nodes[ix].kind == N_NUM || nodes[ix].kind == N_CHAR || iy < 0 ? $"i64" : kelvin_type_text(iy)
         m += &w
         gen_error(ix, m.cstr)
@@ -16851,6 +16900,20 @@ let gen_gather(n:int64) {
     if needs_hold(a) {
         hold_open(a)
         opened += a
+    }
+    if fixed {                                           // its elements where they are, counted by sizeof
+        put_gather_fn(y)
+        put("(&(")
+        gen_expr(a)
+        put("), (const int64_t *)(")
+        gen_expr(ix)
+        put("), sizeof(")
+        gen_expr(ix)
+        put(") / sizeof((")
+        gen_expr(ix)
+        put(")[0]))")
+        close_holds(&opened)
+        return
     }
     if literal {                                         // a $[...] of the indices, made and freed here
         put("({ __attribute__((cleanup(")
@@ -16869,12 +16932,8 @@ let gen_gather(n:int64) {
         gen_expr(ix)
         put("); ")
     }
-    if types[y].kind == Y_STRING {
-        put("kv_string_gather(&(")
-    } else {
-        put_array_name(y)
-        put("_gather(&(")
-    }
+    put_gather_fn(y)
+    put("(&(")
     gen_expr(a)
     put("), _kv_gi->at, _kv_gi->count); })")
     close_holds(&opened)

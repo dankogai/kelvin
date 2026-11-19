@@ -730,3 +730,7 @@ So far the changes from C are these, by topic.
   a String's graphemes at them: `$["a", "b", "c"].gather($[2, 0])` is
   `["c", "a"]`. It replaces `<Combinatorics>`' `pick(&seed, ix)`, so
   `$"kelvin".gather(Permutation(6)[719])` is `"nivlek"` (#617)
+- The indices of `.gather` may be an `[i64](N)` too, a variable's,
+  a member's or written in place, `xs.gather([2, 0])`; an empty one
+  gives none, and a negative index is named as itself in the message,
+  `index -1 is out of range` (#618)

@@ -1342,11 +1342,14 @@ static char *expr_bare(Expr *e) {
             buf_puts(&b, "} _kv_js; })");
             return b.buf;
         }
-        if (e->op && (!strcmp(e->op, "array_gather") || !strcmp(e->op, "string_gather"))) {
-            /* xs.gather(ix), s.gather(ix) (#617): the elements at the indices, copied */
-            const char *f = !strcmp(e->op, "string_gather") ? "kv_string_gather" : strfmt("%s_gather", e->from->cname);
-            return strfmt("({ __auto_type _kv_gi = &(%s); %s(&(%s), _kv_gi->at, _kv_gi->count); })",
-                          expr(e->items.data[0]), f, expr(e->a));
+        if (e->op && (!strncmp(e->op, "array_gather", 12) || !strncmp(e->op, "string_gather", 13))) {
+            /* xs.gather(ix), s.gather(ix) (#617): the elements at the indices, copied;
+               of an [i64](N) its elements where they are, counted by sizeof (#618) */
+            const char *f = !strncmp(e->op, "string_gather", 13) ? "kv_string_gather" : strfmt("%s_gather", e->from->cname);
+            const char *ix = expr(e->items.data[0]);
+            if (strstr(e->op, "_fixed"))
+                return strfmt("%s(&(%s), (const int64_t *)(%s), sizeof(%s) / sizeof((%s)[0]))", f, expr(e->a), ix, ix, ix);
+            return strfmt("({ __auto_type _kv_gi = &(%s); %s(&(%s), _kv_gi->at, _kv_gi->count); })", ix, f, expr(e->a));
         }
         if (e->op && !strncmp(e->op, "array_revers", 12)) {
             /* xs.reverse(), xs.reversed() (#186): the elements swapped from

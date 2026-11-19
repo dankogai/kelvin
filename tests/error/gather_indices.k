@@ -4,4 +4,4 @@ let main():int32 {
     println($["a"].gather(ix))
     return 0
 }
-// error: '.gather' takes the indices as a $[i64], and this is Array<i32>
+// error: '.gather' takes the indices as a $[i64] or an [i64](N), and this is Array<i32>

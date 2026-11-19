@@ -12217,3 +12217,29 @@ gone, and its documents and tests say `seed.gather(ix)`. kc does the
 same. Details are provisional P629.
 
 There are 1432 tests, and all pass with clang and with gcc 15.
+
+### 665. `.gather` of an `[i64]` too
+
+**User**: "push", for #617, which **Claude** pushed, its battery
+clean; CI's nine jobs passed. Then:
+
+> on `xs.gather(ix)`
+> * is it okay for ix to be `[i64]` instead of `$[i64]`?  It would be nice it accepts both.
+> * what happens if `ix` contains out-of-bounds value?
+> * what happens if `ix` is empty?
+
+**Claude** answered: an `[i64]` was refused, its message naming an
+`i64^`; an index out of bounds ends the program, as `xs[i]` does, and a
+negative one of an Array's was named 18446744073709551615; an empty
+`ix` gives an empty Array or String. **Claude** asked two things, each
+answered with the recommended:
+
+- **Which `[i64]`**: a variable's or a member's `[i64](N)`, and
+  `[2, 0]` written in place; a parameter's `[i64]` is a pointer with no
+  count, and an error.
+- **A negative index**: named as itself in gather's message,
+  `index -1 is out of range: the Array has 2`; `xs[i]`'s stays.
+
+kc does the same. Details are provisional P630.
+
+There are 1435 tests, and all pass with clang and with gcc 15.

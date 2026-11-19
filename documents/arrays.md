@@ -230,14 +230,21 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     then owns.
   - A range past the count ends the program with a message.
 - **`xs.gather(ix)`** (#617) is a new Array of the elements at the
-  indices `ix`, a `$[i64]`, in `ix`'s order, each copied:
+  indices `ix`, in `ix`'s order, each copied:
   `$["a", "b", "c"].gather($[2, 0, 2])` is `["c", "a", "c"]`.
   - Of any element type, a struct of the program's too, and an index
     may repeat or be left out.
+  - `ix` is a `$[i64]` or an `[i64](N)` (#618): a variable's or a
+    member's, `let ix = [2, 0]`, or written in place,
+    `xs.gather([2, 0])`.
+    - A parameter `a:[i64]` is a pointer in C, with no count, and is an
+      error that says so.
   - `ix` is looked at, not moved; one an expression gives is held and
     freed after, as the receiver is.
+  - An empty `ix`, `$[]` or `[]`, gives an empty Array.
   - An index out of range ends the program, as `xs[i]` does: `kelvin:
-    index 3 is out of range: the Array has 3`.
+    index 3 is out of range: the Array has 3`, and a negative one is
+    named as itself, `index -1` (#618).
   - It is how a program turns the indices `<Combinatorics>` gives into
     its own elements ([combinatorics.md](combinatorics.md)).
 - **Elements** are any value type, owners included, which the Array
@@ -389,7 +396,7 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 | | `xs[i]` | an element, checked: out of range ends the program |
 | | `xs[lo..<hi]`, `[lo...hi]`, `[lo...]`, `[..<hi]`, `[...hi]` | a slice, a new Array (#68) |
 | | `xs[r]` | a slice by a Range value, a new Array (#377) |
-| | `.gather(ix)` | a new Array of the elements at the indices of a `$[i64]`, in its order, each copied (#617) |
+| | `.gather(ix)` | a new Array of the elements at the indices of a `$[i64]` or an `[i64](N)`, in its order, each copied (#617, #618) |
 | | `.append(x)`, `+=` | an element; `&x` of one, copied (#206); `&other` of an Array, its elements copied; or an Array an expression gives (moved in) |
 | | `.insert(i, x)`, `.remove(i, n)`, `.pop()` | changes, in place; `insert` copies `&x` as `append` does (#206); `pop` gives the last element |
 | | `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |

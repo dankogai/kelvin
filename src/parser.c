@@ -1764,6 +1764,7 @@ static List overloads_of(const char *name, const char *op);
 static List method_candidates(Expr *recv, const char *name);
 static Decl *parse_nested_fn(Pos pos);
 static Expr *make_temp(Expr *src, const char *what);
+static bool zero_array_ahead(int i);
 static Expr *template_value(Expr *v);
 static Expr *string_piece(Expr *v);
 static Type *shown_type(Expr *e);
@@ -3270,27 +3271,38 @@ static Expr *parse_postfix_steps(Expr *e) {
                     error_at(peek()->pos, "'.gather' takes the indices, a $[i64]: '.gather(ix)'");
                 bool saved_brace = brace_ends_condition;
                 brace_ends_condition = false;
+                Type *ixt = array_type(name, base_type("i64", name->pos));
                 Expr *v = is_p(peek(), "$") && is_p(peek2(), "[") /* $[] too, of i64s */
-                              ? parse_initializer_for(array_type(name, base_type("i64", name->pos)))
+                              ? parse_initializer_for(ixt)
+                          : is_p(peek(), "[") && !zero_array_ahead(cur) /* [2, 0] in place, as $[2, 0] (#618) */
+                              ? array_of_list(name, ixt, false)
                               : parse_assign();
                 brace_ends_condition = saved_brace;
                 if (is_p(peek(), ","))
-                    error_at(peek()->pos, "'.gather' takes one $[i64] of indices");
+                    error_at(peek()->pos, "'.gather' takes one $[i64] or [i64] of indices");
                 expect_p(")");
+                Type *ft = value_type(v) ? own_unqualified(value_type(v)) : NULL;
+                bool fixed = ft && ft->kind == T_ARRAY && ft->elem &&
+                             !strcmp(kelvin_type(unqualified(ft->elem)), "i64"); /* an [i64](N) of a place (#618) */
                 Type *vt = value_type(v) ? unqualified(value_type(v)) : NULL;
-                if (!vt || !is_array_owner(vt) || strcmp(kelvin_type(unqualified(vt->elem)), "i64"))
-                    error_at(v->pos, "'.gather' takes the indices as a $[i64], and this is %s",
-                             vt               ? kelvin_type(vt)
+                if (vt && vt->kind == T_PTR && !fixed && vt->elem && !strcmp(kelvin_type(unqualified(vt->elem)), "i64"))
+                    error_at(v->pos, "'.gather' takes the indices as a $[i64] or an [i64](N), and this is %s, a "
+                                     "pointer: an array passed to a function is one, with no count",
+                             kelvin_type(vt));
+                if (!fixed && (!vt || !is_array_owner(vt) || strcmp(kelvin_type(unqualified(vt->elem)), "i64")))
+                    error_at(v->pos, "'.gather' takes the indices as a $[i64] or an [i64](N), and this is %s",
+                             vt               ? kelvin_type(ft && ft->kind == T_ARRAY ? ft : vt)
                              : literal_type(v) ? literal_type(v)
                                                : "not one");
                 List held = {0};
-                if (!owner_place(v))
+                if (!fixed && !owner_place(v))
                     v = hold_operand(v, &held);
                 Expr *x = new_expr(E_METHOD, name->pos);
                 x->a = e;
                 x->from = at;
                 x->text = member;
-                x->op = is_string(at) ? "string_gather" : "array_gather";
+                x->op = is_string(at) ? (fixed ? "string_gather_fixed" : "string_gather") /* the indices an [i64](N) (#618) */
+                                      : (fixed ? "array_gather_fixed" : "array_gather");
                 x->type = at;
                 list_push(&x->items, v);
                 e = wrap_temps(x, &held);
@@ -6635,7 +6647,7 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
                       !strncmp(e->op, "array_lastIndex", 15) || !strncmp(e->op, "dict_contains", 13) ||
                       !strncmp(e->op, "dict_firstKey", 13) || !strncmp(e->op, "dict_lastKey", 12) ||
-                      !strcmp(e->op, "array_join") || !strcmp(e->op, "array_gather") || !strcmp(e->op, "string_gather")))
+                      !strcmp(e->op, "array_join") || !strncmp(e->op, "array_gather", 12) || !strncmp(e->op, "string_gather", 13)))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236), xs.contains(x) (#248), xs.join(sep) (#461) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};
