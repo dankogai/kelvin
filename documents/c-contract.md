@@ -151,7 +151,7 @@ KV_SET(int64_t, int64_t, _kv_set_i64, KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_L
 - **An Array's functions** are `A_at` (checked), `A_append`,
   `A_append_ref` (a borrowed Array's elements), `A_append_owned` (an
   Array an expression gave), `A_insert`, `A_remove`, `A_pop`, `A_from`,
-  `A_zeros`, `A_slice`, `A_copy`, `A_reserve`, `A_clear`, `A_compact`,
+  `A_zeros`, `A_slice`, `A_gather` (#617), `A_copy`, `A_reserve`, `A_clear`, `A_compact`,
   `A_free`, `A_take`, `A_assign`; `xs[i]` is `(*A_at(&xs, i))`.
 
 #### Enums with values, Optional and Result

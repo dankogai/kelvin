@@ -12192,3 +12192,28 @@ and `examples/sort.k` write `$["a", "b"]`. Details are provisional
 P628.
 
 There are 1429 tests, and all pass with clang and with gcc 15.
+
+### 664. `seed.gather(ix)` in place of `pick(&seed, ix)`
+
+**User**: "push", for #616, which **Claude** pushed, its battery
+clean; CI's nine jobs passed. Then:
+
+> Instead of `pick(&seed, ix)`, can we make it `seed.pick(ix)`?
+
+A String takes a method of a module already, but no Array does:
+`extend $[String] { }` is not read. **Claude** asked two things:
+
+- **How**: a built-in method of every Array and of String, the user's
+  answer, over `extend $[T] { }` in the language; and named `.gather`,
+  not `.pick`.
+- **`pick(&seed, ix)`**: replaced, the recommended.
+
+`xs.gather(ix)` is a new Array of the elements at the indices of a
+`$[i64]`, each copied, of any element type, a struct of the program's
+too; `s.gather(ix)` the String of a String's graphemes at them, found
+once. `ix` is looked at, not moved, and an index out of range ends the
+program, as `xs[i]` does. `<Combinatorics>`' `pick` of eight types is
+gone, and its documents and tests say `seed.gather(ix)`. kc does the
+same. Details are provisional P629.
+
+There are 1432 tests, and all pass with clang and with gcc 15.

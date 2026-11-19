@@ -181,6 +181,38 @@ kv_string kv_string_grapheme(const kv_string *s, int64_t i) {
     return kv_string_span(s->b.at + from, kv_ucd_grapheme_len(s->b.at + from, s->b.count - from));
 }
 
+/* s.gather(ix) (#617): the graphemes at the indices ix, in their order,
+   one String; the graphemes are found once, and an index past them ends
+   the program, as s[i] does */
+kv_string kv_string_gather(const kv_string *s, const int64_t *ix, size_t n) {
+    const uint8_t *p = s->b.at;
+    size_t len = s->b.count, count = 0;
+    for (size_t at = 0; at < len; count++)
+        at += kv_ucd_grapheme_len(p + at, len - at);
+    size_t *start = kv_alloc((count + 1) * sizeof *start);
+    for (size_t at = 0, k = 0; k <= count; k++) {
+        start[k] = at;
+        if (k < count)
+            at += kv_ucd_grapheme_len(p + at, len - at);
+    }
+    kv_string out = kv_string_new();
+    for (size_t k = 0; k < n; k++) {
+        int64_t i = ix[k];
+        if (i < 0 || (uint64_t)i >= count) {
+            free(start);
+            kv_string_free(&out);
+            char msg[128];
+            snprintf(msg, sizeof msg, "index %lld is out of range: the String has %zu graphemes", (long long)i, count);
+            kv_array_fail(msg);
+        }
+        for (size_t b = start[i]; b < start[i + 1]; b++) /* its codepoints counted */
+            out.count += (p[b] & 0xC0) != 0x80;
+        kv_bytes_append(&out.b, p + start[i], start[i + 1] - start[i]);
+    }
+    free(start);
+    return out;
+}
+
 /* s.prefix(n) (#372, #522): the first n graphemes, all where there are
    fewer, none of n 0 or less */
 kv_string kv_string_prefix(const kv_string *s, int64_t n) {

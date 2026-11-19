@@ -18,11 +18,11 @@ let main():int32 {
     println(p.count, " ", p[0], " ", p[5])       // 24n [0, 1, 2, 3] [0, 3, 2, 1]
     let seed = $["a", "b", "c", "d"]
     for ix in Combination(4, 2) {                // [0, 1], [0, 2], ... [2, 3]
-        print(pick(&seed, ix), " ")              // ["a", "b"] ["a", "c"] ... ["c", "d"]
+        print(seed.gather(ix), " ")              // ["a", "b"] ["a", "c"] ... ["c", "d"]
     }
     println()
     let word = $"kelvin"
-    println(pick(&word, Permutation(6)[719]))    // nivlek: a String's graphemes
+    println(word.gather(Permutation(6)[719]))    // nivlek: a String's graphemes
     let big = Permutation(36)
     println(big.count, " ", big[big.count - 1][0])   // 371993326789901217467999448150835200000000n 35
     println(PowerSet(3)[5], " ", BaseN(3, 2)[5], " ", CartesianProduct(2, 3)[4])   // [0, 2] [2, 1] [0, 2]
@@ -44,16 +44,18 @@ but `CartesianProduct`, `UniquePermutation`, `Permutations` and
   `UniquePermutation`, which gives the values it is of.
   - Kelvin has no generic struct of a program's own, so no
     `Permutation<T>` of a seed's elements, as Swift's.
-  - **`pick(&seed, ix)`** turns them into the elements of a program's
-    own seed, in their order (#615): `pick(&$["a", "b", "c"],
-    $[2, 0])` is `["c", "a"]`.
-    - The seed is an Array of `String`, `cstr`, `i64`, `i32`, `u8`,
-      `u32`, `f64` or `bool`, which gives an Array of it, or a String,
-      which gives the String of its graphemes at the indices:
-      `pick(&$"kelvin", $[5, 4])` is `"ni"`.
-    - `ix` is lent: a walk's element, or one an index gives, stays
-      its own; an index past the seed ends the program, as an
-      Array's does.
+  - **`seed.gather(ix)`**, the prelude's, turns them into the elements
+    of a program's own seed, in their order (#617):
+    `$["a", "b", "c"].gather($[2, 0])` is `["c", "a"]`.
+    - The seed is an Array of any type, a struct of the program's
+      too, which gives an Array of it, or a String, which gives the
+      String of its graphemes at the indices:
+      `$"kelvin".gather($[5, 4])` is `"ni"`.
+    - `ix` is looked at, not moved: a walk's element, or one an index
+      gives, stays its own; an index past the seed ends the program,
+      as an Array's does ([arrays.md](arrays.md)).
+    - It was `pick(&seed, ix)` of this module, of eight element
+      types (#615), until #617.
 - **`x.count` is a `BigInt`,** which any count fits, as
   js-combinatorics' `.length` is a `bigint`: `Permutation(36).count`
   is 36!, some 3.7e41.
@@ -186,7 +188,6 @@ checks, as JSON's brings in `<stdio.h>`.
 | | `CartesianProduct(a, b)`, `(a, b, c)`, `(a, b, c, d)`, `(&sizes)` | an index into each of sets of those sizes, the first the fastest |
 | | `UniquePermutation(&values, k)`, `UniquePermutation(&values)` | the distinct arrangements of `k` of a multiset of `i64`s, of all of them; its elements are the values (#615) |
 | | `Permutations(n, sizes)`, `Combinations(n, sizes)` | of each size in turn, a Range or `&` an Array (#615) |
-| | `pick(&seed, ix)` | the elements of `seed` at the indices `ix`: an Array of `String`, `cstr`, `i64`, `i32`, `u8`, `u32`, `f64` or `bool`, of it; a String, the String of those graphemes (#615) |
 | | `factorial(n)`, `permutation(n, k)`, `combination(n, k)` | `n!`, nPk, nCk, `BigInt`s |
 | | `factoradic(m)` | `m`'s digits in the factorial number system, the least first, a `$[i64]` |
 | | `combinadic(n, k, m)` | `Combination(n, k)[m]` |

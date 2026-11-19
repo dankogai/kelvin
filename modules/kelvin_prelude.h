@@ -191,6 +191,7 @@ size_t kv_ucd_grapheme_len(const uint8_t *p, size_t n);
 kv_string kv_string_span(const uint8_t *p, size_t n);     /* a String of n bytes of UTF-8 */
 size_t kv_string_graphemes(const kv_string *s);           /* s.count */
 kv_string kv_string_grapheme(const kv_string *s, int64_t i); /* s[i] */
+kv_string kv_string_gather(const kv_string *s, const int64_t *ix, size_t n); /* s.gather(ix) (#617) */
 kv_string kv_string_prefix(const kv_string *s, int64_t n); /* s.prefix(n) */
 size_t kv_string_grapheme_floor(const kv_string *s, size_t b); /* the grapheme that holds byte b */
 size_t kv_string_grapheme_ceil(const kv_string *s, size_t b);  /* the graphemes that begin before byte b */
@@ -598,6 +599,12 @@ void kv_dict_missing_text(const void *k);
         if (lo > hi || hi > a->count) kv_slice_range(lo, hi, a->count, "Array"); \
         A v = {0}; A##_reserve(&v, hi - lo); \
         for (size_t i = lo; i < hi; i++) v.at[v.count++] = COPY(&a->at[i]); \
+        return v; } \
+    __attribute__((unused)) static inline A A##_gather(const A *a, const int64_t *ix, size_t n) { \
+        A v = {0}; A##_reserve(&v, n); \
+        for (size_t k = 0; k < n; k++) { \
+            size_t i = (size_t)ix[k]; if (i >= a->count) { A##_free(&v); kv_array_range(i, a->count); } \
+            v.at[v.count++] = COPY(&a->at[i]); } \
         return v; } \
     __attribute__((unused)) static inline A A##_copy(const A *a) { \
         A v = {0}; A##_reserve(&v, a->count); \

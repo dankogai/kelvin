@@ -725,3 +725,8 @@ So far the changes from C are these, by topic.
   written type wins, `var cs:$[cstr] = $["x"]`, and what is no literal
   keeps its type. And `$""` is the type String, wherever a type goes:
   `$[$""]` is `Array<String>` (#616)
+- `xs.gather(ix)` is a new Array of the elements of any Array at the
+  indices of a `$[i64]`, in their order, each copied, and `s.gather(ix)`
+  a String's graphemes at them: `$["a", "b", "c"].gather($[2, 0])` is
+  `["c", "a"]`. It replaces `<Combinatorics>`' `pick(&seed, ix)`, so
+  `$"kelvin".gather(Permutation(6)[719])` is `"nivlek"` (#617)

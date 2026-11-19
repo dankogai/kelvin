@@ -3255,6 +3255,47 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = x;
                 continue;
             }
+            if (!strcmp(member, "gather") && call && value_type(e) && !method_named(e, member) &&
+                (is_array_owner(unqualified(value_type(e))) || is_string(unqualified(value_type(e))))) {
+                /* xs.gather(ix), s.gather(ix) (#617): a new Array of the
+                   elements at the indices ix, in ix's order, each copied; of a
+                   String the String of its graphemes at them. ix, a $[i64], is
+                   looked at, not moved, and one an expression gives is held; an
+                   index out of range ends the program, as xs[i] does */
+                Type *at = unqualified(value_type(e));
+                if (!owner_place(e)) /* held (#187) */
+                    e = make_temp(e, "'.gather' of an owner that an expression gives: bind it to a variable first");
+                advance();
+                if (is_p(peek(), ")"))
+                    error_at(peek()->pos, "'.gather' takes the indices, a $[i64]: '.gather(ix)'");
+                bool saved_brace = brace_ends_condition;
+                brace_ends_condition = false;
+                Expr *v = is_p(peek(), "$") && is_p(peek2(), "[") /* $[] too, of i64s */
+                              ? parse_initializer_for(array_type(name, base_type("i64", name->pos)))
+                              : parse_assign();
+                brace_ends_condition = saved_brace;
+                if (is_p(peek(), ","))
+                    error_at(peek()->pos, "'.gather' takes one $[i64] of indices");
+                expect_p(")");
+                Type *vt = value_type(v) ? unqualified(value_type(v)) : NULL;
+                if (!vt || !is_array_owner(vt) || strcmp(kelvin_type(unqualified(vt->elem)), "i64"))
+                    error_at(v->pos, "'.gather' takes the indices as a $[i64], and this is %s",
+                             vt               ? kelvin_type(vt)
+                             : literal_type(v) ? literal_type(v)
+                                               : "not one");
+                List held = {0};
+                if (!owner_place(v))
+                    v = hold_operand(v, &held);
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->from = at;
+                x->text = member;
+                x->op = is_string(at) ? "string_gather" : "array_gather";
+                x->type = at;
+                list_push(&x->items, v);
+                e = wrap_temps(x, &held);
+                continue;
+            }
             if ((!strcmp(member, "reverse") || !strcmp(member, "reversed")) && call && value_type(e) &&
                 is_array_owner(unqualified(value_type(e)))) {
                 /* xs.reverse() in place, xs.reversed() a new Array (#186): the
@@ -3460,7 +3501,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                                               "capacity, at, cstr and isUTF8"
                                         : ok == 's'
                                             ? "a String has no method '%s': append, clear, reserve, compact, copy, escape, unescape, "
-                                              "find, has, starts, ends and trim, and the properties count, isEmpty, bytes "
+                                              "find, has, starts, ends, trim and gather, and the properties count, isEmpty, bytes "
                                               "and cstr"
                                         : ok == 'd'
                                             ? "a Dictionary has no method '%s': has, find, get, remove, clear, reserve "
@@ -3474,7 +3515,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                                               "flush, close, read(n), seek(n), rewind, kill, glob, chmod, chown, truncate, "
                                               "remove, rename, utime, touch and join, and its properties; it is not copied"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
-                                              "reserve, compact, copy, join and joined, and the properties count, "
+                                              "reserve, compact, copy, join, joined and gather, and the properties count, "
                                               "isEmpty, capacity and at",
                              member);
                 if (!owner_place(e) && !is_io_std(e)) {
@@ -6594,7 +6635,7 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
                       !strncmp(e->op, "array_lastIndex", 15) || !strncmp(e->op, "dict_contains", 13) ||
                       !strncmp(e->op, "dict_firstKey", 13) || !strncmp(e->op, "dict_lastKey", 12) ||
-                      !strcmp(e->op, "array_join")))
+                      !strcmp(e->op, "array_join") || !strcmp(e->op, "array_gather") || !strcmp(e->op, "string_gather")))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236), xs.contains(x) (#248), xs.join(sep) (#461) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};

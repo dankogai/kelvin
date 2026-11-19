@@ -118,13 +118,19 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
   what a reader sees as one character (UAX #29), each a String.
   - `é` written as `e` and a combining acute is one, as are a family
     emoji with its joiners, a flag and a CR LF.
-  - `s.count`, `s[i]`, the slices, `s.find`, `s.prefix` and `for c in s`
-    count them; each walks the String from its start, so `s[i]` and
-    `s.count` are O(n), not O(1).
+  - `s.count`, `s[i]`, the slices, `s.find`, `s.prefix`, `s.gather`
+    and `for c in s` count them; each walks the String from its start,
+    so `s[i]` and `s.count` are O(n), not O(1).
   - `s.codepoints` (#521) is the codepoints, and `s.bytes^` the bytes.
 - **`s[i]`** (#522) is grapheme `i`, a new String, `i` an integer; past
   the end ends the program: `kelvin: index 5 is out of range: the String
   has 5 graphemes`.
+- **`s.gather(ix)`** (#617) is a new String of the graphemes at the
+  indices `ix`, a `$[i64]`, in `ix`'s order: `$"kelvin".gather($[5, 4])`
+  is `"ni"`.
+  - The graphemes are found once, not once an index.
+  - `ix` is looked at, not moved; an index past the graphemes ends the
+    program, as `s[i]` does.
 - **`s + t`** (#183) is a new String of the two, either side a String
   or text, one a String: `s + "!"`, `"x" + s`, `s + t + u`.
   - A String in a variable is copied and stays; one an expression gives
@@ -217,6 +223,7 @@ The prelude's, `libkelvin`, linked without an import: `String` (#55), with the g
 | | `.codepoints` | its codepoints, an `Array<u32>` (#527); `for c in s.codepoints` walks them in place, each a `u32` (#521) |
 | | `s[lo..<hi]` | a slice by grapheme, a new String (#68, #522) |
 | | `s[r]` | a slice by a Range value, a new String (#377) |
+| | `.gather(ix)` | a new String of the graphemes at the indices of a `$[i64]`, in its order (#617) |
 | | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` graphemes, or of those before the first `f` says false for, `f` of each, a String (#372, #522) |
 | | `String.fromCodepoints(c0, c1, ...)` | a `Result<String, CodepointError>` of the codepoints, integers or one `Array<u32>` (#526): [unicodedata.md](unicodedata.md) |
 | | `grapheme(c0, c1, ...)` | the same of the first grapheme alone, the rest checked and dropped (#526) |

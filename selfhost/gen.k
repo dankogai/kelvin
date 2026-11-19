@@ -2488,6 +2488,7 @@ let type_of(n:int64):int64 {
         if types[y].kind == Y_ARRAY && (tok_is(t, "join") || tok_is(t, "joined")) { return base_type(Y_STRING) }   // xs.join(sep) (#461)
         if types[y].kind == Y_ARRAY && (tok_is(t, "sort") || tok_is(t, "reverse")) { return base_type(Y_VOID) }   // in place (#470)
         if types[y].kind == Y_ARRAY && (tok_is(t, "sorted") || tok_is(t, "reversed")) { return y }   // a new Array (#470)
+        if (types[y].kind == Y_ARRAY || types[y].kind == Y_STRING) && tok_is(t, "gather") { return y }   // xs.gather(ix), s.gather(ix) (#617)
         if types[y].kind == Y_RANGE && tok_is(t, "contains") { return base_type(Y_BOOL) }   // r.contains(x) (#374)
         if types[y].kind == Y_RANGE && tok_is(t, "reversed") { return type_of_kind(Y_ITER, types[y].elem, -1) }   // r.reversed(), down (#378)
         if types[y].kind == Y_RANGE && tok_is(t, "stride") { return type_of_kind(Y_ITER, types[y].elem, -1) }     // r.stride(n) (#379)
@@ -6888,6 +6889,7 @@ let tpl_show(v:int64, s:cstr) {
 
 let gen_array_sort(n:int64)    // prototypes: xs.sort(), xs.sorted(), xs.reverse(), xs.reversed() (#470)
 let gen_array_reverse(n:int64)
+let gen_gather(n:int64)    // a prototype: xs.gather(ix) (#617)
 let gen_join(n:int64)    // prototypes: xs.join(sep) (#461)
 let put_string_part(y:int64, v:cstr)
 let gen_text_template(n:int64)    // prototypes: gen_template writes the two by them
@@ -11899,6 +11901,10 @@ let gen_expr_of(n:int64) {
         gen_array_sort(n)                                // xs.sort(), xs.sorted() (#470)
         return
     }
+    if k == N_METHOD && tok_is(t, "gather") && type_of(nodes[n].a) >= 0 && (types[type_of(nodes[n].a)].kind == Y_ARRAY || types[type_of(nodes[n].a)].kind == Y_STRING) && method_of(n) < 0 {
+        gen_gather(n)                                    // xs.gather(ix), s.gather(ix) (#617)
+        return
+    }
     if k == N_METHOD && (tok_is(t, "reverse") || tok_is(t, "reversed")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_ARRAY && method_of(n) < 0 {
         gen_array_reverse(n)                             // xs.reverse(), xs.reversed() (#470)
         return
@@ -16809,6 +16815,69 @@ let gen_array_sort(n:int64) {
     put("; do { __auto_type _kv_sp = &_kv_so; ")
     put_merge_sort(f, fn, ey)
     put("; _kv_so; })")
+}
+
+// xs.gather(ix) and s.gather(ix), as kelvinc's #617: a new Array of the
+// elements at the indices ix, in ix's order, each copied, and of a String
+// the String of its graphemes at them; ix, a $[i64], is looked at, not
+// moved, and the receiver and ix an expression gives are held for it
+let gen_gather(n:int64) {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    let ix:int64 = nodes[n].b
+    if ix < 0 {
+        gen_error(n, "'.gather' takes the indices, a $[i64]: '.gather(ix)'")
+        return
+    }
+    if nodes[ix].next >= 0 {
+        gen_error(nodes[ix].next, "'.gather' takes one $[i64] of indices")
+        return
+    }
+    if nodes[ix].kind == N_EMPTY && !tok_is(nodes[ix].t, "$[") {   // ${:}, ${}: of no type here, as kelvinc says it
+        empty_error(ix)
+        return
+    }
+    let literal = nodes[ix].kind == N_ARRAY || (nodes[ix].kind == N_EMPTY && tok_is(nodes[ix].t, "$["))
+    let iy:int64 = literal ? type_of_kind(Y_ARRAY, base_type(Y_I64), -1) : type_of(ix)   // $[] too, of i64s
+    if failed { return }
+    if iy < 0 || types[iy].kind != Y_ARRAY || types[types[iy].elem].kind != Y_I64 {
+        var m = $"'.gather' takes the indices as a $[i64], and this is "
+        let w:String = nodes[ix].kind == N_NUM || nodes[ix].kind == N_CHAR || iy < 0 ? $"i64" : kelvin_type_text(iy)
+        m += &w
+        gen_error(ix, m.cstr)
+        return
+    }
+    var opened:$[int64] = $[]
+    if needs_hold(a) {
+        hold_open(a)
+        opened += a
+    }
+    if literal {                                         // a $[...] of the indices, made and freed here
+        put("({ __attribute__((cleanup(")
+        put_free(iy)
+        put("))) ")
+        put_ctype(iy)
+        put(" _kv_gx = ")
+        gen_written(ix, iy)
+        put("; __auto_type _kv_gi = &_kv_gx; ")
+    } else {
+        if needs_hold(ix) {
+            hold_open(ix)
+            opened += ix
+        }
+        put("({ __auto_type _kv_gi = &(")
+        gen_expr(ix)
+        put("); ")
+    }
+    if types[y].kind == Y_STRING {
+        put("kv_string_gather(&(")
+    } else {
+        put_array_name(y)
+        put("_gather(&(")
+    }
+    gen_expr(a)
+    put("), _kv_gi->at, _kv_gi->count); })")
+    close_holds(&opened)
 }
 
 // xs.reverse() in place; xs.reversed() a new Array, a copy of one a

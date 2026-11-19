@@ -1342,6 +1342,12 @@ static char *expr_bare(Expr *e) {
             buf_puts(&b, "} _kv_js; })");
             return b.buf;
         }
+        if (e->op && (!strcmp(e->op, "array_gather") || !strcmp(e->op, "string_gather"))) {
+            /* xs.gather(ix), s.gather(ix) (#617): the elements at the indices, copied */
+            const char *f = !strcmp(e->op, "string_gather") ? "kv_string_gather" : strfmt("%s_gather", e->from->cname);
+            return strfmt("({ __auto_type _kv_gi = &(%s); %s(&(%s), _kv_gi->at, _kv_gi->count); })",
+                          expr(e->items.data[0]), f, expr(e->a));
+        }
         if (e->op && !strncmp(e->op, "array_revers", 12)) {
             /* xs.reverse(), xs.reversed() (#186): the elements swapped from
                both ends, moved as they are */

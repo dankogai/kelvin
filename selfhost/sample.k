@@ -1617,6 +1617,8 @@ on a new line`
     ds616 = $["y", "z"]
     let dd616:${$"": $[$""]} = ${"k": ["v"]}
     println($["a", "b"].typename, " ", $[["a"], [`b${1}`]], " ", ${"k": {"x": "y"}}.typename, " ", ds616.typename, " ", ds616, " ", dd616.typename)
+    let gx617 = $[2, 0, 2]                     // xs.gather(ix), s.gather(ix): the elements at the indices, of any Array, and a String's graphemes (#617)
+    println($["a", "b", "c"].gather(gx617), " ", $[[1], [2, 3]].gather($[1]), " ", $"k👍🏽n".gather(gx617), " ", $[1.5].gather($[]), " ", gx617)
     // what kc refuses as kelvinc does (#611), beside what both build: a
     // bool where a condition and an operand of &&, || and ! go, a bool a
     // bool's function returns, a range of integers, a base of 2 to 36

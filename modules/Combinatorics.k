@@ -8,10 +8,11 @@
 //     let p = Permutation(4)                     // of 4, each of size 4
 //     println(p.count, " ", p[5])                // 24n [0, 3, 2, 1]
 //     let seed = $["a", "b", "c", "d"]
-//     for ix in Combination(4, 2) { println(pick(&seed, ix)) }   // ["a", "b"] ...
+//     for ix in Combination(4, 2) { println(seed.gather(ix)) }   // ["a", "b"] ...
 //
 // Kelvin has no generic struct of a program's own, so each gives indices,
-// 0 to n - 1, and pick(&seed, ix) turns them into a seed's own elements. Each counts
+// 0 to n - 1, and seed.gather(ix) of the prelude turns them into a seed's own
+// elements, of an Array of any type or a String's graphemes (#617). Each counts
 // in a BigInt, which any count fits: Permutation(36).count is 36!, some
 // 3.7e41. p[i] takes an i64 or a BigInt, and gives its element straight;
 // for walks them from one to the next, with no BigInt in each step.
@@ -146,70 +147,6 @@ let combinatorics_index(i:lent BigInt, count:lent BigInt, kind:cstr):BigInt {
         combinatorics_fail(&m)
     }
     return i.copy()
-}
-
-// ---------- pick: the elements at the indices ----------
-
-// pick(&seed, ix) is the elements of seed at the indices ix, which each
-// kind gives, in their order: Kelvin has no generic struct, so the kinds
-// give indices, and pick turns them into the elements of a program's own
-// seed, an Array of one of these types, or a String's graphemes (#615).
-// ix is lent: a walk's element, or one an index gives, stays its own
-let pick(seed:const $[String]^, ix:lent $[i64]):$[String] {
-    var out:$[String] = $[]
-    for i in ix { out += seed^[i].copy() }
-    return out
-}
-
-let pick(seed:const $[cstr]^, ix:lent $[i64]):$[cstr] {
-    var out:$[cstr] = $[]
-    for i in ix { out += seed^[i] }
-    return out
-}
-
-let pick(seed:const $[i64]^, ix:lent $[i64]):$[i64] {
-    var out:$[i64] = $[]
-    for i in ix { out += seed^[i] }
-    return out
-}
-
-let pick(seed:const $[i32]^, ix:lent $[i64]):$[i32] {
-    var out:$[i32] = $[]
-    for i in ix { out += seed^[i] }
-    return out
-}
-
-let pick(seed:const $[u8]^, ix:lent $[i64]):$[u8] {
-    var out:$[u8] = $[]
-    for i in ix { out += seed^[i] }
-    return out
-}
-
-let pick(seed:const $[u32]^, ix:lent $[i64]):$[u32] {
-    var out:$[u32] = $[]
-    for i in ix { out += seed^[i] }
-    return out
-}
-
-let pick(seed:const $[f64]^, ix:lent $[i64]):$[f64] {
-    var out:$[f64] = $[]
-    for i in ix { out += seed^[i] }
-    return out
-}
-
-let pick(seed:const $[bool]^, ix:lent $[i64]):$[bool] {
-    var out:$[bool] = $[]
-    for i in ix { out += seed^[i] }
-    return out
-}
-
-// of a String, the String of its graphemes at the indices
-let pick(seed:const String^, ix:lent $[i64]):String {
-    var gs:$[String] = $[]
-    for g in seed^ { gs += g.copy() }
-    var out = $""
-    for i in ix { out += &gs[i] }
-    return out
 }
 
 // ---------- Permutation ----------
