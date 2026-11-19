@@ -2239,11 +2239,16 @@ static Expr *parse_postfix_steps(Expr *e) {
                     flatten_commas(x->b, &args);
                     Decl *chosen = choose_subscript(gname, &args, t->pos, sr->name);
                     for (int k = 0; k < args.len; k++) {
-                        Type *pt = ((Var *)chosen->params.data[k + 1])->type;
+                        Var *pv = chosen->params.data[k + 1];
+                        Type *pt = pv->type;
                         Expr *a = args.data[k];
                         pick_overload(a, pt);
                         a = optional_of(string_of_literal(a, pt), pt, a->pos);
-                        move_argument(a, pt, strfmt("the subscript of %s", sr->name));
+                        if (pv->lent && is_owner(value_type(a)) && !owner_place(a)) /* lent (#510, #614): held, freed after */
+                            a = make_temp(a, "an owner that an expression gives, lent to a subscript: bind it to a "
+                                             "variable first");
+                        else if (!pv->lent) /* one lent is its caller's */
+                            move_argument(a, pt, strfmt("the subscript of %s", sr->name));
                         args.data[k] = a;
                     }
                     Expr *c = new_expr(E_CALL, t->pos);
@@ -16254,7 +16259,8 @@ static void parse_subscript(Program *prog, Pos pos, bool is_let, Token *recv, Ty
         Var *p = parse_param(g->params.len);
         p->is_let = true;
         p->number = numeric_type(param_type(p->type));
-        declare_binding(p->name, param_type(p->type), LET_PARAM);
+        p->lent = lent_param(p, false); /* i:lent BigInt, its caller's, as a function's (#510, #614) */
+        declare_binding(p->name, param_type(p->type), p->lent ? LET_LENT : LET_PARAM);
         list_push(&g->params, p);
         list_push(&indices, p);
         if (!accept_p(","))

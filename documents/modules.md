@@ -25,8 +25,8 @@ files, its prelude header and its libraries live in one directory,
 library, `M.kh` and `libkM` (#143). This document has the import, the
 search, the overlays (#551), the layout, and the modules so far:
 `SION.k` and `MsgPack.k`, sources, and `IO`, `OS`, `UnicodeData`,
-`RegExp`, `BigInt`, `math`, `JSON`, `Rational` and `BigNum`, each a
-header and a library. C headers are in
+`RegExp`, `BigInt`, `math`, `JSON`, `Rational`, `BigNum` and
+`Combinatorics`, each a header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
 ### Kelvin files: `#import <Rational>`
@@ -295,6 +295,9 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     BigNum.kh             <BigNum>'s header, built so too (#599)
     libkBigNum.a|.dylib|.so     its library, linked before Rational's, which it uses
     BigNum.k              #import <BigNum> (#590, bignum.md): BigFloat, a float of any precision (#576, bigfloat.md), CBR and CBF, complex numbers of two BigRats and of two BigFloats, and math's functions of them and of a BigRat; it imports <math> and <Rational>
+    Combinatorics.k       #import <Combinatorics> (#614, combinatorics.md): Permutation, Combination, PowerSet, BaseN, CartesianProduct
+    Combinatorics.kh      its header, built by make so too
+    libkCombinatorics.a|.dylib|.so   its library
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -398,6 +401,18 @@ as an enum with values keyed by any value, with `SION.parse(text)` and
 `SION.stringify(&s, space)`: see [sion.md](sion.md). `#import <MsgPack>`
 (#153) packs one into MessagePack and back, `MsgPack.pack(&s)` and
 `MsgPack.unpack(&b)`: see [msgpack.md](msgpack.md).
+
+### Combinatorics: `modules/Combinatorics.k`
+
+`#import <Combinatorics>` (#614) brings in `Permutation`, `Combination`,
+`PowerSet`, `BaseN` and `CartesianProduct`, each a Sequence of the
+indices of its elements that is indexed by an `i64` or a `BigInt`, and
+`factorial`, `permutation`, `combination`, `factoradic` and
+`combinadic`: see [combinatorics.md](combinatorics.md).
+
+- It is a header and a library, `Combinatorics.kh` and
+  `libkCombinatorics`, built by `make` as `<Rational>`'s are.
+- It is built on the prelude's `BigInt`, in which it counts.
 
 ### JSON: `modules/JSON.k`
 

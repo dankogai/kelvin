@@ -748,8 +748,10 @@ static char *expr_bare(Expr *e) {
             buf_puts(&args, "");
             for (int i = 0; i < e->items.len; i++) {
                 Expr *x = e->items.data[i];
-                /* a local owner given by value moves in (#474), the receiver the first parameter */
-                const char *take = i + 1 < e->target->params.len && local_owner(x)
+                /* a local owner given by value moves in (#474), the receiver the first parameter; one lent is
+                   the caller's (#510, #614) */
+                const char *take = i + 1 < e->target->params.len && local_owner(x) &&
+                                           !((Var *)e->target->params.data[i + 1])->lent
                                        ? owner_take(((Var *)e->target->params.data[i + 1])->type)
                                        : NULL;
                 buf_printf(&args, ", %s", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));

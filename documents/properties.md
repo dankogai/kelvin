@@ -428,6 +428,9 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
     changes; its one expression is the result.
   - It takes one index or more, of any types: `v[r, c]` reads one with
     two.
+  - An index may be lent, `let [](i:lent BigInt):R`, as a function's
+    parameter (#510, #614): the caller keeps the owner, and one an
+    expression gives is held for the call.
   - Subscripts overload by their indices: the count of them chooses
     first, then their types.
     - A literal index is the type it infers to first, `1` an `i64`,

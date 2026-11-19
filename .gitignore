@@ -80,3 +80,4 @@ modules/localStorage.kh
 /benchmarks/*/out/
 modules/Rational.kh
 modules/BigNum.kh
+modules/Combinatorics.kh

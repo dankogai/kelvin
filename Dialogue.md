@@ -12089,3 +12089,38 @@ zero. The copy takes the NUL now, and the eight examples, built with
 every local filled with a pattern, print what they expect.
 
 There are 1417 tests, and all pass with clang and with gcc 15.
+
+### 661. Combinatorics
+
+**User**: "push", for #613's fix, which **Claude** pushed; CI's nine
+jobs passed, `ubuntu-latest / gcc` among them. Then:
+
+> I want add `Combinatorics` as a module.  Their interface would be like:
+>
+> * https://github.com/dankogai/js-combinatorics
+> * https://github.com/dankogai/swift-combinatorics
+
+**Claude** read both, and asked four things, each answered with the
+recommended:
+
+- **Elements:** Kelvin has no generic struct of a program's own, so
+  each gives indices, a `$[i64]`, and a program picks its elements by
+  them.
+- **Counts:** a `BigInt` always, as js-combinatorics' `.length` is a
+  `bigint`; an index an `i64` or a `BigInt`.
+- **Scope:** js-combinatorics' set: `Permutation`, `Combination`,
+  `PowerSet`, `BaseN` and `CartesianProduct`, and `factorial`,
+  `permutation`, `combination`, `factoradic` and `combinadic`.
+- **Packaging:** a header and a library, as `<Rational>`'s.
+
+Each is walked by `for` from one element to the next, indexed straight
+at any index, `Permutation(36)[Permutation(36).count - 1]`, and
+sampled. The values are js-combinatorics': `permutation(24, 12)` is
+`1295295050649600n`.
+
+A `BigInt` index moved into the subscript and left the caller's
+variable dead: kelvinc read `lent` of a subscript's index and did
+nothing with it. It does now, as of a function's parameter (#510).
+Details are provisional P626.
+
+There are 1423 tests, and all pass with clang and with gcc 15.

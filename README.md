@@ -699,3 +699,13 @@ So far the changes from C are these, by topic.
   written by its first 1, `5e-324.hex` is `+0x1p-1074`, as a
   `BigFloat`'s is, where glibc's `%a` writes
   `0x0.0000000000001p-1022` (#607)
+- `#import <Combinatorics>` is permutations, combinations, power sets,
+  base-n numbers and Cartesian products, as js-combinatorics and
+  swift-combinatorics have them: each a Sequence of `$[i64]`s, indices
+  a program picks its elements by, counted by a `BigInt`, indexed by an
+  `i64` or a `BigInt`, `Permutation(36)[Permutation(36).count - 1]`,
+  with `sample()`; and `factorial`, `permutation`, `combination`,
+  `factoradic` and `combinadic` (#614)
+- A subscript's index may be lent, `let [](i:lent BigInt):R`, as a
+  function's parameter is (#510): its caller keeps it, where
+  `lent` was read and the owner moved in all the same (#614)

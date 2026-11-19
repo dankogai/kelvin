@@ -110,6 +110,10 @@ the design decisions, numbered `#N` throughout, are in
 - [bigfloat.md](bigfloat.md): `BigFloat`, with `#import <BigNum>`, a
   float of any precision, a `BigInt` times a power of 2, rounded to
   `BigFloat.precision` bits, 128; `x.round(precision, rule)` (#576).
+- [combinatorics.md](combinatorics.md): `#import <Combinatorics>`,
+  `Permutation`, `Combination`, `PowerSet`, `BaseN` and
+  `CartesianProduct`, walked and indexed by a `BigInt`, and
+  `factorial`, `combination` and their kin (#614).
 - [json.md](json.md): `#import <JSON>`, `JSON.parse` and
   `JSON.stringify` as JS has them.
 - [sion.md](sion.md): `#import <SION>`, SION values, JSON with more.
