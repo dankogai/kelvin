@@ -12243,3 +12243,31 @@ answered with the recommended:
 kc does the same. Details are provisional P630.
 
 There are 1435 tests, and all pass with clang and with gcc 15.
+
+### 666. What Kelvin is not
+
+**User**: "push", for #618, which **Claude** pushed, its battery
+clean; CI's nine jobs passed. Then:
+
+> I think we need to add `documents/gotcha.md` which explains what kelvin is NOT.
+> * functions look almost like other languages with true first class but kelvin lacks closure.  that makes it difficult to implement techniques like memoization
+> * also missing is true generics.  Though Array<T> is implemented, it is simply because we do not have to check what T has.  Kelvin does not have a mechanism like protocols of Swift.
+> * And if you have anything else to add, go ahead
+
+**Claude** tried each thing a newcomer would write, and quoted
+kelvinc's answer:
+
+- **No closures**: memoization by a memo passed as a borrow,
+  `fib(n, &memo)`, or kept in a struct with a var method,
+  `var Fib.at(n)`.
+- **No generics or protocols of a program's own**: the built-in
+  methods check what `T` has where they are used; an overload, an enum
+  with values or a function passed in instead.
+- **Added**: no classes, no exceptions, no garbage collector, `"..."`
+  a cstr, C's integers and fixed arrays, `^` and `~`, assignment a
+  statement, no type from arithmetic, no default or named arguments.
+
+documents/README.md, versusC.md and README list it. Details are
+provisional P631.
+
+There are 1435 tests, and all pass with clang and with gcc 15.

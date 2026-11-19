@@ -1,7 +1,8 @@
 # The documents of Kelvin
 
 One topic each, in the order a reader new to Kelvin might take them;
-[versusC.md](versusC.md) has every difference from C at a glance, and
+[versusC.md](versusC.md) has every difference from C at a glance,
+[gotcha.md](gotcha.md) what Kelvin is not, and
 the design decisions, numbered `#N` throughout, are in
 [Design.md](../Design.md), with the conversations that made them in
 [Dialogue.md](../Dialogue.md).
@@ -10,6 +11,10 @@ the design decisions, numbered `#N` throughout, are in
 
 - [versusC.md](versusC.md): Kelvin versus C, every difference in one
   table, and this list of documents with what each holds.
+- [gotcha.md](gotcha.md): what Kelvin is not, for one who knows Swift,
+  JavaScript or Python: no closures, no generics or protocols of a
+  program's own, no classes, no exceptions, no garbage collector, and
+  what to write instead (#619).
 - [grammar.md](grammar.md): names, Unicode's and emoji too (#385),
   declarations, type inference, the ways to quote text, expressions,
   lines and `;`, assignment as a statement, the C habits kelvinc catches.

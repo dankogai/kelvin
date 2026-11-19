@@ -43,6 +43,10 @@ let main(argc:i32, argv:[cstr]): i32 {
   [functions.md](documents/functions.md), ...
 - [documents/versusC.md](documents/versusC.md) has all the differences
   from C at a glance.
+- [documents/gotcha.md](documents/gotcha.md) says what Kelvin is not,
+  for one who comes from Swift, JavaScript or Python: no closures, no
+  generics or protocols of a program's own, no exceptions, no garbage
+  collector, and what to write instead.
   - Each document says whether what it covers is the core, the
     prelude, or loaded with an `#import`; versusC.md sums that up.
 - [CHANGELOG.md](CHANGELOG.md) has the release notes, 0.1.0 the first
