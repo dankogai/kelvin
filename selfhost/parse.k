@@ -293,6 +293,23 @@ var name_annotation = true
 
 // the number type the word t names, kelvinc's full name or its short one,
 // int64 or i64 (#151, #430), or -1
+// a number type's word at t in its short spelling: int32 is i32, float64 f64
+let kelvin_type_text(y:int64):String    // a prototype: gen.k's, a type in kelvinc's words
+
+let short_number(t:int64):String {
+    if tok_is(t, "float64") { return $"f64" }
+    if tok_is(t, "float32") { return $"f32" }
+    var s = codes[toks[t].at] == 'u' ? $"u" : $"i"
+    var k:int64 = 0
+    while k < toks[t].len && !is_digit(codes[toks[t].at + k]) { k += 1 }
+    if k == toks[t].len { return tok_text(t) }
+    while k < toks[t].len {
+        s += codes[toks[t].at + k]
+        k += 1
+    }
+    return s
+}
+
 let number_word(t:int64):int64 {
     if tok_is(t, "int64") || tok_is(t, "i64") { return base_type(Y_I64) }
     if tok_is(t, "int32") || tok_is(t, "i32") { return base_type(Y_I32) }
@@ -413,10 +430,32 @@ let advance():int64 {
 
 let expect(w:cstr) {
     if !at_word(w) {
-        parse_error("unexpected token")
+        if at_assign() {                                 // (c = getchar()), a[i += 1], as kelvinc says it
+            parse_error("assignment is a statement in Kelvin, not a value: assign on a line of its own")
+            return
+        }
+        var m = $"expected '"                            // as kelvinc's expect_p says it
+        m += w
+        m += "', found "
+        let d:String = tok_desc(pos)
+        m += &d
+        parse_error(m.cstr)
         return
     }
     advance()
+}
+
+// a token as kelvinc's desc names it in a message: 'x', a template
+// literal, end of file; past a line's end, the token after it
+let tok_desc(t0:int64):String {
+    var t:int64 = t0
+    while t < eof_pos && toks[t].kind == T_NL { t += 1 }
+    if t >= eof_pos || toks[t].kind == T_EOF { return $"end of file" }
+    if toks[t].kind == T_TPL_HEAD { return $"a template literal" }
+    var s = $"'"
+    s += tok_text(t)
+    s += "'"
+    return s
 }
 
 // the > that closes a type's <...>, the first of a >> too, which the
@@ -1363,6 +1402,14 @@ let parse_bare_type():int64 {
         advance()
         let elem:int64 = parse_type()
         var y:int64 = 0
+        if !brace && at_word(":") {              // $[String: i64], as kelvinc says it
+            var m = $"a Dictionary's type is written in braces: ${"
+            let w:String = kelvin_type_text(elem)
+            m += &w
+            m += ": V}, as its entries are"
+            parse_error(m.cstr)
+            return elem
+        }
         if !brace {
             expect("]")
             y = array_type(elem)
@@ -1460,6 +1507,10 @@ let parse_bare_type():int64 {
         advance()
     }
     if !at_kind(T_ID) {
+        if tok_is(pos, "$") {                    // $int64, as kelvinc says it
+            parse_error("'$' before a type: $[T] is Array<T> and ${K: V} Dictionary<K, V>, as $[a, b] and ${k: v} are the values; a String is written String")
+            return base_type(Y_VOID)
+        }
         parse_error("a type is expected")
         return base_type(Y_VOID)
     }
@@ -1799,6 +1850,10 @@ let parse_anon():int64 {
             advance()
             set_ty(n, parse_type())
         }
+        if !at_word("in") {                              // as kelvinc says it
+            parse_error("expected 'in' after the parameters, as in '{ (a:i32):i32 in a * 2 }'")
+            return n
+        }
         expect("in")
     } else if names_in_ahead(pos) {                      // { v in ... }: named, typed by where it goes (#330)
         nodes[n].flag = 2
@@ -1881,6 +1936,10 @@ let parse_brace_body(t:int64):int64 {
             }
             last = e
             skip_newlines()
+            if at_word(":") {                        // ${"a", "b": 1}, as kelvinc says it
+                parse_error("a Set holds elements, not entries: ${a, b, c}; a Dictionary's are ${k: v}")
+                return n
+            }
             if !at_word(",") { break }
             advance()
             skip_newlines()
@@ -2129,7 +2188,10 @@ let parse_template(dollar:bool):int64 {
         nodes[last].next = v
         last = v
         if !at_kind(T_TPL_MID) && !at_kind(T_TPL_TAIL) {
-            parse_error("expected '}' to end ${...} in the template literal")
+            var m = $"expected '}' to end ${...} in the template literal, found "   // as kelvinc says it
+            let d:String = tok_desc(pos)
+            m += &d
+            parse_error(m.cstr)
             break
         }
     }
@@ -2282,6 +2344,7 @@ let parse_primary():int64 {
         parse_error("a compound literal's '{' starts on the line of its '(type)': on the next line, '{' starts a block")
         return make_node(N_NULL, t)
     }
+    if at_word("(") && c_cast_ahead(t) { return make_node(N_NULL, t) }   // (T)x, C's, as kelvinc says it
     if at_word("(") {
         advance()
         if at_word("{") {                        // ({ $0 + 1 }): no type says its parameters, as kelvinc says it (#32, #611)
@@ -2350,6 +2413,10 @@ let parse_primary():int64 {
                 nodes[last].next = e
             }
             last = e
+            if at_word(":") {                        // $["a": 1], as kelvinc says it
+                parse_error("a Dictionary's entries are written in braces: ${k: v, ...}, and ${:} for none")
+                return n
+            }
             if !at_word(",") { break }
             advance()
             if at_word("]") { break }                 // a comma after the last
@@ -2458,6 +2525,18 @@ let parse_primary():int64 {
         nodes[n].a = make_node(N_SELF, t)
         return n
     }
+    if at_word("*") && (toks[pos + 1].kind == T_ID || tok_is(pos + 1, "(")) {   // *p, as kelvinc says it
+        parse_error("dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'")
+        return make_node(N_NUM, t)
+    }
+    if k == T_PUNCT && tok_is(t, "$") {                  // as kelvinc says it
+        parse_error("'$' alone is not a value: $\"text\" is a String, $[a, b] an Array, ${k: v} a Dictionary, and an anonymous function's parameters are $[0], $[1], ..., or $0, $1, ...")
+        return make_node(N_NUM, t)
+    }
+    if at_word(">") && tok_is(pos - 1, "-") && toks[pos - 1].at + 1 == toks[pos].at {   // p->x, as kelvinc says it
+        parse_error_at(pos - 1, "write 'p^.member' instead of 'p->member'")
+        return make_node(N_NUM, t)
+    }
     parse_error("an expression is expected")
     return make_node(N_NUM, t)
 }
@@ -2483,6 +2562,13 @@ var chains = 0                                   // the names of chains kc makes
 let parse_steps(first:int64):int64 {
     var e:int64 = first
     while !failed {
+        if (at_word("++") || at_word("--")) && !(toks[pos + 1].kind == T_NL || tok_is(pos + 1, ";") || tok_is(pos + 1, "}") || toks[pos + 1].kind == T_EOF) {   // p--^, as kelvinc says it
+            var m = $"'"
+            m += tok_text(pos)
+            m += "' is a statement in Kelvin, not a value: step the pointer on a line of its own"
+            parse_error(m.cstr)
+            return e
+        }
         if at_word("?") && adjacent(pos - 1, pos) && pos + 1 < toks.count as int64 && (tok_is(pos + 1, ".") || tok_is(pos + 1, "[")) {
             let n = make_node(N_CHAIN, advance())    // x?.m, x?[i] (#221): the rest of the chain of what x holds
             chains += 1
@@ -2499,6 +2585,7 @@ let parse_steps(first:int64):int64 {
                 var word = $"some"
                 let n = make_node(N_FIELD, made_token(&word))
                 nodes[n].a = e
+                unwrap_nodes[n] = true                   // x!, as kelvinc names it where x is no Optional (#629)
                 e = n
             }
             continue
@@ -2531,6 +2618,10 @@ let parse_steps(first:int64):int64 {
         } else if at_word(".") {
             advance()
             let t:int64 = advance()
+            if tok_is(t, "reduce") && at_word("{") {     // xs.reduce { ... }, as kelvinc says it
+                parse_error_at(t, "'.reduce' takes the value to start from: write '.reduce(init) { ... }' or '.reduce(init, f)'")
+                return e
+            }
             if at_word("(") {
                 e = parse_method_call(e, t)
             } else if (tok_is(t, "sort") || tok_is(t, "sorted")) && trailing_ahead() {   // xs.sort { ... }, its comparator trailing (#470)
@@ -2675,6 +2766,10 @@ let parse_cast():int64 {
         nodes[n].a = e
         set_ty(n, parse_type())
         e = n
+        if tok_is(t, "as") && at_word("*") && (tok_is(pos + 1, ";") || tok_is(pos + 1, ":") || tok_is(pos + 1, ")") || tok_is(pos + 1, ",") || tok_is(pos + 1, "]") || toks[pos + 1].kind == T_NL || toks[pos + 1].kind == T_EOF) {
+            parse_error("pointer types are written with a postfix '^', as in 'i32^'")   // x as T*, as kelvinc says it
+            return e
+        }
         if at_word("**") {                               // as kelvinc says it (#380)
             if tok_is(t, "as") {
                 parse_error("'**' binds tighter than 'as': write '(x as T) ** y'")
@@ -2754,6 +2849,10 @@ let parse_binary(min:int64):int64 {
             range_values += 1
             nodes[r].a = e
             if range_ends() {
+                if tok_is(t, "..<") && at_word("]") {    // xs[1..<], as kelvinc says it of a slice
+                    parse_error("a slice to the end is written [lo...]; '..<' needs an end")
+                    return 0 - 1
+                }
                 if tok_is(t, "..<") {
                     parse_error("'..<' needs an end, as in '0..<10'; a range without one is 'lo...'")
                     return 0 - 1
@@ -2793,9 +2892,87 @@ let parse_expr():int64 {
     return n
 }
 
+// (T)x, (T *)p, (void)x, (int){1}: C's cast or compound literal of a
+// type in C's words at the ( at t, kelvinc's error of it; whether one was
+let c_cast_ahead(t:int64):bool {
+    var i:int64 = t + 1
+    var star = false
+    var marks = false
+    if tok_is(i, "const") {
+        i += 1
+        marks = true
+    }
+    if toks[i].kind != T_ID { return false }
+    let word:int64 = i
+    if tok_is(i, "long") && tok_is(i + 1, "double") && tok_is(i + 2, ")") {   // (long double)d
+        parse_error_at(i, "'long' is not a Kelvin type, use f64 (long double has no Kelvin type yet)")
+        return true
+    }
+    i += 1
+    while tok_is(i, "*") || tok_is(i, "^") || tok_is(i, "const") {
+        if tok_is(i, "*") { star = true }
+        marks = true
+        i += 1
+    }
+    if !tok_is(i, ")") { return false }
+    let after:int64 = i + 1
+    if toks[after].line != toks[i].line && toks[after].kind != T_NL { return false }
+    let typed = marks || number_word(word) >= 0 || tok_is(word, "bool") || tok_is(word, "void") || c_word_hint(word)[0] != 0 || tok_ends_t(word)
+    let cword = c_word_hint(word)[0] != 0 && !tok_is(word, "void")
+    if tok_is(after, "{") {                              // (int){1}, (size_t*){0}: C's words in a compound literal
+        if c_word_hint(word)[0] != 0 && !marks {
+            var m = $"'"
+            m += tok_text(word)
+            m += "' is not a Kelvin type; use "
+            m += c_word_hint(word)
+            parse_error_at(word, m.cstr)
+            return true
+        }
+        if star {
+            parse_error_at(i - 1, "pointer types are written with a postfix '^', as in '(i32^){0}'")
+            return true
+        }
+        return false
+    }
+    let operand = toks[after].kind == T_ID || toks[after].kind == T_NUM || toks[after].kind == T_STR || tok_is(after, "!") || tok_is(after, "++") || tok_is(after, "--") || tok_is(after, "sizeof")
+    let maybe = tok_is(after, "(") || tok_is(after, "*") || tok_is(after, "&") || tok_is(after, "-") || tok_is(after, "~")
+    if tok_is(word, "void") && !marks && (operand || maybe || toks[after].kind == T_NL || tok_is(after, ";")) {
+        parse_error_at(t, "C casts are not Kelvin: to discard a value, write it as a statement of its own")
+        return true
+    }
+    if !(operand || (maybe && typed)) { return false }
+    if !typed && !operand { return false }
+    if star {
+        parse_error_at(t, "C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type; pointer types are written with a postfix '^', as in 'i32^'")
+    } else if cword {                                    // (double)1: and the word's hint, as kelvinc says it
+        var m = $"C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type; '"
+        m += tok_text(word)
+        m += "' is not a Kelvin type, use "
+        m += c_word_hint(word)
+        parse_error_at(t, m.cstr)
+    } else {
+        parse_error_at(t, "C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type")
+    }
+    return true
+}
+
+// whether the name at t ends in _t, as C's typedefs do: size_t, int32_t
+let tok_ends_t(t:int64):bool {
+    let n:int64 = toks[t].len
+    return n > 2 && codes[toks[t].at + n - 2] == '_' && codes[toks[t].at + n - 1] == 't'
+}
+
 // ---------- statements ----------
 
 let parse_block():int64
+
+// whether the token at pos is an assignment's operator
+var switch_level:int64                       // the switches being read (#629)
+var unwrap_nodes:Dictionary<int64, bool>     // the x.some that x! makes (#629)
+
+let at_assign():bool {
+    return at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") || at_word("??=") || at_word("!!=")
+}
 
 // the end of a statement: a newline, a ;, or a } or the end after it
 let end_statement() {
@@ -2804,12 +2981,33 @@ let end_statement() {
         return
     }
     if at_word("}") || at_kind(T_EOF) { return }
-    parse_error("a statement ends with its line")
+    if at_assign() {                                     // a = b = 1, as kelvinc says it
+        parse_error("assignment is a statement in Kelvin, not a value: assign on a line of its own")
+        return
+    }
+    if at_word("]") || at_word(")") {                    // a[0]] + 1, as kelvinc says it, of one that closes nothing open
+        var m = $"'"
+        m += tok_text(pos)
+        m += "' closes nothing: no '"
+        m += at_word("]") ? "[" : "("
+        m += "' is open here"
+        parse_error(m.cstr)
+        return
+    }
+    if tok_is(pos - 1, "}") {                            // f(x) { ... } g(y), as kelvinc says it
+        parse_error("expected ';' or a new line after the trailing function, before what follows")
+        return
+    }
+    var m = $"expected ';' or a new line before "       // as kelvinc says it
+    let d:String = tok_desc(pos)
+    m += &d
+    parse_error(m.cstr)
 }
 
 // name:Type = value, its let or var read; without :Type, the type is
 // what the value gives, found when it is written (#214); c is 1 of :=
 let parse_var(is_let:int64):int64 {
+    if fnptr_decl(pos, true) { return make_node(S_VAR, pos) }   // var T (*f)(...), as kelvinc says it
     reject_kv_name(pos)
     if kept_word(pos) {                                  // var typeof = 1, as kelvinc says it (#611)
         var m = $"expected a name, found '"
@@ -2821,6 +3019,10 @@ let parse_var(is_let:int64):int64 {
     locals_seen += t                                     // a name a nested type's bare one yields to (#389)
     let n:int64 = make_node(S_VAR, t)
     nodes[n].flag = is_let
+    if at_word(":") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "*") && !tok_is(pos + 3, "*") && (tok_is(pos + 3, "=") || tok_is(pos + 3, ":=") || toks[pos + 3].kind == T_NL || tok_is(pos + 3, ";")) {   // var q:int32* = p, as kelvinc says it
+        parse_error_at(pos + 2, "pointer types are written with a postfix '^', as in 'i32^'")
+        return n
+    }
     if at_word(":") {
         advance()
         set_ty(n, parse_type())
@@ -2848,8 +3050,27 @@ let unnamed_param(p:int64, k:int64, anon:bool) {
     nodes[p].t = u
 }
 
+// T (*f)(...) at t, C's declaration of a pointer to a function, kelvinc's
+// error of it (#31): of a variable, var f:(...):T, of a member or a
+// parameter f:(...):T; whether it was one
+let fnptr_decl(t:int64, var_word:bool):bool {
+    if toks[t].kind != T_ID || !tok_is(t + 1, "(") || !tok_is(t + 2, "*") || toks[t + 3].kind != T_ID || !tok_is(t + 4, ")") || !tok_is(t + 5, "(") { return false }
+    var m = $"'"
+    m += tok_text(t + 3)
+    m += "' looks like a C function-pointer declaration: write '"
+    if var_word { m += "var " }
+    m += tok_text(t + 3)
+    m += ":(...):"
+    let w:String = number_word(t) >= 0 ? short_number(t) : tok_text(t)
+    m += &w
+    m += "' (#31)"
+    parse_error_at(t, m.cstr)
+    return true
+}
+
 // a parameter or a member, whose type is written
 let parse_typed(is_let:int64):int64 {
+    if fnptr_decl(pos, false) { return make_node(S_VAR, pos) }   // T (*f)(...), as kelvinc says it
     if toks[pos + 1].kind != T_PUNCT || !tok_is(pos + 1, ":") { parse_error("a parameter or a member says its type: name:T") }
     return parse_var(is_let)
 }
@@ -2879,11 +3100,17 @@ let parse_if():int64 {
         advance()
     }
     set_a(n, parse_cond())
+    if !at_word("{") && !failed {                        // if (n > 0) n = 0, as kelvinc says it
+        parse_error("the body of 'if' is a block: write 'if cond { ... }'")
+        return n
+    }
     set_b(n, parse_block())
     if at_word("else") {
         advance()
         if at_word("if") {
             set_c(n, parse_if())
+        } else if !at_word("{") {                        // as kelvinc says it
+            parse_error("expected '{' or 'if' after 'else': the body of 'else' is a block")
         } else {
             set_c(n, parse_block())
         }
@@ -2901,6 +3128,13 @@ let reject_c_declaration()    // and C's declaration where a statement starts (#
 // switch e { case a, b: ... default: ... } (#210): its cases a list of
 // S_CASE, each with its values and its statements, up to the next case
 let parse_switch():int64 {
+    switch_level += 1                                    // a case inside a statement of it is said so (#629)
+    let n:int64 = parse_switch_body()
+    switch_level -= 1
+    return n
+}
+
+let parse_switch_body():int64 {
     let n:int64 = make_node(S_SWITCH, advance())
     set_a(n, parse_cond())
     expect("{")
@@ -2943,7 +3177,7 @@ let parse_switch():int64 {
             while nodes[lasts].next >= 0 { lasts = nodes[lasts].next }   // (#458)
             skip_newlines()
         }
-        if lasts < 0 { parse_error("a case has a statement before the next: write case a, b: for one body") }
+        if lasts < 0 { parse_error("a case ends at the next case, and the one before this has no body: write 'case a, b:' to share a body, or 'break' to do nothing") }   // as kelvinc says it
         if last < 0 {
             nodes[n].b = c
         } else {
@@ -3039,8 +3273,39 @@ let parse_enum():int64
 
 let parse_statement():int64 {
     let t:int64 = pos
+    if at_word("case") || (at_word("default") && tok_is(pos + 1, ":")) {   // a switch reads its own, as kelvinc says it
+        if switch_level > 0 {
+            parse_error("a case is written at the top of the switch's block, not inside a statement of it")
+        } else {
+            parse_error(at_word("case") ? "'case' outside a switch" : "'default' outside a switch")
+        }
+        return make_node(S_BLOCK, t)
+    }
+    if at_word("typedef") {                              // as kelvinc says it
+        parse_error("'typedef' is C's: Kelvin names a type anew with typealias, 'typealias A = T', at the top level (#294)")
+        return make_node(S_BLOCK, t)
+    }
+    if at_word("*") && toks[pos + 1].kind == T_ID {      // *p = 1, as kelvinc says it
+        parse_error("dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'")
+        return make_node(S_BLOCK, t)
+    }
+    if at_kind(T_ID) && tok_is(pos + 1, ":") && toks[pos + 2].line == toks[pos].line && codes[toks[pos].at] != '$' {   // a label of a kv_ name, as kelvinc says it
+        reject_kv_name(pos)
+        if failed { return make_node(S_BLOCK, t) }
+    }
+    if at_kind(T_ID) && tok_is(pos + 1, "^") && toks[pos + 2].kind == T_ID && (tok_is(pos + 3, ";") || toks[pos + 3].kind == T_NL) && toks[pos + 2].line == toks[pos].line {   // point^ p; as kelvinc says it
+        var m = $"declarations are written 'var name:type', as in 'var x:"
+        m += tok_text(pos)
+        m += "'"
+        parse_error(m.cstr)
+        return make_node(S_BLOCK, t)
+    }
     if at_word("do") {                                   // do { } while c, C's (#459)
         let n:int64 = make_node(S_DO, advance())
+        if !at_word("{") {                               // as kelvinc says it
+            parse_error("expected '{': the body of 'do' is a block")
+            return n
+        }
         set_b(n, parse_block())
         if !at_word("while") {
             parse_error("expected 'while' after the body of 'do'")
@@ -3111,6 +3376,10 @@ let parse_statement():int64 {
     if at_word("while") {
         let n:int64 = make_node(S_WHILE, advance())
         set_a(n, parse_cond())
+        if !at_word("{") && !failed {                    // as kelvinc says it
+            parse_error("the body of 'while' is a block: write 'while cond { ... }'")
+            return n
+        }
         set_b(n, parse_block())
         return n
     }
@@ -3139,6 +3408,14 @@ let parse_statement():int64 {
         }
         expect("in")
         let from:int64 = parse_cond()
+        if !failed && at_word(".") && tok_is(pos + 1, ".") {   // 0..n, as kelvinc says it
+            parse_error("expected '..<' or '...' in a range, as in '0..<n' or '1...n'")
+            return make_node(S_BREAK, v)
+        }
+        if !failed && !at_word("{") {                    // as kelvinc says it
+            parse_error("expected '{': the body of 'for' is a block, as in 'for i in a..<b { ... }'")
+            return make_node(S_BREAK, v)
+        }
         if !failed && nodes[from].kind == N_RANGE {      // for i in a..<b; a...b, a..., ..<b, ...b, flag as the range's (#373)
             let n:int64 = make_node(S_FOR, v)
             nodes[n].a = nodes[from].a
@@ -3231,6 +3508,8 @@ let parse_cfor():int64 {
     if at_word("var") || at_word("let") {
         nodes[n].a = parse_vars()
     } else if !at_word(";") {
+        reject_c_declaration()                           // for (size_t * r = &n; ; ), as kelvinc says it
+        if failed { return n }
         nodes[n].a = parse_simples()
     }
     expect(";")
@@ -3316,8 +3595,8 @@ let reject_c_declaration() {
     } else if toks[i].kind == T_ID && i < eof_pos {
         let base = number_word(i) >= 0 || tok_is(i, "bool") || tok_is(i, "any") || tok_is(i, "cstr") || tok_is(i, "String") || tok_is(i, "Bytes") || tok_is(i, "IO")
         if (kept_word(i) && !base) || tok_is(i, "__attribute__") || tok_is(i, "_Pragma") || tok_is(i, "self") || tok_is(i, "Self") { return }
-        if tok_is(i + 1, "(") { return }
-        type = tok_text(i)
+        if tok_is(i + 1, "(") && !tok_is(i + 2, "*") { return }   // a converter's call, i64(x), but T (*f)(...)
+        type = number_word(i) >= 0 ? short_number(i) : tok_text(i)   // int32 is i32 in the hint, as kelvinc writes it
         i += 1
     } else {
         return
@@ -4817,6 +5096,11 @@ let parse_program() {
             parse_extend()
         } else if at_word("typealias") && toks[pos + 1].kind == T_ID {   // typealias A = T (#149, #550)
             parse_typealias()
+        } else if at_word("var") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "(") {   // var f(...) { }, as kelvinc says it
+            var m = $"a function is a let: write 'let "
+            m += tok_text(pos + 1)
+            m += "(...)', or, for a variable holding a function, 'var f:(T):R := g'"
+            parse_error(m.cstr)
         } else if at_word("let") || at_word("var") {
             let is_let:bool = at_word("let")
             advance()
@@ -4826,8 +5110,42 @@ let parse_program() {
             if is_let && nodes[n].a < 0 && storage != 2 && !failed { let_needs_value(n) }   // but an extern's, C's (#611)
             decls += n
             if at_word(";") { advance() }                // var calls = 0; (#451)
+        } else if at_word("typedef") {                   // as kelvinc says it
+            parse_error("'typedef' is C's: Kelvin names a type anew with typealias, 'typealias A = T', at the top level (#294)")
+        } else if fnptr_decl(pos, true) {                // size_t (*f)(i64); at the top level
+        } else if at_kind(T_ID) && (tok_is(pos + 1, "(") || (tok_is(pos + 1, ".") && toks[pos + 2].kind == T_ID && tok_is(pos + 3, "("))) {   // main() { }, as kelvinc says it
+            let method = tok_is(pos + 1, ".")
+            let after:int64 = group_end(method ? pos + 3 : pos + 1)
+            var m = $""
+            if !method && !tok_is(after, ":") && !tok_is(after, "{") {
+                m += "expected a declaration (let name(...):type, let or var name, struct, union, enum), found '"
+                m += tok_text(pos)
+                m += "': a statement goes in a function"
+            } else {
+                m += "a function is declared with let: write '"
+                if storage == 1 { m += "static " }
+                if storage == 2 { m += "extern " }
+                m += "let "
+                m += tok_text(pos)
+                if method {
+                    m += "."
+                    m += tok_text(pos + 2)
+                }
+                m += "(...)'"
+            }
+            parse_error(m.cstr)
+        } else if at_kind(T_ID) && (tok_is(pos + 1, ":") || tok_is(pos + 1, "=") || tok_is(pos + 1, ":=")) {   // as kelvinc says it
+            var m = $"declarations start with let or var: write 'var "
+            m += tok_text(pos)
+            m += " ...', or 'let "
+            m += tok_text(pos)
+            m += " ...' if it never changes"
+            parse_error(m.cstr)
         } else {
-            parse_error("a declaration is expected")
+            var m = $"expected a declaration (let name(...):type, let or var name, struct, union, enum), found '"   // as kelvinc says it
+            m += tok_text(pos)
+            m += "'"
+            parse_error(m.cstr)
         }
         if align_expr >= 0 || align_type >= 0 {          // (#396)
             if decls.count as int64 > first && nodes[decls[decls.count - 1]].kind == D_GLOBAL {

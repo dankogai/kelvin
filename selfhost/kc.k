@@ -627,7 +627,7 @@ let load_module(mods:String^, t:int64):bool {
     }
     why += &name
     if bare { why += ".k" }
-    why += ") in ./modules or in Kelvin's modules/ (KELVIN_HOME, or -m)"
+    why += ") in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)"
     lex_error(toks[t].file, toks[t].line, why.cstr)
     return false
 }

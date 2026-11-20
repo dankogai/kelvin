@@ -12457,3 +12457,20 @@ of a switch. kc says the same. Details are provisional P640.
 
 There are 1464 tests, and all pass with clang and with gcc 15.
 
+### 676. kc in kelvinc's words, the first batch
+
+**Claude** pushed #628, its battery clean. The user had ordered "then
+fix kc's 226 errors in its own words", and "push those too when each
+battery is clean".
+
+Of the 226 programs kelvinc refuses that kc refused in words of its own,
+kc says kelvinc's of 131 now: C's casts and declarations in C's words, a
+function declared with no let, an assignment used as a value, a body
+that is no block, the cases of a switch not handled, = and := of a
+reference and a value, and many near misses, `Array<i64>` where kc said
+`$[i64]`. kc's `expect` and the end of a statement say what kelvinc's
+do. 95 are left, listed in selfhost/errors.txt, for the next batch.
+Details are provisional P641.
+
+There are 1464 tests, and all pass with clang and with gcc 15.
+

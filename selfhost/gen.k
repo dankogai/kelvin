@@ -2116,8 +2116,15 @@ let count_wrong(n:int64, d:int64, what:String):bool {
     m += String(takes)
     m += takes == 1 ? " argument" : " arguments"
     if variadic { m += " or more" }
-    m += ", and this call gives "
-    m += String(given)
+    var last:int64 = nodes[n].b
+    while last >= 0 && nodes[last].next >= 0 { last = nodes[last].next }
+    if given > takes && last >= 0 && nodes[last].kind == N_ANON {   // as kelvinc says it of a trailing one
+        m += ", and this anonymous function would be argument "
+        m += String(given)
+    } else {
+        m += ", and this call gives "
+        m += String(given)
+    }
     gen_error(n, m.cstr)
     return true
 }
@@ -2198,6 +2205,42 @@ let word_misused(n:int64, written:bool):bool {
     return true
 }
 
+// xs.mapWithKey of an Array or a Set, a Dictionary's, kelvinc's error of it
+let with_key_misused(n:int64):bool {
+    let t:int64 = nodes[n].t
+    if !(tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "reduceWithKey") || tok_is(t, "flatMapWithKey")) { return false }
+    if nodes[n].a < 0 || nodes[nodes[n].a].kind != N_ID { return false }
+    let y:int64 = var_type(nodes[nodes[n].a].t)
+    if y < 0 || (types[y].kind != Y_ARRAY && types[y].kind != Y_SET) { return false }
+    var m = types[y].kind == Y_SET ? $"a Set has no '." : $"an Array has no '."
+    m += tok_text(t)
+    m += "': it is a Dictionary's, whose function takes each key; write '."
+    for q in 0..<(toks[t].len - 7) { m += codes[toks[t].at + q] }
+    m += "'"
+    gen_error(n, m.cstr)
+    return true
+}
+
+// kelvinc's words of a variable whose type is not seen: 'x' needs a type
+let needs_type(n:int64) {
+    var m = $"'"
+    m += tok_text(nodes[n].t)
+    m += "' needs a type: write '"
+    m += tok_text(nodes[n].t)
+    m += ":T = ...' (or '"
+    m += tok_text(nodes[n].t)
+    m += ":T := ...' for a reference); Kelvin infers a type from literals, bools, values written 'v:T', 'v as T' or 'T(v)', anonymous functions that write their parameters, and values whose type it sees, not from arithmetic or what only C sees"
+    gen_error(n, m.cstr)
+}
+
+// kelvinc's words of text given to a variable by =
+let cstr_ref_error(n:int64) {
+    var m = $"'"
+    m += tok_text(nodes[n].t)
+    m += "' is a reference (cstr): assign it with ':=', not '='"
+    gen_error(n, m.cstr)
+}
+
 let type_of(n:int64):int64 {
     if nodes[n].kind == N_CALL && word_misused(n, false) { return 0 - 1 }   // int(x), cstr(p) (#612); a bare i32 where it is written
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
@@ -2208,6 +2251,7 @@ let type_of(n:int64):int64 {
     resolve_codepoints(n)                                // grapheme(c0, c1, ...) (#526)
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
+    if k == N_METHOD && with_key_misused(n) { return 0 - 1 }   // xs.mapWithKey, as kelvinc says it
     if os_call(n) { return os_type(n) }                  // OS.cwd, OS.name(args), SYS.argv (#463)
     if (k == N_ID || k == N_CALL) && nodes[n].ty >= 0 && is_case_word(n) { return nodes[n].ty }   // Result<T, E>.err(e) (#449)
     if k == N_TRY {                                      // try r, r's ok, some's (#449)
@@ -2406,6 +2450,18 @@ let type_of(n:int64):int64 {
         if d >= 0 {                                                      // v.c, the case's value
             if let some(m) = case_named(d, t) {
                 if nodes[m].ty >= 0 { return nodes[m].ty }
+                var w = $"case '"                        // as kelvinc says it
+                w += tok_text(t)
+                w += "' of "
+                let yw:String = kelvin_type_text(y)
+                w += &yw
+                w += " carries no value: test it with '.is("
+                w += tok_text(t)
+                w += ")', or set it with {."
+                w += tok_text(t)
+                w += "}"
+                gen_error(n, w.cstr)
+                return -1
             }
             gen_error(n, "this is no case of a value of this enum")
             return -1
@@ -2780,12 +2836,12 @@ let takes_borrow(n:int64, t:int64, who:const String^):bool {
     }
     var m = who^.copy()
     m += " is "
-    let w:String = type_text(t)
+    let w:String = kelvin_type_text(t)
     m += article_of(&w)
     m += " "
     m += &w
     m += ", which may change what it borrows, and this is "
-    let v:String = type_text(at)
+    let v:String = kelvin_type_text(at)
     m += &v
     m += ", a let's: write const in the type taken, or borrow a var"
     gen_error(n, m.cstr)
@@ -3117,6 +3173,27 @@ let gen_place(n:int64) {
 let member_unknown(n:int64, y:int64) {
     let t:int64 = nodes[n].t
     let k = types[y].kind
+    if unwrap_nodes.has(n) {                             // x! of no Optional, as kelvinc says it
+        var e = $"'!' unwraps an Optional, and this is "
+        let w:String = kelvin_type_text(y)
+        e += &w
+        e += ": it is a value already"
+        gen_error(n, e.cstr)
+        return
+    }
+    let sd0:int64 = k == Y_STRUCT && !enum_int(y) ? decl_named(types[y].name, D_STRUCT) : 0 - 1
+    if sd0 >= 0 && number_word(t) >= 0 {                 // p.i64 of a struct, as kelvinc says it
+        let w:String = short_number(t)
+        var e = $"'."
+        e += &w
+        e += "' converts a number or reads text, and "
+        e += tok_text(types[y].name)
+        e += nodes[sd0].flag == 1 ? " is a union with no field '" : " is a struct with no field '"
+        e += &w
+        e += "'"
+        gen_error(n, e.cstr)
+        return
+    }
     var m = $"'."
     if k == Y_PTR && types[y].elem >= 0 {
         let ek = types[types[y].elem].kind
@@ -3124,6 +3201,7 @@ let member_unknown(n:int64, y:int64) {
             let w:String = kelvin_type_text(y)
             m += tok_text(t)
             m += "' of "
+            if ek == Y_STRUCT && struct_of(types[y].elem) >= 0 && !enum_int(types[y].elem) { m += "struct " }   // as kelvinc spells it
             m += &w
             m += ", a pointer: its member is '"
             let a:int64 = nodes[n].a
@@ -3157,6 +3235,14 @@ let member_unknown(n:int64, y:int64) {
         return
     }
     let sd:int64 = k == Y_STRUCT && !enum_int(y) ? decl_named(types[y].name, D_STRUCT) : 0 - 1
+    if sd >= 0 && tok_is(t, "addr") {                    // as kelvinc says it
+        gen_error(n, "'.addr' is a property of pointers and functions")
+        return
+    }
+    if sd >= 0 && tok_is(t, "hex") {                     // as kelvinc says it, of a struct with no such field
+        gen_error(n, "'.hex' is a property of integers, of f32/f64, and of pointers and functions")
+        return
+    }
     if sd >= 0 {
         var e = tok_text(types[y].name)
         e += " has no member '"
@@ -3173,6 +3259,17 @@ let member_unknown(n:int64, y:int64) {
             if g >= 0 { e += nodes[g].next >= 0 ? ", " : " and " }
             f = g
         }
+        gen_error(n, e.cstr)
+        return
+    }
+    if is_number_kind(k) && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_NUM {   // 1.f, as kelvinc says it
+        var e = $"'"
+        e += tok_text(nodes[nodes[n].a].t)
+        e += "."
+        e += tok_text(t)
+        e += "': literals have no suffixes in Kelvin, and '"
+        e += tok_text(t)
+        e += "' is not a method"
         gen_error(n, e.cstr)
         return
     }
@@ -3195,6 +3292,13 @@ let kelvin_type_text(y:int64):String {
         let e:String = kelvin_type_text(types[y].elem)
         s += &e
         s += ">"
+        return s
+    }
+    if k == Y_PTR && types[y].elem >= 0 && (types[types[y].elem].kind == Y_ARRAY || types[types[y].elem].kind == Y_SET || types[types[y].elem].kind == Y_DICT) {
+        var s = ptr_const(y) ? $"const " : $""           // Array<i64>^, as kelvinc spells it
+        let e:String = kelvin_type_text(types[y].elem)
+        s += &e
+        s += "^"
         return s
     }
     if k == Y_DICT {                                     // (#288)
@@ -4188,12 +4292,16 @@ let call_target(n:int64):int64 {
             if nodes[a].kind == N_ID && is_case_word(a) { bare = true }
             a = nodes[a].next
         }
-        why += bare ? "(...) fits more than one of its overloads equally: say which Optional none is, binding it first, as in 'let n:int64? = none'" : "(...) fits more than one of its overloads equally: convert an argument, as in 'x as int64'"
+        why += bare ? "(...) fits more than one of its overloads equally: say which Optional none is, as in 'Optional<i64>()' (#222)" : "(...) fits more than one of its overloads equally: convert an argument, as in 'x as f64'"
         gen_error(n, why.cstr)
         d = first
     } else if d < 0 {
         var why = name.copy()
-        why += "(...) fits none of its overloads: C's function of the name is not called where a Kelvin function has it (#223); declare C's beside them"
+        why += "(...) fits none of its "
+        why += String(fn_overloads.get(name, 0))
+        why += " overloads: C's function of the name is not called where a Kelvin function has it (#223); declare C's beside them, as in 'let "
+        why += &name
+        why += "(x:f64):f64'"
         gen_error(n, why.cstr)
         d = first
     }
@@ -6787,6 +6895,10 @@ let number_text_refused(n:int64, k:ykind):bool {
     let w:String = tok_text(t)
     let floating = k == Y_F64 || k == Y_F32
     if is_int_kind(k) || (floating && (tok_is(t, "dec") || tok_is(t, "hex"))) || ((k == Y_PTR || k == Y_CSTR) && tok_is(t, "hex")) { return false }
+    if k == Y_FIXED && tok_is(t, "hex") {                // as kelvinc says it
+        gen_error(n, "'.hex' of an array: an array is no pointer; write '(&a[0]).hex'")
+        return true
+    }
     var m = $"'."
     m += &w
     if floating {
@@ -8110,7 +8222,21 @@ let gen_field(n:int64) {
     }
     let y = type_of(n)
     if y >= 0 && (types[y].kind == Y_CSTR || types[y].kind == Y_PTR) && !tok_is(nodes[n].t, "typename") {   // a type's name is text of its own (#336)
-        gen_error(n, "this is a pointer into an owner that an expression gives, which is freed once the expression is done: bind it to a variable first")
+        var e = $"this is a pointer into "             // the owner named, as kelvinc names it
+        var root:int64 = a                               // the owner the expression gives, under its members
+        while nodes[root].kind == N_FIELD || nodes[root].kind == N_INDEX { root = nodes[root].a }
+        let oy:int64 = type_of(root)
+        var ow = oy >= 0 ? kelvin_type_text(oy) : $"owner"
+        if oy >= 0 && types[oy].kind == Y_STRUCT && struct_of(oy) >= 0 && !enum_int(oy) {
+            var sw = $"struct "
+            sw += &ow
+            ow = sw.copy()
+        }
+        e += article_of(&ow)
+        e += " "
+        e += &ow
+        e += " that an expression gives, which is freed once the expression is done: bind it to a variable first"
+        gen_error(n, e.cstr)
         return
     }
     hold_open(a)
@@ -8465,16 +8591,17 @@ let gen_array_add(y:int64, v:int64, what:cstr) {
         return
     }
     if vy >= 0 && vy != ey && (is_owner(vy) || is_owner(ey)) {
-        var m = $"an element of "
-        let w:String = type_text(y)
+        var m = $"an element of "                        // in kelvinc's words: Array<T>, and a number's literal a number
+        let w:String = kelvin_type_text(y)
         m += &w
         m += " is "
-        let ew:String = type_text(ey)
+        let ew:String = kelvin_type_text(ey)
         m += article_of(&ew)
         m += " "
         m += &ew
         m += ", and this is "
-        let vw:String = type_text(vy)
+        let lit = nodes[v].kind == N_NUM || nodes[v].kind == N_CHAR
+        let vw:String = lit ? $"a number" : kelvin_type_text(vy)
         m += &vw
         gen_error(v, m.cstr)
         return
@@ -8914,7 +9041,7 @@ let gen_method_of(n:int64) {
     }
     if nodes[a].kind == N_TYPE && tok_is(t, "pipe") {                 // IO.pipe() (#464), as kelvinc writes it: its two ends filled
         if nodes[n].b >= 0 {
-            gen_error(n, "IO.pipe takes nothing")
+            gen_error(n, "IO.pipe takes nothing, and gives {reader: IO, writer: IO}")
             return
         }
         put("({ ")
@@ -9177,6 +9304,10 @@ let gen_method_of(n:int64) {
         gen_string_method(n, a, y)                      // (#464)
     } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
         gen_error(n, "'.isEmpty' is a property: read it with no parentheses, as 'x.isEmpty'")   // as kelvinc's (#434)
+    } else if tok_is(t, "fmt") || tok_is(t, "toString") {   // shelved (#22), as kelvinc says it
+        var m:String = tok_text(t)
+        m += "() is not a method: a value's text is 'x.cstr', and String(x.cstr) a String (#22, #55)"
+        gen_error(n, m.cstr)
     } else if !method_elsewhere(n) {
         gen_error(n, "this method is not known")
     }
@@ -9599,7 +9730,7 @@ let gen_make_inferred(n:int64) {
         let y:int64 = is_case_word(e) ? 0 - 1 : type_of(e)
         while e >= 0 {
             if is_case_word(e) || type_of(e) != y || y < 0 {
-                gen_error(n, "the elements have no one type kc sees here: write Array<T>([...])")
+                gen_error(n, "the elements have no one type kelvinc sees here: write Array<T>([...])")
                 return
             }
             e = nodes[e].next
@@ -10427,7 +10558,14 @@ let gen_value_of(n:int64, y:int64) {
     }
     let d = tagged_of(y)
     if d < 0 && y >= 0 && !failed && some_type(type_of(n)) >= 0 {     // as kelvinc says it (#219)
-        gen_error(n, "this is an Optional where a value goes: unwrap it with '!', or give a default with '??'")
+        var m = $"this is "                              // as kelvinc says it
+        let ow:String = kelvin_type_text(type_of(n))
+        m += &ow
+        m += ", an Optional, where "
+        let vw:String = kelvin_type_text(y)
+        m += &vw
+        m += " goes: unwrap it with '!', or give a default with '??'"
+        gen_error(n, m.cstr)
         return
     }
     if d < 0 || failed {
@@ -10436,7 +10574,7 @@ let gen_value_of(n:int64, y:int64) {
     }
     var m = case_word_of(n, d)
     if m >= 0 && nodes[d].c == 1 && nodes[n].kind == N_CALL && nodes[n].ty < 0 {   // Optional<T>.some(v) makes one (#449)
-        gen_error(n, "some(v) makes no Optional: give v where the T? is expected")
+        gen_error(n, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v); some(v) is a pattern, as in 'if let some(v) = x' (#224)")
         return
     }
     if m < 0 && is_case_word(n) {                       // a case the type has not, as kelvinc says it (#341)
@@ -10906,7 +11044,17 @@ let gen_element(n:int64) {
 // would free one and not the other
 let owner_choice(n:int64):bool {
     if !is_owner(type_of(n)) || is_place(nodes[n].b) == is_place(nodes[n].c) { return true }
-    gen_error(n, "this ?: chooses between an owner's place and a value an expression gives, so one would be freed and the other not: return it, copy the place with .copy(), or choose with if")
+    let place:int64 = is_place(nodes[n].b) ? nodes[n].b : nodes[n].c
+    var m = $"this ?: chooses between "                  // the place named, as kelvinc names it
+    if nodes[place].kind == N_ID {
+        m += "'"
+        m += tok_text(nodes[place].t)
+        m += "'"
+    } else {
+        m += "a place"
+    }
+    m += ", an owner's place, and a value an expression gives, so one would be freed and the other not: return it, copy the place with .copy(), or choose with if"
+    gen_error(n, m.cstr)
     return false
 }
 
@@ -11962,7 +12110,7 @@ let gen_expr_of(n:int64) {
         return
     }
     if k == N_LIST {                                     // as kelvinc says it, kc's for its compound literal (#354)
-        gen_error(n, "an array is not a value here: kc reads [a, b] as a declaration's value; elsewhere write its compound literal, ([i32])[1, 2, 3] (#48)")
+        gen_error(n, "an array is not a value here: write a compound literal, as in '([i32])[1, 2, 3]' (#48)")
         return
     }
     if k == N_ITER {                                     // (#326)
@@ -12349,11 +12497,11 @@ let inferred(n:int64):int64 {
     resolve_op(v)
     let k:nkind = nodes[v].kind
     if k == N_STR {
-        if nodes[n].c != 1 { gen_error(n, "text is a reference, a cstr: assign it with :=, not =") }
+        if nodes[n].c != 1 { cstr_ref_error(n) }
         return base_type(Y_CSTR)
     }
     if k == N_TPL && nodes[v].flag == 0 {               // `a${x}b`, a cstr too (#445)
-        if nodes[n].c != 1 { gen_error(n, "text is a reference, a cstr: assign it with :=, not =") }
+        if nodes[n].c != 1 { cstr_ref_error(n) }
         return base_type(Y_CSTR)
     }
     if k == N_CHAR { return base_type(Y_U8) }
@@ -12378,7 +12526,7 @@ let inferred(n:int64):int64 {
         return -1
     }
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "!!") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380); d0 !! d1 (#460)
-        gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
+        needs_type(n)                                  // as kelvinc says it
         return -1
     }
     let w:int64 = k == N_ID ? nodes[v].t : k == N_CALL && nodes[nodes[v].a].kind == N_ID ? nodes[nodes[v].a].t : 0 - 1
@@ -12388,7 +12536,7 @@ let inferred(n:int64):int64 {
         return -1
     }
     if bare_init(v) || k == N_NULL || word {
-        gen_error(n, "this variable needs a type: write name:T, since this value has none of its own")
+        needs_type(n)                                  // as kelvinc says it
         return -1
     }
     let y:int64 = type_of(v)
@@ -12397,7 +12545,7 @@ let inferred(n:int64):int64 {
         return -1
     }
     if y < 0 || types[y].kind == Y_C || types[y].kind == Y_VOID {
-        gen_error(n, "this variable needs a type: write name:T, since kc does not see this value's")
+        needs_type(n)                                  // as kelvinc says it
         return -1
     }
     return y
@@ -12538,11 +12686,35 @@ let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     if k == Y_C || k == Y_ARRAY || k == Y_DICT { return true }   // what only C sees; an Array and a Dictionary, as kelvinc
     let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_FN || (k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4))   // a function's, a pointer in C (#428); a parameter's array (#524)
     if reference == colon { return true }
-    var what = $"'"
-    what += tok_text(t)
-    what += reference ? "' is a reference (" : "' is a value ("
-    what += type_text(y)
-    what += reference ? "): assign it with ':=', not '='" : "): assign it with '=', not ':='"
+    var ty_text = type_text(y)                           // as kelvinc spells it: a parameter's array its pointer, struct node^
+    if k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) {
+        ty_text = type_text(types[y].elem)
+        ty_text += "^"
+    } else if k == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind == Y_STRUCT && struct_of(types[y].elem) >= 0 && !enum_int(types[y].elem) {
+        var st = $"struct "
+        st += &ty_text
+        ty_text = st.copy()
+    }
+    var what = $""
+    if t < 0 {
+        what += "this target"                            // a member, as kelvinc names it
+    } else {
+        what += "'"
+        what += tok_text(t)
+        what += "'"
+    }
+    let hinted = colon && !reference && nodes[n].kind == S_VAR && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_CAST && tok_is(nodes[nodes[n].a].t, ":")
+    if hinted {                                          // buffer := malloc(n):i64, as kelvinc says it
+        what += " would be a value ("
+        what += &ty_text
+        what += "): use '=' for a value, or annotate a reference such as '"
+        what += &ty_text
+        what += "^'"
+    } else {
+        what += reference ? " is a reference (" : " is a value ("
+        what += &ty_text
+        what += reference ? "): assign it with ':=', not '='" : "): assign it with '=', not ':='"
+    }
     gen_error(n, what.cstr)
     return false
 }
@@ -12993,6 +13165,7 @@ let computed_ok(n:int64, y:int64, v:int64):bool {
         if types[f].name <= 0 - 10 && count_names_local(0 - 10 - types[f].name) && zero_size(types[f].elem) {   // as kelvinc says it (#499)
             var m = $"an array of "
             let w:String = kelvin_type_text(types[f].elem)
+            if types[types[f].elem].kind == Y_STRUCT && struct_of(types[f].elem) >= 0 && !enum_int(types[f].elem) { m += "struct " }   // as kelvinc spells it
             m += &w
             m += ", whose elements have no size, takes a constant length: its count is the length, which C's sizeof cannot give, and this one names a local"
             gen_error(0 - 10 - types[f].name, m.cstr)
@@ -13075,6 +13248,9 @@ let gen_fixed_var(n:int64) {
             y = type_of_kind(Y_FIXED, types[y].elem, type_of(v) >= 0 ? types[type_of(v)].name : 0)
             if konst { y = const_fixed(y) }              // (#425)
         }
+    } else if v >= 0 && nodes[v].kind == N_INIT {        // {1, 2, 3}, as kelvinc says it
+        gen_error(v, "an array is initialized with '[...]', not '{...}' (#48)")
+        return
     } else if v >= 0 {                                   // a copy, as C has none
         gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
         return
@@ -13128,6 +13304,7 @@ let gen_var(n:int64) {
     if types[nodes[n].ty].kind == Y_ARGV && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_LIST {   // let names:[cstr] = ["a"] (#354)
         set_ty(n, type_of_kind(Y_FIXED, base_type(Y_CSTR), -1))
     }
+    if types[nodes[n].ty].kind == Y_FIXED && nodes[n].a >= 0 && nodes[n].c == 1 && !assigns_as(n, nodes[n].t, nodes[n].ty, true) { return }   // := of an array, a value, as kelvinc says it
     if types[nodes[n].ty].kind == Y_FIXED {              // (#354)
         gen_fixed_var(n)
         return
@@ -13309,7 +13486,7 @@ let may_change(n:int64):bool {
         let p:int64 = type_of(nodes[d].a)
         if p >= 0 && types[p].kind == Y_PTR && ptr_const(p) {
             var s = $"this changes what a "
-            s += type_text(p)
+            s += kelvin_type_text(p)
             s += " points to, a read-only borrow, as a let's is: borrow a var, or take it without const"
             gen_error(n, s.cstr)
             return false
@@ -13322,7 +13499,9 @@ let may_change(n:int64):bool {
     if how == 0 { return true }
     var s = $"'"
     s += tok_text(nodes[r].t)
-    if how == 2 || how == 5 {
+    if (how == 2 || how == 5) && codes[toks[nodes[r].t].at] == '$' {   // $0 of an anonymous function, as kelvinc says it
+        s += "' is a parameter and cannot change; copy it into a var"
+    } else if how == 2 || how == 5 {
         s += "' is a let parameter and cannot change; write 'var "
         s += tok_text(nodes[r].t)
         s += "' in the parameter list"
@@ -13876,6 +14055,11 @@ let gen_assign(n:int64) {
         if y >= 0 && types[y].kind != Y_PTR && types[y].kind != Y_C {
             var m = $"'"
             m += tok_text(t)
+            if types[y].kind == Y_FIXED {                // as kelvinc says it of an array
+                m += "' is for pointers, and an array does not move: index it, or take a pointer, 'var p := a'"
+                gen_error(n, m.cstr)
+                return
+            }
             m += "' is for pointers, and this is "
             let w:String = kelvin_type_text(y)
             m += &w
@@ -13907,7 +14091,8 @@ let gen_assign(n:int64) {
     }
     let case_set = nodes[lhs].kind == N_FIELD && tagged_of(type_of(nodes[lhs].a)) >= 0   // v.c = [a, b], its _set (#360)
     let moved_param = types[y].kind == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) && tok_is(t, ":=")   // xs := xs.next of a var parameter, a pointer (#524)
-    if types[y].kind == Y_FIXED && !case_set && !moved_param {   // C's, which kelvinc leaves to it (#354)
+    let param_eq = types[y].kind == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) && tok_is(t, "=") && nodes[lhs].kind == N_ID   // a = q of a parameter's array, a reference, said below as kelvinc says it
+    if types[y].kind == Y_FIXED && !case_set && !moved_param && !param_eq {   // C's, which kelvinc leaves to it (#354)
         gen_error(n, "an array is not assigned: assign its elements, a[i]")
         return
     }
@@ -13920,6 +14105,7 @@ let gen_assign(n:int64) {
         empty_error(nodes[n].b)
         return
     }
+    if nodes[lhs].kind == N_ID && (tok_is(t, "=") || tok_is(t, ":=")) && !assigns_as(n, nodes[lhs].t, y, tok_is(t, ":=")) { return }   // = or := first, as kelvinc says it
     if nodes[lhs].kind == N_ID {                         // q := &x of a let (#273)
         var who = $"'"
         who += tok_text(nodes[lhs].t)
@@ -13935,7 +14121,7 @@ let gen_assign(n:int64) {
         }
     }
     let named = nodes[lhs].kind == N_ID || nodes[lhs].kind == N_FIELD
-    if named && (tok_is(t, "=") || tok_is(t, ":=")) && !assigns_as(n, nodes[lhs].t, y, tok_is(t, ":=")) { return }
+    if named && (tok_is(t, "=") || tok_is(t, ":=")) && !assigns_as(n, nodes[lhs].kind == N_FIELD ? 0 - 1 : nodes[lhs].t, y, tok_is(t, ":=")) { return }
     let yk:ykind = types[y].kind
     if named && (tok_is(t, "=") || tok_is(t, ":=")) && nodes[lhs].t < eof_pos {   // what is assigned, of the target's type (#248, #612)
         if record_differs(nodes[n].b, y) { return }
@@ -14271,6 +14457,10 @@ let gen_return(n:int64) {
         gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
         return
     }
+    if text >= 0 && nodes[text].a >= 0 && nodes[nodes[text].a].kind == N_TPL {   // `...`.cstr, a template's, as kelvinc says it
+        gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
+        return
+    }
     if text >= 0 {                                       // a number's text (#447)
         let w:String = tok_text(nodes[text].t)
         var m = $"'."
@@ -14385,7 +14575,7 @@ let gen_is_empty(n:int64) {
     let y:int64 = type_of(a)
     if e < 0 {
         var m = $"'.isEmpty' is a property of collections and iterators, and this is "
-        let w:String = type_text(y)
+        let w:String = kelvin_type_text(y)
         m += &w
         if e == 0 - 2 { m += ", a pointer: write 'p^.isEmpty' of what it points to" }
         gen_error(n, m.cstr)
@@ -14945,12 +15135,10 @@ let gen_fn_value(n:int64, y:int64) {
         }
         let w:String = kelvin_type_text(y)
         m += &w
-        if k == N_ID && var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) >= 0 && given >= 0 {
-            m += ": '"
+        if k == N_ID && var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) >= 0 && given >= 0 {   // as kelvinc says it (#223)
+            m += ": C's function of the name is not taken where a Kelvin function has it (#223); declare C's beside it, as in 'let "
             m += tok_text(nodes[n].t)
-            m += "' is "
-            let g:String = kelvin_type_text(given)
-            m += &g
+            m += "(x:f64):f64'"
         } else if !(k == N_ID && var_type(nodes[n].t) < 0) {
             m += " goes"
         }
@@ -17144,7 +17332,9 @@ let gen_eager(n:int64) {
     }
     let ay:int64 = types[r.src_y].kind == Y_ARRAY ? r.src_y : type_of_kind(Y_ARRAY, r.elem_y, -1)
     if types[r.src_y].kind != Y_ARRAY && types[r.src_y].kind != Y_RANGE && sequence_maker(r.src_y) < 0 && changeable_place(r.src) {   // walking an iterator changes it; a Sequence's walk is a fresh one, a Range's too (#373)
-        let lead = $"walking an iterator changes it, as its var next() does, and this changes "
+        var lead = $"'."                                 // as kelvinc says it: '.map' walks an iterator by its var next()
+        lead += tok_text(nodes[r.node].t)
+        lead += "' walks an iterator by its var next(), which changes "
         if !changes_var(r.src, &lead) { return }
     }
     put("({ ")
@@ -17610,6 +17800,11 @@ let merge_of(n:int64):int64 {
             let vw:String = kelvin_type_text(vy)
             m += &vw
             m += ", and keeps what it gives"
+            if fn >= 0 {                                 // and what it is, as kelvinc says it
+                m += ", and this is "
+                let fw:String = kelvin_type_text(decl_fn_type(fn))
+                m += &fw
+            }
             gen_error(f, m.cstr)
             return 0 - 1
         }
@@ -18772,7 +18967,7 @@ let gen_each(n:int64, depth:int64) {
     }
     if nodes[n].b >= 0 && types[y].kind != Y_DICT {    // as kelvinc says it (#269)
         var s = $"two loop variables walk a Dictionary's entries, 'for k, v in d', and this is "
-        s += nodes[nodes[n].a].kind == N_STR ? $"not one" : type_text(y)    // "hi", which only C sees, as kelvinc says it
+        s += nodes[nodes[n].a].kind == N_STR ? $"not one" : kelvin_type_text(y)    // "hi", which only C sees, as kelvinc says it
         gen_error(n, s.cstr)
         return
     }
@@ -19108,13 +19303,43 @@ let gen_iflet(n:int64, depth:int64) {
         gen_error(e, w.cstr)
         return
     }
-    if d < 0 {
-        gen_error(n, "if let takes an enum with values, an Optional or a Result")
+    if d < 0 {                                           // as kelvinc says it
+        var w = $"'if let "
+        w += tok_text(nodes[n].t)
+        w += "("
+        w += tok_text(nodes[n].flag)
+        w += ")' takes an enum with values, a Result or an Optional, and this is "
+        let yw:String = y >= 0 ? kelvin_type_text(y) : $"not one"
+        w += &yw
+        gen_error(n, w.cstr)
         return
     }
     let m = bare ? value_case(y) : case_named(d, nodes[n].t) ?? 0 - 1
-    if m < 0 || nodes[m].ty < 0 {
-        gen_error(n, "this is no case of a value of this enum")
+    if m < 0 {                                           // as kelvinc says it: the cases it has
+        var w:String = kelvin_type_text(y)
+        w += " has no case '"
+        w += tok_text(nodes[n].t)
+        w += "': its cases are "
+        var c:int64 = nodes[d].a
+        while c >= 0 {
+            w += tok_text(nodes[c].t)
+            let g:int64 = nodes[c].next
+            if g >= 0 { w += nodes[g].next >= 0 ? ", " : " and " }
+            c = g
+        }
+        gen_error(n, w.cstr)
+        return
+    }
+    if nodes[m].ty < 0 {                                 // as kelvinc says it
+        var w = $"case '"
+        w += tok_text(nodes[n].t)
+        w += "' of "
+        let yw:String = kelvin_type_text(y)
+        w += &yw
+        w += " carries no value to bind: test it with '.is("
+        w += tok_text(nodes[n].t)
+        w += ")'"
+        gen_error(n, w.cstr)
         return
     }
     var began:$[bool] = moved_now()                      // what was moved when it began (#605)
@@ -19380,9 +19605,37 @@ let gen_switch(n:int64, depth:int64) {
         var d = -1
         if y >= 0 && types[y].kind == Y_STRUCT { d = decl_named(types[y].name, D_ENUM) }
         if d < 0 {
-            gen_error(n, "a switch that is not on an enum has default:")
+            gen_error(n, "a switch handles every value: add 'default:'")   // as kelvinc says it
         } else if !names_every(n, d) {
-            gen_error(n, "a switch on an enum names every enumerator, or has default:")
+            var miss = $""                               // the ones not named, as kelvinc lists them
+            var count:int64 = 0
+            var m:int64 = nodes[d].a
+            while m >= 0 {
+                var found = false
+                var c:int64 = nodes[n].b
+                while c >= 0 {
+                    var v:int64 = nodes[c].a
+                    while v >= 0 {
+                        if same_text(case_word(v), nodes[m].t) { found = true }
+                        v = nodes[v].next
+                    }
+                    c = nodes[c].next
+                }
+                if !found {
+                    if count > 0 { miss += ", " }
+                    miss += tok_text(nodes[m].t)
+                    count += 1
+                }
+                m = nodes[m].next
+            }
+            var e = $"switch on "
+            e += tok_text(types[y].name)
+            e += " is not exhaustive: "
+            e += &miss
+            e += count == 1 ? " is missing; write every " : " are missing; write every "
+            e += tagged_of(y) >= 0 ? "case" : "enumerator"
+            e += ", or add 'default:'"
+            gen_error(n, e.cstr)
         } else {
             indent(depth)
             put("default:\n")
