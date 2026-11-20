@@ -208,8 +208,7 @@ Each document says so in its "Where it lives" section. In short:
   `__signed__` and `__int128` (use `i128`), because in C they can act
   as casts or prefix operators.
 - Names starting with `_kv_` belong to the C that kelvinc writes, and
-  `kv_` and `KV_` ones to its runtime, so Kelvin cannot declare them
-  *(provisional P44)*.
+  `kv_` and `KV_` ones to its runtime, so Kelvin cannot declare them.
   - Nor can it read a `_kv_` name (#388), such as `_kv_arg0`, an
     unnamed parameter's.
   - kelvinc names what it writes after the source, as in `_kv_n_text`

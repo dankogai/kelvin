@@ -164,8 +164,7 @@ Kelvin has no `void` type:
   - A `let` pointer, a number, an array, a function and `any^` are
     errors, and so is a `cstr`, which is text, not a cursor (#52): take
     a `var p:u8^ := s` to step.
-  - A pointer only C sees, as `getenv`'s, steps as C allows
-    *(provisional P63)*.
+  - A pointer only C sees, as `getenv`'s, steps as C allows.
 - `p.next` is `p + 1` and `p.prev` is `p - 1`, a value, for a pointer
   kelvinc can see; `any^` has neither.
   - On anything else, `.next` is a field, so a list still walks with

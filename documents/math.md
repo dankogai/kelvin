@@ -185,7 +185,7 @@ have these built in, JavaScript and Perl among them.
   - `c32(text)` is the same, of `f32` parts; the text is a `cstr`, or
     a `String` by reference, `c64(&s)`.
 - C99's special values for infinities and NaNs are not attempted,
-  except for `sqrt` and division by an infinity *(provisional P54)*.
+  except for `sqrt` and division by an infinity.
 - kelvinc compiles with `-ffp-contract=off`, so clang computes `a * b +
   c` with two roundings, as gcc does, and the results are the same with
   both.

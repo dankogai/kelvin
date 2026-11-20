@@ -296,8 +296,7 @@ let u:():() := tick        // the same, the result written out (#141)
   type with `u8^` ones.
   - C's `char` and `unsigned char` make incompatible function types, so
     `let p:(const u8^, ...):i32 := printf` fails.
-  - Wrap it instead: `let cmp:(cstr, cstr):i32 := { strcmp($0, $1) }`
-    *(provisional P43)*.
+  - Wrap it instead: `let cmp:(cstr, cstr):i32 := { strcmp($0, $1) }`.
 
 ### Anonymous functions: `{ ... }`
 
@@ -401,7 +400,7 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):int32 in
   - Inside any parentheses, an initializer list, or the condition of
     `do ... while`, it stays an argument.
 - Written parameters let a declaration infer its type:
-  `let mul := { (a:i64, b:i64):i64 in a * b }` *(provisional P44)*.
+  `let mul := { (a:i64, b:i64):i64 in a * b }`.
 
 ### Overloading: functions of one name
 

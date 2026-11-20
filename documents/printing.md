@@ -182,7 +182,7 @@ let card:cstr := `name: ${name}
     past it, and shown whole up to 256 bytes.
   - Other strings (`.cstr` of a string too), and values only C sees,
     show at most 256 bytes: a longer one shows its first 253 and `...`,
-    and ``s := `${s}b` `` stops growing at 257 *(provisional P56)*.
+    and ``s := `${s}b` `` stops growing at 257.
     - `KELVIN_CFLAGS=-DKV_TEMPLATE_STR=4096` raises the limit (it is at
       least 64); for longer text, use `print` or C's `snprintf`.
     - Each such value takes that much stack, twice while its text is
@@ -214,7 +214,7 @@ let card:cstr := `name: ${name}
 - **Without `${...}`** a template is a plain string literal, so it also
   works where C needs a constant.
   - With one, it is made at run time, so a global or a `static` cannot
-    be initialized with it *(provisional P50)*.
+    be initialized with it.
 
 ## Where it lives
 

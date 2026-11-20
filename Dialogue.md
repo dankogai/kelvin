@@ -12548,3 +12548,12 @@ documents.
 
 There are 1466 tests, and all pass with clang and with gcc 15.
 
+### 681. The review, batch 2
+
+**Claude** pushed #633, its battery clean. The detail rows P37 to
+P137, 100 of them, are marked confirmed, as the user confirmed them,
+"as they stand, each read as later numbers amend it", and 19 marks
+*(provisional Pn)* leave the documents.
+
+There are 1466 tests, and all pass with clang and with gcc 15.
+

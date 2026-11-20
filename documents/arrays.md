@@ -42,7 +42,7 @@ passed to a function is a pointer. Byte arrays that hold text are in
     `count * sizeof(T)`.
   - A `var` array's elements may change, a `let` array's may not.
   - An array passed to a function is a pointer, as in C, so `.count`
-    there is an error: pass the count beside it *(provisional P61)*.
+    there is an error: pass the count beside it.
 
 ```swift
 var a:[int32](4)                  // C: int32_t a[4]

@@ -51,8 +51,7 @@ let q = (point){.y = 7}     // a compound literal; q is a point
   - A struct from a C header has a bare name once Kelvin declares it,
     as in `struct timespec`, but in `sizeof` write
     `sizeof(struct timespec)`, since headers give such names to
-    functions and variables too (`stat`, `timezone`)
-    *(provisional P41)*.
+    functions and variables too (`stat`, `timezone`).
 
 ### Defined inside: `shape.size`
 
@@ -201,7 +200,7 @@ let vector2d.cstr():cstr { `(${.x}, ${.y})` }            // .x is self.x
 - `v.cstr`, `${v}` in a template and the derived text of a struct that
   holds a `vector2d` all use it.
 - It takes no parameters, gives a `cstr`, is read as a property,
-  `v.cstr`, and a built-in type's text stays fixed *(provisional P65)*.
+  `v.cstr`, and a built-in type's text stays fixed.
   See [properties.md](properties.md).
 - **Text of any length** is `let T.string:String { ... }` (#506), an
   attribute that builds a String, as a big number's digits need:
@@ -313,7 +312,7 @@ let main():int32 {
     - So may a field, read as `b.toString`.
 - **`String` is a type** (#55), the prelude's text on the heap
   ([strings.md](strings.md)).
-  - It is a keyword *(provisional P67)*: a struct, a variable or a
+  - It is a keyword: a struct, a variable or a
     function named `String` is an error, `expected a name, found
     'String'`.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
@@ -414,7 +413,7 @@ let main():int32 {
   - Its C name is named by its types, as an operator's is:
     `_kv_add_assign_op__BigIntp__i64`.
 - `x op= y` where the type defines no `op=` that fits is `x = x op y`,
-  so `x` is evaluated twice and may not hold a call *(provisional P53)*.
+  so `x` is evaluated twice and may not hold a call.
   - The same for an enum with values (#128), and for one that owns,
     `x` is read before what it held is freed, so `x += y` keeps its
     value; so does `x = f(x)`.

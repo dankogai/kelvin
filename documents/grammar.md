@@ -388,8 +388,7 @@ statements too, for pointers only (#26, #51):
 - `=`, `:=`, the compound assignments (`+=`, `~=`, ...) and `p++`
   appear only as a statement of their own, or in a `for` clause.
   - Both take a comma list, run left to right:
-    `for (var i = 0, j = 10; i < j; i += 1, j -= 1)`, `x = 1, y = 2`
-    *(provisional P38)*.
+    `for (var i = 0, j = 10; i < j; i += 1, j -= 1)`, `x = 1, y = 2`.
   - A list either declares, after `let` or `var`, or assigns.
 - So nothing can be changed inside `[...]`, a condition or an argument,
   except by a function call.

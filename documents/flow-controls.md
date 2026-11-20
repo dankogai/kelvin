@@ -68,7 +68,7 @@ do {
   still works, while C's `if (n > 0) n = 0;` is an error, since the body
   must be a block. `else` is followed by a block or by `if`.
 - C's `for` keeps its parentheses, and its body may still be a single
-  statement *(provisional P37)*. To count, prefer a range (below).
+  statement. To count, prefer a range (below).
 - `goto` and labels are C's.
 
 ### Switch: a case ends at the next
@@ -187,7 +187,7 @@ for i in r { ... }         // r a Range value: its values
 - `i`'s type is written, as in `for i:u8 in`, or comes from the bounds.
   - The upper bound's type if kelvinc sees it (`0..<n` with `n:i32`
     gives `i32`), else the lower one's, else `i64` for literals.
-  - A range is of integers *(provisional P40)*.
+  - A range is of integers.
 - A bound is an expression down to the shifts, so `0..<n - 1` stops before
   `n - 1`. `continue` and `break` work as in any loop.
 - `..<b` and `...b` start at 0, and `a...` has no end (#373).
@@ -223,7 +223,7 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
   `for _ in s` names no variable.
   - `for b:u8 in xs` converts each element for `b`.
     - As `T(v)` does: `for n:u32 in s` gives each codepoint (#480).
-  - These are an error *(provisional P42)*:
+  - These are an error:
     - a number, `any^`, or an array of arrays;
     - a C struct whose fields kelvinc cannot see;
     - an array in a value that a call returns (`make().xs`, which C

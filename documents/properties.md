@@ -142,7 +142,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - A result type cannot name a parameter (C writes the result first),
     and `point.type` of a type or `i64.type` asks for the type itself.
   - A variable used only for its `.type` or `.typename` is unused as far
-    as C sees (`-Wunused-variable` under `-Wall`) *(provisional P45)*.
+    as C sees (`-Wunused-variable` under `-Wall`).
 - **`v.typename`** is the text of `v`'s type as Kelvin writes it, a
   `cstr`: `"i64"`, `"point"`, `"u8^"`, `"[i32](4)"`, `"(i64):i64"`,
   `"((i64):i64)^"`.
@@ -233,7 +233,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - Pointers have no `.dec`, `.oct` or `.bin`, and `.cstr` is as
     before: a string's own text, another pointer's `%p`-like text
     (`0x16ee86888`, `nowhere` for a null one, #260), and none for a
-    function *(provisional P48)*.
+    function.
 - **Pointers and functions** also have `.isNull` (#50): `p.isNull` is
   `p == nowhere`, a `bool`, so `if p.isNull { }` and
   `while !f.isNull { }` read as they sound.
@@ -241,8 +241,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     included.
   - A struct's field named `isNull` wins, and a value only C sees keeps
     its field, as with `.addr`, so there write `== nowhere`.
-  - An array is never null, so `a.isNull` is an error
-    *(provisional P62)*.
+  - An array is never null, so `a.isNull` is an error.
 - **The text lives on the caller's stack**, in a buffer sized in
   advance.
   - For `.dec` and friends, to fit the text of any type (at most 132
