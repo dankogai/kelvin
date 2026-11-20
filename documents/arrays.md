@@ -85,6 +85,9 @@ let s:[uint8] = "hi"                       // a string fills a byte array
   member, a typedef), either is accepted, as both are C's `{ }`.
 - An item that starts with `[` is a nested array unless `=` follows
   it, which makes it a designator.
+- Fewer elements than the count leave the rest zero, as in C.
+  - More are an error (#647), where C only warned and dropped them:
+    `[i64](3) holds 3 elements, and this gives 4`.
 - an array literal whose items are all of one inferred type is an array
   of them (#48):
   - `let a = [1, 2, 3]` is `[i64](3)`, `[1.5, 2.0]` is `[f64](2)`,

@@ -783,3 +783,5 @@ So far the changes from C are these, by topic.
   (#645)
 - Two definitions of one name at the top level, of any kinds, are
   kelvinc's error, where they were C's (#646)
+- A value past a struct's last member or an array's count is kelvinc's
+  error, where C only warned (#647)

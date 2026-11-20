@@ -10728,6 +10728,9 @@ static Expr *parse_initializer_for(Type *t) {
     Expr *e = new_expr(E_INIT, open->pos);
     int next = 0;      /* the member of the next item without a designator */
     bool lost = false; /* C's current object is inside a member, which kelvinc does not follow */
+    Token *past = NULL; /* the first value past the last member or element (#647) */
+    int past_limit = 0;
+    bool designated = false;
     List moving_in = {0}; /* the local owners its members take, and their types (#503) */
     while (!is_p(peek(), bracket ? "]" : "}")) {
         Expr *d = NULL;
@@ -10774,6 +10777,17 @@ static Expr *parse_initializer_for(Type *t) {
                                                       : NULL;
         if (d)
             expect_p("=");
+        if (!d && !lost && !past) { /* a value past the last member or element, which C only warns of (#647) */
+            int limit = record ? (record->kind == D_UNION ? 1 : record->members.len) : -1;
+            unsigned long long n;
+            bool neg;
+            if (bracket && t && t->kind == T_ARRAY && t->size && int_literal_value(t->size, &n, &neg) && !neg)
+                limit = (int)n;
+            if (limit >= 0 && (record ? next : e->items.len) >= limit) {
+                past = peek();
+                past_limit = limit;
+            }
+        }
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = string_of_literal(drop_cstr(parse_initializer_for(item), item), item); /* a cstr into a u8^ member (#52) */
         value = optional_of(value, item, value->pos); /* a T into a T? member (#72) */
@@ -10797,6 +10811,7 @@ static Expr *parse_initializer_for(Type *t) {
             lost = true;
         list_push(&e->designators, d);
         list_push(&e->items, value);
+        designated = designated || d;
         next++;
         if (!accept_p(","))
             break;
@@ -10806,6 +10821,23 @@ static Expr *parse_initializer_for(Type *t) {
     brace_in_for = saved_for;
     expect_p(bracket ? "]" : "}");
     e->bracket = bracket;
+    if (past) { /* (#647) */
+        bare_tags = true;
+        const char *what = kelvin_type(bracket ? t : unqualified(t)); /* an array as written, [i64](3) */
+        bare_tags = false;
+        if (bracket)
+            error_at(past->pos, designated ? "%s holds %d elements, and this value is past its last"
+                                           : "%s holds %d elements, and this gives %d",
+                     what, past_limit, e->items.len);
+        else if (record->kind == D_UNION)
+            error_at(past->pos, "%s holds one of its members at a time, and this gives a second value: write one, "
+                                "as in '{.%s = v}'",
+                     what, ((Var *)record->members.data[record->members.len - 1])->name);
+        else
+            error_at(past->pos, designated ? "%s has %d member%s, and this value is past its last"
+                                           : "%s has %d member%s, and this gives %d",
+                     what, past_limit, past_limit == 1 ? "" : "s", e->items.len);
+    }
     if (moving_in.len) { /* a local owner moves into a struct's literal, as into a call (#503) */
         bare_tags = true;
         char *lit = strfmt("a literal of %s", kelvin_type(unqualified(t)));

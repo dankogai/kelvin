@@ -10261,7 +10261,43 @@ let gen_written(v:int64, y:int64) {
     put("{0}")
 }
 
+// a value past a struct's last member, or a union's second, as kelvinc
+// says it (#647)
+let past_last_error(n:int64, s:int64, at:int64) {
+    var designated = false
+    var x:int64 = nodes[n].b
+    while x >= 0 {
+        if nodes[x].kind == N_DESIG { designated = true }
+        x = nodes[x].next
+    }
+    var m:String = kelvin_name(nodes[s].t)
+    let members:int64 = count_args(nodes[s].a)
+    if nodes[s].flag == 1 {                              // a union (#453)
+        var last:int64 = nodes[s].a
+        while nodes[last].next >= 0 { last = nodes[last].next }
+        m += " holds one of its members at a time, and this gives a second value: write one, as in '{."
+        let w:String = tok_text(nodes[last].t)
+        m += &w
+        m += " = v}'"
+    } else {
+        m += " has "
+        m += String(members)
+        m += members == 1 ? " member, and this " : " members, and this "
+        if designated {
+            m += "value is past its last"
+        } else {
+            m += "gives "
+            m += String(count_args(nodes[n].b))
+        }
+    }
+    gen_error(at, m.cstr)
+}
+
 let gen_init(n:int64, s:int64) {
+    if nodes[s].flag == 1 && nodes[n].b >= 0 && nodes[nodes[n].b].next >= 0 && nodes[nodes[n].b].kind != N_DESIG && nodes[nodes[nodes[n].b].next].kind != N_DESIG {
+        past_last_error(n, s, nodes[nodes[n].b].next)
+        return
+    }
     put("{")
     var a:int64 = nodes[n].b
     var f:int64 = nodes[s].a
@@ -10285,7 +10321,7 @@ let gen_init(n:int64, s:int64) {
             v = nodes[a].a
         }
         if f < 0 {
-            gen_error(a, "this struct has fewer members")
+            past_last_error(n, s, a)
             return
         }
         if is_owner(nodes[f].ty) && nodes[v].kind == N_ID && var_type(nodes[v].t) >= 0 && is_owner(type_of(v)) {

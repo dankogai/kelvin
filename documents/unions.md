@@ -31,6 +31,8 @@ than the one last written is C's type punning, with C's rules.
     `sizeof(bits)`, `(bits){.f = 1.5}`; `union bits` still works.
 - **Initializers** are `{...}`, C's: the first member, or a designated
   one, `{.f = 1.5}`. `[...]` is for arrays, and an error here.
+  - A second value is an error (#647), as a union holds one member at
+    a time: `{1, 2}` says to write one, as in `{.f = v}`.
 - **`.size`** is the largest member's, padded as C pads it.
 - **Text**: `b.cstr` is `<union bits>`, since kelvinc cannot tell which
   member holds the value.

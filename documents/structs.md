@@ -180,6 +180,9 @@ A struct is initialized with `{...}`, as in C, with C's designators:
   type fills a struct member.
 - `return {3, 4}` in a function that returns the struct takes its type
   too (#77), as does a `return {.y = 7}`.
+- Fewer values than members leave the rest zero, as in C.
+  - A value past the last member is an error (#647), where C only
+    warned and dropped it: `p has 1 member, and this gives 2`.
 
 ### Text
 

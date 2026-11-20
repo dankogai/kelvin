@@ -12707,3 +12707,17 @@ structs of one name.
 Details are provisional P651.
 
 There are 1488 tests, and all pass with clang and with gcc 15.
+
+### 694. Too many values in a literal
+
+**Claude** pushed #646, its battery clean, and made the second fault
+#647: a value past the last member of a struct, or the count of a fixed
+array, was only C's warning, and the value dropped; it is kelvinc's
+error now, `p has 1 member, and this gives 2` and `[i64](3) holds 3
+elements, and this gives 4`, and a union's second value says to name
+one. kc said the array's already, and says the struct's and the
+union's in kelvinc's words.
+
+Details are provisional P652.
+
+There are 1495 tests, and all pass with clang and with gcc 15.
