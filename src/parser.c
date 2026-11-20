@@ -15303,6 +15303,9 @@ static Stmt *parse_stmt_here(void) {
         return s;
     }
     bool annotation = reject_bare_declaration(cur);
+    if (is_kw(t, "register") && (is_kw(peek2(), "var") || is_kw(peek2(), "let"))) /* left out on purpose (#640) */
+        error_at(t->pos, "'register' is C's hint to keep a variable in a register, which compilers decide for "
+                         "themselves: Kelvin leaves it out on purpose (#640); write 'var' alone");
     if (is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "register") || is_kw(t, "auto"))
         reject_c_declaration();
     if (accept_kw("if")) {

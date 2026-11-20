@@ -12604,3 +12604,24 @@ With it, no row before P645 is provisional: the review is done, and the
 rows of later numbers are provisional until reviewed.
 
 There are 1466 tests, and all pass with clang and with gcc 15.
+
+### 687. C's features: register, _Noreturn and the prefixes
+
+**Claude** pushed #639, its battery clean, the last of the review. Then
+the user's order, "then fix C's features not yet written", and "push
+each C feature too when its battery is clean". **Claude** asked six
+things; the user answered:
+
+- **_Noreturn**: no word, as #625 marks a function that never returns.
+- **_Thread_local**: `thread_local var x`, #641.
+- **_Atomic**: `atomic`, a qualifier as `const` is, #642.
+- **register**: left out on purpose.
+- **The prefixes**: all left out, over the recommended `L"..."` alone.
+- **The preprocessor**: `#if os(...)` of Kelvin's own, #643.
+
+This is the first: `register var n:i64 = 1` is kelvinc's error, which
+says it is left out on purpose, where it was an expression expected; kc
+says the same. The prefixes were refused already, by #295.
+
+There are 1467 tests, and all pass with clang and with gcc 15.
+

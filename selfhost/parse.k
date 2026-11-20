@@ -3367,6 +3367,10 @@ let parse_statement():int64 {
         parse_error("a trailing function starts on the line of the call's ')': on the next line, '{' starts a block")
         return make_node(S_BLOCK, t)
     }
+    if at_word("register") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {   // left out on purpose, as kelvinc says it (#640)
+        parse_error("'register' is C's hint to keep a variable in a register, which compilers decide for themselves: Kelvin leaves it out on purpose (#640); write 'var' alone")
+        return make_node(S_BLOCK, t)
+    }
     if at_word("typedef") {                              // as kelvinc says it
         parse_error("'typedef' is C's: Kelvin names a type anew with typealias, 'typealias A = T', at the top level (#294)")
         return make_node(S_BLOCK, t)

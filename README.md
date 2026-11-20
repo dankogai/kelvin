@@ -768,3 +768,6 @@ So far the changes from C are these, by topic.
   `twice(n)` of an `i32` calls `twice(n:i64)` over `twice(x:f64)`,
   where it was an error; the open questions Q5, Q10 and Q12 are closed
   (#632)
+- `register` is an error that says it is left out on purpose, and
+  `_Noreturn` needs no word, as kelvinc marks a function that never
+  returns itself (#640)

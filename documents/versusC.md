@@ -235,8 +235,12 @@ These C features stay out, as decided (#294):
 - **`long double`**: its meaning is the platform's, and aarch64 has no
   binary128 in hardware.
   - `f128` stays on the wishlist until that is resolved.
-- **String prefixes** (`L"..."`, `u8"..."`): a Kelvin source is always
-  UTF-8, valid and without a BOM.
+- **`register`**: C's hint to keep a variable in a register, which
+  compilers decide for themselves, is an error that says so (#640).
+- **`_Noreturn`**: no word is needed, as kelvinc marks a function that
+  never returns so itself (#625).
+- **String prefixes** (`L"..."`, `u8"..."`, `u"..."`, `U"..."`): a
+  Kelvin source is always UTF-8, valid and without a BOM (#640).
   - The one prefix is `$"..."`, a String.
   - A prefix, a BOM and a byte that is no UTF-8 are errors (#295).
 - **Deep generics**: generics stay shallow on purpose.

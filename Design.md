@@ -693,6 +693,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 637 | The review of the provisional rows, batch 5: the detail rows P338 to P437, 100 rows of Details of #N, are confirmed as they stand, each read as later numbers amend it, each row marked so, no document marking any of them provisional. The user's order, "then review the provisional rows in batches", and of the batch put to the user the answer, the recommended: confirm, as amended later; records | Design.md's P rows | tests/docs.sh, the documents' examples as they were | 2026-11-20 |
 | 638 | The review of the provisional rows, batch 6: the detail rows P438 to P537, 100 rows of Details of #N, are confirmed as they stand, each read as later numbers amend it, each row marked so, no document marking any of them provisional. The user's order, "then review the provisional rows in batches", and of the batch put to the user the answer, the recommended: confirm, as amended later; records | Design.md's P rows | tests/docs.sh, the documents' examples as they were | 2026-11-20 |
 | 639 | The review of the provisional rows, batch 7: the detail rows P538 to P644, 107 rows of Details of #N, are confirmed as they stand, each read as later numbers amend it, each row marked so, and the last two marks of two rows each, P19 with P60 and P36 with P64, taken out of the documents. With it no row before P645 is provisional; versusC.md says the rows reviewed are confirmed, and those of later numbers provisional until reviewed. The user's order, "then review the provisional rows in batches", and of the batch put to the user the answer, the recommended: confirm, as amended later; records | Design.md's P rows; documents/versusC.md | tests/docs.sh, the documents' examples as they were | 2026-11-20 |
+| 640 | Of C's features not yet in Kelvin, the TODO of Design.md, three are settled: `register`, C's hint to keep a variable in a register, which compilers decide for themselves, is left out on purpose, register var n:i64 = 1 being kelvinc's error, 'register' is C's hint to keep a variable in a register, which compilers decide for themselves: Kelvin leaves it out on purpose (#640); write 'var' alone, where it was expected an expression, found 'register'; `_Noreturn` needs no word, kelvinc marking a function that never returns so itself (#625); and the string prefixes L"...", u8"...", u"..." and U"..." are left out on purpose, as #295's error has it. kc says the error of register in the same words. The user's order, "then fix C's features not yet written", and of the six asked the user's answers: register left out, the recommended; _Noreturn no word, the recommended; the prefixes all left out, over L"..." alone; kelvinc and kc | src/parser.c; selfhost/parse.k; documents/versusC.md; Design.md's TODO | tests/error/register_left_out.k | 2026-11-20 |
 
 Notes:
 
@@ -1277,6 +1278,17 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (640) Agreed details: register, _Noreturn and the prefixes
+  - The user's order: "then fix C's features not yet written", and
+    "push each C feature too when its battery is clean".
+  - The user's answers of the six asked:
+    - _Noreturn: no word, #625 answers it (recommended).
+    - _Thread_local: thread_local var x (recommended), #641.
+    - _Atomic: an atomic qualifier, as const (recommended), #642.
+    - register: left out on purpose (recommended).
+    - The prefixes: all left out, over the recommended L"..." alone.
+    - The preprocessor: #if os(...) of Kelvin's own (recommended), #643.
 
 - (639) Agreed details: the review, batch 7
   - The detail rows P538 to P644, put to the user as a file and
@@ -11656,6 +11668,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P642 | Confirmed (#639), as later numbers amend it: Details of #630 | kc's gen.k: `variant_method_wrong` in type_of of an N_METHOD; IO.stdlog and IO.popen's count in type_of; `'try'` and `??` of no variant there too; member_unknown of an IO's number word, .pretty of what has no text indented, an unwrap's x.some of `unwrap_nodes`, .next and .prev of a function; an IO's and .pretty(n)'s in gen_method's last branch; `anon_arg_refused`, finding the call an anonymous function is given to, in anon_type and count_wrong. parse.k: `fn_parsing` around a body, which `$(...)` calls; a function type's names and its ^; a label before a declaration; var f(...) in a body, but var T (*f)(...); extern lazy; #import in a struct's members. lex.k: `inline_c_check`, kelvinc's lex_inline_c. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P643 | Confirmed (#639), as later numbers amend it: Details of #631 | kc's gen.k: a list's walk through a pointer to a struct, its next or its fields not seen; a var array parameter in gen_print_args_to; an owner given where a borrow goes, in method_target's last error; .toBase64's word; Bytes.fromBase64 of a String in type_of; makeIterator of a struct in gen_method's last branch, by `has_method_named`; `global_named` in member_fixed_ok; [...] in Array<T>(...)'s elements; text rows of an uncounted [[T]]; `change_method`, set in gen_method, for a String's bytes changed through its read-only borrow; Array(n) of a number with no T. parse.k: extend's members; lent in an anonymous function's parameters; sizeof T const^; `prev_line_ends_call` before a block that is an anonymous function. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P644 | Confirmed (#639), as later numbers amend it: Details of #632 | kelvinc: `same_kind_best` in choose_among, of the overloads left tied, keeps those not beaten on the kinds of the numbers given, `number_kind_of` an argument's class i or f, a literal's by power_class, against each parameter's class. kc: the same in choose_among's ties, `number_kind_of` and `param_kind_of`, a literal's kind by its point or its e. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
+| P645 | Details of #640 | kelvinc: in parse_stmt, register before var or let is the error, before reject_c_declaration's of C's own declaration. kc: in parse_statement, the same. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 
 ## Open questions
 
@@ -11728,10 +11741,9 @@ undefined behavior.
 
 As of 0.1.0 (#467); those since done are listed after.
 
-- The rest of the preprocessor (`#define`, `#if`, ...). Headers are
-  covered by `#import ... as C`.
-- `register`, `_Atomic`, `_Thread_local`, `_Noreturn`
-- String prefixes (`L"..."`, `u8"..."`)
+- `_Atomic` (#642 to make) and `_Thread_local` (#641 to make)
+- `#if` as `#if os(...)` (#643 to make); `#define` is left out, a
+  constant being a `let` or an enum's, headers covered by `#import ... as C`
 
 Done since this list was first written:
 
@@ -11743,6 +11755,11 @@ Done since this list was first written:
 - `inline` (#392), `restrict` (#393), `alignas` for `_Alignas` (#396),
   `static_assert` (#394); `_Generic` is left out on purpose (#397)
 - Unnamed parameters (#388)
+- `_Noreturn` needs no word: kelvinc marks a function that never returns
+  so itself (#625, closed by #640)
+- `register` is left out on purpose, an error that says so (#640); the
+  string prefixes `L"..."`, `u8"..."`, `u"..."` and `U"..."` are left out
+  on purpose, the error #295 made (#640)
 
 ## Ideas tried in the first cut and set aside
 
