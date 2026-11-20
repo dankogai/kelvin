@@ -12528,3 +12528,23 @@ answer are run tests now. Details are provisional P644.
 
 There are 1466 tests, and all pass with clang and with gcc 15.
 
+### 680. The review, its first batch
+
+**Claude** pushed #632, its battery clean. Then the review of the
+provisional rows. Of the 644, 37 are decisions of design and 607 are
+Details of #N, how each change was built. **Claude** put the 37 to the
+user as a file, and asked how the rest should go; the user answered
+with the recommended of each:
+
+- **The 37**: confirmed as recommended: 32 confirmed, and P1, P2, P3,
+  P25 and P29 retired, superseded by later changes.
+- **The 607**: in batches of about 100.
+
+The user confirmed the six batches of detail rows in turn, each "as
+they stand, each read as later numbers amend it"; each is a number of
+its own, #634 to #639. This is the first: the 32 rows are marked
+confirmed and the 5 retired, and 28 marks *(provisional Pn)* leave the
+documents.
+
+There are 1466 tests, and all pass with clang and with gcc 15.
+

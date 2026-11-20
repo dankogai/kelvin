@@ -26,8 +26,7 @@ A union is declared, named, initialized and used as a struct is, with
 C's meaning: its members share one storage, and reading a member other
 than the one last written is C's type punning, with C's rules.
 
-- **Members** are written `name: type`, ended by `;` or a new line
-  *(provisional P8)*.
+- **Members** are written `name: type`, ended by `;` or a new line.
   - A union is a type by its bare name (#29): `var b:bits`,
     `sizeof(bits)`, `(bits){.f = 1.5}`; `union bits` still works.
 - **Initializers** are `{...}`, C's: the first member, or a designated

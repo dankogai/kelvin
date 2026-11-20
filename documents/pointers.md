@@ -123,7 +123,7 @@ for (var n:node^ := list; n != nowhere; n := n^.next) { ... }
   see the target's type: variables, parameters, `self`, fields of Kelvin
   structs, `p^` and `a[i]`.
   - Targets it cannot see, such as C typedef types, fields of C structs
-    and call results, are not checked *(provisional P32)*.
+    and call results, are not checked.
 - Pointer arithmetic is unchanged (`p + 1`, `p += 1`, `p - q`), and a
   pointer steps by one element with `p.next` and `p.prev` (#26).
 - An array is a value, even an array of pointers:
@@ -146,10 +146,10 @@ Kelvin has no `void` type:
 - **A reference declared without a value is `nowhere`**, so `var p:any^`
   means `var p:any^ := nowhere`.
   - This applies to every pointer declaration (`var q:i32^`), local or
-    global, but not to `extern` ones *(provisional P33)*.
+    global, but not to `extern` ones.
 - **A function without a result** omits `: type`, as before.
 - **To discard a value**, write it as a statement. There is no `(void)x`,
-  and C may warn about an unused value *(provisional P33)*.
+  and C may warn about an unused value.
 
 `void` is rejected with a hint wherever it is written: `let f():void`,
 `var p:void^`, `(void)x`, `x as void`.

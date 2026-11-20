@@ -103,7 +103,7 @@ text, print and show as text. Integers are in
   an `f64`.
   - kelvinc compiles with `-ffp-contract=off`, so clang computes
     `a * b + c` with two roundings, as gcc does, and the results are
-    the same with both *(provisional P55)*.
+    the same with both.
 - **`x.abs`** is the magnitude, of its type, C's `fabs` or `fabsf`
   (#381), with no import: `(-2.5).abs` is 2.5, and `(-0.0).abs` 0.0.
   - `x.abs()`, math's method, is the same.

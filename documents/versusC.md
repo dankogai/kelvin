@@ -197,7 +197,7 @@ Each document says so in its "Where it lives" section. In short:
   `f64`, `bool`, `true`, `false`, `String`, `Bytes`, `Array`,
   `Dictionary`, `Set`, `Optional`, `Result`, `uchr` (no more, #528,
   kept for the error that names `u32`), `any`, `nowhere`
-  and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
+  and `cstr`, `as` (#14), `let` and `var`
   (#27), `fallthrough` (#386), `Bits` (no more, #532, kept for the
   error that names `.bits`), `static_assert` (#394), `alignof` (#395),
   `alignas` (#396) and `typeof` (#398).
@@ -206,7 +206,7 @@ Each document says so in its "Where it lives" section. In short:
 - It also rejects C compiler keywords beyond C11, such as
   `__extension__`, `__real__`, `__alignof__`, `__typeof__`, `_BitInt`,
   `__signed__` and `__int128` (use `i128`), because in C they can act
-  as casts or prefix operators *(provisional P20)*.
+  as casts or prefix operators.
 - Names starting with `_kv_` belong to the C that kelvinc writes, and
   `kv_` and `KV_` ones to its runtime, so Kelvin cannot declare them
   *(provisional P44)*.

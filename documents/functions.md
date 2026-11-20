@@ -62,15 +62,14 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
       import it inline it too (see [modules.md](modules.md)).
     - On a variable, a type or an `extern` prototype, on `main`, or
       written twice, it is an error.
-  - With no `: type`, the function returns nothing (C's `void`)
-    *(provisional P5)*.
+  - With no `: type`, the function returns nothing (C's `void`).
     - `:()` says so in writing (#141): `let shout(name:cstr):() { ... }`.
       It goes on a prototype, a method, an anonymous function,
       `{ (n:i64):() in ... }`, and in a function type, `(i64):()`.
     - It is optional: `greet` and `shout` above mean the same, and
       either spelling goes anywhere a function is written.
     - `:():R` is a function type as the result, as before.
-  - Empty parentheses mean no parameters, i.e. C's `(void)` *(provisional P4)*.
+  - Empty parentheses mean no parameters, i.e. C's `(void)`.
 - **Parameters** are lets unless written `var`.
   - In `let f(p:u8^)`, `p` cannot change, while
     `let f(var p:u8^):() { p := p.next }` may move `p`.

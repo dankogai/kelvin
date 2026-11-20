@@ -169,8 +169,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - **Structs** get derived text, `{x: 3, y: 4}`, with nested structs
     and arrays (`[a, b]`).
     - A string field is quoted, `{name: "ann"}` (#123), and shows at
-      most 60 bytes; a longer one is cut with `..."`
-      *(provisional P35)*.
+      most 60 bytes; a longer one is cut with `..."`.
     - An `Array` field is `[...]`, a `Dictionary` or a `Set` field
       `{...}`: `print` shows them whole (#123).
     - A union is `<union name>`.
@@ -201,7 +200,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     - kelvinc does see variables, fields, `v as T`, what Kelvin
       functions and methods return (not a call that C chooses among
       overloads with different results), and a `?:` between two values
-      of one type (#34) *(provisional P35)*.
+      of one type (#34).
 - **`cstr`** is immutable text, C's `const uint8_t *` (#52): a
   reference, assigned with `:=`, that cannot be written through or
   stepped.
@@ -252,7 +251,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - There is no heap and nothing to free.
   - The text lasts until the enclosing block ends, also when it was
     made in a brace-less `for` body or among a method call's arguments.
-  - Do not return it from a function *(provisional P34)*.
+  - Do not return it from a function.
 - **Fields win.** A field with the same name wins, in a Kelvin struct
   and in a C struct from a header.
   - When kelvinc cannot see whether the receiver is a struct, `.size`,

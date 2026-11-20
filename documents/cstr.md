@@ -116,7 +116,7 @@ let card:cstr := `${n} items` // a template's text, on the stack too
     `strdup`.
   - See [properties.md](properties.md) and [printing.md](printing.md).
 
-#### `u8` and C's `char` mix freely *(provisional P13)*
+#### `u8` and C's `char` mix freely
 
 C string literals are `char` arrays, and libc takes `char *`. Kelvin's `u8`
 is `unsigned char`, which has the same size, representation and ABI.

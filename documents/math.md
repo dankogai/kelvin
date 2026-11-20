@@ -188,7 +188,7 @@ have these built in, JavaScript and Perl among them.
   except for `sqrt` and division by an infinity *(provisional P54)*.
 - kelvinc compiles with `-ffp-contract=off`, so clang computes `a * b +
   c` with two roundings, as gcc does, and the results are the same with
-  both *(provisional P55)*.
+  both.
 
 ### Numbers of any size: `<BigNum>`
 

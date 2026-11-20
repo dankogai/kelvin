@@ -85,7 +85,7 @@ These serve every number, floats and `bool` included.
 C's `(T)v` does not exist in Kelvin. There are two ways to convert:
 
 - **`T(v)`**, a converter, for built-in types: `i32(x)`, `u8(c)`,
-  `f64(n) / 2`, `bool(flags & 4)` *(provisional P18)*. It is never C's
+  `f64(n) / 2`, `bool(flags & 4)`. It is never C's
   cast (#513): it gives the nearest value `T` holds.
   - An integer past `T`'s range is `T`'s limit: `u8(300)` is 255,
     `i8(-200)` -128, `u64(-1)` 0.
@@ -160,8 +160,7 @@ P47)*:
 - `.i64` takes no base: write `i64(s, 16)`.
 
 `as` binds like C's cast. It is tighter than every binary operator and
-looser than prefix operators, and it chains left to right
-*(provisional P17)*:
+looser than prefix operators, and it chains left to right:
 
 | Kelvin | Means | C |
 |--------|-------|---|

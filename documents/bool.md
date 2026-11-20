@@ -26,7 +26,7 @@ floats in [floatingpoint.md](floatingpoint.md).
 | `bool` | `bool` from `<stdbool.h>`, i.e. `_Bool` |
 
 - **The type:** `bool`, with the values `true` and `false`, which are
-  built in *(provisional P14)*.
+  built in.
   - C's `_Bool` is an error that suggests `bool`.
   - Neither `<stdbool.h>` nor any header is needed: the generated C
     includes it.

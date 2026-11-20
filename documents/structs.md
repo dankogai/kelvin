@@ -36,8 +36,7 @@ let q = (point){.y = 7}     // a compound literal; q is a point
 ```
 
 - **Struct and union members** are written `name: type`, ended by `;` or
-  a new line, with no keyword: `struct p { x: i32; y: i32 }`
-  *(provisional P8)*.
+  a new line, with no keyword: `struct p { x: i32; y: i32 }`.
 - **A struct, union or enum is a type by its bare name** (#29), as if C
   had `typedef struct point point;`.
   - `var p:point`, `next: node^` inside `struct node`, `sizeof(point)`,
@@ -299,13 +298,13 @@ let main():int32 {
   `Self.origin()`; the details are in
   [properties.md](properties.md#attributes-of-your-own-and-extend).
 - **Literals** take methods and properties too: `2.cstr`, `1.5.hex`,
-  `(7:i64).inc()` *(provisional P30)*.
+  `(7:i64).inc()`.
   - Hex floats like `0x1.f4p+9` are still numbers.
   - Annotated values need parentheses: `(0.1:f32).cstr`.
 - **`toString()` and `fmt()` are no methods** (#22): a value's text is
   `x.cstr`, and a String of it `String(x.cstr)` (#55).
-  - Calling or defining either as a method is an error that says so
-    *(provisional P36)*: `p.toString()`, `let point.fmt(f:cstr):cstr`.
+  - Calling or defining either as a method is an error that says so:
+   `p.toString()`, `let point.fmt(f:cstr):cstr`.
     - A built-in type's too: `extend i64 { let toString() ... }`, and
       a BigInt's `b.toString(16)`, which is `b.text(16)`
       ([bigint.md](bigint.md)).
@@ -318,7 +317,7 @@ let main():int32 {
     function named `String` is an error, `expected a name, found
     'String'`.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
-  rules *(provisional P26)*:
+  rules:
   - A method may be called before it is written (#505): kelvinc writes
     its prototype, `let point.area():f64`, where it is needed. A method
     may call itself.

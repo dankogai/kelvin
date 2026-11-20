@@ -41,7 +41,7 @@ let main():int32 {
 - `print(a, b, ...)` prints up to 16 values with no separators (a 17th
   is an error that says to write two calls), and
   `println(...)` adds a newline.
-- Each value prints according to its C type *(provisional P21)*:
+- Each value prints according to its C type:
   - integers of every size in decimal, so `i64` needs no `PRId64`
   - floats with every digit their type holds, `%.17g`'s for an `f64`
     and `%.9g`'s for an `f32` (see [floatingpoint.md](floatingpoint.md)),
@@ -64,12 +64,12 @@ let main():int32 {
     see [Values whole](#values-whole-print-and-pretty) below
 - Comparisons, `&&`, `||` and `!` produce a `bool` (#23), so
   `println(a == b)` prints `true` or `false`, as do `true` and `false`
-  themselves *(provisional P23)*.
+  themselves.
 - `print` and `println` cannot be redefined.
 - **`f.print(...)`** and **`f.println(...)`** (#83) show the same values
   the same way to an IO, a file or `IO.stderr`; see [io.md](io.md).
-- The prelude lives in `libkelvin`, which kelvinc links statically
-  *(provisional P22)*. The same library works from C:
+- The prelude lives in `libkelvin`, which kelvinc links statically.
+ The same library works from C:
   `#include <kelvin_prelude.h>` and link `-lkelvin`, both in Kelvin's
   `modules/` (#46).
 

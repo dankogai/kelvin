@@ -97,12 +97,12 @@ static var calls:int32
 - **`var` may change.** `var p:any^` without a value is `nowhere` (#20).
 - **A list** shares the keyword: `let a:i32 = 1, b:u8^ := p` declares
   both, each with its own complete type, so C's `int a, *b` split cannot
-  happen *(provisional P7)*.
+  happen.
 - **A plain `x = 0` assigns**, and never declares.
   - `x:i32 = 0` without `let` or `var` is an error that suggests them.
   - `again: n = 0` is a label before a statement, as in C.
 - **Storage classes** go in front: `static let f():i32`,
-  `static var n:i32`, `extern var e:i32` *(provisional P9)*.
+  `static var n:i32`, `extern var e:i32`.
   - On a dotted name, `static let T.name()` is a function of the type,
     not C's static (#111), `static let T.x = v` a value of the type
     (#133), and `static let T.x:R { ... }` one computed at each read
@@ -134,8 +134,8 @@ static var calls:int32
 #### Qualifiers
 
 `const` and `volatile` apply to whatever is on their left. A leading
-qualifier applies to the base type, which is C's own rule
-*(provisional P6)*. `u8 const^` and `const u8^` are both `const uint8_t *`,
+qualifier applies to the base type, which is C's own rule.
+`u8 const^` and `const u8^` are both `const uint8_t *`,
 and `u8^ const` is `uint8_t *const`.
 
 #### Type inference

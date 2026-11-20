@@ -209,8 +209,8 @@ property a value has. Its errors then name `kv_no_such_overload`,
 
 ### `libkelvin` from C
 
-The prelude lives in `libkelvin`, which kelvinc links statically
-*(provisional P22)*. The same library works from C:
+The prelude lives in `libkelvin`, which kelvinc links statically.
+The same library works from C:
 `#include <kelvin_prelude.h>` and link `-lkelvin`, both in Kelvin's
 `modules/` (#46).
 
