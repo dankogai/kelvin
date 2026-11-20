@@ -12510,3 +12510,21 @@ P643.
 
 There are 1464 tests, and all pass with clang and with gcc 15.
 
+### 679. The open questions
+
+**Claude** pushed #631, its battery clean, the last batch of kc's words
+for now. Then the review the user ordered, its first part the open
+questions, "then add Q5, Q10, Q12 and Q14 to the review". **Claude**
+asked four things, each answered with the recommended:
+
+- **Q5**: keep `size_t`, no `usize`.
+- **Q10**: keep `(T){...}`, no spelling of Kelvin's own.
+- **Q14**: a number prefers a parameter of its own kind.
+- **Q12**: closed, as built: `let q := p` takes `p`'s type.
+
+So `twice(n)` of an `i32` calls `twice(n:i64)` over `twice(x:f64)`,
+where it was an error; kc does the same. Three error tests of the old
+answer are run tests now. Details are provisional P644.
+
+There are 1466 tests, and all pass with clang and with gcc 15.
+

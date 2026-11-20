@@ -4393,8 +4393,58 @@ let choose_among(n:int64, some:const $[int64]^, wraps:bool):int64 {
             tied_cands += cands[i]
         }
     }
-    if ties > 0 { return 0 - 2 }
+    if ties > 0 {                                        // a number prefers a parameter of its own kind (Q14, #632)
+        var kept:$[int64] = $[]
+        for d in tied_cands {
+            var beaten = false
+            for e in tied_cands {
+                if e == d { continue }
+                var better = false
+                var worse = false
+                var a:int64 = nodes[n].b
+                var pd:int64 = nodes[d].a
+                var pe:int64 = nodes[e].a
+                while a >= 0 && pd >= 0 && pe >= 0 {
+                    let ak:int64 = number_kind_of(a)
+                    if ak != 0 {
+                        let dm = param_kind_of(nodes[pd].ty) == ak
+                        let em = param_kind_of(nodes[pe].ty) == ak
+                        if em && !dm { better = true }
+                        if dm && !em { worse = true }
+                    }
+                    a = nodes[a].next
+                    pd = nodes[pd].next
+                    pe = nodes[pe].next
+                }
+                if better && !worse { beaten = true }
+            }
+            if !beaten { kept += d }
+        }
+        if kept.count == 1 { return kept[0] }
+        return 0 - 2
+    }
     return best
+}
+
+// 1 of an integer, 2 of a float, 0 of what is no number: an argument's
+// kind, a literal's by its point, and a parameter's (Q14, #632)
+let number_kind_of(a:int64):int64 {
+    if nodes[a].kind == N_NUM {
+        for q in 0..<toks[nodes[a].t].len {
+            let c:uint32 = codes[toks[nodes[a].t].at + q]
+            if c == '.' || c == 'e' || c == 'E' { return 2 }
+        }
+        return 1
+    }
+    let y:int64 = type_of(a)
+    return param_kind_of(y)
+}
+
+let param_kind_of(y:int64):int64 {
+    if y < 0 { return 0 }
+    if is_int_kind(types[y].kind) { return 1 }
+    if types[y].kind == Y_F64 || types[y].kind == Y_F32 { return 2 }
+    return 0
 }
 
 var generic_at:Dictionary<int64, int64>  // a call only C's _Generic chooses for: where its overloads are in

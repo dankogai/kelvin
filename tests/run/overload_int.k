@@ -1,4 +1,5 @@
-// i32 arithmetic is an i32, which fits i64 and f64 alike (#41)
+// i32 arithmetic is an i32, which fits i64 and f64: an integer prefers
+// the integer's overload (Q14, #632), where it was an error (#41)
 let twice(n:int64):int64 { n * 2 }
 let twice(x:float64):float64 { x * 2.0 }
 let main():int32 {
@@ -6,4 +7,4 @@ let main():int32 {
     println(twice(small + small))
     return 0
 }
-// error: twice(...) fits more than one of its overloads equally: convert an argument, as in 'x as f64'
+// out: 12

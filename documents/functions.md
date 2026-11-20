@@ -475,6 +475,11 @@ let main():int32 {
   argument and better on one.
   - A number converts to any number and a pointer may gain `const`, as
     C converts arguments.
+  - Of overloads it fits alike, a number takes the one whose parameter
+    is of its own kind (#632): an integer an integer's, a float a
+    float's. `twice(n)` of an `i32` calls `twice(n:i64)` over
+    `twice(x:f64)`, where it was an error; one nearer for an argument
+    and another for the next are still a tie.
   - An argument's type is its value's.
     - A literal has its own, also negated: `4` and `-4` are `i64`,
       `0.5` an `f64`, `'a'` a `u8`.

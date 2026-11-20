@@ -764,3 +764,7 @@ So far the changes from C are these, by topic.
 - A name declared twice in one block is kelvinc's error, where it was
   C's; a block inside, and each case of a switch, may declare it again
   (#628)
+- A number prefers an overload whose parameter is of its own kind:
+  `twice(n)` of an `i32` calls `twice(n:i64)` over `twice(x:f64)`,
+  where it was an error; the open questions Q5, Q10 and Q12 are closed
+  (#632)

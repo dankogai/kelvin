@@ -7759,6 +7759,49 @@ static bool dominates(Decl *da, int *a, Decl *db, int *b, int n) {
    tie is an error at pos. */
 static Decl *choose_among(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what);
 
+/* of overloads that fit as well as each other, those whose parameters
+   are of each number's own kind, an integer's or a float's, where another
+   one's is of the other kind: Q14, answered (#632) */
+static int number_kind_of(Expr *arg) {
+    Type *a = arg_type(arg);
+    Decl *r;
+    char c = a ? type_class(unqualified(a), &r) : 0;
+    if (c == 'i' || c == 'f')
+        return c;
+    if (number_expr(arg))
+        return power_class(arg);
+    return 0;
+}
+
+static List same_kind_best(List *best, Expr **args, int nargs) {
+    List kept = {0};
+    for (int i = 0; i < best->len; i++) {
+        Decl *d = best->data[i];
+        bool beaten = false;
+        for (int j = 0; j < best->len && !beaten; j++) {
+            Decl *e = best->data[j];
+            if (j == i)
+                continue;
+            bool better = false, worse = false;
+            for (int k = 0; k < nargs && k < d->params.len && k < e->params.len; k++) {
+                int ak = number_kind_of(args[k]);
+                if (!ak)
+                    continue;
+                Decl *r;
+                char dk = type_class(unqualified(((Var *)d->params.data[k])->type), &r);
+                char ek = type_class(unqualified(((Var *)e->params.data[k])->type), &r);
+                bool dm = dk == ak, em = ek == ak;
+                better = better || (em && !dm);
+                worse = worse || (dm && !em);
+            }
+            beaten = better && !worse;
+        }
+        if (!beaten)
+            list_push(&kept, d);
+    }
+    return kept;
+}
+
 static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what) {
     Decl *d = choose_among(cands, args, nargs, maybe, pos, what);
     if (d || maybe->len)
@@ -7818,6 +7861,8 @@ static Decl *choose_among(List *cands, Expr **args, int nargs, List *maybe, Pos 
         *maybe = best;
         return NULL;
     }
+    if (best.len > 1) /* a number prefers a parameter of its own kind, an integer an integer's (Q14, #632) */
+        best = same_kind_best(&best, args, nargs);
     if (best.len > 1) {
         for (int k = 0; k < nargs; k++)
             if (args[k]->kind == E_IDENT && !strcmp(args[k]->text, "none") && binding_index("none") < 0)

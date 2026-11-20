@@ -684,6 +684,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 629 | kc says kelvinc's words of 131 more of the programs kelvinc refuses, which selfhost/errors.txt listed as words, kc refusing each in words of its own: of C's ways, a C cast in each of its shapes, (T)x, (T *)p, (void)x, (long double)d and C's words in it, (int){1}, a declaration and a function pointer in C's words, int64 (*f)(int64), a function declared with no let, typedef, *p and T*, p->x, `a = b = 1` and an assignment in a condition or an index, `case` outside a switch or inside a statement of it; of statements, a body that is no block of if, while, do, else and for, a range of two dots, a trailing function and what follows it on its line, a ] that closes nothing, a label of a kv_ name; of values, an array of {...} or [...] of a struct, $[k: v], $[K: V], ${a, b: c}, $T, '$' alone, an anonymous function with no in, xs.reduce with no start, xs.mapWithKey of an Array, .addr, .hex and .i64 of a struct, 1.f, n! of no Optional, ++ of an array, a pointer into an owner an expression gives, the cases of a switch not handled and of an if let not there or of no value, = and := of a reference, a value, a parameter's array and a member, a wrong count of arguments to a trailing function, and the near misses where kc said the same in other words: Array<T> where it said $[T], a number where it said i64, kelvinc where it said kc. And kc's expect and statement end say what kelvinc's do, expected ')', found '}' and expected ';' or a new line before 'let', where they said unexpected token and a statement ends with its line. 95 are left, listed. The first batch of the user's order, "then fix kc's 226 errors in its own words"; kc | selfhost/parse.k; selfhost/gen.k; selfhost/kc.k; selfhost/errors.txt | the 131 tests of tests/error, by selfhost/errors.sh | 2026-11-20 |
 | 630 | kc says kelvinc's words of 49 more of the programs kelvinc refuses: an IO's errors, IO.stdlog, IO.popen of one argument, a method an IO has not, f.i64 of an IO; try and ?? of what is no Optional or Result; .pretty of a number, and .pretty(n) of none, of text and past 10; x.map(f), x.flatMap(f) and r.mapErr(g) of an Optional or a Result whose function does not fit, or of an owner a place keeps; a function type with names, (a:i64):i64, and (i64)^; f:(i64):i64 with no var; .next and .prev of a function; the nine errors of #inline C that kelvinc's lexer says, of the word, the {, what follows the }, its end, a preprocessor's line, an #import in it and a trigraph; Bytes + 256 and Bytes + String; String(b) of a Bytes; += of a value in extend; a declaration after a label; var f(...) in a body; extern lazy; #import in a struct; { $0 } given where no function goes, to a C function or a parameter that is none, and { a, b in ... } with nothing to type it; and $(...), which kc reads now as kelvinc does, the call of the function being written, and says it of a wrong count and of a method. 46 are left: three are kelvinc's C, written by C (cstr_unseen_struct, method_unseen_pointer), and three say a column kc does not keep (import_in_body, import_unfinished, import_unfinished_expr). The second batch of the user's order; kc | selfhost/parse.k; selfhost/gen.k; selfhost/lex.k; selfhost/errors.txt | the 49 tests of tests/error, by selfhost/errors.sh | 2026-11-20 |
 | 631 | kc says kelvinc's words of 16 more: a list walked through a struct's next where it has none, or of a C struct whose fields kelvinc does not see; a var array parameter printed; extend holding what it does not; JSON.stringify(j) of an owner; Bytes.fromBase64 of a String and .toBase64 of another word; .map of a struct whose makeIterator gives no iterator; a lent parameter of an anonymous function; [i64](n) of a local in a type defined in a function; [...] among Array<i64>'s elements; rows of text in [[u8]]; .append through a String's bytes; sizeof i32 const^; a trailing function on the line after the call's ); and Array(3) of a count. 30 are left, listed: of what kc does not read yet, an enum with no tag of cases with values (5), a function in a function (1), a type of an array in C's order (3), IO.exec of a list (2), a template in a type (1), C's comma as a value (1), the result type of a parameter's member (1), #inline C in a struct (1), the anonymous functions whose types reach another scope (8) and the result kelvinc cannot see (1); and five cannot be kc's as they are, two being C's words of kelvinc's C and three naming a column kc's tokens do not keep. The third batch of the user's order; kc | selfhost/gen.k; selfhost/parse.k; selfhost/errors.txt | the 16 tests of tests/error, by selfhost/errors.sh | 2026-11-20 |
+| 632 | The open questions Q5, Q10, Q12 and Q14 are answered, the first of the review the user ordered: Q5, no usize or isize, size_t staying C's and Kelvin's counts i64s; Q10, (T){...} stays, and {...} where the type is known, with no spelling of Kelvin's own; Q12, as built, a variable's type seen and taken, let q := p and let m = n. And Q14: of overloads an argument fits alike, a number takes the one whose parameter is of its own kind, an integer an integer's and a float a float's, so that twice(n) of an i32 calls twice(n:i64) over twice(x:f64), and b.add(k) a method's so, where each was an error, fits more than one of its overloads equally; one overload nearer for an argument and another for the next tie still. kelvinc and kc. tests/error/overload_int.k, overload_ambiguous.k and method_overload_ambiguous.k, of the old answer, are run tests now. The user's order, "then add Q5, Q10, Q12 and Q14 to the review", and of the four asked the user's answers, each the recommended; kelvinc and kc | src/parser.c; selfhost/gen.k; documents/functions.md; Design.md's open questions; README.md | tests/run/overload_int.k, overload_own_kind.k and method_overload_own_kind.k, which were error tests; tests/run/overload_float_kind.k; tests/error/overload_kind_tie.k | 2026-11-20 |
 
 Notes:
 
@@ -1268,6 +1269,18 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (632) Agreed details: the open questions
+  - The user's order: "then add Q5, Q10, Q12 and Q14 to the review", and
+    "push each review batch too when confirmed".
+  - The user's answers of the four asked, each the recommended:
+    - Q5: keep size_t, no usize.
+    - Q10: keep (T){...}, no new spelling.
+    - Q14: a number prefers a parameter of its own kind.
+    - Q12: closed as answered by what is built.
+  - Claude's choices, the user's to change:
+    - Q14 decides only among overloads that fit alike, after the
+      existing rule; a tie across two arguments stays an error.
 
 - (631) Agreed details: kc in kelvinc's words, the third batch
   - The user's order, as #629's.
@@ -11592,6 +11605,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P641 | Details of #629 | kc's parse.k: `c_cast_ahead` at a `(` of a type in C's words and what follows, `fnptr_decl` in parse_var, parse_typed and the top level, `at_assign` read by `end_statement` and `expect`, which say kelvinc's `expected 'w', found 'x'` and `expected ';' or a new line before 'x'` by `tok_desc`; `switch_level` for a case inside a statement; `unwrap_nodes` of the x.some that x! makes; `short_number` of a number type's word in a hint. gen.k: `with_key_misused`, `needs_type`, `cstr_ref_error`, kelvinc's spellings by `kelvin_type_text`, of a pointer to an Array, a Set or a Dictionary too, and `struct ` before a struct's name where kelvinc writes it. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P642 | Details of #630 | kc's gen.k: `variant_method_wrong` in type_of of an N_METHOD; IO.stdlog and IO.popen's count in type_of; `'try'` and `??` of no variant there too; member_unknown of an IO's number word, .pretty of what has no text indented, an unwrap's x.some of `unwrap_nodes`, .next and .prev of a function; an IO's and .pretty(n)'s in gen_method's last branch; `anon_arg_refused`, finding the call an anonymous function is given to, in anon_type and count_wrong. parse.k: `fn_parsing` around a body, which `$(...)` calls; a function type's names and its ^; a label before a declaration; var f(...) in a body, but var T (*f)(...); extern lazy; #import in a struct's members. lex.k: `inline_c_check`, kelvinc's lex_inline_c. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P643 | Details of #631 | kc's gen.k: a list's walk through a pointer to a struct, its next or its fields not seen; a var array parameter in gen_print_args_to; an owner given where a borrow goes, in method_target's last error; .toBase64's word; Bytes.fromBase64 of a String in type_of; makeIterator of a struct in gen_method's last branch, by `has_method_named`; `global_named` in member_fixed_ok; [...] in Array<T>(...)'s elements; text rows of an uncounted [[T]]; `change_method`, set in gen_method, for a String's bytes changed through its read-only borrow; Array(n) of a number with no T. parse.k: extend's members; lent in an anonymous function's parameters; sizeof T const^; `prev_line_ends_call` before a block that is an anonymous function. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
+| P644 | Details of #632 | kelvinc: `same_kind_best` in choose_among, of the overloads left tied, keeps those not beaten on the kinds of the numbers given, `number_kind_of` an argument's class i or f, a literal's by power_class, against each parameter's class. kc: the same in choose_among's ties, `number_kind_of` and `param_kind_of`, a literal's kind by its point or its e. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 
 ## Open questions
 
@@ -11602,8 +11616,8 @@ Those still open are deferred past 0.1.0 (#467).
 - ~~**Q3: `float`/`double`?**~~ Answered: `f32`/`f64` (change #9).
   `long double` has no Kelvin spelling yet.
 - ~~**Q4: `_Bool`?**~~ Answered: built-in `bool` (change #10).
-- **Q5: `size_t`?** `sizeof`, `malloc` and `strlen` all use it. Should Kelvin
-  have `usize`/`isize`, or should programs use `u64`/`i64`?
+- ~~**Q5: `size_t`?**~~ Answered by #632: no `usize`/`isize`; `size_t` stays
+  C's, from its headers, and Kelvin's counts are `i64`s.
 - ~~**Q6: Integer literal suffixes.**~~ Answered: no suffixes at all (#13).
 - ~~**Q7: Printing `i64`.**~~ Answered by #17: `print()` and `println()` in
   the prelude.
@@ -11614,7 +11628,9 @@ Those still open are deferred past 0.1.0 (#467).
   `p as FILE^` parse, because a type is certain after `as`.
 - ~~**Q11: C globals from headers.**~~ Answered by #27: a plain
   `optind = 1;` only assigns, so it reaches the header's global.
-- **Q12: Infer from typed variables?** kelvinc now knows the declared type
+- ~~**Q12: Infer from typed variables?**~~ Answered by #632, as built: a
+  variable's type is seen and taken, `let q := p`, `let m = n`.
+  It read: kelvinc now knows the declared type
   of every variable in scope (#19). Should `var n := list` infer `n`'s
   type from `list`, as `var n:struct node^ := list` currently spells it?
   Today only literals, `bool`s (#24, #25), annotated values (#8, #11,
@@ -11623,13 +11639,18 @@ Those still open are deferred past 0.1.0 (#467).
 - ~~**Q13: `(p0 - p1).diff`.**~~ Set aside by the user (Dialogue.md
   entry 59): the difference of two pointers as a `.diff` property, a
   `ptrdiff_t`, is not planned for now.
-- **Q14: Which conversion is nearer?** An `i32` fits `twice(n:i64)` and
+- ~~**Q14: Which conversion is nearer?**~~ Answered by #632: a number
+  prefers a parameter of its own kind, an integer an integer's and a float a
+  float's; one nearer for an argument and another for the next tie still.
+  It read: An `i32` fits `twice(n:i64)` and
   `twice(x:f64)` alike, so `twice(n)` is an error asking for a
   conversion, as C++ would have it (P52). Should a number prefer a
   parameter of its own kind, an integer an integer and a float a float?
 - ~~**Q15: A codepoint type?**~~ Answered by #56: `uchr`, printed as its
   character, with `.utf32` and `.codepoint` as the number.
-- **Q10: Compound literals.** `(struct point){.y = 7}` keeps C's
+- ~~**Q10: Compound literals.**~~ Answered by #632: `(T){...}` stays, and
+  `{...}` where the type is known; no spelling of Kelvin's own.
+  It read: `(struct point){.y = 7}` keeps C's
   cast-like syntax (P19). Should it get a Kelvin spelling, such as
   `struct point{.y = 7}`?
 - **Closures and protocols** (#624's records, the user, 2026-11-20):
