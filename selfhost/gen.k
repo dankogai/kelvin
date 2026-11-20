@@ -2080,6 +2080,58 @@ var pragma_stmt:int64 = 0 - 1
 // whether call n of d lacks an argument where d takes a function, and a
 // { opens the next line: a trailing function starts on the line of the
 // call's ), as kelvinc says it (#35, #612)
+// a call of a Kelvin function or method d of a count of arguments it does
+// not take, as kelvinc says it, where C counted them (#627): what is
+// "'f'" or "'.m' of p"
+let count_wrong(n:int64, d:int64, what:String):bool {
+    var given:int64 = 0
+    var a:int64 = nodes[n].b
+    while a >= 0 {
+        given += 1
+        a = nodes[a].next
+    }
+    var takes:int64 = 0
+    var p:int64 = nodes[d].a
+    while p >= 0 {
+        takes += 1
+        p = nodes[p].next
+    }
+    var variadic = false
+    for v in variadic_fns {
+        if v == d { variadic = true }
+    }
+    if given == takes || (variadic && given > takes) { return false }
+    var m = $""
+    if nodes[d].c >= 0 && nodes[d].flag != 1 {
+        m += "'."
+        m += tok_text(nodes[d].t)
+        m += "' of "
+        m += tok_text(nodes[d].c)
+    } else {
+        m += "'"
+        m += &what
+        m += "'"
+    }
+    m += " takes "
+    m += String(takes)
+    m += takes == 1 ? " argument" : " arguments"
+    if variadic { m += " or more" }
+    m += ", and this call gives "
+    m += String(given)
+    gen_error(n, m.cstr)
+    return true
+}
+
+// whether method d is the one of its name on its type, as kelvinc counts
+// a call's arguments only of one (#627)
+let one_method(d:int64):bool {
+    var k:int64 = 0
+    for x in decls {
+        if nodes[x].kind == D_FN && nodes[x].c >= 0 && same_text(nodes[x].c, nodes[d].c) && same_text(nodes[x].t, nodes[d].t) { k += 1 }
+    }
+    return k == 1
+}
+
 let trailing_missing(n:int64, d:int64):bool {
     if failed { return true }
     if !next_blocks.has(n) { return false }
@@ -7788,6 +7840,7 @@ let gen_call(n:int64) {
     }
     let d = call_target(n)                          // the overload its arguments fit (#234)
     if d >= 0 && trailing_missing(n, d) { return }  // (#612)
+    if d >= 0 && count_wrong(n, d, tok_text(nodes[f].t)) { return }   // (#627)
     if generic_at.has(n) {                          // what only C sees chooses (#41)
         gen_generic_call(n)
         return
@@ -8037,6 +8090,7 @@ let gen_method_of(n:int64)
 let is_made_array(n:int64):bool    // a prototype: gen_field asks it (#285)
 
 let gen_field(n:int64) {
+    if nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_DEREF && !deref_ok(nodes[n].a) { return }   // q^.x of a struct q (#627)
     if int_limit_of(n) >= 0 {                            // i64.max, u8.min (#545)
         put_int_limit(n, int_limit_of(n))
         return
@@ -8727,6 +8781,10 @@ let gen_method_of(n:int64) {
     let t:int64 = nodes[n].t
     if refuse_valueless_args(n) { return }
     let f:int64 = method_of(n)
+    if f >= 0 && nodes[f].c >= 0 && nodes[f].flag != 1 && attributes.get(f, 0) == 0 && !static_attrs.has(f) && subscripts.get(f, 0) == 0 && one_method(f) && !next_blocks.has(n) {   // a block on the next line is its own error, said after
+        let none = $""
+        if count_wrong(n, f, none) { return }            // (#627)
+    }
     if f >= 0 && static_attrs.has(f) && !static_reads.has(n) {      // as kelvinc says it (#595)
         var m = $"'"
         m += tok_text(nodes[f].c)
@@ -10750,8 +10808,58 @@ let gen_chain(n:int64) {
 
 // a[i]: an Array's element, checked; a Dictionary's entry, or its Optional
 // read whole (#219); C's element
+// whether x^ reads through a pointer, or kelvinc's error where what is
+// read through is a number, a bool or a struct, which C refused (#627)
+let deref_ok(n:int64):bool {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    if failed { return false }
+    if y < 0 { return true }
+    let yk:ykind = types[y].kind
+    if !(is_number_kind(yk) || yk == Y_BOOL || (yk == Y_STRUCT && struct_of(y) >= 0 && tagged_of(y) < 0)) { return true }
+    var m = $"'^' reads what a pointer points at, and "
+    if nodes[a].kind == N_ID {
+        m += "'"
+        m += tok_text(nodes[a].t)
+        m += "'"
+    } else {
+        m += "this"
+    }
+    let w:String = kelvin_type_text(y)
+    m += " is "
+    m += article_of(&w)
+    m += " "
+    m += &w
+    gen_error(n, m.cstr)
+    return false
+}
+
+// whether a subscript of a built-in type has one index, or kelvinc's error
+// (#627): a subscript of the program's takes more (#136)
+let one_index(n:int64):bool {
+    let y:int64 = type_of(nodes[n].a)
+    if y >= 0 && nodes[n].b >= 0 && nodes[nodes[n].b].next >= 0 {
+        let yk:ykind = types[y].kind
+        if yk == Y_ARRAY || yk == Y_DICT || yk == Y_STRING || yk == Y_BYTES || yk == Y_FIXED || yk == Y_PTR || yk == Y_CSTR {
+            var c:int64 = 0
+            var i:int64 = nodes[n].b
+            while i >= 0 {
+                c += 1
+                i = nodes[i].next
+            }
+            var m = $"a subscript takes one index, and this gives "
+            m += String(c)
+            m += ": C's comma is no list of indices; a slice is [lo..<hi]"
+            gen_error(n, m.cstr)
+            return false
+        }
+    }
+    return true
+}
+
 let gen_element(n:int64) {
     let y:int64 = type_of(nodes[n].a)
+    if !one_index(n) { return }                          // (#627)
     if y >= 0 && types[y].kind == Y_PTR && types[types[y].elem].kind == Y_FIXED {   // where kelvinc's C reads an address (#362)
         gen_error(n, "this points to an array: index what it points to, q^[i]")
         return
@@ -10858,6 +10966,7 @@ let is_grapheme_index(n:int64):bool {
 // s[i] (#522): grapheme i of s, found by walking it; what an expression
 // gives held while it is walked
 let gen_grapheme_index(n:int64) {
+    if !one_index(n) { return }                          // (#627)
     let a:int64 = nodes[n].a
     let hold = needs_hold(a)
     if hold { hold_open(a) }
@@ -12176,6 +12285,7 @@ let gen_expr_of(n:int64) {
         }
         gen_place(nodes[n].a)
     } else if k == N_DEREF {
+        if !deref_ok(n) { return }                       // (#627)
         put("(*")
         gen_expr(nodes[n].a)
         put(")")
@@ -14139,6 +14249,23 @@ let gen_return(n:int64) {
     pick_overload(a, nodes[current].ty)                  // return over, the overload of the result's type (#537)
     if failed { return }
     if !bool_return_ok(a) { return }
+    let ry:int64 = nodes[current].ty
+    if ry >= 0 && types[ry].kind != Y_FN && tagged_of(ry) < 0 {   // an Optional's and a Result's are enums with values, which wrap   // as kelvinc says it (#627)
+        var lead = $""
+        if anon_fns.contains(current) {
+            lead += "this anonymous function"
+        } else {
+            lead += "'"
+            if nodes[current].c >= 0 && nodes[current].flag != 1 {
+                lead += tok_text(nodes[current].c)
+                lead += "."
+            }
+            lead += tok_text(nodes[current].t)
+            lead += "'"
+        }
+        lead += " returns"
+        if !typed_value_ok(a, ry, &lead) { return }
+    }
     let text:int64 = text_in_buffer(a)
     if text >= 0 && nodes[text].kind == N_TPL {         // as kelvinc's reject_returned_text (#445)
         gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")

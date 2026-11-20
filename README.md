@@ -758,3 +758,6 @@ So far the changes from C are these, by topic.
 - A struct, a union, an enum, a typealias and a global may be used
   before they are written, as a function may, and two structs may
   point at each other in either order (#626)
+- A wrong count of arguments, a value returned of another type, `^` of
+  what is no pointer and a comma in an Array's subscript are kelvinc's
+  errors, where they were C's (#627)

@@ -12422,3 +12422,22 @@ Details are provisional P638.
 
 There are 1452 tests, and all pass with clang and with gcc 15.
 
+### 674. Four of C's errors in Kelvin's words
+
+**Claude** pushed #626, its battery clean. This is the third of what
+the second look found: the C errors that still reached a program.
+
+- `add(1)` of `add(a:i64, b:i64)`: `'add' takes 2 arguments, and this
+  call gives 1`, of a method too.
+- `return "big"` from an `i64` function: `'size' returns an i64, and
+  this is text`.
+- `n^` of a number: `'^' reads what a pointer points at, and 'n' is an
+  i64`; `p^.x` of a struct too.
+- `xs[0, 1]`: `a subscript takes one index, and this gives 2`, of an
+  Array, a Dictionary, a String, a fixed array and a pointer.
+
+enums.md's "Not yet" of printing an enum by itself, which works, is
+gone. kc says the same. Details are provisional P639.
+
+There are 1462 tests, and all pass with clang and with gcc 15.
+

@@ -250,6 +250,11 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 - **Elements** are any value type, owners included, which the Array
   then owns: a `Bytes`, a `String`, an `Array`, a `Dictionary`, a struct
   or an enum with values that owns. A fixed array is not an element.
+- **One index:** `xs[0, 1]` is kelvinc's error, of an Array, a
+  Dictionary, a String, a Bytes, a fixed array and a pointer alike
+  (#627): `a subscript takes one index, and this gives 2`; C read the
+  comma as its operator, or gave an Array's function too many
+  arguments. A subscript of the program's may take more (#136).
 - **Assigning to an element** makes the value first (#205):
   `xs[i].f = g()` calls `g`, then finds `xs[i]`.
   - `g` may grow `xs` and move its elements, which C, finding the place

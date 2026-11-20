@@ -135,6 +135,15 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     the number a `bool`.
   - So of a method, an anonymous function and a filter's (#239).
   - A value only C sees, as `isdigit(c)`, is C's to convert.
+- **The arguments and the result** are checked in Kelvin's words
+  (#627), where C's were:
+  - A call of a function or a method of the program with another
+    count of arguments than it takes, `'add' takes 2 arguments, and
+    this call gives 1`; of overloads, the one the arguments fit.
+  - A value returned of another type than the result,
+    `'size' returns an i64, and this is text`, as a declaration's
+    value is checked; an Optional's and a Result's wrap what they are
+    given.
 - **Every path of a function with a result returns a value** (#625):
   one whose body can reach its end is kelvinc's error, `'sign' can
   reach the end of its body with no value: every path of a function

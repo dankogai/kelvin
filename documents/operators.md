@@ -60,6 +60,9 @@ to left too, as Python's: `2 ** 3 ** 2` is `2 ** 9`.
 - **`p^`** dereferences, postfix (#3), so a chain reads left to right:
   `p^.m`, `p^[i]`, `pp^^`. `*` is only multiplication, and `*p` on a
   line of its own is an error with the hint; `->` too.
+  - `^` of a number, a bool or a struct is kelvinc's error, where it
+    was C's (#627): `'^' reads what a pointer points at, and 'n' is an
+    i64`; a struct's member is `p.x`, a pointer's `p^.x`.
 - **`a ~ b`** is XOR and `a ~= b` its assignment (#4), since `^` means
   pointer; unary `~` is still bitwise NOT, and `p^ = x` is always an
   assignment through `p`.

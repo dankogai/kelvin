@@ -782,6 +782,7 @@ static Type *cstr_type(Pos pos);
 static bool is_cstr(Type *t);
 static Expr *drop_cstr(Expr *v, Type *target);
 static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos);
+static const char *fn_shown(Decl *d);
 static const char *article(const char *w);
 static bool is_bytes(Type *t);
 static bool is_string(Type *t);
@@ -2228,6 +2229,18 @@ static Expr *parse_postfix_steps(Expr *e) {
                 in_slice = true;
                 x->b = parse_expr();
                 in_slice = saved_slice;
+                Type *it = value_type(e);
+                it = it ? unqualified(it) : NULL;
+                bool builtin = it && (is_array_owner(it) || is_dict_owner(it) || is_string(it) || is_bytes(it) ||
+                                      it->kind == T_ARRAY || it->kind == T_PTR); /* a subscript of the program may take more (#136) */
+                if (builtin && x->b->kind == E_BINARY && x->b->op && !strcmp(x->b->op, ",") && !x->b->paren) { /* (#627) */
+                    int n = 1;
+                    for (Expr *c = x->b; c->kind == E_BINARY && c->op && !strcmp(c->op, ",") && !c->paren; c = c->a)
+                        n++;
+                    error_at(x->b->pos, "a subscript takes one index, and this gives %d: C's comma is no list of "
+                                        "indices; a slice is [lo..<hi]",
+                             n);
+                }
                 if (is_range_literal(x->b) && !x->b->paren) { /* [lo..<hi], [lo...hi], [lo...] (#68), read as a range (#373) */
                     Expr *r = x->b;
                     slice = true;
@@ -3828,10 +3841,13 @@ static Expr *parse_postfix_steps(Expr *e) {
                     block_after_call = cur;
                 }
                 Decl *chosen = mcands.len == 1 ? mcands.data[0] : NULL;
-                if (chosen) /* (#492) */
-                    reject_unfit_only(chosen, (Expr **)x->items.data, x->items.len, name->pos,
-                                      value_type(e) ? strfmt("'.%s' of %s", member, kelvin_type(value_type(e)))
-                                                    : strfmt("'.%s'", member));
+                if (chosen) { /* (#492) */
+                    bare_tags = true;
+                    const char *what = value_type(e) ? strfmt("'.%s' of %s", member, kelvin_type(value_type(e)))
+                                                     : strfmt("'.%s'", member);
+                    bare_tags = false;
+                    reject_unfit_only(chosen, (Expr **)x->items.data, x->items.len, name->pos, what);
+                }
                 if (mcands.len > 1) { /* the overload the arguments fit (#158), as a function's (#41) */
                     List maybe;
                     const char *what = strfmt("'.%s' of %s", member, kelvin_type(value_type(e)));
@@ -3943,6 +3959,17 @@ static Expr *parse_postfix_steps(Expr *e) {
             x->text = member;
             e = x;
         } else if (accept_p("^")) {
+            Type *pt = value_type(e);
+            pt = pt ? unqualified(pt) : NULL;
+            Decl *pr;
+            char pc = pt && pt->kind == T_BASE && !pt->cname ? type_class(pt, &pr) : 0;
+            if (pc == 'i' || pc == 'f' || pc == 's' || pc == 'c' || (pt && pt->kind == T_BASE && !strcmp(pt->name, "bool"))) {
+                bare_tags = true;
+                char *w = kelvin_type(pt);
+                bare_tags = false;
+                error_at(t->pos, "'^' reads what a pointer points at, and %s is %s %s", /* where C's were (#627) */
+                         e->kind == E_IDENT ? strfmt("'%s'", e->text) : "this", article(w), w);
+            }
             Expr *x = new_expr(E_DEREF, t->pos);
             x->a = e;
             e = x;
@@ -8104,15 +8131,17 @@ typedef struct {
     Decl *only;
     const char *what, *given;
     Pos pos;
+    int count; /* of a count of arguments it does not take, that count, else -1 (#627) */
 } unfit_t;
 static List unfit_calls;
 
 static void reject_unfit_only(Decl *only, Expr **args, int nargs, Pos pos, const char *what) {
-    if (!only || nargs < only->params.len || (nargs > only->params.len && !only->variadic))
+    if (!only)
         return;
+    bool count = nargs < only->params.len || (nargs > only->params.len && !only->variadic);
     List one = {0}, maybe;
     list_push(&one, only);
-    if (choose(&one, args, nargs, &maybe, pos, what) || maybe.len)
+    if (!count && (choose(&one, args, nargs, &maybe, pos, what) || maybe.len))
         return;
     Buf given = {0};
     buf_puts(&given, "");
@@ -8121,7 +8150,7 @@ static void reject_unfit_only(Decl *only, Expr **args, int nargs, Pos pos, const
         buf_printf(&given, "%s%s", k ? ", " : "", arg_text(args[k]));
     bare_tags = false;
     unfit_t *u = xcalloc(1, sizeof *u);
-    *u = (unfit_t){only, what, given.buf, pos};
+    *u = (unfit_t){only, what, given.buf, pos, count ? nargs : -1};
     list_push(&unfit_calls, u);
 }
 
@@ -8144,6 +8173,9 @@ static void reject_unseen_overloads(void) {
                      "%s declared before this call takes (%s), and these are (%s): an overload declared after it is "
                      "not seen here, as C sees none; declare the one meant before the call, as a prototype",
                      u->what, signature(u->only), u->given);
+        if (u->count >= 0) /* in Kelvin's words, where C counted them (#627) */
+            error_at(u->pos, "%s takes %d argument%s%s, and this call gives %d", u->what, u->only->params.len,
+                     u->only->params.len == 1 ? "" : "s", u->only->variadic ? " or more" : "", u->count);
     }
 }
 
@@ -15518,6 +15550,9 @@ static Stmt *parse_stmt_here(void) {
             reject_record_mismatch(s->expr, parsing_fn->ret, s->expr->pos);  /* a T? where a T goes (#218) */
             if (result)
                 require_bool_return(s->expr, parsing_fn); /* a bool of a bool function (#240) */
+            if (result && parsing_fn->ret->kind != T_FUNC && !is_optional_type(parsing_fn->ret) &&
+                !variant_record(parsing_fn->ret)) /* in Kelvin's words, where C's were (#627) */
+                check_typed_value(s->expr, parsing_fn->ret, strfmt("%s returns", fn_shown(parsing_fn)), s->expr->pos);
         }
         /* the function's own buffers are gone once it returns (#32, #35) */
         if (s->expr && result && !parsing_fn->text_method)

@@ -150,8 +150,9 @@ union in C, with one byte for the tag.
     (#128), also for an enum that owns.
   - A function of the type, `static let T.name()`, needs a name to be
     called by, so one with no tag has none.
-- **Not yet:** printing one with `print` or `println` by itself: show
-  `v.cstr`, or use a template.
+- **Printing:** `println(v)` and `print(v)` show one by itself as its
+  `.cstr` does, `json.n(1.5)`, as it is written (#529); the "Not yet"
+  that stood here was stale (#627).
 
 ### A struct that owns
 
