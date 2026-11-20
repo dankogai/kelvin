@@ -676,6 +676,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 621 | `self` where there is none, in a function with no receiver or in a global's value, is kelvinc's error, 'self' is the value of a method, an attribute or a subscript, and a function has no self, where it was C's, use of undeclared identifier 'self': `return self * 2`, `self.x` and `let g:i64 = self`. A name `self` bound by the program, a parameter or a local, is that name as before, and a method, an attribute, a setter and a subscript have their self; a function of a type and an attribute of a type keep their own messages. kc said so already, in these words, which kelvinc takes. The second of the three faults of kelvinc the user ordered fixed, found with #602 and left; kelvinc | src/parser.c; documents/structs.md; README.md | tests/error/self_function.k; tests/error/self_function_member.k; tests/error/self_global.k | 2026-11-20 |
 | 622 | An enum's word is of its enum to `.typename`, as a var of the enum is: `red.typename` is color, of enum color { red, green }, where it was i32, C's int, and the prelude's `nfc.typename` NormalForm; `Kelvin.nfd.typename` was NormalForm already. `.size` is C's int's still, 4, and an integer's methods, `.bits`, `.abs`, `.sign`, `.pow`, are of an i32 as #469 made them; a literal, `42.typename`, is C's int, i32, as before. enums.md's table said `.typename` of an enumerator was as C's. kc said the enum's name already. The third of the three faults of kelvinc the user ordered fixed, found with #600 and left, and of the two asked the user's answer, the recommended: the enum's name; kelvinc | src/parser.c; documents/enums.md; README.md | tests/run/enum_word_typename.k | 2026-11-20 |
 | 623 | A BigFloat's range is of its leading bit, where it was of its last: a number of 2^(2^63) and more in size is an infinity, at any precision, and the bits below the least number, 2^-(2^63 - 1), are rounded off by the rounding rule, as an f64 keeps fewer bits below 2^-1022; a number all below half of it is 0, or the least by a rule away from 0. `BigFloat("0x1p+9223372036854775808")` was an infinity and the greater `BigFloat("0x1.8p+9223372036854775808")` a number; now both are infinities, and `0x1.8p+9223372036854775807` is a number. `BigFloat("0x1.8p-9223372036854775807")` was 0, its low bit below the least, while the less least itself was not; now it is twice the least, rounded to even. So exp's limits are 2^63 ln 2 either way, an infinity past 6393154322601327829 and 0 below -6393154322601327829, at any precision, where they were 6393154322601327917 and -6393154322601327741 at 128 bits; a CBF's half and asinh's and acosh's log of 2x are rounded or of any exponent at the edges. The fourth of the user's orders, "then fix BigFloat's last-1 rule", and of the two asked the user's answers, each the recommended: its leading bit, and the low bits rounded off; modules | modules/BigNum.k; documents/bigfloat.md; documents/bignum.md; README.md | tests/run/bigfloat_range.k; tests/run/bigfloat_exp_edge.k and tests/run/cbf_exp_edge.k at the new limits | 2026-11-20 |
+| 624 | kc ended itself after an error of its own where its parse read on past the end its error had put it at: of `static var T.f() { }` and `extern var T.f() { }`, a function of a type being a let, and of the three errors of `inline`, written twice, before what is no function, and on an extern. kc said kelvinc's words and then kelvin: index 544 is out of range: the Array has 544, with exit status 1, so that selfhost/errors.sh counted each as the same as kelvinc's. kc stops at the error now. And selfhost/errors.sh counts a line kelvin: of kc's own check as a crash, after an error too, so that one is seen: four tests of tests/error had it, fn_var_method.k, inline_extern.k, inline_struct.k and inline_twice.k. The user's order, "then fix kc's crash after the static var error"; kc | selfhost/parse.k; selfhost/errors.sh; Design.md's open questions | tests/error/fn_var_method_extern.k | 2026-11-20 |
 
 Notes:
 
@@ -1260,6 +1261,16 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (624) Agreed details: kc's crash after its own error
+  - The user's order: "then fix kc's crash after the static var error",
+    of `static var T.f() { }`, found with #620.
+  - Claude's choices, the user's to change:
+    - The three errors of `inline`, found the same way, fixed with it.
+    - selfhost/errors.sh counts a `kelvin:` line of kc's as a crash,
+      after an error too, so that none hides as `same` again.
+    - The user's word on closures and protocols, given the same day,
+      is put in the open questions with these records.
 
 - (623) Agreed details: BigFloat's range of its leading bit
   - The user's order: "then fix BigFloat's last-1 rule", left with #589.
@@ -11486,6 +11497,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P633 | Details of #621 | kelvinc: in parse_primary, where an identifier is read, `self` with no binding, `binding_index("self") < 0`, is the error, after the checks of an attribute of a type and a function of a type, whose messages stay. A method's, a setter's, an attribute's and a subscript's self is declared as a binding, as is a parameter or a local the program names `self`, so none of them is touched. kc: gen.k's check of `self` and `.x` with no receiver had the message; unchanged. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js and the bootstrap. |
 | P634 | Details of #622 | kelvinc: in `.typename`'s property, where `value_type` sees no type of an E_IDENT, `enum_of` gives the enum that declares the word, and its type is `enum NAME`, as a `let c = red` is inferred; an enum of no tag keeps C's. kc: unchanged, its `.typename` of a word the enum's. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js and the bootstrap. |
 | P635 | Details of #623 | modules/BigNum.k: `BigFloat_make` takes the power of 2 above m * 2^e first; below the least, `2^-(2^63 - 1)`, by more than half, it is 0 or the least by the rule, at once, so no shift of an exponent's size is made; else it keeps no more bits than reach down to the least, and rounds by the rule as before; after rounding, a leading bit past `2^63 - 1` is an infinity. `CBF_half` makes its half through `BigFloat_make`, which rounds the least's half; `BigFloat_log_twice` takes `BigFloat_log_of` of the exponent and 1 in an i128, as the greatest's exponent and 1 is past an i64; CBF exp's shortcut to 0 below the least is below its half. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js and the bootstrap. |
+| P636 | Details of #624 | kc: `parse_error` and `parse_error_at` put pos at eof_pos, and what followed in `parse_program` read `toks[pos + 1]` and on, past the end: after the error of a var function of a type it goes on to the next declaration, `continue`, and after the checks of `inline` and of `static` after it, `if failed { continue }`. selfhost/errors.sh: a `^kelvin: ` line in kc's output, with any exit status that is not 0, is `crash`. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js and the bootstrap. |
 
 ## Open questions
 
@@ -11526,6 +11538,10 @@ Those still open are deferred past 0.1.0 (#467).
 - **Q10: Compound literals.** `(struct point){.y = 7}` keeps C's
   cast-like syntax (P19). Should it get a Kelvin spelling, such as
   `struct point{.y = 7}`?
+- **Closures and protocols** (#624's records, the user, 2026-11-20):
+  neither is in 0.4.0, "Protocols are preferred but not yet": when one
+  is taken up, protocols come first. gotcha.md says what to write
+  instead of each.
 
 ## Ownership (#54)
 

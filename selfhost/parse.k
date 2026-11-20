@@ -4645,6 +4645,7 @@ let parse_program() {
             advance()
             inl = parse_inline(inl)
         }
+        if failed { continue }                           // an error put it at the end: read no further (#624)
         if storage == 1 && (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && !head_method(pos + 1) && head_attribute(pos + 1) {
             let is_let = at_word("let")                  // static let T.x:R = v (#133)
             advance()
@@ -4774,6 +4775,7 @@ let parse_program() {
                 m += tok_text(pos + 3)
                 m += "(...)', or, for a variable holding a function, 'var f:(T):R := g'"
                 parse_error(m.cstr)
+                continue                                    // at the end now, read no further (#624)
             }
             advance()
             let recv_at:int64 = pos

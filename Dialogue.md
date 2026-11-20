@@ -12361,3 +12361,23 @@ are provisional P635.
 
 There are 1444 tests, and all pass with clang and with gcc 15.
 
+### 671. kc's crash after its own error
+
+**Claude** pushed #623, its battery clean. Between the orders the
+user had also said:
+
+> neither closures or protocols as of 0.4.0.  Protocols are preferred but not yet.
+
+which the open questions record now. This is the order "then fix kc's
+crash after the static var error".
+
+Of `static var T.f() { }` kc said kelvinc's words, and then
+`kelvin: index 544 is out of range: the Array has 544`: its error had
+put it at the end, and its parse read on past it. The status was 1, so
+selfhost/errors.sh counted it as the same as kelvinc's. Three errors of
+`inline` did the same. kc stops at each now, and errors.sh counts a
+`kelvin:` line of kc's own as a crash, after an error too. Details are
+provisional P636.
+
+There are 1445 tests, and all pass with clang and with gcc 15.
+

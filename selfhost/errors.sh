@@ -6,7 +6,8 @@
 #   words  kc refuses it in words of its own, which are not kelvinc's
 #   c      kc writes its C, and the C compiler refuses that
 #   built  kc builds it: what kelvinc refuses is not refused
-#   crash  kc itself ends, with no error of the program
+#   crash  kc itself ends, with no error of the program, or after one, as
+#          a check of its own says, 'kelvin: index ... is out of range' (#624)
 # selfhost/errors.txt lists each test that is not `same`, with which of
 # the four it is. This fails where a test is not as listed: one that got
 # worse, and one that got better, whose line is to go, so that the list
@@ -34,7 +35,9 @@ for f in tests/error/*.k; do
     st=0
     "$kc" --emit-c -o "$out/prog.c" "$f" > "$out/log" 2>&1 || st=$?
     if [ "$st" -ne 0 ]; then
-        if [ "$st" -lt 128 ] && LC_ALL=C grep -qF -- "$want" "$out/log"; then
+        if LC_ALL=C grep -q "^kelvin: " "$out/log"; then
+            state=crash # kc's own check ended it, after an error too (#624)
+        elif [ "$st" -lt 128 ] && LC_ALL=C grep -qF -- "$want" "$out/log"; then
             state=same
         elif [ "$st" -lt 128 ] && LC_ALL=C grep -q -e ": error: " -e "^kc: " "$out/log"; then
             state=words # an error at a line, or kc's of a file it cannot read
