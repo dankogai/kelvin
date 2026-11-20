@@ -12490,3 +12490,23 @@ kc's tokens do not keep. Details are provisional P642.
 
 There are 1464 tests, and all pass with clang and with gcc 15.
 
+### 678. kc in kelvinc's words, the third batch
+
+**Claude** pushed #630, its battery clean. This is the third batch.
+
+kc says kelvinc's words of 16 more: a list walked through a struct
+with no next, extend holding what it does not, `JSON.stringify(j)` of
+an owner, base64's errors, `lent` in an anonymous function, `.append`
+through a String's bytes, `sizeof i32 const^`, a trailing function on
+the next line, `Array(3)` with no type, and others.
+
+30 are left, listed in selfhost/errors.txt. 25 are of what kc does not
+read yet: an enum with no tag of cases with values, a function in a
+function, IO.exec of a list, a template in a type, an anonymous
+function whose types reach another scope. Each would be a change of
+kc's reading of its own. Five cannot be kc's as they are: two are C's
+words of kelvinc's C, and three name a column. Details are provisional
+P643.
+
+There are 1464 tests, and all pass with clang and with gcc 15.
+

@@ -1842,6 +1842,10 @@ let parse_anon():int64 {
         while !at_word(")") && !failed {
             let is_var = at_word("var")                  // { (var s:T):R in ... } may change s, its own (#470)
             if is_var { advance() }
+            if at_kind(T_ID) && tok_is(pos + 1, ":") && tok_is(pos + 2, "lent") {   // as kelvinc says it
+                parse_error_at(pos + 2, "'lent' is for a function's or a method's parameter: an anonymous function is lent the elements .map and .sort give it (#244), and owns what else it takes")
+                return n
+            }
             let p:int64 = parse_typed(is_var ? 0 : 1)
             unnamed_param(p, k, true)
             k += 1
@@ -2783,6 +2787,20 @@ let parse_unary():int64 {
             return n
         }
         if value_type_ahead() { nodes[n].flag = 2 }   // sizeof(x.type), gen's to tell from a member named type
+        if at_kind(T_ID) && tok_is(pos + 1, "const") && sizeof_type_at(pos) {   // sizeof i32 const^, as kelvinc says it
+            var m = $"sizeof a type needs parentheses: sizeof("
+            let w:String = number_word(pos) >= 0 ? short_number(pos) : tok_text(pos)
+            m += &w
+            m += " const"
+            var q:int64 = pos + 2
+            while tok_is(q, "^") {
+                m += "^"
+                q += 1
+            }
+            m += ")"
+            parse_error(m.cstr)
+            return n
+        }
         if at_kind(T_ID) && sizeof_type_at(pos) && !local_named(pos) {
             nodes[n].flag = 1                    // sizeof T, gen's error in Kelvin's words
             set_ty(n, parse_type())
@@ -3017,6 +3035,13 @@ let tok_ends_t(t:int64):bool {
 // ---------- statements ----------
 
 let parse_block():int64
+
+// whether the line before token t ends in a call's ')'
+let prev_line_ends_call(t:int64):bool {
+    var q:int64 = t - 1
+    while q > 0 && toks[q].kind == T_NL { q -= 1 }
+    return q > 0 && tok_is(q, ")") && toks[q].line < toks[t].line
+}
 
 // whether the token at pos is an assignment's operator
 var switch_level:int64                       // the switches being read (#629)
@@ -3336,6 +3361,10 @@ let parse_statement():int64 {
         } else {
             parse_error(at_word("case") ? "'case' outside a switch" : "'default' outside a switch")
         }
+        return make_node(S_BLOCK, t)
+    }
+    if at_word("{") && tok_is(pos + 1, "(") && ((toks[pos + 2].kind == T_ID && tok_is(pos + 3, ":")) || (tok_is(pos + 2, ")") && tok_is(pos + 3, "in"))) && prev_line_ends_call(pos) {   // f(x)\n{ (a:T) in ... }, as kelvinc says it
+        parse_error("a trailing function starts on the line of the call's ')': on the next line, '{' starts a block")
         return make_node(S_BLOCK, t)
     }
     if at_word("typedef") {                              // as kelvinc says it
@@ -4590,6 +4619,12 @@ let parse_extend() {
             continue
         } else if is_static == 1 && at_word("var") {
             parse_error("a function of the type has no self to change: write 'static let'")
+            return
+        } else if !at_word("let") {                      // as kelvinc says it
+            var m = $"extend holds let f() { }, static let f() { }, let x:R { }, var x:R { get { } set(v) { } }, static let x = v, static var x = v and static let +(a:T, b:T):T { }; found "
+            let d:String = tok_desc(pos)
+            m += &d
+            parse_error(m.cstr)
             return
         } else {
             expect("let")

@@ -866,6 +866,7 @@ var enum_names:Dictionary<String, int64>
 var enumerators:Dictionary<String, int64>  // an enumerator's enum
 var method_names:Dictionary<String, int64> // a method or a function of a type, by "T.m" (#213)
 var text_methods:Dictionary<int64, bool>   // the functions that are a type's T.cstr(), its own text (#542)
+var change_method:int64 = 0 - 1             // the method whose change may_change is asked of, which it names (#629)
 var noreturn_fns:Dictionary<int64, bool>   // the program's functions of no result that never return, as kelvinc finds them (#625)
 
 // "T.m", a method's name among the methods (#213)
@@ -1604,6 +1605,25 @@ let method_chosen(n:int64, f:int64):int64 {
     method_targets[n] = best
     if best < 0 && builtin { return best }              // kc's own method of a String or a Bytes
     if best < 0 {
+        var b:int64 = nodes[n].b                         // an owner given where a borrow of it goes, as kelvinc says it
+        while b >= 0 {
+            let by:int64 = type_of(b)
+            if by >= 0 && is_owner(by) && nodes[b].kind == N_ID {
+                var e = $""
+                e += tok_text(nodes[f].c)
+                e += "."
+                e += tok_text(w)
+                e += "(...) takes a borrow of "
+                let bw:String = kelvin_type_text(by)
+                e += &bw
+                e += " here: pass '&"
+                e += tok_text(nodes[b].t)
+                e += "'"
+                gen_error(n, e.cstr)
+                return best
+            }
+            b = nodes[b].next
+        }
         var m = $"no method '"
         m += tok_text(w)
         m += "' of "
@@ -2132,6 +2152,14 @@ let count_wrong(n:int64, d:int64, what:String):bool {
     return true
 }
 
+// whether the struct y has a method of the name w
+let has_method_named(y:int64, w:cstr):bool {
+    for d in decls {
+        if nodes[d].kind == D_FN && nodes[d].c >= 0 && same_text(nodes[d].c, types[y].name) && tok_is(nodes[d].t, w) { return true }
+    }
+    return false
+}
+
 // whether method d is the one of its name on its type, as kelvinc counts
 // a call's arguments only of one (#627)
 let one_method(d:int64):bool {
@@ -2357,6 +2385,16 @@ let type_of(n:int64):int64 {
     if k == N_CHAIN { return chain_type(n) }
     if k == N_METHOD && with_key_misused(n) { return 0 - 1 }   // xs.mapWithKey, as kelvinc says it
     if k == N_METHOD && variant_method_wrong(n) { return 0 - 1 }   // x.map(f) of an Optional or a Result, kelvinc's errors of it
+    if k == N_METHOD && nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "Bytes") && tok_is(nodes[n].t, "fromBase64") && nodes[n].b >= 0 && nodes[nodes[n].b].kind != N_ADDR {
+        let sy:int64 = type_of(nodes[n].b)
+        if sy >= 0 && types[sy].kind == Y_STRING {       // Bytes.fromBase64(s) of a String, as kelvinc says it
+            var m = $"Bytes.fromBase64 of a String takes a borrow: write '&"
+            m += nodes[nodes[n].b].kind == N_ID ? tok_text(nodes[nodes[n].b].t) : $"s"
+            m += "'"
+            gen_error(n, m.cstr)
+            return 0 - 1
+        }
+    }
     if os_call(n) { return os_type(n) }                  // OS.cwd, OS.name(args), SYS.argv (#463)
     if (k == N_ID || k == N_CALL) && nodes[n].ty >= 0 && is_case_word(n) { return nodes[n].ty }   // Result<T, E>.err(e) (#449)
     if k == N_FIELD && nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "IO") && std_io(n) < 0 {   // IO.stdlog, as kelvinc says it
@@ -5898,6 +5936,13 @@ let gen_print_args_to(first:int64, sink:cstr) {
         if a != first { put(", ") }
         let y = type_of(a)
         if y >= 0 && types[y].kind == Y_FIXED && nodes[a].kind != N_LIST && types[types[y].elem].kind != Y_U8 && types[types[y].elem].kind != Y_I8 {   // [a, b], as kelvinc's (#481); bytes are text
+            if types[y].name < 0 && nodes[a].kind == N_ID && how_declared(nodes[a].t) != 2 && how_declared(nodes[a].t) != 5 {   // a var parameter's, as kelvinc says it
+                var m = $"'"
+                m += tok_text(nodes[a].t)
+                m += "' is a var array parameter, a pointer in C that may have moved: show its elements, as in 'for i in 0..<n'"
+                gen_error(a, m.cstr)
+                return
+            }
             if types[y].name < 0 {
                 gen_error(a, "kc prints a fixed array of its own count; not yet a parameter's: print its elements, a[i]")
                 return
@@ -8646,6 +8691,7 @@ let gen_member(n:int64) {
 let gen_lazy_make(n:int64)    // a prototype: a lazy Sequence (#324)
 
 let gen_method(n:int64) {
+    change_method = nodes[n].t                           // the method a read-only String's bytes name (#629)
     if random_of(n) >= 0 {                               // i64.random(), bool.random() (#547)
         gen_random(n)
         return
@@ -8867,6 +8913,10 @@ let bytes_method_type(n:int64, y:int64):int64 {
     if tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }
     if tok_is(t, "append") || tok_is(t, "insert") || tok_is(t, "remove") || tok_is(t, "clear") || tok_is(t, "reserve") || tok_is(t, "compact") || tok_is(t, "isEmpty") { return base_type(Y_VOID) }
     if tok_is(t, "escape") { return base_type(Y_STRING) }   // its bytes not printable ASCII as \xHH (#166, #515)
+    if tok_is(t, "toBase64") && nodes[n].b >= 0 && !(tok_is(nodes[nodes[n].b].t, "url") || tok_is(nodes[nodes[n].b].t, "nopad")) {   // as kelvinc says it
+        gen_error(n, "'.toBase64' takes the words url and nopad, in either order, or nothing")
+        return -1
+    }
     if tok_is(t, "toBase64") {
         var m = $"kc reads no '."
         m += tok_text(t)
@@ -9494,6 +9544,12 @@ let gen_method_of(n:int64) {
         m += &w
         m += "(text, base)"
         gen_error(n, m.cstr)
+    } else if yk == Y_STRUCT && struct_of(y) >= 0 && (tok_is(t, "map") || tok_is(t, "filter") || tok_is(t, "reduce")) && has_method_named(y, "makeIterator") {   // as kelvinc says it
+        var m = $"a Sequence gives a fresh iterator by its makeIterator(), a let method that takes nothing and gives a value whose 'var next():T?' gives each value: write 'let "
+        let w:String = kelvin_type_text(y)
+        m += &w
+        m += ".makeIterator():I'"
+        gen_error(n, m.cstr)
     } else if tok_is(t, "fmt") || tok_is(t, "toString") {   // shelved (#22), as kelvinc says it
         var m:String = tok_text(t)
         m += "() is not a method: a value's text is 'x.cstr', and String(x.cstr) a String (#22, #55)"
@@ -10062,11 +10118,29 @@ let empty_error(v:int64) {
     }
 }
 
+// whether the token t names a global of the program
+let global_named(t:int64):bool {
+    for d in decls {
+        if nodes[d].kind == D_GLOBAL && same_text(nodes[d].t, t) { return true }
+    }
+    return false
+}
+
 // whether the fixed array y may be member f of a struct: counted, of
 // numbers, bools, text or structs that own nothing, as a local's (#356)
 let member_fixed_ok(f:int64, y:int64, what:cstr):bool {
     var g:int64 = y
     while types[g].kind == Y_FIXED {
+        if types[g].name <= 0 - 10 && !global_named(0 - 10 - types[g].name) {   // [i64](n) of a local, as kelvinc says it
+            var m = $"a type defined inside a function is written before it in C, where its locals are not known: '"
+            m += tok_text(nodes[f].t)
+            m += "' of "
+            let gw:String = type_text(g)
+            m += &gw
+            m += " counts by one; write the count"
+            gen_error(f, m.cstr)
+            return false
+        }
         if types[g].name < 0 {
             var m = type_text(g)
             m += " as "
@@ -10289,6 +10363,16 @@ let gen_array(n:int64, given:int64) {
         }
         if given >= 0 && nodes[e].kind != N_EMPTY {      // of the type written, as kelvinc says it (#350); [] fits any (#451)
             let bad:String = value_mismatch_text(e, elem)
+            if bad.count > 0 && (nodes[e].kind == N_LIST || nodes[e].kind == N_ARRAY) {   // [1] among them, as kelvinc says it
+                var m = $"'[...]' here makes an Array, and an element of "
+                let aw:String = kelvin_type_text(y)
+                m += &aw
+                m += " is "
+                let ew:String = kelvin_type_text(elem)
+                m += &ew
+                gen_error(e, m.cstr)
+                return
+            }
             if bad.count > 0 {
                 var m = $"an element of "
                 let aw:String = kelvin_type_text(y)
@@ -12750,6 +12834,10 @@ let inferred(n:int64):int64 {
         needs_type(n)                                  // as kelvinc says it
         return -1
     }
+    if k == N_MAKE && tok_is(nodes[v].t, "Array") && nodes[v].ty < 0 && nodes[v].flag == 5 && nodes[v].a >= 0 && (nodes[nodes[v].a].kind == N_NUM || (type_of(nodes[v].a) >= 0 && is_int_kind(types[type_of(nodes[v].a)].kind))) {   // Array(3) of a count, as kelvinc says it
+        gen_error(v, "Array(x) has no element type: write Array<T>(x), or the elements, Array([...])")
+        return -1
+    }
     let y:int64 = type_of(v)
     if k == N_AWAIT && y >= 0 && types[y].kind == Y_VOID {      // as kelvinc's (#313)
         gen_error(v, "this Task has no value, as its function has no result: await it alone, as a line of its own")
@@ -13275,6 +13363,10 @@ let fixed_list_fits(v:int64, y:int64):bool {
             // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557)
         } else {
             let bad:String = value_mismatch_text(x, e)
+            if bad.count > 0 && nodes[x].kind == N_STR && types[e].kind == Y_FIXED && types[e].name < 0 {   // ["ab", "cd"] of [[u8]], as kelvinc says it
+                gen_error(x, "the rows of an array of arrays are written [...], or their count is written in the type, as in '[[T](n)]'")
+                return false
+            }
             if bad.count > 0 || is_case_word(x) {
                 var m = $"an element of "
                 let aw:String = type_text(y)
@@ -13704,6 +13796,14 @@ let may_change(n:int64):bool {
     }
     if nodes[d].kind == N_DEREF {
         let p:int64 = type_of(nodes[d].a)
+        let sa:int64 = nodes[d].a                        // s.bytes^.append(x), as kelvinc says it
+        if p >= 0 && types[p].kind == Y_PTR && ptr_const(p) && change_method >= 0 && nodes[sa].kind == N_FIELD && tok_is(nodes[sa].t, "bytes") && type_of(nodes[sa].a) >= 0 && types[type_of(nodes[sa].a)].kind == Y_STRING {
+            var s = $"'."
+            s += tok_text(change_method)
+            s += "' through a read-only borrow: a String's bytes change only as a String"
+            gen_error(n, s.cstr)
+            return false
+        }
         if p >= 0 && types[p].kind == Y_PTR && ptr_const(p) {
             var s = $"this changes what a "
             s += kelvin_type_text(p)
@@ -19513,6 +19613,25 @@ let gen_each(n:int64, depth:int64) {
         put("->next;\n")
         open_scope()
         declare_each(nodes[n].t, y, 3)
+    } else if types[y].kind == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind == Y_STRUCT && !enum_int(types[y].elem) && tagged_of(types[y].elem) < 0 {   // as kelvinc says it
+        var m = $"for over "
+        let sd:int64 = struct_of(types[y].elem)
+        if sd < 0 || nodes[sd].a < 0 {                   // struct tm; of C, its fields unseen
+            m += "struct "
+            let w:String = kelvin_type_text(y)
+            m += &w
+            m += ": kelvinc cannot see its fields, so it cannot follow a next field"
+        } else {
+            m += "struct "
+            let w:String = kelvin_type_text(y)
+            m += &w
+            m += ": a list is followed through a pointer field named next, and struct "
+            let ew:String = kelvin_type_text(types[y].elem)
+            m += &ew
+            m += " has none"
+        }
+        gen_error(nodes[n].a, m.cstr)
+        return
     } else if types[y].kind == Y_PTR {
         gen_error(nodes[n].a, "kc walks a pointer only as a list, a struct's along its next: not yet up to a 0 or nowhere")
         return
