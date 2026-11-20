@@ -773,3 +773,5 @@ So far the changes from C are these, by topic.
   returns itself (#640)
 - `thread_local var x` is each thread's own, C's `_Thread_local`, at the
   top level and, static, in a block (#641)
+- `atomic` is C's `_Atomic`, a qualifier as `const` is, of a number, a
+  bool or a pointer: `var hits:atomic i64 = 0` (#642)

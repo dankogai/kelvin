@@ -457,6 +457,11 @@ let int_bit_index(n:int64):bool
 let gen_int_bit_set(n:int64)
 
 let put_ctype(y:int64) {
+    if types[y].konst == 2 {                                     // atomic T, C's _Atomic (#642)
+        put("_Atomic ")
+        put_ctype(base_type(types[y].kind))
+        return
+    }
     switch types[y].kind {                                       // every kind of type (#210)
     case Y_VOID, Y_C, Y_TYPEOF, Y_PARAM: put("void")
     case Y_FN:                                                   // _kv_fnN, a typedef of the pointer write_type writes (#428)

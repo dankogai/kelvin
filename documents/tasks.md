@@ -55,6 +55,13 @@ ordinary function, which may as well be called as always.
       is one C initializes, a constant.
     - A function is every thread's already: `thread_local let f()` is
       an error, and C's `_Thread_local` says to write `thread_local`.
+  - `var hits:atomic i64 = 0` is changed by C's atomic operations
+    (#642), C's `_Atomic`: `hits += 1` from eight Tasks loses none, and
+    a read and `x = v` are atomic too.
+    - `atomic` is written as `const` is, of a number, a bool or a
+      pointer: `atomic i64`, `atomic bool`, `i64^ atomic` (kelvinc;
+      kc reads an atomic pointer not yet).
+    - C's `_Atomic` says to write `atomic`.
 - **`await t`** waits for the thread and gives the value, once.
   - `t` holds nothing afterwards, as a move leaves it, so a second
     `await t` is an error.

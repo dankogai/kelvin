@@ -12635,3 +12635,13 @@ is every thread's already. kc does the same. Details are provisional
 P646.
 
 There are 1471 tests, and all pass with clang and with gcc 15.
+
+### 689. atomic
+
+**Claude** pushed #641, its battery clean. This is the third of C's
+features: `var hits:atomic i64 = 0` is C's `_Atomic`, a qualifier as
+`const` is, of a number, a bool or a pointer; eight Tasks adding to it
+lose none of their additions. kc does the same of a number and a bool.
+Details are provisional P647.
+
+There are 1474 tests, and all pass with clang and with gcc 15.

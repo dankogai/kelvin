@@ -190,12 +190,14 @@ static char *decl(Type *t, const char *name);
 static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
     switch (t->kind) {
     case T_BASE:
-        return strfmt("%s%s%s%s%s", t->is_const ? "const " : "", t->is_volatile ? "volatile " : "",
-                      t->cname ? t->cname : c_type_name(t->name), *inner ? " " : "", inner);
+        return strfmt("%s%s%s%s%s%s", t->is_atomic ? "_Atomic " : "" /* (#642) */, t->is_const ? "const " : "",
+                      t->is_volatile ? "volatile " : "", t->cname ? t->cname : c_type_name(t->name), *inner ? " " : "",
+                      inner);
     case T_PTR: {
-        char *q = strfmt("%s%s%s", t->is_const ? "const" : "",
-                         t->is_volatile ? (t->is_const ? " volatile" : "volatile") : "",
-                         t->is_restrict ? (t->is_const || t->is_volatile ? " restrict" : "restrict") : ""); /* (#393) */
+        char *q = strfmt("%s%s%s%s", t->is_atomic ? "_Atomic" : "" /* (#642) */,
+                         t->is_const ? (t->is_atomic ? " const" : "const") : "",
+                         t->is_volatile ? (t->is_const || t->is_atomic ? " volatile" : "volatile") : "",
+                         t->is_restrict ? (t->is_const || t->is_volatile || t->is_atomic ? " restrict" : "restrict") : ""); /* (#393) */
         char *s = strfmt("*%s%s%s", q, *q && *inner ? " " : "", inner);
         return declarator(t->elem, s, true);
     }

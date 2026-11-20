@@ -1109,12 +1109,20 @@ static bool starts_type(Token *t) {
            (t->kind == TK_IDENT && fn_alias(t->text)); /* an alias of a function type (#403) */
 }
 
+static Token *atomic_tok; /* the last atomic read (#642) */
+
 static void parse_qualifiers(Type *t) {
     for (;;) {
         if (accept_kw("const"))
             t->is_const = true;
         else if (accept_kw("volatile"))
             t->is_volatile = true;
+        else if (peek()->kind == TK_IDENT && !strcmp(peek()->text, "atomic") &&
+                 (t->kind == T_PTR || starts_type(peek2()) || peek2()->kind == TK_IDENT)) { /* atomic i64 (#642) */
+            atomic_tok = advance();
+            t->is_atomic = true;
+        } else if (is_kw(peek(), "_Atomic"))
+            error_at(peek()->pos, "'_Atomic' is C's spelling: Kelvin writes 'atomic', as const is, 'var n:atomic i64' (#642)");
         else if (is_kw(peek(), "restrict")) { /* u8^ restrict (#393): the pointer's, as C's */
             Token *r = advance();
             if (t->kind != T_PTR)
@@ -1425,7 +1433,31 @@ static Type *qualified_owner(Type *base, Type *t, const char *what) {
     return q;
 }
 
+static Type *parse_type_in0(TypeContext ctx);
+
+/* a type, and of its atomic (#642): a number's, a bool's or a pointer's,
+   C's _Atomic, which holds what C's atomic operations change at once */
+static void check_atomic(Type *t) {
+    for (Type *x = t; x; x = x->kind == T_PTR || x->kind == T_ARRAY ? x->elem : NULL) {
+        if (!x->is_atomic)
+            continue;
+        Decl *r;
+        char c = x->kind == T_BASE ? type_class(x, &r) : 0;
+        bool ok = x->kind == T_PTR || c == 'i' || c == 'f' || (x->kind == T_BASE && !strcmp(x->name, "bool"));
+        if (!ok)
+            error_at(atomic_tok ? atomic_tok->pos : x->pos, "'atomic' is of a number, a bool or a pointer, which C's "
+                                                            "atomic operations change at once (#642), and this is %s",
+                     kelvin_type(x));
+    }
+}
+
 static Type *parse_type_in(TypeContext ctx) {
+    Type *t = parse_type_in0(ctx);
+    check_atomic(t);
+    return t;
+}
+
+static Type *parse_type_in0(TypeContext ctx) {
     type_start = cur;
     if (is_p(peek(), "("))
         return parse_fn_type(ctx);
@@ -7365,11 +7397,11 @@ static bool called_as_c(const char *name) {
 /* A type without its own qualifiers, as an argument's value has it */
 static Type *unqualified(Type *t) {
     t = param_type(t);
-    if (!t->is_const && !t->is_volatile && !t->is_restrict)
+    if (!t->is_const && !t->is_volatile && !t->is_restrict && !t->is_atomic)
         return t;
     Type *u = xcalloc(1, sizeof *u);
     *u = *t;
-    u->is_const = u->is_volatile = u->is_restrict = false;
+    u->is_const = u->is_volatile = u->is_restrict = u->is_atomic = false;
     return u;
 }
 

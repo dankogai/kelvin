@@ -296,6 +296,7 @@ var name_annotation = true
 // int64 or i64 (#151, #430), or -1
 // a number type's word at t in its short spelling: int32 is i32, float64 f64
 let kelvin_type_text(y:int64):String    // a prototype: gen.k's, a type in kelvinc's words
+let is_number_kind(k:ykind):bool    // a prototype: gen.k's, of atomic's types (#642)
 
 let short_number(t:int64):String {
     if tok_is(t, "float64") { return $"f64" }
@@ -1247,6 +1248,15 @@ let parse_type():int64 {
         advance()
         lent_at = 0 - 1
     }
+    if at_word("_Atomic") {                              // as kelvinc says it (#642)
+        parse_error("'_Atomic' is C's spelling: Kelvin writes 'atomic', as const is, 'var n:atomic i64' (#642)")
+        return base_type(Y_VOID)
+    }
+    if at_word("atomic") && toks[pos + 1].kind == T_ID && !tok_is(pos + 1, "=") {   // atomic i64, C's _Atomic (#642)
+        let at:int64 = advance()
+        let y = parse_bare_type()
+        return atomic_base(y, at)
+    }
     if at_word("const") {
         advance()
         let typed = value_type_at(pos)
@@ -1265,6 +1275,29 @@ let parse_type():int64 {
         return const_pointee(y)
     }
     return parse_bare_type()
+}
+
+// atomic T of a number or a bool, C's _Atomic (#642): a type of its own,
+// konst 2, as [const T](N) is of 1; a pointer's base atomic too, of
+// atomic i64^; another is kelvinc's error, at the token at
+let atomic_base(y:int64, at:int64):int64 {
+    if failed { return y }
+    let k:ykind = types[y].kind
+    if k == Y_PTR { return type_of_kind(Y_PTR, atomic_base(types[y].elem, at), types[y].name) }
+    if is_number_kind(k) || k == Y_BOOL {
+        if types[y].konst == 2 { return y }
+        for i in 0..<types.count as int64 {
+            if types[i].konst == 2 && types[i].kind == k { return i }
+        }
+        let c:ty = {k, types[y].elem, types[y].name, 2}
+        types += c
+        return types.count as int64 - 1
+    }
+    var m = $"'atomic' is of a number, a bool or a pointer, which C's atomic operations change at once (#642), and this is "
+    let w:String = kelvin_type_text(y)
+    m += &w
+    parse_error_at(at, m.cstr)
+    return y
 }
 
 // [T] in $[...], an Array in turn, as kelvinc reads $[[i64]] (#369)
@@ -1350,6 +1383,10 @@ let type_suffixes(y0:int64):int64 {
             y = type_of_kind(Y_PTR, y, -1)
             advance()
             y = restrict_of(y)                   // T^ restrict (#393)
+            if at_word("atomic") {               // T^ atomic, kelvinc's, which kc reads not yet (#642)
+                parse_error("kc reads no atomic pointer yet, T^ atomic: an atomic number or bool, 'atomic i64', it reads")
+                return y
+            }
         }
     }
     refuse_restrict()
