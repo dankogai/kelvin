@@ -12320,3 +12320,21 @@ provisional P633.
 
 There are 1442 tests, and all pass with clang and with gcc 15.
 
+### 669. An enum's word's typename
+
+**Claude** pushed #621, its battery clean. This is the third.
+
+`nfc.typename` was `i32` in kelvinc and `NormalForm` in kc. A
+program's own enum was the same: `red.typename` was `i32`, as
+enums.md said, "as C's", though `let c = red; c.typename` was `color`.
+**Claude** asked which, and the user answered with the recommended:
+
+- **The enum's name**: `red.typename` is `color`, `nfc.typename`
+  `NormalForm`, as kc said.
+
+`.size` is still C's int's, 4, and an integer's methods are of an
+`i32` (#469); `42.typename` is `i32` as before. Details are
+provisional P634.
+
+There are 1443 tests, and all pass with clang and with gcc 15.
+

@@ -9637,6 +9637,11 @@ static Expr *property(Expr *e, Token *name, char *member) {
         Type *t = value_type(e);
         if (!t && seen_bool(e))
             t = base_type("bool", e->pos);
+        if (!t && e->kind == E_IDENT) { /* an enum's word is of its enum, as a variable of it is (#622) */
+            Decl *en = enum_of(e->text);
+            if (en && en->name)
+                t = base_type(strfmt("enum %s", en->name), e->pos);
+        }
         Expr *x;
         if (t && !type_has_expr(t)) {
             bare_tags = true;

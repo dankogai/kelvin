@@ -744,3 +744,6 @@ So far the changes from C are these, by topic.
   here, which hides the function of its name (#620)
 - `self` in a function with no receiver, or in a global's value, is
   kelvinc's error, where it was C's (#621)
+- An enum's word is of its enum to `.typename`: `red.typename` is
+  `color`, where it was `i32`, and `nfc.typename` `NormalForm`; `.size`
+  and the integer's methods stay C's int's (#622)

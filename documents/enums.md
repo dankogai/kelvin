@@ -39,6 +39,9 @@ union in C, with one byte for the tag.
     `.abs`, `.sign`, `.pow(e)` and `**`.
   - An enumerator never changes: `red.bits[0].flip()`,
     `red.bits[0] = b` and `red = blue` are errors.
+  - Its `.typename` is its enum's, as a var of the enum's is (#622):
+    `red.typename` is `color`, and the prelude's `nfc.typename`
+    `NormalForm`; `.size` is C's int's, 4.
 - **An anonymous `enum { a, b }`** at the top level is a group of int
   constants, as in C.
 - **Defined in a function** (#391), its enumerators are the block's,
@@ -172,7 +175,8 @@ The core. A plain enum is C's, with nothing linked. An enum with values is kelvi
 |---|---|---|
 | C's enum, an enumerator | `.cstr`, `.dec`, `.hex`, ... | as an integer's |
 | | `.bits`, `.bits[n]`, `.abs`, `.sign`, `.pow(e)` | as an `i32`'s (#469, #530) |
-| | `.size`, `.typename` | as C's |
+| | `.size` | as C's |
+| | `.typename` | its enum's name, `color` (#622) |
 | an enum with values | `.case` | the tag, a `u8`, the case's index from 0 |
 | | `.is(n)` | whether `n` is the current case, a `bool` |
 | | `.n` | the value of case `n`, checked: another case ends the program |
