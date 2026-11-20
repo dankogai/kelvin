@@ -946,7 +946,7 @@ static void lex_import(Lexer *lx) {
     if (lex_condition(lx, pos))
         return;
     if (!accept_word(lx, "import"))
-        error_at(pos, "only '#import <header.h> as C' and '#inline C { ... }' are supported; C's preprocessor "
+        error_at(pos, "only '#import <header.h> as C', '#inline C { ... }' and '#if os(...)' are supported; C's preprocessor "
                       "Kelvin leaves out (#296)");
     skip_blanks(lx);
     char close = *lx->p == '<' ? '>' : *lx->p == '"' ? '"' : 0;

@@ -12673,3 +12673,14 @@ The #296 error, which still names only `#import` and `#inline C`, is
 left for the user to order. Details are provisional P649.
 
 There are 1478 tests, and all pass with clang and with gcc 15.
+
+### 692. The #296 error names #if os(...)
+
+**User:** make the #296 error #645 too
+
+**Claude** made it #645: `#include <stdio.h>` is the error "only
+'#import <header.h> as C', '#inline C { ... }' and '#if os(...)' are
+supported; C's preprocessor Kelvin leaves out (#296)", in kelvinc and
+in kc. Details are provisional P650.
+
+There are 1478 tests, and all pass with clang and with gcc 15.

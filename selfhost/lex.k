@@ -1090,7 +1090,7 @@ let lex_range(from:int64, to:int64, file:int64) {
                 inline_c_check(w + 6, to, file, line)
             }
             if !imports && !inlines {                    // #include, #define: as kelvinc says it (#296, #612)
-                lex_error(file, line, "only '#import <header.h> as C' and '#inline C { ... }' are supported; C's preprocessor Kelvin leaves out (#296)")
+                lex_error(file, line, "only '#import <header.h> as C', '#inline C { ... }' and '#if os(...)' are supported; C's preprocessor Kelvin leaves out (#296)")
             } else if a >= b {
                 lex_error(file, line, "only #import <x>, #import \"x.k\" and #import <x.h> as C are known")
             }

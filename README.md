@@ -779,3 +779,5 @@ So far the changes from C are these, by topic.
   platform, as Swift's do (#643)
 - Design.md's principle and c-interfaces.md say `#if os(...)` is one
   of Kelvin's directives (#644)
+- The error of a C directive names `#if os(...)` among Kelvin's own
+  (#645)
