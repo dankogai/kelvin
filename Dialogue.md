@@ -12583,3 +12583,12 @@ P437, 100 of them, are marked confirmed, as the user confirmed them,
 them provisional.
 
 There are 1466 tests, and all pass with clang and with gcc 15.
+
+### 685. The review, batch 6
+
+**Claude** pushed #637, its battery clean. The detail rows P438 to
+P537, 100 of them, are marked confirmed, as the user confirmed them,
+"as they stand, each read as later numbers amend it"; no document marks any of
+them provisional.
+
+There are 1466 tests, and all pass with clang and with gcc 15.
