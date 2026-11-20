@@ -256,6 +256,10 @@ let main():int32 {
   - `self.x += 1` or `self = v` in a method is an error.
   - It is `const` in C, as any `let` is, so `&self` is a `const T^`.
   - A copy changes: `var p = self`, then `p.x += dx`.
+  - A function has no `self`, nor has a global's value: `self` there
+    is kelvinc's error, `'self' is the value of a method, an attribute
+    or a subscript, and a function has no self` (#621), where it was
+    C's.
   - What changes the caller's value is a var method, below, a `var`
     attribute's setter
     ([properties.md](properties.md#attributes-of-your-own-and-extend)),

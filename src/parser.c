@@ -4412,6 +4412,9 @@ static Expr *parse_primary(void) {
             error_at(t->pos, "a function of a type has no self: '%s' is called as %s(...), with no value before it; "
                              "a method, 'let %s.name()', has one",
                      parsing_fn->name, parsing_fn->name, parsing_fn->recv_name);
+        if (t->kind == TK_IDENT && !strcmp(t->text, "self") && binding_index("self") < 0) /* (#621) */
+            error_at(t->pos, "'self' is the value of a method, an attribute or a subscript, and a function has no "
+                             "self");
         if (t->kind == TK_IDENT && !ascii_name(t->text))
             reject_unknown_name(t); /* (#385) */
         if (t->kind == TK_IDENT && local_enums.len) { /* an enumerator of the block's enum (#391): its C name */

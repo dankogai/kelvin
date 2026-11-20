@@ -12303,3 +12303,20 @@ Details are provisional P632.
 
 There are 1439 tests, and all pass with clang and with gcc 15.
 
+### 668. `self` in a function
+
+**User**: "push", given for each of the three when its battery is
+clean; **Claude** pushed #620. This is the second.
+
+`return self * 2` in a function with no receiver was C's error, use of
+undeclared identifier 'self'. It is kelvinc's now, in the words kc
+gave already:
+
+    'self' is the value of a method, an attribute or a subscript, and a function has no self
+
+So of `self.x` there, and of a global's value, `let g:i64 = self`. A
+parameter or a local named `self` is that name as before. Details are
+provisional P633.
+
+There are 1442 tests, and all pass with clang and with gcc 15.
+

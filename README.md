@@ -742,3 +742,5 @@ So far the changes from C are these, by topic.
 - Calling a variable of no function type is kelvinc's error, where it
   was C's: `let sqrt = 2.0; sqrt(sqrt)` says `'sqrt'` is a variable
   here, which hides the function of its name (#620)
+- `self` in a function with no receiver, or in a global's value, is
+  kelvinc's error, where it was C's (#621)
