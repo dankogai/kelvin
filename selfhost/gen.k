@@ -866,6 +866,7 @@ var enum_names:Dictionary<String, int64>
 var enumerators:Dictionary<String, int64>  // an enumerator's enum
 var method_names:Dictionary<String, int64> // a method or a function of a type, by "T.m" (#213)
 var text_methods:Dictionary<int64, bool>   // the functions that are a type's T.cstr(), its own text (#542)
+var noreturn_fns:Dictionary<int64, bool>   // the program's functions of no result that never return, as kelvinc finds them (#625)
 
 // "T.m", a method's name among the methods (#213)
 let method_key(recv:int64, t:int64):String {
@@ -19573,6 +19574,7 @@ let argv_bytes(d:int64):int64 {
 }
 
 let gen_signature(d:int64) {
+    if noreturn_fns.has(d) { put("__attribute__((noreturn)) ") }   // C's, of one that never returns (#625)
     if is_inline(d) { put("static inline ") }          // (#392)
     if static_decls.contains(d) && !is_inline(d) { put("static ") }   // C's (#459)
     if extern_decls.contains(d) { put("extern ") }
@@ -19823,6 +19825,159 @@ let implicit_return(d:int64) {
     note_ends(last, main ? 2 : 1)                        // asked where gen writes each (#594)
 }
 
+// ---------- every path of a function with a result returns (#625) ----------
+
+
+// C's functions that never return, by name
+let c_noreturn(t:int64):bool {
+    let names:$[cstr] = $["exit", "_Exit", "abort", "quick_exit", "thrd_exit", "pthread_exit", "longjmp", "siglongjmp", "_longjmp", "err", "errx", "verr", "verrx", "__builtin_unreachable", "__builtin_trap"]
+    for n in names {
+        if tok_is(t, n) { return true }
+    }
+    return false
+}
+
+// whether e, a statement's expression, is a call that never returns
+let call_never_returns(e:int64):bool {
+    if e < 0 || nodes[e].kind != N_CALL { return false }
+    let f:int64 = nodes[e].a
+    if f < 0 || nodes[f].kind != N_ID { return false }
+    let d:int64 = fn_named(nodes[f].t)
+    if d >= 0 { return noreturn_fns.has(d) }
+    return c_noreturn(nodes[f].t)
+}
+
+// whether a break in s, or in the statements after it in a block, leaves
+// what holds them: one not inside a loop or a switch of its own
+let breaks_out(s0:int64, chain:bool):bool {
+    var s:int64 = s0
+    while s >= 0 {
+        let k:nkind = nodes[s].kind
+        if k == S_BREAK { return true }
+        if k == S_BLOCK && breaks_out(nodes[s].a, true) { return true }
+        if (k == S_IF || k == S_IFLET) && (breaks_out(nodes[s].b, false) || breaks_out(nodes[s].c, false)) { return true }
+        if !chain { return false }
+        s = nodes[s].next
+    }
+    return false
+}
+
+// whether a condition is true as written: while true, for (;;)
+let always_true(a:int64):bool {
+    return a < 0 || (nodes[a].kind == N_BOOL && tok_is(nodes[a].t, "true"))
+}
+
+// whether control never goes on past the statements from s0: one of
+// them a return, a call that never returns, an if whose two branches
+// end, a switch whose every case ends and none breaks out, a loop that
+// never stops
+let stmts_end(s0:int64):bool {
+    var s:int64 = s0
+    while s >= 0 {
+        if path_ends(s) { return true }
+        s = nodes[s].next
+    }
+    return false
+}
+
+let path_ends(s:int64):bool {
+    if s < 0 { return false }
+    let k:nkind = nodes[s].kind
+    if k == S_RETURN { return true }
+    if k == S_EXPR { return call_never_returns(nodes[s].a) }
+    if k == S_BLOCK { return stmts_end(nodes[s].a) }
+    if k == S_IF || k == S_IFLET { return nodes[s].c >= 0 && path_ends(nodes[s].b) && path_ends(nodes[s].c) }
+    if k == S_WHILE { return always_true(nodes[s].a) && !breaks_out(nodes[s].b, false) }
+    if k == S_CFOR { return always_true(nodes[s].b) && !breaks_out(nodes[s].c, false) }
+    if k == S_DO { return (always_true(nodes[s].a) && !breaks_out(nodes[s].b, false)) || path_ends(nodes[s].b) }
+    if k == S_SWITCH {                                   // every switch handles every value (#63)
+        var cases:$[int64] = $[]
+        var c:int64 = nodes[s].b
+        while c >= 0 {
+            cases += c
+            c = nodes[c].next
+        }
+        if cases.count == 0 { return false }
+        var next_ends = false                            // the case after, which one falls into
+        var i:int64 = cases.count as int64 - 1
+        while i >= 0 {
+            var ends = false
+            var y:int64 = nodes[cases[i]].b
+            while y >= 0 && !ends {
+                if breaks_out(y, false) { return false }
+                ends = path_ends(y) || (nodes[y].kind == S_FALL && next_ends)
+                y = nodes[y].next
+            }
+            if !ends { return false }
+            next_ends = true
+            i -= 1
+        }
+        return true
+    }
+    return false
+}
+
+// whether s, or a statement after it, returns anywhere
+let has_return(s0:int64):bool {
+    var s:int64 = s0
+    while s >= 0 {
+        let k:nkind = nodes[s].kind
+        if k == S_RETURN { return true }
+        if k == S_BLOCK && has_return(nodes[s].a) { return true }
+        if (k == S_IF || k == S_IFLET || k == S_WHILE || k == S_DO) && (has_return(nodes[s].b) || has_return(nodes[s].c)) { return true }
+        if (k == S_FOR || k == S_EACH || k == S_CFOR) && has_return(nodes[s].c) { return true }
+        if k == S_SWITCH {
+            var c:int64 = nodes[s].b
+            while c >= 0 {
+                if has_return(nodes[c].b) { return true }
+                c = nodes[c].next
+            }
+        }
+        s = nodes[s].next
+    }
+    return false
+}
+
+let no_result(d:int64):bool { nodes[d].ty < 0 || types[nodes[d].ty].kind == Y_VOID }
+
+// those of the program's functions that never return, to the last of
+// those that call one another
+let find_noreturn() {
+    var more = true
+    while more {
+        more = false
+        for d in decls {
+            if nodes[d].kind == D_FN && nodes[d].b >= 0 && no_result(d) && !anon_fns.contains(d) && !noreturn_fns.has(d) && path_ends(nodes[d].b) && !has_return(nodes[nodes[d].b].a) {
+                noreturn_fns[d] = true
+                more = true
+            }
+        }
+    }
+}
+
+// a function with a result whose body can reach its end, as kelvinc says it
+let missing_return(d:int64):bool {
+    if no_result(d) || is_main(d) || tok_starts(nodes[d].t, "_kv_") && !anon_fns.contains(d) { return false }
+    let only:int64 = nodes[nodes[d].b].a                 // a body of one expression is its result
+    if only >= 0 && nodes[only].next < 0 && nodes[only].kind == S_EXPR { return false }
+    if path_ends(nodes[d].b) { return false }
+    var m = $""
+    if anon_fns.contains(d) {
+        m += "this anonymous function"
+    } else {
+        m += "'"
+        if nodes[d].c >= 0 && nodes[d].flag != 1 {
+            m += tok_text(nodes[d].c)
+            m += "."
+        }
+        m += tok_text(nodes[d].t)
+        m += "'"
+    }
+    m += " can reach the end of its body with no value: every path of a function with a result returns one"
+    gen_error(anon_fns.contains(d) ? nodes[d].b : d, m.cstr)   // an anonymous one at its body
+    return true
+}
+
 let gen_function(d:int64) {
     current = d
     if attributes.get(d, 0) == 1 || attributes.get(d, 0) == 2 {   // as kelvinc says it (#131)
@@ -19983,6 +20138,7 @@ let gen_function(d:int64) {
         gen_block(nodes[d].b, 0)
     }
     if var_method { put("#undef self\n") }
+    if !failed && missing_return(d) { return }           // after the body's own errors, as kelvinc's (#625)
     rp = nodes[d].a
     while rp >= 0 {
         if nodes[rp].flag == 3 {
@@ -20854,6 +21010,7 @@ let gen_program() {
         }
         put("}\n\n")
     }
+    find_noreturn()                                      // (#625)
     for i in 0..<decls.count as int64 {                  // the prototypes
         let d:int64 = decls[i]
         if nodes[d].kind == D_FN && !is_main(d) && (nodes[d].b >= 0 || nodes[d].c < 0 || in_kh(nodes[d].t)) {   // one with no body too, as kelvinc declares it (#453), a module's method (#515)

@@ -135,6 +135,21 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     the number a `bool`.
   - So of a method, an anonymous function and a filter's (#239).
   - A value only C sees, as `isdigit(c)`, is C's to convert.
+- **Every path of a function with a result returns a value** (#625):
+  one whose body can reach its end is kelvinc's error, `'sign' can
+  reach the end of its body with no value: every path of a function
+  with a result returns one`, where it was C's warning, and the
+  program ran on what C left.
+  - A path ends in a `return`; in an `if` whose branch and `else` both
+    end; in a `switch` whose every case ends, or falls through into one
+    that does, and none breaks out; in a loop with no way out,
+    `while true` with no `break`; or in a call that never returns.
+  - A call that never returns is C's `exit`, `abort` and their kin, or
+    a function of the program with no result whose every path ends so
+    and that has no `return`, which kelvinc marks `noreturn` for C:
+    `let fail(why:cstr) { println(why); exit(1) }`.
+  - A body of one expression returns it; `main`'s end returns 0.
+  - A `goto`, a label or `#inline C` in a body is C's to follow.
 - **`main`** is C's, with one form, and its end returns 0; see
   [grammar.md](grammar.md) for the one-expression rule.
 

@@ -12381,3 +12381,26 @@ provisional P636.
 
 There are 1445 tests, and all pass with clang and with gcc 15.
 
+### 672. Every path returns
+
+**Claude** pushed #624, its battery clean. Earlier the user had said
+"not yet for 0.4.0. Check again for missing issues before 0.4.0", and
+**Claude** looked again and found C's errors that still reach a
+program, a missing return being only C's warning, and kelvinc and kc
+apart on the order of declarations. The user said "add them all to the
+queue in your suggested order" and "push each of those too when its
+battery is clean". **Claude** asked two things, the first answered here
+with the recommended:
+
+- **A missing return**: kelvinc's own error, following the paths.
+
+    'sign' can reach the end of its body with no value: every path of a function with a result returns one
+
+A path ends in a return, an if and its else that both end, a switch
+whose cases all end, a loop with no way out, or a call that never
+returns: C's exit and abort, or a function of the program that never
+returns, which kelvinc marks noreturn for C. kc says the same. Details
+are provisional P637.
+
+There are 1451 tests, and all pass with clang and with gcc 15.
+

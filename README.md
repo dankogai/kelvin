@@ -751,3 +751,7 @@ So far the changes from C are these, by topic.
   is an infinity at any precision, and the bits below the least number
   are rounded off; exp's limits are `2^63` ln 2 either way,
   `6393154322601327829` (#623)
+- Every path of a function with a result returns a value: one whose
+  body can reach its end is kelvinc's error, where it was C's warning;
+  a call of `exit`, or of a function of the program that never returns,
+  ends a path (#625)

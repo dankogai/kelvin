@@ -308,6 +308,7 @@ struct Decl {
     bool attribute;       /* D_FN: let T.x:R { }, a computed attribute read as v.x, its getter (#131) */
     bool setter;          /* D_FN: the set(v) { } of var T.x:R { get set }, self the caller's var (#132) */
     bool var_method;      /* D_FN: var T.m(...) { }, a method whose self is the caller's var (#318) */
+    bool noreturn;        /* D_FN: of no result, and no path of its body returns (#625): C's noreturn */
     /* a lazy Sequence (#323): D_STRUCT lazy, one kelvinc makes for s.lazy.map(f) or .filter(f); its
        makeIterator, lazy_maker the base's, and its iterator's next, lazy_op "map" or "filter" of
        lazy_fn over lazy_next, the base iterator's, written by kelvinc */

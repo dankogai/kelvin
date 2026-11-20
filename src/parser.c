@@ -302,6 +302,7 @@ static bool returned_statement(int first, int end) {
    start in scope_names (-1 outside one); how its parameters were given;
    and the token just past a trailing `{ }`, which ends a statement */
 static List anon_fns;
+static List anon_written; /* the anonymous functions written, { ... }, each a Decl: for #625 */
 /* expression statements that give an owner and drop it (O4): decided
    when the function's body ends, since its one expression is returned
    (#81); a Bytes, a String, an Array, a Dictionary or a Set is freed at
@@ -13595,6 +13596,7 @@ static Expr *parse_anon_fn(Type *ctx) {
     anon_note = pending_note;
     pending_note = NULL;
     d->anon = true;
+    list_push(&anon_written, d); /* checked once every body is read (#625) */
     filter_fn = bool_result ? d : NULL; /* a filter's, named so in its messages (#239) */
     if (bool_result)
         filter_name = bool_result;
@@ -17910,6 +17912,206 @@ static void fold_nested_heads(void) {
     }
 }
 
+/* ---------- every path of a function with a result returns (#625) ---------- */
+
+/* the program's functions of no result that never return: each path of
+   their bodies ends in a call of one that does not, or a loop with no
+   way out. Found once every body is read, as a function may be called
+   before it is written (#505) */
+static List noreturn_fns;
+
+static bool list_has(List *l, void *x) {
+    for (int i = 0; i < l->len; i++)
+        if (l->data[i] == x)
+            return true;
+    return false;
+}
+
+/* whether s returns anywhere in it */
+static bool has_return(Stmt *s) {
+    if (!s)
+        return false;
+    if (s->kind == S_RETURN)
+        return true;
+    for (int i = 0; s->kind == S_BLOCK && i < s->stmts.len; i++)
+        if (has_return(s->stmts.data[i]))
+            return true;
+    return has_return(s->body) || has_return(s->els);
+}
+
+/* C's functions that never return, by name */
+static bool c_noreturn(const char *n) {
+    static const char *names[] = {"exit", "_Exit", "abort", "quick_exit", "thrd_exit", "pthread_exit",
+                                  "longjmp", "siglongjmp", "_longjmp", "err", "errx", "verr", "verrx",
+                                  "__builtin_unreachable", "__builtin_trap", NULL};
+    for (int i = 0; names[i]; i++)
+        if (!strcmp(n, names[i]))
+            return true;
+    return false;
+}
+
+/* whether e, a statement's expression, is a call that never returns */
+static bool call_never_returns(Expr *e) {
+    while (e && e->kind == E_CAST && e->a && !e->type) /* (f(x)) */
+        e = e->a;
+    if (!e || e->kind != E_CALL || !e->a || e->a->kind != E_IDENT)
+        return false;
+    if (e->target)
+        return list_has(&noreturn_fns, e->target);
+    return c_noreturn(e->a->text);
+}
+
+/* whether a break in s leaves what holds it: one not inside a loop or a
+   switch of its own */
+static bool breaks_out(Stmt *s) {
+    if (!s)
+        return false;
+    switch (s->kind) {
+    case S_BREAK:
+        return true;
+    case S_WHILE:
+    case S_DO:
+    case S_FOR:
+    case S_FOR_IN:
+    case S_FOR_EACH:
+    case S_SWITCH:
+        return false;
+    case S_BLOCK:
+        for (int i = 0; i < s->stmts.len; i++)
+            if (breaks_out(s->stmts.data[i]))
+                return true;
+        return false;
+    case S_IF:
+        return breaks_out(s->body) || breaks_out(s->els);
+    default:
+        return false;
+    }
+}
+
+/* whether a condition is true as written: while true, for ;; */
+static bool always_true(Expr *e) {
+    return !e || (e->kind == E_LITERAL && e->text && !strcmp(e->text, "true"));
+}
+
+static bool path_ends(Stmt *s);
+
+/* the statements of a block from k on: whether they end, the last of
+   them or one before it going on nowhere */
+static bool stmts_end(List *l, int k) {
+    for (int i = k; i < l->len; i++)
+        if (path_ends(l->data[i]))
+            return true;
+    return false;
+}
+
+/* whether control never goes on past s: a return, a call that never
+   returns, an if whose two branches end, a switch whose every case ends
+   and none breaks out, a loop that never stops */
+static bool path_ends(Stmt *s) {
+    if (!s)
+        return false;
+    switch (s->kind) {
+    case S_RETURN:
+        return true;
+    case S_EXPR:
+        return call_never_returns(s->expr);
+    case S_BLOCK:
+        return stmts_end(&s->stmts, 0);
+    case S_IF:
+        return s->els && path_ends(s->body) && path_ends(s->els);
+    case S_WHILE:
+    case S_FOR:
+        return always_true(s->expr) && !breaks_out(s->body);
+    case S_DO:
+        return (always_true(s->expr) && !breaks_out(s->body)) || path_ends(s->body);
+    case S_SWITCH: {
+        /* every switch handles every value (#63); its cases, each from its
+           label to the next, end, or fall through into one that does */
+        List *l = &s->body->stmts;
+        bool next_ends = false, any = false;
+        int end = l->len;
+        for (int i = l->len - 1; i >= 0; i--) {
+            Stmt *x = l->data[i];
+            if (x->kind != S_CASE && x->kind != S_DEFAULT)
+                continue;
+            bool ends = false;
+            for (int k = i + 1; k < end && !ends; k++) {
+                Stmt *y = l->data[k];
+                if (breaks_out(y))
+                    return false;
+                ends = path_ends(y) || (y->kind == S_FALLTHROUGH && next_ends);
+            }
+            if (!ends)
+                return false;
+            next_ends = true;
+            any = true;
+            end = i;
+        }
+        return any;
+    }
+    default:
+        return false;
+    }
+}
+
+/* whether s holds what kelvinc cannot follow: a goto, a label, C's own */
+static bool unfollowed(Stmt *s) {
+    if (!s)
+        return false;
+    if (s->kind == S_GOTO || s->kind == S_LABEL || s->kind == S_INLINE_C)
+        return true;
+    for (int i = 0; s->kind == S_BLOCK && i < s->stmts.len; i++)
+        if (unfollowed(s->stmts.data[i]))
+            return true;
+    return unfollowed(s->body) || unfollowed(s->els) || (s->kind == S_FOR && unfollowed(s->init));
+}
+
+static const char *fn_shown(Decl *d) {
+    if (d->anon)
+        return "this anonymous function";
+    if (d->recv_name && !strchr(d->name, '.'))
+        return strfmt("'%s.%s'", d->recv_name, d->name);
+    return strfmt("'%s'", d->name);
+}
+
+static void reject_missing_return(Decl *d) {
+    if (d->kind != D_FN || !d->body || d->imported || d->task || d->lazy || d->iter_builtin || d->setter ||
+        unfollowed(d->body))
+        return;
+    if ((!d->anon && !strncmp(d->name, "_kv_", 4)) || (d->recv_name && !strncmp(d->recv_name, "_kv_", 4)))
+        return; /* kelvinc's own, a lazy Sequence's */
+    if (!d->ret || (d->ret->kind == T_BASE && !strcmp(d->ret->name, "void")))
+        return;
+    if (!d->recv && !d->anon && !d->op && !strcmp(d->name, "main")) /* C's main returns 0 at its end */
+        return;
+    if (!path_ends(d->body))
+        error_at(d->pos, "%s can reach the end of its body with no value: every path of a function with a result "
+                         "returns one",
+                 fn_shown(d));
+}
+
+static void reject_missing_returns(void) {
+    noreturn_fns = (List){0};
+    for (bool more = true; more;) { /* those that call one another, to the last */
+        more = false;
+        for (int i = 0; i < functions.len; i++) {
+            Decl *d = functions.data[i];
+            bool none = !d->ret || (d->ret->kind == T_BASE && !strcmp(d->ret->name, "void"));
+            if (d->kind == D_FN && d->body && none && !d->anon && !list_has(&noreturn_fns, d) &&
+                !unfollowed(d->body) && path_ends(d->body) && !has_return(d->body)) {
+                list_push(&noreturn_fns, d);
+                d->noreturn = true;
+                more = true;
+            }
+        }
+    }
+    for (int i = 0; i < functions.len; i++)
+        reject_missing_return(functions.data[i]);
+    for (int i = 0; i < anon_written.len; i++)
+        if (!list_has(&functions, anon_written.data[i]))
+            reject_missing_return(anon_written.data[i]);
+}
+
 Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
     c_called = (List){0};
@@ -17918,6 +18120,7 @@ Program *parse(Token *tokens, int ntoks) {
     fold_nested_heads();
     forward_prototypes(); /* a call before the definition (#505) */
     anon_fns = (List){0};
+    anon_written = (List){0};
     proto_copies = (List){0};
     lazy_records = (List){0};
     lazy_serial = 0;
@@ -18205,6 +18408,7 @@ Program *parse(Token *tokens, int ntoks) {
         error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
     end_alignas(); /* (#396) */
     reject_unseen_overloads(); /* (#492) */
+    reject_missing_returns(); /* (#625) */
     name_functions();
     /* a Dictionary has == where its values compare (#235), known once every
        enum's no_eq is: an enum of the values may hold the Dictionary */

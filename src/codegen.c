@@ -3523,7 +3523,8 @@ static char *fn_head(Decl *d) {
        sizeof, is never emitted, which C need not mention (#32) */
     /* an operator's value is what it is for, so C warns where a statement
        drops it, as it does for `n == 2;` (#42) */
-    return strfmt("%s%s%s%s%s", d->anon ? "__attribute__((unused)) " : "",
+    return strfmt("%s%s%s%s%s%s", d->noreturn ? "__attribute__((noreturn)) " : "" /* (#625) */,
+                  d->anon ? "__attribute__((unused)) " : "",
                   d->op && d->ret ? "__attribute__((warn_unused_result)) " : "" /* not of x op= y (#518) */, d->storage ? d->storage : "",
                   d->storage ? " " : "", head);
 }
