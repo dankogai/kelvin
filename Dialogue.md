@@ -12656,3 +12656,20 @@ macOS, Linux, FreeBSD or Windows. kc does the same. Details are
 provisional P648.
 
 There are 1478 tests, and all pass with clang and with gcc 15.
+
+### 691. The two stale preprocessor lines
+
+**Claude** pushed #643, its battery clean, and found two lines it left
+behind: Design.md's principle, "The preprocessor is TODO", and
+c-interfaces.md's "Every other directive (`#include`, `#define`, `#if`,
+...) is an error".
+
+**User:** fix the two stale preprocessor lines too
+
+**Claude** made it #644: the principle names `#import`, `#inline C` and
+`#if os(...)` as Kelvin's own directives, and c-interfaces.md says
+`#if os(...)` chooses code by the platform, `#if DEBUG` being an error.
+The #296 error, which still names only `#import` and `#inline C`, is
+left for the user to order. Details are provisional P649.
+
+There are 1478 tests, and all pass with clang and with gcc 15.

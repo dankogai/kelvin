@@ -45,7 +45,11 @@ prelude from C, and what the C compiler checks.
   - It names no namespace: a header's names come in bare, `toupper(97)`.
   - `C.toupper(97)` is an error that says so (#416), unless the program
     declares a `C` of its own, a variable, a function or a type.
-- Every other directive (`#include`, `#define`, `#if`, ...) is an error.
+- `#if os(...)` chooses code by the platform (#643): see
+  [versusC.md](versusC.md).
+  - Its condition is `os(name)` alone, so `#if DEBUG` is an error.
+- Every other directive (`#include`, `#define`, `#ifdef`, ...) is an
+  error.
   - Kelvin leaves C's preprocessor out on purpose, inside
     `#inline C { ... }` too (#296): see [Inline C](#inline-c).
 - Without an import you can still declare C functions by hand:

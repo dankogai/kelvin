@@ -13,7 +13,9 @@ document per topic beside it.
   C's.
 - **Start with bare C and change it bit by bit.** Every departure from C is
   proposed, discussed and agreed on one at a time, then recorded here.
-- **The preprocessor is TODO**, except `#import <x.h> as C` (#12).
+- **The preprocessor is Kelvin's own**: `#import <x.h> as C` (#12),
+  `#inline C { ... }` (#197) and `#if os(...)` (#643); C's directives are
+  left out (#296).
 
 ### The name
 
@@ -697,6 +699,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 641 | thread_local var x is each thread's own, C's _Thread_local: a storage word before var or let, as static is, before or after static or extern; at the top level and in a block, where it is static, each thread's own as well. Two Tasks count their own hits from 0, and main's is untouched. A thread_local holds no owner, which no thread's end frees, and its value is one C initializes; a function is every thread's already, thread_local let f() an error; and C's _Thread_local says to write thread_local. kc does the same. The second of C's features, and of the six asked the user's answer, the recommended: thread_local var x; kelvinc and kc | src/parser.c; src/codegen.c; src/kelvin.h; selfhost/parse.k; selfhost/gen.k; documents/tasks.md; Design.md's TODO | tests/run/thread_local.k; tests/error/thread_local_owner.k, thread_local_function.k, thread_local_c_word.k | 2026-11-20 |
 | 642 | atomic T is C's _Atomic, a qualifier written as const is, of a number, a bool or a pointer: var hits:atomic i64 = 0, and hits += 1 from eight Tasks loses none, x += y, x = v and a read being C's atomic operations; atomic bool, and i64^ atomic of a pointer. Of another type it is kelvinc's error, 'atomic' is of a number, a bool or a pointer, which C's atomic operations change at once (#642), and this is struct point; C's _Atomic says to write atomic. kc does the same of a number and a bool, and reads an atomic pointer not yet. The third of C's features, and of the six asked the user's answer, the recommended: an atomic qualifier, as const; kelvinc and kc | src/parser.c; src/codegen.c; src/kelvin.h; selfhost/parse.k; selfhost/gen.k; documents/tasks.md; Design.md's TODO | tests/run/atomic.k; tests/error/atomic_struct.k, atomic_c_word.k | 2026-11-20 |
 | 643 | #if os(macOS), #elseif os(Linux), #else and #endif are Swift's conditional compilation, of the platform kelvinc runs on: a condition is os(name), joined by !, && and || and parentheses; an os is macOS, Linux, FreeBSD or Windows, and another name is kelvinc's error, os(MacOS): an os is macOS, Linux, FreeBSD or Windows (#643); a branch not taken is read as text alone, to its #elseif, #else or #endif, an #if in it counted, so that what is in it need not even be Kelvin; at the top level and among a function's statements. An #if with no #endif, and an #else or #endif with no #if, are errors. #define stays left out. kc does the same, of SYS.platform. The last of C's features, and of the six asked the user's answer, the recommended: #if os(...) of Kelvin's own; kelvinc and kc | src/lexer.c; selfhost/lex.k; documents/versusC.md; Design.md's TODO | tests/run/if_os.k; tests/error/if_os_unknown.k, if_os_no_endif.k, if_os_else_alone.k | 2026-11-20 |
+| 644 | Two lines the preprocessor's change left behind: Design.md's principle, The preprocessor is TODO, except #import, is now The preprocessor is Kelvin's own, #import, #inline C and #if os(...), C's directives left out; and c-interfaces.md's Every other directive (#include, #define, #if, ...) is an error now says #if os(...) chooses code by the platform, #if DEBUG an error, and that every other directive, #include, #define, #ifdef, is one. The user's order, "fix the two stale preprocessor lines too" | Design.md's principles; documents/c-interfaces.md | — | 2026-11-20 |
 
 Notes:
 
@@ -1281,6 +1284,11 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (644) Agreed details: the two stale preprocessor lines
+  - The user's order: "fix the two stale preprocessor lines too".
+  - The error of #296, which names `#import` and `#inline C` alone and
+    not `#if os(...)`, is left as it is, not ordered.
 
 - (643) Agreed details: #if os(...)
   - The user's answer: #if os(...) of Kelvin's own (recommended), #define
@@ -11700,6 +11708,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P646 | Details of #641 | kelvinc: `parse_thread_local` in parse_storage, before and after static or extern, sets `thread_next`, which parse_declaration and the top level's var take by `take_thread_local`, Var.thread_local; var_decl writes _Thread_local after the storage. kc: `thread_decls`, of a statement's and the top level's, and _Thread_local in the global's and the local's C. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P647 | Details of #642 | kelvinc: Type.is_atomic, read by parse_qualifiers of the word atomic, checked by `check_atomic` once a type is read, a number's, a bool's or a pointer's; unqualified drops it; declarator writes _Atomic. kc: `atomic_base` makes a type of its own, konst 2, of a number or a bool, a pointer's base too; put_ctype writes _Atomic. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P648 | Details of #643 | kelvinc's lexer: `lex_condition` after a #, of if, elseif, else and endif; `cond_or`, `cond_and` and `cond_factor` read a condition, `host_os` the platform by C's macros; `cond_skip` passes a branch not taken line by line, an #if in it counted; Lexer.conds the #if open, checked at the end. kc's lex.k: `cond_word_at`, `cond_skip`, `cond_value` of SYS.platform, the lines passed counted. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
+| P649 | Details of #644 | Docs alone, no code: Design.md's principle of the preprocessor and documents/c-interfaces.md's list of directives, brought up to #643. Checked: tests/docs.sh and the rest of the battery. |
 
 ## Open questions
 

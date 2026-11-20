@@ -777,3 +777,5 @@ So far the changes from C are these, by topic.
   bool or a pointer: `var hits:atomic i64 = 0` (#642)
 - `#if os(macOS)`, `#elseif`, `#else` and `#endif` choose code by the
   platform, as Swift's do (#643)
+- Design.md's principle and c-interfaces.md say `#if os(...)` is one
+  of Kelvin's directives (#644)
