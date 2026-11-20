@@ -295,11 +295,21 @@ These C features stay out, as decided (#294):
     `bool` by its place, and an enum names the flags:
     `s.flags.bits[busy]`; a `BigInt` holds more than 128 (#531).
   - See [bits.md](bits.md).
-- **The preprocessor**: Kelvin's directives, `#import` and
-  `#inline C { ... }`, are its only ones.
+- **The preprocessor**: Kelvin's directives, `#import`,
+  `#inline C { ... }` and `#if os(...)`, are its only ones.
   - `#inline C { ... }` holds no C preprocessor directive, and no
     Kelvin directive nests in it.
   - Either is an error that says so (#296).
+  - `#if os(macOS)`, `#elseif os(Linux)`, `#else` and `#endif` are
+    Swift's conditional compilation (#643), of the platform kelvinc
+    runs on.
+    - A condition is `os(name)`, joined by `!`, `&&`, `||` and
+      parentheses; an os is `macOS`, `Linux`, `FreeBSD` or
+      `Windows`, and another name is an error.
+    - A branch not taken is read as text alone, to its `#elseif`,
+      `#else` or `#endif`.
+    - They stand at the top level and among a function's statements.
+    - `#define` stays out: a constant is a `let` or an enum's.
 
 ### Diagnostics
 

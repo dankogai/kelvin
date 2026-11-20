@@ -74,6 +74,9 @@ typedef struct {
        last, where each ${ and its template began, and the depth now */
     int tpl_braces[64], tpl_top, braces;
     Pos tpl_open[64], tpl_start[64];
+    /* #if os(...) (#643): the branches open, each where its #if is */
+    int conds;
+    Pos cond_at[64];
 } Lexer;
 
 static Pos here(Lexer *lx) { return (Pos){lx->file, lx->line, lx->col}; }
@@ -720,6 +723,211 @@ static void lex_inline_c(Lexer *lx, Pos pos) {
     free(text);
 }
 
+/* ---------- #if os(...) (#643) ---------- */
+
+/* Swift's conditional compilation, of the platform kelvinc runs on:
+   #if os(macOS), #elseif os(Linux), #else and #endif, a condition of
+   os(name), !, &&, || and parentheses. The branches not taken are read
+   as text alone, to their #elseif, #else or #endif, an #if in them
+   counted. */
+static const char *host_os(void) {
+#if defined(__APPLE__)
+    return "macOS";
+#elif defined(__linux__)
+    return "Linux";
+#elif defined(__FreeBSD__)
+    return "FreeBSD";
+#elif defined(_WIN32)
+    return "Windows";
+#else
+    return "";
+#endif
+}
+
+static bool cond_or(Lexer *lx);
+
+static bool cond_factor(Lexer *lx) {
+    skip_blanks(lx);
+    if (*lx->p == '!') {
+        step(lx);
+        return !cond_factor(lx);
+    }
+    if (*lx->p == '(') {
+        step(lx);
+        bool v = cond_or(lx);
+        skip_blanks(lx);
+        if (*lx->p != ')')
+            error_at(here(lx), "expected ')' in the condition of '#if'");
+        step(lx);
+        return v;
+    }
+    Pos at = here(lx);
+    if (!accept_word(lx, "os"))
+        error_at(at, "a condition of '#if' is os(name), as in '#if os(macOS)', with !, && and || (#643)");
+    skip_blanks(lx);
+    if (*lx->p != '(')
+        error_at(here(lx), "expected '(' after 'os', as in 'os(Linux)'");
+    step(lx);
+    skip_blanks(lx);
+    const char *w = lx->p;
+    while (isalnum((unsigned char)*lx->p) || *lx->p == '_')
+        step(lx);
+    size_t n = (size_t)(lx->p - w);
+    static const char *names[] = {"macOS", "Linux", "FreeBSD", "Windows", NULL};
+    bool known = false;
+    for (int i = 0; names[i]; i++)
+        known = known || (strlen(names[i]) == n && !strncmp(w, names[i], n));
+    if (!known)
+        error_at(at, "os(%.*s): an os is macOS, Linux, FreeBSD or Windows (#643)", (int)n, w);
+    skip_blanks(lx);
+    if (*lx->p != ')')
+        error_at(here(lx), "expected ')' after the name of the os");
+    step(lx);
+    return strlen(host_os()) == n && !strncmp(w, host_os(), n);
+}
+
+static bool cond_and(Lexer *lx) {
+    bool v = cond_factor(lx);
+    for (;;) {
+        skip_blanks(lx);
+        if (lx->p[0] != '&' || lx->p[1] != '&')
+            return v;
+        step(lx);
+        step(lx);
+        v = cond_factor(lx) && v;
+    }
+}
+
+static bool cond_or(Lexer *lx) {
+    bool v = cond_and(lx);
+    for (;;) {
+        skip_blanks(lx);
+        if (lx->p[0] != '|' || lx->p[1] != '|')
+            return v;
+        step(lx);
+        step(lx);
+        v = cond_and(lx) || v;
+    }
+}
+
+/* the condition to the end of its line */
+static bool cond_line(Lexer *lx) {
+    bool v = cond_or(lx);
+    skip_blanks(lx);
+    if (!line_ends(lx))
+        error_at(here(lx), "unexpected text after the condition of '#if'");
+    return v;
+}
+
+/* the word of a directive at the start of the line at p, if any */
+static const char *cond_word(const char *p) {
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (*p != '#')
+        return NULL;
+    p++;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    static const char *words[] = {"if", "elseif", "else", "endif", NULL};
+    for (int i = 0; words[i]; i++) {
+        size_t n = strlen(words[i]);
+        if (!strncmp(p, words[i], n) && !isalnum((unsigned char)p[n]) && p[n] != '_')
+            return words[i];
+    }
+    return NULL;
+}
+
+/* past a branch not taken: to its #elseif or #else, which `take` says
+   may begin the next branch, or to its #endif; what ends it is left to
+   lex_condition, its # the next */
+static void cond_skip(Lexer *lx, Pos from) {
+    int depth = 0;
+    for (;;) {
+        if (!*lx->p)
+            error_at(from, "'#if' has no '#endif'");
+        const char *w = cond_word(lx->p);
+        if (w && depth == 0 && strcmp(w, "if")) {
+            while (*lx->p != '#')
+                step(lx);
+            return;
+        }
+        if (w && !strcmp(w, "if"))
+            depth++;
+        if (w && !strcmp(w, "endif"))
+            depth--;
+        while (*lx->p && *lx->p != '\n')
+            step(lx);
+        if (*lx->p)
+            step(lx);
+    }
+}
+
+/* to the end of the line */
+static void cond_rest(Lexer *lx) {
+    skip_blanks(lx);
+    if (!line_ends(lx))
+        error_at(here(lx), "unexpected text after this directive");
+}
+
+/* #if, #elseif, #else and #endif after the # at pos; whether this is one */
+static bool lex_condition(Lexer *lx, Pos pos) {
+    if (accept_word(lx, "if")) {
+        if (lx->conds == 64)
+            error_at(pos, "'#if' nests 64 deep at most");
+        lx->cond_at[lx->conds++] = pos;
+        for (;;) {
+            if (cond_line(lx))
+                return true; /* this branch is read; the rest are skipped at its end */
+            cond_skip(lx, pos);
+            Pos at = here(lx);
+            step(lx); /* # */
+            skip_blanks(lx);
+            if (accept_word(lx, "elseif"))
+                continue;
+            if (accept_word(lx, "else")) {
+                cond_rest(lx);
+                return true;
+            }
+            accept_word(lx, "endif");
+            cond_rest(lx);
+            lx->conds--;
+            (void)at;
+            return true;
+        }
+    }
+    bool elseif = accept_word(lx, "elseif");
+    bool els = !elseif && accept_word(lx, "else");
+    if (elseif || els) { /* the end of a branch read: the rest to #endif are not */
+        if (!lx->conds)
+            error_at(pos, "'#%s' has no '#if' before it", elseif ? "elseif" : "else");
+        for (;;) {
+            if (elseif)
+                cond_line(lx);
+            else
+                cond_rest(lx);
+            cond_skip(lx, lx->cond_at[lx->conds - 1]);
+            step(lx);
+            skip_blanks(lx);
+            elseif = accept_word(lx, "elseif");
+            els = !elseif && accept_word(lx, "else");
+            if (!elseif && !els)
+                break;
+        }
+        accept_word(lx, "endif");
+        cond_rest(lx);
+        lx->conds--;
+        return true;
+    }
+    if (accept_word(lx, "endif")) {
+        if (!lx->conds)
+            error_at(pos, "'#endif' has no '#if' before it");
+        cond_rest(lx);
+        lx->conds--;
+        return true;
+    }
+    return false;
+}
+
 /* The directives: #import <header.h> as C (or "header.h"), which becomes
    #include in the generated C, so C's headers are usable; #import <x.k>
    or "x.k", without `as C`, which brings in a Kelvin file (#40); and
@@ -735,6 +943,8 @@ static void lex_import(Lexer *lx) {
         lex_inline_c(lx, pos);
         return;
     }
+    if (lex_condition(lx, pos))
+        return;
     if (!accept_word(lx, "import"))
         error_at(pos, "only '#import <header.h> as C' and '#inline C { ... }' are supported; C's preprocessor "
                       "Kelvin leaves out (#296)");
@@ -827,6 +1037,8 @@ Token *lex(const char *file, const char *src, int *ntoks) {
         char c = *lx.p;
         Pos pos = here(&lx);
         if (!c) {
+            if (lx.conds)
+                error_at(lx.cond_at[lx.conds - 1], "'#if' has no '#endif'");
             static const char eof[] = "end of file";
             push(&lx, TK_EOF, pos, eof, eof + sizeof eof - 1);
             break;

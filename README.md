@@ -775,3 +775,5 @@ So far the changes from C are these, by topic.
   top level and, static, in a block (#641)
 - `atomic` is C's `_Atomic`, a qualifier as `const` is, of a number, a
   bool or a pointer: `var hits:atomic i64 = 0` (#642)
+- `#if os(macOS)`, `#elseif`, `#else` and `#endif` choose code by the
+  platform, as Swift's do (#643)

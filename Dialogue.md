@@ -12645,3 +12645,14 @@ lose none of their additions. kc does the same of a number and a bool.
 Details are provisional P647.
 
 There are 1474 tests, and all pass with clang and with gcc 15.
+
+### 690. #if os(...)
+
+**Claude** pushed #642, its battery clean. This is the last of C's
+features: `#if os(macOS)`, `#elseif os(Linux)`, `#else` and `#endif`,
+Swift's conditional compilation, of the platform kelvinc runs on, with
+`!`, `&&` and `||`. A branch not taken is read as text alone. An os is
+macOS, Linux, FreeBSD or Windows. kc does the same. Details are
+provisional P648.
+
+There are 1478 tests, and all pass with clang and with gcc 15.

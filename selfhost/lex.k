@@ -632,6 +632,152 @@ let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
     }
 }
 
+// ---------- #if os(...) (#643), as kelvinc's lexer reads it ----------
+
+// the directive's word at w: 1 if, 2 elseif, 3 else, 4 endif, 0 another
+let cond_word_at(w:int64):int64 {
+    let words:$[cstr] = $["if", "elseif", "else", "endif"]
+    for k in 0..<4 {
+        let x:cstr := words[k]
+        var n:int64 = 0
+        var same = true
+        while x[n] != 0 {
+            if code_at(w + n) != x[n] as uint32 { same = false }
+            n += 1
+        }
+        if same && !(is_alpha(code_at(w + n)) || is_digit(code_at(w + n)) || code_at(w + n) == '_') { return k + 1 }
+    }
+    return 0
+}
+
+// the newlines from a to b
+let lines_in(a:int64, b:int64):int64 {
+    var n:int64 = 0
+    for k in a..<b {
+        if codes[k] == '\n' { n += 1 }
+    }
+    return n
+}
+
+// past a branch not taken, from i: the # of the #elseif, #else or #endif
+// that ends it, an #if in it counted; to, where there is none
+let cond_skip(i0:int64, to:int64):int64 {
+    var i:int64 = i0
+    var depth:int64 = 0
+    while i < to {
+        while i < to && codes[i] != '\n' { i += 1 }
+        if i >= to { return to }
+        i += 1
+        var k:int64 = i
+        while k < to && (codes[k] == ' ' || codes[k] == '\t') { k += 1 }
+        if k < to && codes[k] == '#' {
+            var w:int64 = k + 1
+            while w < to && (codes[w] == ' ' || codes[w] == '\t') { w += 1 }
+            let cw:int64 = cond_word_at(w)
+            if cw == 1 { depth += 1 }
+            if cw > 1 && depth == 0 { return k }
+            if cw == 4 { depth -= 1 }
+        }
+    }
+    return to
+}
+
+var cond_at:int64 = 0          // where cond_value reads
+var cond_end:int64 = 0
+var cond_file:int64 = 0
+var cond_line:int64 = 0
+
+let cond_blanks() {
+    while cond_at < cond_end && (codes[cond_at] == ' ' || codes[cond_at] == '\t' || codes[cond_at] == '\r') { cond_at += 1 }
+}
+
+let cond_or():bool    // a prototype: a factor in parentheses is one
+
+let cond_factor():bool {
+    cond_blanks()
+    if cond_at < cond_end && codes[cond_at] == '!' {
+        cond_at += 1
+        return !cond_factor()
+    }
+    if cond_at < cond_end && codes[cond_at] == '(' {
+        cond_at += 1
+        let v = cond_or()
+        cond_blanks()
+        if !(cond_at < cond_end && codes[cond_at] == ')') { lex_error(cond_file, cond_line, "expected ')' in the condition of '#if'") }
+        cond_at += 1
+        return v
+    }
+    if !(code_at(cond_at) == 'o' && code_at(cond_at + 1) == 's' && !is_alpha(code_at(cond_at + 2))) {
+        lex_error(cond_file, cond_line, "a condition of '#if' is os(name), as in '#if os(macOS)', with !, && and || (#643)")
+        return false
+    }
+    cond_at += 2
+    cond_blanks()
+    if !(cond_at < cond_end && codes[cond_at] == '(') {
+        lex_error(cond_file, cond_line, "expected '(' after 'os', as in 'os(Linux)'")
+        return false
+    }
+    cond_at += 1
+    cond_blanks()
+    var name = $""
+    var lower = $""
+    while cond_at < cond_end && (is_alpha(codes[cond_at]) || is_digit(codes[cond_at]) || codes[cond_at] == '_') {
+        let c:uint32 = codes[cond_at]
+        name += c
+        lower += c >= 'A' && c <= 'Z' ? c + 32 : c
+        cond_at += 1
+    }
+    if !(name == "macOS" || name == "Linux" || name == "FreeBSD" || name == "Windows") {
+        var m = $"os("
+        m += &name
+        m += "): an os is macOS, Linux, FreeBSD or Windows (#643)"
+        lex_error(cond_file, cond_line, m.cstr)
+        return false
+    }
+    cond_blanks()
+    if !(cond_at < cond_end && codes[cond_at] == ')') { lex_error(cond_file, cond_line, "expected ')' after the name of the os") }
+    cond_at += 1
+    var host = $""
+    host += SYS.platform
+    return lower == host
+}
+
+let cond_and():bool {
+    var v = cond_factor()
+    while true {
+        cond_blanks()
+        if !(code_at(cond_at) == '&' && code_at(cond_at + 1) == '&') { return v }
+        cond_at += 2
+        let w = cond_factor()
+        v = v && w
+    }
+    return v
+}
+
+let cond_or():bool {
+    var v = cond_and()
+    while true {
+        cond_blanks()
+        if !(code_at(cond_at) == '|' && code_at(cond_at + 1) == '|') { return v }
+        cond_at += 2
+        let w = cond_and()
+        v = v || w
+    }
+    return v
+}
+
+// the condition of #if or #elseif from a to the line's end b
+let cond_value(a:int64, b:int64, file:int64, line:int64):bool {
+    cond_at = a
+    cond_end = b
+    cond_file = file
+    cond_line = line
+    let v = cond_or()
+    cond_blanks()
+    if cond_at < cond_end && !(codes[cond_at] == '/' && code_at(cond_at + 1) == '/') { lex_error(file, line, "unexpected text after the condition of '#if'") }
+    return v
+}
+
 // the punctuators of two or three characters, longest first
 let punct_len(i:int64):int64 {
     let c:uint32 = code_at(i)
@@ -729,6 +875,7 @@ let lex_range(from:int64, to:int64, file:int64) {
     var depth:int64 = 0              // ( and [ open
     var outer:$[int64] = $[]         // the depth each open { was written at: a body inside parentheses has its lines (#326)
     var tpls:$[int64] = $[]          // the count of outer at each open ${ of a template (#445)
+    var conds:$[int64] = $[]         // the lines of the #if open (#643)
     while i < to && !failed {
         let c:uint32 = codes[i]
         if c == '\n' {
@@ -882,6 +1029,61 @@ let lex_range(from:int64, to:int64, file:int64) {
             while b > a && codes[b - 1] != '>' && codes[b - 1] != '"' { b -= 1 }
             var w:int64 = s + 1
             while w < i && (codes[w] == ' ' || codes[w] == '\t') { w += 1 }
+            let cw:int64 = cond_word_at(w)               // #if os(...), #elseif, #else, #endif (#643)
+            if cw > 0 {
+                if cw == 1 {
+                    conds += line
+                    var take = cond_value(w + 2, i, file, line)
+                    while !take && !failed {
+                        let k:int64 = cond_skip(i, to)
+                        line += lines_in(i, k)
+                        i = k
+                        if k >= to {
+                            lex_error(file, conds[conds.count - 1], "'#if' has no '#endif'")
+                            break
+                        }
+                        var e:int64 = k
+                        while e < to && codes[e] != '\n' { e += 1 }
+                        var kw:int64 = k + 1
+                        while kw < e && (codes[kw] == ' ' || codes[kw] == '\t') { kw += 1 }
+                        let ww:int64 = cond_word_at(kw)
+                        i = e
+                        if ww == 2 {
+                            take = cond_value(kw + 6, e, file, line)
+                        } else if ww == 3 {
+                            take = true
+                        } else {
+                            conds.pop()
+                            take = true
+                        }
+                    }
+                } else if cw == 4 {
+                    if conds.count == 0 { lex_error(file, line, "'#endif' has no '#if' before it") } else { conds.pop() }
+                } else {                                     // the end of a branch read: the rest to #endif are not
+                    if conds.count == 0 {
+                        lex_error(file, line, cw == 2 ? "'#elseif' has no '#if' before it" : "'#else' has no '#if' before it")
+                    }
+                    while !failed && conds.count > 0 {
+                        let k:int64 = cond_skip(i, to)
+                        line += lines_in(i, k)
+                        i = k
+                        if k >= to {
+                            lex_error(file, conds[conds.count - 1], "'#if' has no '#endif'")
+                            break
+                        }
+                        var e:int64 = k
+                        while e < to && codes[e] != '\n' { e += 1 }
+                        var kw:int64 = k + 1
+                        while kw < e && (codes[kw] == ' ' || codes[kw] == '\t') { kw += 1 }
+                        i = e
+                        if cond_word_at(kw) == 4 {
+                            conds.pop()
+                            break
+                        }
+                    }
+                }
+                continue
+            }
             let imports = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'm' && codes[w + 2] == 'p' && codes[w + 3] == 'o' && codes[w + 4] == 'r' && codes[w + 5] == 't' && !(is_alpha(code_at(w + 6)) || is_digit(code_at(w + 6)))
             let inlines = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'n' && codes[w + 2] == 'l' && codes[w + 3] == 'i' && codes[w + 4] == 'n' && codes[w + 5] == 'e'
             if inlines && !imports {                     // #inline C { ... }, kelvinc's words of what is wrong in it (#629)
