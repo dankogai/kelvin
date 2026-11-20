@@ -12338,3 +12338,26 @@ provisional P634.
 
 There are 1443 tests, and all pass with clang and with gcc 15.
 
+### 670. BigFloat's range of its leading bit
+
+**Claude** pushed #622, its battery clean. Then this, which the user
+ordered after the three: "then fix BigFloat's last-1 rule", and "push
+#623 too when its battery is clean".
+
+A BigFloat was an infinity where the exponent of its last 1 was past
+an `i64`: `0x1p+9223372036854775808` was one, and the greater
+`0x1.8p+9223372036854775808` a number. **Claude** asked two things,
+each answered with the recommended:
+
+- **The top**: by the leading bit. A number of `2^(2^63)` and more is
+  an infinity, at any precision.
+- **The bottom**: the bits below the least number, `2^-(2^63 - 1)`,
+  are rounded off, as an f64's below `2^-1022`.
+
+So exp's limits are `2^63` ln 2 either way, `6393154322601327829` and
+`-6393154322601327829`, at any precision, where they were
+`6393154322601327917` and `-6393154322601327741` at 128 bits. Details
+are provisional P635.
+
+There are 1444 tests, and all pass with clang and with gcc 15.
+

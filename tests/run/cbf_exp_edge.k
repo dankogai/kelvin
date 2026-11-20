@@ -20,7 +20,7 @@ let main():int32 {
     println(sinh(CBF(far, tiny)).hex, " ", cosh(CBF(-far, tiny)).hex)
     println(sin(CBF(tiny, far)).hex, " ", cos(CBF(tiny, -far)).hex)
     // beside a quarter turn it is the cosine that does: pi / 2 to 128 bits is not pi / 2
-    println(exp(CBF(BigFloat("6393154322601327940"), quarter)).hex, " ", cosh(CBF(BigFloat("6393154322601327940"), quarter)).hex)
+    println(exp(CBF(BigFloat("6393154322601327918"), quarter)).hex, " ", cosh(CBF(BigFloat("6393154322601327918"), quarter)).hex)
     // all but below the least number: both parts were 0
     println(exp(CBF(BigFloat("-6393154322601327735"), BigFloat(1))).hex)
     // tanh far out is 1 and 4 sin b cos b e^(-2|a|), and tan is of it
@@ -44,7 +44,7 @@ let main():int32 {
 // out: (+inf+0x1.6ef55a9ee10e1b877027dd336cb404fep+6098865286222743851.i)
 // out: (+inf+0x1.6ef55a9ee10e1b877027dd336cb404fep+6098865286222743850.i) (+inf-0x1.6ef55a9ee10e1b877027dd336cb404fep+6098865286222743850.i)
 // out: (+0x1.6ef55a9ee10e1b877027dd336cb404fep+6098865286222743850+inf.i) (+inf+0x1.6ef55a9ee10e1b877027dd336cb404fep+6098865286222743850.i)
-// out: (+0x1.277472a41fa283e0c245a4baf59573c8p+9223372036854775837+inf.i) (+0x1.277472a41fa283e0c245a4baf59573c8p+9223372036854775836+inf.i)
+// out: (+0x1.61f9906b439cc406ee2cc20aeb2c9eccp+9223372036854775805+inf.i) (+0x1.61f9906b439cc406ee2cc20aeb2c9eccp+9223372036854775804+inf.i)
 // out: (+0x1.02bf2abb47b825eba3f7a341a97d0e6p-9223372036854775672+0x1.92f963e6849c3b65410994c385aaa6c6p-9223372036854775672.i)
 // out: (+0x1p0+0x1.778fdca7793dc31adf5d798045f111c4p-9223372036854775678.i) (+0x1.778fdca7793dc31adf5d798045f111c4p-9223372036854775678-0x1p0.i)
 // out: (+0x1p0+0x1.673a5de67307ff4862219e256203c604p-3172519945584.i)

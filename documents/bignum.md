@@ -267,8 +267,9 @@ let main():int32 {
   `log(BigFloat(0))` is `-inf`, `sqrt(BigFloat(-1))` a NaN,
   `atan` of an infinity half of pi, `tanh` of one 1.
   - `exp` is an infinity, or 0, where its exponent is past an `i64`:
-    at 128 bits, of a number past `6393154322601327917`, or below
-    `-6393154322601327741`.
+    of a number past `6393154322601327829`, or below
+    `-6393154322601327829`, `2^63` times ln 2 either way, at any
+    precision (#623).
     - Up to there it is a number (#588): `exp(BigFloat("0x1p+62"))`
       is one of `2^6653256548922161245`, and
       `pow(BigFloat(2), BigFloat("0x1.cp+62"))` is

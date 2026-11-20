@@ -116,7 +116,13 @@ of as many bits as a program asks. It is `#import <BigNum>`'s (#576,
     one 0 and its one NaN have no sign.
   - It has one 0, with no sign, as a rational: `BigFloat(-0.0)` is
     `BigFloat(0)`.
-  - An exponent past an `i64` is an infinity, and one below it 0.
+  - Its range is of its leading bit (#623): a number of `2^(2^63)`
+    and more in size is an infinity, at any precision.
+    - The bits below the least number, `2^-(2^63 - 1)`, are rounded
+      off, as an `f64` keeps fewer bits below `2^-1022`: a number all
+      below half of it is 0.
+    - It was of the last bit, so that `0x1p+9223372036854775808` was an
+      infinity and the greater `0x1.8p+9223372036854775808` a number.
 - **`x.f64`** is the nearest `f64`, of two as near the even one.
   - Past an `f64`'s range it is `inf` or `-inf`, and below it 0; a
     number below `2^-1022` has the fewer bits an `f64` has there.

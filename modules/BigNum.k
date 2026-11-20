@@ -1229,16 +1229,30 @@ let BigFloat_length(x:lent BigInt):i64 { x.abs.bits.count as i64 - 1 }
 // m * 2^e rounded to precision significant bits by a rule, its mantissa
 // made odd: every finite BigFloat is made here. A precision below 1 is
 // taken as it is, for x.f64 of a number below an f64's: the bits above
-// 2^(e + length - precision) are kept, which may be none. An exponent
-// past an i64 is an infinity, and one below it 0
+// 2^(e + length - precision) are kept, which may be none. The range is
+// of the leading bit (#623): a number of 2^(2^63) and more in size is an
+// infinity, whatever its precision, and the bits below 2^-(2^63 - 1), the
+// least number, are rounded off by the rule, as an f64 keeps fewer bits
+// below 2^-1022: a number all below half the least is 0, or the least by
+// a rule that goes away from 0
 let BigFloat_make(m:lent BigInt, e:i128, precision:i64, rule:i64):BigFloat {
     if m.isZero { return BigFloat_zero() }
     let negative = m.isNegative
+    let least:i128 = 0 - 9223372036854775807 as i128          // the exponent of the least number
+    let above:i128 = e + BigFloat_length(m) as i128           // the power of 2 above it
+    if above < least {                                        // below half the least
+        if rule == 5 || (rule == 2 && !negative) || (rule == 3 && negative) {
+            return (BigFloat){BigInt(negative ? -1 : 1), least as i64, 0}
+        }
+        return BigFloat_zero()
+    }
+    var keep:i64 = precision
+    if above - least < keep as i128 { keep = (above - least) as i64 }   // the bits from the least up
     var a = m.abs
     var x:i128 = e
     let n = BigFloat_length(a)
-    if n > precision {
-        let shift:i64 = n - precision
+    if n > keep {
+        let shift:i64 = n - keep
         let q = a >> shift
         let r = a - (q << shift)                         // what is cut off, less than 2^shift
         var more = false                                 // whether the magnitude goes up by one
@@ -1267,8 +1281,7 @@ let BigFloat_make(m:lent BigInt, e:i128, precision:i64, rule:i64):BigFloat {
         a = a >> low
         x += low as i128
     }
-    if x > 9223372036854775807 { return BigFloat_inf(negative ? -1 : 1) }
-    if x < -9223372036854775807 { return BigFloat_zero() }
+    if x + BigFloat_length(a) as i128 > 9223372036854775807 as i128 + 1 { return BigFloat_inf(negative ? -1 : 1) }   // its leading bit past an i64
     if negative { return (BigFloat){0 - a, x as i64, 0} }
     return (BigFloat){a.copy(), x as i64, 0}
 }
@@ -2174,7 +2187,7 @@ let BigFloat_pi_times(shift:i64, bits:i64, minus:bool):BigFloat {
 // ln(2|x|), which asinh and acosh of a large x are, less or more a
 // part below 1 / x^2
 let BigFloat_log_twice(x:lent BigFloat, bits:i64):BigFloat {
-    return BigFloat_log((BigFloat){x.mantissa.abs, x.exponent + 1, 0}, bits)
+    return BigFloat_log_of(x.mantissa.abs, x.exponent as i128 + 1, bits)   // of any exponent, the greatest's too (#623)
 }
 
 // ---------- sqrt, exp, log and pow ----------
@@ -2982,7 +2995,7 @@ let CBF_turned(a:lent BigFloat, b:lent BigFloat, bits:i64):BigFloat {
 // half of x
 let CBF_half(x:lent BigFloat):BigFloat {
     if x.special != 0 || x.mantissa.isZero { return x.copy() }
-    return (BigFloat){x.mantissa.copy(), x.exponent - 1, 0}
+    return BigFloat_make(x.mantissa, x.exponent as i128 - 1, BigFloat_length(x.mantissa), 0)   // the least's half is rounded (#623)
 }
 
 // each part of a finite c times 2^s: past an exponent an infinity, or 0
@@ -3499,7 +3512,7 @@ let CBF_power(z:lent CBF, w:lent CBF, bits:i64):CBF {
                     need = want
                 } else {
                     e = CBF_exp_term(BigFloat_make(tr.m, tr.e, q, 0), bits + 16)
-                    if CBF_top(e) < 0 - 9223372036854775807 as i128 { return (CBF){BigFloat_zero(), BigFloat_zero()} }   // below the least number
+                    if CBF_top(e) < 0 - 9223372036854775807 as i128 - 1 { return (CBF){BigFloat_zero(), BigFloat_zero()} }   // below the least number
                 }
             }
         }

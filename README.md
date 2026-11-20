@@ -747,3 +747,7 @@ So far the changes from C are these, by topic.
 - An enum's word is of its enum to `.typename`: `red.typename` is
   `color`, where it was `i32`, and `nfc.typename` `NormalForm`; `.size`
   and the integer's methods stay C's int's (#622)
+- A BigFloat's range is of its leading bit: one of `2^(2^63)` and more
+  is an infinity at any precision, and the bits below the least number
+  are rounded off; exp's limits are `2^63` ln 2 either way,
+  `6393154322601327829` (#623)
