@@ -12404,3 +12404,21 @@ are provisional P637.
 
 There are 1451 tests, and all pass with clang and with gcc 15.
 
+### 673. Declarations in any order
+
+**Claude** pushed #625, its battery clean. This is the second of what
+the second look found, whose question the user answered with the
+recommended:
+
+- **Order**: any, as Swift. A struct, a union, an enum, a typealias
+  and a global may be used before they are written, as a function may
+  since #505.
+
+It was C's error, use of undeclared identifier 'pt'. kelvinc moves each
+up to just before the first declaration that names it, and two structs
+that point at each other are declared ahead. kc built structs and
+globals in any order already, and reads a typealias before it now.
+Details are provisional P638.
+
+There are 1452 tests, and all pass with clang and with gcc 15.
+

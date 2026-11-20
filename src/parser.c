@@ -17876,6 +17876,215 @@ static void forward_prototypes(void) {
     toks = all;
 }
 
+/* ---------- a type or a global used before it is written (#626) ---------- */
+
+/* A struct, a union, an enum, a typealias or a global may be used before
+   it is written, as a function may (#505) and as in Swift: before the
+   parser reads them, each that a declaration before it names is moved up
+   to just before that one, after the ones it names itself, and never past
+   an #import or a file before it. Two records that point at each other
+   are each declared ahead, `struct b;`. Each moved one ends in `;`, as
+   its tokens keep their places in the source, which the parser reads a
+   line's end by. Nothing moves where nothing is used before it */
+typedef struct {
+    int start, end; /* its tokens */
+    bool movable;   /* a struct's, a union's, an enum's, a typealias's or a global's */
+    const char *kw; /* "struct" or "union" of a record, which may be declared ahead */
+    int seg;        /* how many imports and files are before it */
+    List names;     /* the names it declares */
+    int state;      /* 0 not placed, 1 being placed, 2 placed */
+    bool declared;  /* `struct NAME;` of it put ahead */
+} HoistItem;
+
+static HoistItem *hoist_items;
+static int hoist_count;
+static List hoist_out;
+static int hoist_depth; /* how many are being placed around the one placed */
+/* the names the movable ones declare, hashed: each slot an item's index + 1 */
+static const char **hoist_keys;
+static int *hoist_vals, hoist_cap;
+
+static unsigned hoist_hash(const char *s) {
+    unsigned h = 5381;
+    while (*s)
+        h = h * 33 + (unsigned char)*s++;
+    return h;
+}
+
+static void hoist_put(const char *name, int item) {
+    unsigned i = hoist_hash(name) & (unsigned)(hoist_cap - 1);
+    while (hoist_keys[i] && strcmp(hoist_keys[i], name))
+        i = (i + 1) & (unsigned)(hoist_cap - 1);
+    if (!hoist_keys[i]) { /* the first one that declares it */
+        hoist_keys[i] = name;
+        hoist_vals[i] = item + 1;
+    }
+}
+
+static int hoist_get(const char *name) {
+    unsigned i = hoist_hash(name) & (unsigned)(hoist_cap - 1);
+    while (hoist_keys[i]) {
+        if (!strcmp(hoist_keys[i], name))
+            return hoist_vals[i] - 1;
+        i = (i + 1) & (unsigned)(hoist_cap - 1);
+    }
+    return -1;
+}
+
+/* the movable one that item k names and that is written after it, in
+   its part of the program, for each name it reads: f is called with it */
+static void hoist_place(int k);
+
+static void hoist_token(Token *t) { list_push(&hoist_out, t); }
+
+static void hoist_semi(Token *last) {
+    if (is_p(last, ";"))
+        return;
+    Token *semi = xmalloc(sizeof *semi);
+    *semi = (Token){TK_PUNCT, last->pos, ";", last->pos.line, false, last->imported, false, false, false, false};
+    semi->end_line = last->end_line;
+    hoist_token(semi);
+}
+
+/* a `;` before first where the parser would not see a line end before it */
+static void hoist_apart(Token *first) {
+    Token *last = hoist_out.len ? hoist_out.data[hoist_out.len - 1] : NULL;
+    if (last && !line_break(last, first))
+        hoist_semi(last);
+}
+
+static void hoist_place(int k) {
+    HoistItem *it = &hoist_items[k];
+    if (it->state)
+        return;
+    it->state = 1;
+    for (int i = it->start; i < it->end; i++) {
+        if (toks[i].kind != TK_IDENT)
+            continue;
+        int m = hoist_get(toks[i].text);
+        if (m < 0 || m == k)
+            continue;
+        HoistItem *mt = &hoist_items[m];
+        if (mt->state == 1 && mt->kw && !mt->declared) { /* each points at the other: declare it ahead */
+            Token *first = &toks[mt->start];
+            Token *ahead = xmalloc(sizeof *ahead * 2);
+            ahead[0] = (Token){TK_KEYWORD, first->pos, (char *)mt->kw, first->pos.line, false, first->imported, false, false, false, false};
+            ahead[1] = (Token){TK_IDENT, first->pos, mt->names.data[0], first->pos.line, false, first->imported, false, false, false, false};
+            hoist_apart(&ahead[0]);
+            hoist_token(&ahead[0]);
+            hoist_token(&ahead[1]);
+            hoist_semi(&ahead[1]);
+            mt->declared = true;
+            continue;
+        }
+        if (mt->state || m < k || mt->seg > it->seg)
+            continue; /* placed, written before it, or past an import before it */
+        hoist_depth++;
+        hoist_place(m);
+        hoist_depth--;
+    }
+    hoist_apart(&toks[it->start]);
+    for (int i = it->start; i < it->end; i++)
+        hoist_token(&toks[i]);
+    if (hoist_depth) /* moved up: what follows it may be of an earlier line, a prototype (#505) too */
+        hoist_semi(&toks[it->end - 1]);
+    it->state = 2;
+}
+
+static void hoist_declarations(void) {
+    int n = 0;
+    while (toks[n].kind != TK_EOF)
+        n++;
+    if (!brackets_balance(n))
+        return; /* the parser says what is open, where (#555) */
+    List starts = {0};
+    for (int i = 0, depth = 0; i < n; i++) {
+        Token *t = &toks[i], *prev = i ? &toks[i - 1] : NULL;
+        if (is_p(t, "{") || is_p(t, "(") || is_p(t, "["))
+            depth++;
+        else if (is_p(t, "}") || is_p(t, ")") || is_p(t, "]"))
+            depth--;
+        if (depth != 0 || is_p(t, "}"))
+            continue;
+        bool new_line = !prev || line_break(prev, t) || is_p(prev, ";");
+        bool head = is_kw(t, "let") || is_kw(t, "var") || is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum") ||
+                    storage_kw(t) || is_kw(t, "static_assert") || is_kw(t, "_Static_assert") || is_kw(t, "alignas") ||
+                    is_kw(t, "inline") ||
+                    (t->kind == TK_IDENT && (!strcmp(t->text, "extend") || !strcmp(t->text, "typealias"))) ||
+                    t->kind == TK_IMPORT || t->kind == TK_IMPORT_K || t->kind == TK_FILE_END || t->kind == TK_INLINE_C;
+        if (head && new_line)
+            list_push(&starts, (void *)(intptr_t)i);
+    }
+    if (starts.len < 2)
+        return;
+    hoist_count = starts.len;
+    hoist_items = xcalloc((size_t)hoist_count, sizeof *hoist_items);
+    hoist_cap = 64;
+    while (hoist_cap < 4 * hoist_count)
+        hoist_cap *= 2;
+    hoist_keys = xcalloc((size_t)hoist_cap, sizeof *hoist_keys);
+    hoist_vals = xcalloc((size_t)hoist_cap, sizeof *hoist_vals);
+    int seg = 0;
+    for (int k = 0; k < hoist_count; k++) {
+        HoistItem *it = &hoist_items[k];
+        it->start = (int)(intptr_t)starts.data[k];
+        it->end = k + 1 < hoist_count ? (int)(intptr_t)starts.data[k + 1] : n;
+        Token *t = &toks[it->start];
+        if (t->kind == TK_IMPORT || t->kind == TK_IMPORT_K || t->kind == TK_FILE_END)
+            seg++;
+        it->seg = seg;
+        int h = it->start;
+        while (storage_kw(&toks[h]))
+            h++;
+        Token *w = &toks[h], *name = &toks[h + 1];
+        if ((is_kw(w, "struct") || is_kw(w, "union") || is_kw(w, "enum")) && name->kind == TK_IDENT) {
+            it->movable = true;
+            it->kw = is_kw(w, "enum") ? NULL : w->text;
+            list_push(&it->names, name->text);
+            if (is_kw(w, "enum") && is_p(&toks[h + 2], "{")) { /* its words, which the program reads bare */
+                int end = skip_nested(h + 2);
+                for (int i = h + 3, d = 0; i < end - 1; i++) {
+                    if (is_p(&toks[i], "{") || is_p(&toks[i], "(") || is_p(&toks[i], "["))
+                        d++;
+                    else if (is_p(&toks[i], "}") || is_p(&toks[i], ")") || is_p(&toks[i], "]"))
+                        d--;
+                    else if (d == 0 && toks[i].kind == TK_IDENT &&
+                             (i == h + 3 || is_p(&toks[i - 1], ",") || is_p(&toks[i - 1], ";") ||
+                              line_break(&toks[i - 1], &toks[i])))
+                        list_push(&it->names, toks[i].text);
+                }
+            }
+        } else if (w->kind == TK_IDENT && !strcmp(w->text, "typealias") && name->kind == TK_IDENT) {
+            it->movable = true;
+            list_push(&it->names, name->text);
+        } else if ((is_kw(w, "let") || is_kw(w, "var")) && name->kind == TK_IDENT && strcmp(name->text, "main") &&
+                   (is_p(&toks[h + 2], ":") || is_p(&toks[h + 2], "=") || is_p(&toks[h + 2], ":="))) {
+            it->movable = true; /* a global */
+            list_push(&it->names, name->text);
+        }
+        for (int j = 0; it->movable && j < it->names.len; j++)
+            hoist_put(it->names.data[j], k);
+    }
+    bool needed = false; /* is any named before it is written? */
+    for (int k = 0; k < hoist_count && !needed; k++)
+        for (int i = hoist_items[k].start; i < hoist_items[k].end && !needed; i++) {
+            int m = toks[i].kind == TK_IDENT ? hoist_get(toks[i].text) : -1;
+            needed = m > k && hoist_items[m].seg <= hoist_items[k].seg;
+        }
+    if (!needed)
+        return;
+    hoist_out = (List){0};
+    for (int i = 0; i < hoist_items[0].start; i++)
+        hoist_token(&toks[i]);
+    for (int k = 0; k < hoist_count; k++)
+        hoist_place(k);
+    hoist_token(&toks[n]); /* the EOF */
+    Token *all = xmalloc(sizeof(Token) * (size_t)hoist_out.len);
+    for (int i = 0; i < hoist_out.len; i++)
+        all[i] = *(Token *)hoist_out.data[i];
+    toks = all;
+}
+
 static void fold_nested_heads(void) {
     List names = {0};
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
@@ -18118,6 +18327,7 @@ Program *parse(Token *tokens, int ntoks) {
     toks = tokens;
     cur = 0;
     fold_nested_heads();
+    hoist_declarations(); /* a type or a global before it is written (#626) */
     forward_prototypes(); /* a call before the definition (#505) */
     anon_fns = (List){0};
     anon_written = (List){0};

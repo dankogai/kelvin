@@ -4438,6 +4438,22 @@ let alias_at(f:int64, k:int64) {
     }
     let at:int64 = toks[name].at
     let len:int64 = toks[name].len
+    var j:int64 = k - 1                                  // before it too, back to an #import of its file, as kelvinc moves it up (#626)
+    while j >= file_from[f] && toks[j].kind != T_IMPORT { j -= 1 }
+    j += 1
+    while j < k {
+        if toks[j].kind == T_ID && toks[j].len == len {
+            var same = true
+            for c in 0..<len {
+                if codes[toks[j].at + c] != codes[at + c] { same = false }
+            }
+            if same {
+                toks[j].at = toks[target].at
+                toks[j].len = toks[target].len
+            }
+        }
+        j += 1
+    }
     var g:int64 = f
     var from:int64 = k + 4
     while true {

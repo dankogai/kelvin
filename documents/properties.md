@@ -372,7 +372,8 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
 | `var T[](i:I):R { get { } set(v) { } }` | `var [](i:I):R { get { } set(v) { } }` | a subscript with a setter (#136) | `v[i]`, `v[i] = y`, `v[i] += y` |
 
 - **`extend T { }`** (#130) holds any of these, and names `T` once.
-  - `T` is a struct, a union or an enum with values declared before it,
+  - `T` is a struct, a union or an enum with values, before it or after
+    it (#626),
     a built-in type, as `extend f64 { let half:Self { self / 2.0 } }`,
     or a type with no tag by its spelling,
     `extend enum{nothing, just: i64} { ... }` (#121).

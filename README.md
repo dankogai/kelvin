@@ -755,3 +755,6 @@ So far the changes from C are these, by topic.
   body can reach its end is kelvinc's error, where it was C's warning;
   a call of `exit`, or of a function of the program that never returns,
   ends a path (#625)
+- A struct, a union, an enum, a typealias and a global may be used
+  before they are written, as a function may, and two structs may
+  point at each other in either order (#626)

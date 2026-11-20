@@ -208,7 +208,8 @@ see [properties.md](properties.md#attributes-of-your-own-and-extend).
 `static let T.name(params):R { ... }` (#111) declares a function of the
 type `T`, Swift's `static func`: it has no `self`, and is called by the
 type's name, `T.name(args)`. `T` is a struct, a union or an enum with
-values of the program, declared before it; a built-in type takes none.
+values of the program, written before it or after it (#626); a built-in
+type takes none.
 
 The overloads of one name differ by their parameter types, as any
 function's do, and one may call another:
@@ -448,7 +449,14 @@ let main():int32 {
   - An attribute too (#544): `v.area` before `let T.area:f64 { }`, and
     `v.x = y` before `var T.x:R { get { } set(v) { } }`.
   - A prototype written by hand is still one, and harmless.
-  - A variable is still declared before it is used, as in C.
+  - A global, a struct, a union, an enum and its words, and a
+    typealias may be used before they are written too (#626): each is
+    moved up to just before the first declaration that names it, after
+    the ones it names, and two records that point at each other are
+    declared ahead, `struct b;`, as in Swift.
+    - Not past an `#import` before it: a file imported reads what is
+      written before it.
+  - A local is still declared before it is used, as in C.
 - **The choice** is the overload that every argument fits exactly, or
   else the one that fits at least as well as every other on each
   argument and better on one.
