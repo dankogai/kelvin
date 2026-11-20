@@ -548,6 +548,90 @@ let lex_error(file:int64, line:int64, what:cstr) {
     failed = true
 }
 
+// #inline C { ... } from i, after its word, as kelvinc's lex_inline_c
+// reads it: its errors in kelvinc's words; kc writes no C of its own, so
+// one that is right is refused after, as before
+let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
+    var i:int64 = i0
+    while i < to && (codes[i] == ' ' || codes[i] == '\t') { i += 1 }
+    if !(i < to && codes[i] == 'C' && !(is_alpha(code_at(i + 1)) || is_digit(code_at(i + 1)))) {
+        lex_error(file, line, "expected 'C' after '#inline': #inline C { ... }")
+        return
+    }
+    i += 1
+    while i < to && (codes[i] == ' ' || codes[i] == '\t') { i += 1 }
+    if !(i < to && codes[i] == '{') {
+        lex_error(file, line, "expected '{' after '#inline C', on the same line")
+        return
+    }
+    i += 1
+    var depth:int64 = 1
+    var start = true                             // only blanks since the '{' or a new line
+    while true {
+        if i >= to {
+            lex_error(file, line, "unterminated '#inline C {': it ends with the '}' that matches its '{'")
+            return
+        }
+        let c:uint32 = codes[i]
+        if c == '#' && start {
+            var w:int64 = i + 1
+            while w < to && (codes[w] == ' ' || codes[w] == '\t') { w += 1 }
+            var n:int64 = 0
+            while w + n < to && is_alpha(codes[w + n]) { n += 1 }
+            var word = $""
+            for q in 0..<n { word += codes[w + q] }
+            var m = $"'#"
+            m += &word
+            if word == "import" || word == "inline" {
+                m += "' does not nest in '#inline C': Kelvin's directives stand at the top level, or among a function's statements (#296)"
+            } else {
+                m += "' in '#inline C' is C's preprocessor, which Kelvin leaves out (#296): import a header with '#import <x.h> as C' outside it, and write a constant as an enum's or a Kelvin let"
+            }
+            lex_error(file, line, m.cstr)
+            return
+        }
+        if c == '\n' {
+            start = true
+        } else if c != ' ' && c != '\t' && c != '\r' && !(c == '/' && (code_at(i + 1) == '/' || code_at(i + 1) == '*')) {
+            start = false
+        }
+        if c == '/' && code_at(i + 1) == '/' {
+            while i < to && codes[i] != '\n' { i += 1 }
+            continue
+        }
+        if c == '/' && code_at(i + 1) == '*' {
+            i += 2
+            while i < to && !(codes[i] == '*' && code_at(i + 1) == '/') { i += 1 }
+            i += 2
+            continue
+        }
+        if c == '"' || c == '\'' {
+            i += 1
+            while i < to && codes[i] != c && codes[i] != '\n' {
+                if codes[i] == '\\' { i += 1 }
+                i += 1
+            }
+            i += 1
+            continue
+        }
+        if c == '{' { depth += 1 }
+        if c == '}' {
+            depth -= 1
+            if depth == 0 { break }
+        }
+        if c == '?' && code_at(i + 1) == '?' {
+            lex_error(file, line, "'??' in '#inline C' is a trigraph of C, which Kelvin does not have (#220): write what it stands for")
+            return
+        }
+        i += 1
+    }
+    i += 1
+    while i < to && (codes[i] == ' ' || codes[i] == '\t' || codes[i] == '\r') { i += 1 }
+    if i < to && codes[i] != '\n' && !(codes[i] == '/' && code_at(i + 1) == '/') {
+        lex_error(file, line, "unexpected text after the '}' of '#inline C'")
+    }
+}
+
 // the punctuators of two or three characters, longest first
 let punct_len(i:int64):int64 {
     let c:uint32 = code_at(i)
@@ -800,6 +884,9 @@ let lex_range(from:int64, to:int64, file:int64) {
             while w < i && (codes[w] == ' ' || codes[w] == '\t') { w += 1 }
             let imports = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'm' && codes[w + 2] == 'p' && codes[w + 3] == 'o' && codes[w + 4] == 'r' && codes[w + 5] == 't' && !(is_alpha(code_at(w + 6)) || is_digit(code_at(w + 6)))
             let inlines = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'n' && codes[w + 2] == 'l' && codes[w + 3] == 'i' && codes[w + 4] == 'n' && codes[w + 5] == 'e'
+            if inlines && !imports {                     // #inline C { ... }, kelvinc's words of what is wrong in it (#629)
+                inline_c_check(w + 6, to, file, line)
+            }
             if !imports && !inlines {                    // #include, #define: as kelvinc says it (#296, #612)
                 lex_error(file, line, "only '#import <header.h> as C' and '#inline C { ... }' are supported; C's preprocessor Kelvin leaves out (#296)")
             } else if a >= b {

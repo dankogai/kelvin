@@ -1481,11 +1481,19 @@ let parse_bare_type():int64 {
                 parse_error("kc's function types take no '...' yet: C's variadic functions are called by name")
                 return base_type(Y_VOID)
             }
+            if at_kind(T_ID) && tok_is(pos + 1, ":") {   // (a:i64):i64, as kelvinc says it
+                parse_error("a function type lists its parameters' types without names")
+                return base_type(Y_VOID)
+            }
             ps += parse_type()
             if !at_word(",") { break }
             advance()
         }
         expect(")")
+        if at_word("^") {                                // (i64)^, as kelvinc says it
+            parse_error("a pointer to a function type groups the type in parentheses: ((i64):i64)^ (#403)")
+            return base_type(Y_VOID)
+        }
         var r:int64 = 0 - 1
         if at_word(":") {
             advance()
@@ -2529,6 +2537,44 @@ let parse_primary():int64 {
         parse_error("dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'")
         return make_node(N_NUM, t)
     }
+    if k == T_PUNCT && tok_is(t, "$") && tok_is(pos + 1, "(") && adjacent(pos, pos + 1) && fn_parsing >= 0 {   // $(...), the function being written (#181), as kelvinc reads it
+        if self_name >= 0 {
+            var m = $"'$(...)' calls the function around it, and this is a method of "
+            m += tok_text(self_name)
+            m += ": write 'self."
+            m += tok_text(nodes[fn_parsing].t)
+            m += "(...)'"
+            parse_error(m.cstr)
+            return make_node(N_NUM, t)
+        }
+        advance()
+        let ct:int64 = advance()
+        let call:int64 = make_node(N_CALL, ct)
+        nodes[call].a = make_node(N_ID, nodes[fn_parsing].t)
+        set_b(call, parse_args())                        // its ) too
+        var given:int64 = 0
+        var a:int64 = nodes[call].b
+        while a >= 0 {
+            given += 1
+            a = nodes[a].next
+        }
+        var takes:int64 = 0
+        var p:int64 = nodes[fn_parsing].a
+        while p >= 0 {
+            takes += 1
+            p = nodes[p].next
+        }
+        if given != takes && !failed {
+            var m = $"'$(...)' calls "
+            m += tok_text(nodes[fn_parsing].t)
+            m += ", which takes "
+            m += String(takes)
+            m += takes == 1 ? " argument, and this gives " : " arguments, and this gives "
+            m += String(given)
+            parse_error_at(t, m.cstr)
+        }
+        return call
+    }
     if k == T_PUNCT && tok_is(t, "$") {                  // as kelvinc says it
         parse_error("'$' alone is not a value: $\"text\" is a String, $[a, b] an Array, ${k: v} a Dictionary, and an anonymous function's parameters are $[0], $[1], ..., or $0, $1, ...")
         return make_node(N_NUM, t)
@@ -2838,7 +2884,13 @@ let parse_binary(min:int64):int64 {
         e = parse_cast()
     }
     while !failed {
-        if operator_on_next_line() { skip_newlines() }
+        if operator_on_next_line() {
+            skip_newlines()
+            if at_word("*") && toks[pos + 1].kind == T_ID && adjacent(pos, pos + 1) {   // a line of *p = 1, as kelvinc says it
+                parse_error("dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'")
+                return e
+            }
+        }
         if min <= 7 && (at_word("..<") || at_word("...")) {  // lo..<hi, lo...hi, lo... (#373)
             if nodes[e].kind == N_RANGE {
                 parse_error("a range's bounds are integers, and this would be a range of a range")
@@ -2968,6 +3020,7 @@ let parse_block():int64
 
 // whether the token at pos is an assignment's operator
 var switch_level:int64                       // the switches being read (#629)
+var fn_parsing:int64 = 0 - 1                 // the function whose body is being read, which $(...) calls (#629)
 var unwrap_nodes:Dictionary<int64, bool>     // the x.some that x! makes (#629)
 
 let at_assign():bool {
@@ -3071,6 +3124,10 @@ let fnptr_decl(t:int64, var_word:bool):bool {
 // a parameter or a member, whose type is written
 let parse_typed(is_let:int64):int64 {
     if fnptr_decl(pos, false) { return make_node(S_VAR, pos) }   // T (*f)(...), as kelvinc says it
+    if at_kind(T_IMPORT) {                               // as kelvinc says it
+        parse_error("#import is for the top level of a file, outside functions, structs and blocks")
+        return make_node(S_VAR, pos)
+    }
     if toks[pos + 1].kind != T_PUNCT || !tok_is(pos + 1, ":") { parse_error("a parameter or a member says its type: name:T") }
     return parse_var(is_let)
 }
@@ -3285,6 +3342,15 @@ let parse_statement():int64 {
         parse_error("'typedef' is C's: Kelvin names a type anew with typealias, 'typealias A = T', at the top level (#294)")
         return make_node(S_BLOCK, t)
     }
+    if at_kind(T_ID) && tok_is(pos + 1, ":") && tok_is(pos + 2, "(") {   // f:(i64):i64 := g, as kelvinc says it
+        var m = $"declarations start with let or var: write 'var "
+        m += tok_text(pos)
+        m += ":...', or 'let "
+        m += tok_text(pos)
+        m += ":...' if it never changes"
+        parse_error(m.cstr)
+        return make_node(S_BLOCK, t)
+    }
     if at_word("*") && toks[pos + 1].kind == T_ID {      // *p = 1, as kelvinc says it
         parse_error("dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'")
         return make_node(S_BLOCK, t)
@@ -3292,6 +3358,17 @@ let parse_statement():int64 {
     if at_kind(T_ID) && tok_is(pos + 1, ":") && toks[pos + 2].line == toks[pos].line && codes[toks[pos].at] != '$' {   // a label of a kv_ name, as kelvinc says it
         reject_kv_name(pos)
         if failed { return make_node(S_BLOCK, t) }
+        if tok_is(pos + 2, "var") || tok_is(pos + 2, "let") {   // again: var n = 0, as kelvinc says it
+            parse_error("a declaration cannot be the body of a statement or follow a label")
+            return make_node(S_BLOCK, t)
+        }
+    }
+    if at_word("var") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "(") && !tok_is(pos + 3, "*") {   // var twice(...) { } in a body, as kelvinc says it; var T (*f)(...) is C's pointer
+        var m = $"a function defined inside a function is written 'let "
+        m += tok_text(pos + 1)
+        m += "(...)', in a function's body"
+        parse_error(m.cstr)
+        return make_node(S_BLOCK, t)
     }
     if at_kind(T_ID) && tok_is(pos + 1, "^") && toks[pos + 2].kind == T_ID && (tok_is(pos + 3, ";") || toks[pos + 3].kind == T_NL) && toks[pos + 2].line == toks[pos].line {   // point^ p; as kelvinc says it
         var m = $"declarations are written 'var name:type', as in 'var x:"
@@ -3407,6 +3484,16 @@ let parse_statement():int64 {
             return make_node(S_BREAK, v)
         }
         expect("in")
+        var q:int64 = pos                                // 0..n, as kelvinc says it
+        while q < eof_pos && !tok_is(q, "{") && toks[q].kind != T_NL {
+            let two = tok_is(q, ".") && tok_is(q + 1, ".") && toks[q].at + 1 == toks[q + 1].at
+            let num_dot = toks[q].kind == T_NUM && codes[toks[q].at + toks[q].len - 1] == '.' && tok_is(q + 1, ".")
+            if (two && !tok_is(q + 2, "<") && !tok_is(q + 2, ".")) || num_dot {
+                parse_error("expected '..<' or '...' in a range, as in '0..<n' or '1...n'")
+                return make_node(S_BREAK, v)
+            }
+            q += 1
+        }
         let from:int64 = parse_cond()
         if !failed && at_word(".") && tok_is(pos + 1, ".") {   // 0..n, as kelvinc says it
             parse_error("expected '..<' or '...' in a range, as in '0..<n' or '1...n'")
@@ -3853,7 +3940,10 @@ let parse_function():int64 {
         advance()
         set_ty(n, parse_type())
     }
+    let outer_fn:int64 = fn_parsing
+    fn_parsing = n                                       // what $(...) calls (#181, #629)
     if at_word("{") { set_b(n, parse_block()) }
+    fn_parsing = outer_fn
     return n
 }
 
@@ -4553,6 +4643,18 @@ let parse_extend() {
                     if e >= 0 && types[e].kind == Y_STRUCT && same_text(types[e].name, recv) { takes = true }
                 }
             }
+            if !takes && compound && nodes[f].a >= 0 && nodes[nodes[f].a].ty >= 0 && types[nodes[nodes[f].a].ty].kind != Y_PTR {   // a value, not a pointer: kelvinc's parse_fn says it first
+                var m = $"'"
+                m += tok_text(at)
+                m += "' changes the value its first parameter points to: write 'static let "
+                m += tok_text(at)
+                m += "(a:T^, b:U)', T a Kelvin struct or union (#518)"
+                let back:int64 = pos
+                pos = at
+                parse_error(m.cstr)
+                pos = back
+                return
+            }
             if !takes && compound {
                 var m = $"'"
                 let w:String = tok_text(recv)
@@ -5110,6 +5212,8 @@ let parse_program() {
             if is_let && nodes[n].a < 0 && storage != 2 && !failed { let_needs_value(n) }   // but an extern's, C's (#611)
             decls += n
             if at_word(";") { advance() }                // var calls = 0; (#451)
+        } else if storage == 2 && at_word("lazy") {      // as kelvinc says it
+            parse_error("'extern lazy' is a module's header's, which kelvinc --lib writes: a global is given its value at its first use where C cannot initialize it (#493)")
         } else if at_word("typedef") {                   // as kelvinc says it
             parse_error("'typedef' is C's: Kelvin names a type anew with typealias, 'typealias A = T', at the top level (#294)")
         } else if fnptr_decl(pos, true) {                // size_t (*f)(i64); at the top level

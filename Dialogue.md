@@ -12474,3 +12474,19 @@ Details are provisional P641.
 
 There are 1464 tests, and all pass with clang and with gcc 15.
 
+### 677. kc in kelvinc's words, the second batch
+
+**Claude** pushed #629, its battery clean. This is the next batch of
+the user's order.
+
+kc says kelvinc's words of 49 more: an IO's errors, `try` and `??` of
+what is no Optional, `.pretty`, `map` and `flatMap` of an Optional or a
+Result that do not fit, a function type with names, the errors of
+`#inline C` that kelvinc's lexer says, `Bytes + 256`, an anonymous
+function given where no function goes, and `$(...)`, which kc now
+reads as kelvinc does. 46 are left; five cannot be kc's as they are,
+two being C's words of kelvinc's C and three naming a column, which
+kc's tokens do not keep. Details are provisional P642.
+
+There are 1464 tests, and all pass with clang and with gcc 15.
+

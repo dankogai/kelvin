@@ -2101,6 +2101,9 @@ let count_wrong(n:int64, d:int64, what:String):bool {
         if v == d { variadic = true }
     }
     if given == takes || (variadic && given > takes) { return false }
+    var lastp:int64 = nodes[n].b
+    while lastp >= 0 && nodes[lastp].next >= 0 { lastp = nodes[lastp].next }
+    if given < takes && lastp >= 0 && nodes[lastp].kind == N_ANON && nodes[lastp].flag == 1 && anon_arg_refused(lastp) { return true }   // its own error first, as kelvinc's
     var m = $""
     if nodes[d].c >= 0 && nodes[d].flag != 1 {
         m += "'."
@@ -2205,6 +2208,107 @@ let word_misused(n:int64, written:bool):bool {
     return true
 }
 
+// x.map(f), x.flatMap(f), r.mapErr(g) of an Optional or a Result: kelvinc's
+// errors of what does not fit, said as its #80 and #81 say them; kc does
+// not make these, so one that fits is refused after
+let variant_method_wrong(n:int64):bool {
+    let t:int64 = nodes[n].t
+    let to_err = tok_is(t, "mapErr")
+    let flat = tok_is(t, "flatMap")
+    if !(tok_is(t, "map") || to_err || flat) { return false }
+    let a:int64 = nodes[n].a
+    if a < 0 { return false }
+    let y:int64 = type_of(a)
+    if failed || y < 0 || !is_variant(y) { return false }
+    let opt = some_type(y) >= 0
+    if to_err && opt {
+        gen_error(n, "'.mapErr' is a Result's: an Optional's none carries nothing to map")
+        return true
+    }
+    let d:int64 = tagged_of(y)
+    let okm:int64 = nodes[d].a                           // a Result's ok, then err; an Optional's none, then some
+    let errm:int64 = nodes[okm].next
+    var from:int64 = 0 - 1
+    var other:int64 = 0 - 1
+    var from_name = $""
+    if opt {
+        from = some_type(y)
+        from_name = $"some"
+    } else if to_err {
+        from = nodes[errm].ty
+        other = nodes[okm].ty
+        from_name = $"err"
+    } else {
+        from = nodes[okm].ty
+        other = nodes[errm].ty
+        from_name = $"ok"
+    }
+    let f:int64 = nodes[n].b
+    if f < 0 || nodes[f].kind != N_ID || var_type(nodes[f].t) >= 0 { return false }
+    let fd:int64 = fn_named(nodes[f].t)
+    if fd < 0 || nodes[fd].a < 0 || nodes[nodes[fd].a].next >= 0 { return false }
+    let p0:int64 = nodes[nodes[fd].a].ty
+    let pw:String = kelvin_type_text(p0)
+    let fw:String = kelvin_type_text(from)
+    if pw != fw {
+        var m = $"'."
+        m += tok_text(t)
+        m += "' calls its function with the "
+        m += &from_name
+        m += ", "
+        m += &fw
+        m += ", and this takes "
+        m += &pw
+        gen_error(f, m.cstr)
+        return true
+    }
+    if is_owner(y) && is_place(a) {
+        var m = $"'."
+        m += tok_text(t)
+        m += "' would move the "
+        m += &from_name
+        m += " out of "
+        if nodes[a].kind == N_ID {
+            m += "'"
+            m += tok_text(nodes[a].t)
+            m += "', which keeps it: map the call itself, or '"
+            m += tok_text(nodes[a].t)
+            m += ".copy()'"
+        } else {
+            m += "it, which keeps it: map the call itself, or '....copy()'"
+        }
+        gen_error(n, m.cstr)
+        return true
+    }
+    if flat {
+        let u:int64 = nodes[fd].ty
+        let ok_shape = u >= 0 && is_variant(u) && (some_type(u) >= 0) == opt
+        var same_err = true
+        if ok_shape && !opt {
+            let ue:String = kelvin_type_text(nodes[nodes[tagged_of(u)].a].next >= 0 ? nodes[nodes[nodes[tagged_of(u)].a].next].ty : 0 - 1)
+            let oe:String = kelvin_type_text(other)
+            same_err = ue == oe
+        }
+        if !ok_shape || !same_err {
+            var m = $"'.flatMap' takes a function that gives "
+            if opt {
+                m += "an Optional, a U?"
+            } else {
+                m += "a Result<U, "
+                let oe:String = kelvin_type_text(other)
+                m += &oe
+                m += ">"
+            }
+            m += ", and this gives "
+            let uw:String = u >= 0 ? kelvin_type_text(u) : $"nothing"
+            m += &uw
+            gen_error(f, m.cstr)
+            return true
+        }
+    }
+    return false
+}
+
 // xs.mapWithKey of an Array or a Set, a Dictionary's, kelvinc's error of it
 let with_key_misused(n:int64):bool {
     let t:int64 = nodes[n].t
@@ -2252,9 +2356,39 @@ let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
     if k == N_METHOD && with_key_misused(n) { return 0 - 1 }   // xs.mapWithKey, as kelvinc says it
+    if k == N_METHOD && variant_method_wrong(n) { return 0 - 1 }   // x.map(f) of an Optional or a Result, kelvinc's errors of it
     if os_call(n) { return os_type(n) }                  // OS.cwd, OS.name(args), SYS.argv (#463)
     if (k == N_ID || k == N_CALL) && nodes[n].ty >= 0 && is_case_word(n) { return nodes[n].ty }   // Result<T, E>.err(e) (#449)
+    if k == N_FIELD && nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "IO") && std_io(n) < 0 {   // IO.stdlog, as kelvinc says it
+        var m = $"IO has stdin, stdout, stderr, popen(command, mode), exec(args, mode), pipe() and strerror(err), not '"
+        m += tok_text(nodes[n].t)
+        m += "'; a file is IO(path, mode)"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if k == N_METHOD && nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "IO") && tok_is(nodes[n].t, "popen") && !(nodes[n].b >= 0 && nodes[nodes[n].b].next >= 0 && nodes[nodes[nodes[n].b].next].next < 0) {
+        gen_error(n, "IO.popen takes a command and a mode, as in IO.popen(\"ls -l\", \"r\")")   // as kelvinc says it
+        return 0 - 1
+    }
+    if k == N_BIN && tok_is(nodes[n].t, "??") {          // x ?? d of no Optional, as kelvinc says it
+        let ly:int64 = type_of(nodes[n].a)
+        if ly >= 0 && !is_variant(ly) && types[ly].kind != Y_DICT && types[ly].kind != Y_C && !failed {
+            var m = $"'??' takes an Optional or a Result on its left, and this is "
+            let w:String = kelvin_type_text(ly)
+            m += &w
+            gen_error(n, m.cstr)
+            return 0 - 1
+        }
+    }
     if k == N_TRY {                                      // try r, r's ok, some's (#449)
+        let ry0:int64 = type_of(nodes[n].a)
+        if ry0 >= 0 && !is_variant(ry0) && !failed {     // as kelvinc says it
+            var m = $"'try' takes a Result or an Optional, and this is "
+            let w:String = kelvin_type_text(ry0)
+            m += &w
+            gen_error(n, m.cstr)
+            return 0 - 1
+        }
         let ry:int64 = type_of(nodes[n].a)
         return ry >= 0 ? wrap_type(ry) : 0 - 1
     }
@@ -3173,6 +3307,32 @@ let gen_place(n:int64) {
 let member_unknown(n:int64, y:int64) {
     let t:int64 = nodes[n].t
     let k = types[y].kind
+    if k == Y_IO && number_word(t) >= 0 {                // f.i64 of an IO, as kelvinc says it
+        var e = $"an IO reads a byte with '.byte', and text with '.lines', '.read(n)' or '.string': read a number from the text, as "
+        let w:String = short_number(t)
+        e += &w
+        e += "(line) does (#88)"
+        gen_error(n, e.cstr)
+        return
+    }
+    if tok_is(t, "pretty") && (is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_PTR) {   // as kelvinc says it
+        var e = $"'.pretty' is the text, indented, of a struct, an enum with values, an Optional, a Result, an Array, a Dictionary, a Set or a fixed array; this is "
+        let w:String = kelvin_type_text(y)
+        e += &w
+        e += ", whose text is '.cstr'"
+        gen_error(n, e.cstr)
+        return
+    }
+    if (k == Y_FN || (k == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind == Y_FN)) && (tok_is(t, "next") || tok_is(t, "prev")) {   // as kelvinc says it
+        var e = $"'."
+        e += tok_text(t)
+        e += "' is a property of pointers to data, and "
+        let w:String = kelvin_type_text(k == Y_FN ? y : types[y].elem)
+        e += &w
+        e += " is a function"
+        gen_error(n, e.cstr)
+        return
+    }
     if unwrap_nodes.has(n) {                             // x! of no Optional, as kelvinc says it
         var e = $"'!' unwraps an Optional, and this is "
         let w:String = kelvin_type_text(y)
@@ -7426,6 +7586,10 @@ let string_args_refused(n:int64):bool {
         gen_error(n, "String(x) of a String is one already: leave out String(...)")
         return true
     }
+    if types[y].kind == Y_BYTES {                        // as kelvinc says it
+        gen_error(n, "String(b) of a Bytes is written String(&b), checked, or b.string() for a Result")
+        return true
+    }
     var m = $""
     m += takes
     m += ", and this is "
@@ -9304,6 +9468,32 @@ let gen_method_of(n:int64) {
         gen_string_method(n, a, y)                      // (#464)
     } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
         gen_error(n, "'.isEmpty' is a property: read it with no parentheses, as 'x.isEmpty'")   // as kelvinc's (#434)
+    } else if yk == Y_IO && !method_elsewhere(n) {       // as kelvinc says it
+        var m = $"an IO has no method '"
+        m += tok_text(t)
+        m += "': see documents/io.md for write, print, println, flush, close, read(n), seek(n), rewind, kill, glob, chmod, chown, truncate, remove, rename, utime, touch and join, and its properties; it is not copied"
+        gen_error(n, m.cstr)
+    } else if tok_is(t, "pretty") && (yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET || yk == Y_STRUCT || yk == Y_FIXED) {   // .pretty(n), as kelvinc says it
+        let w:int64 = nodes[n].b
+        if w < 0 {
+            gen_error(n, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10; two is '.pretty'")
+        } else if nodes[w].kind == N_STR {
+            gen_error(n, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10, and this is text")
+        } else if nodes[w].kind == N_NUM {
+            var m = $"'.pretty(n)' indents 0 to 10 spaces a level, as JSON.stringify's space does, and this is "
+            m += tok_text(nodes[w].t)
+            gen_error(n, m.cstr)
+        } else {
+            gen_error(n, "this method is not known")
+        }
+    } else if number_word(t) >= 0 && nodes[n].b >= 0 {   // s.i64(16), as kelvinc says it
+        let w:String = short_number(t)
+        var m = $"'."
+        m += &w
+        m += "' takes no arguments: read text in a base with "
+        m += &w
+        m += "(text, base)"
+        gen_error(n, m.cstr)
     } else if tok_is(t, "fmt") || tok_is(t, "toString") {   // shelved (#22), as kelvinc says it
         var m:String = tok_text(t)
         m += "() is not a method: a value's text is 'x.cstr', and String(x.cstr) a String (#22, #55)"
@@ -12525,6 +12715,27 @@ let inferred(n:int64):int64 {
         gen_variant_eq(v, tagged_side(v))
         return -1
     }
+    if k == N_BIN && tok_is(nodes[v].t, "+") && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_BYTES {   // b + x of a Bytes, as kelvinc says it
+        let r:int64 = nodes[v].b
+        let ry:int64 = type_of(r)
+        if ry >= 0 && types[ry].kind == Y_STRING {
+            gen_error(v, "'+' joins two Bytes or two Strings: a String's bytes are 's.bytes^', and a Bytes of text is 'Bytes(&s)'")
+            return -1
+        }
+        var big:int64 = 0                                // the literal's value, of its digits
+        if nodes[r].kind == N_NUM {
+            for q in 0..<toks[nodes[r].t].len {
+                let c:uint32 = codes[toks[nodes[r].t].at + q]
+                if is_digit(c) && big < 100000 { big = big * 10 + (c - '0') as int64 }
+            }
+        }
+        if nodes[r].kind == N_NUM && big > 255 {
+            var m = $"a byte of '+' is 0 to 255, and this is "
+            m += tok_text(nodes[r].t)
+            gen_error(r, m.cstr)
+            return -1
+        }
+    }
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "!!") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380); d0 !! d1 (#460)
         needs_type(n)                                  // as kelvinc says it
         return -1
@@ -13294,6 +13505,15 @@ let gen_var(n:int64) {
     if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
     if failed { return }
     if nodes[n].a >= 0 && temp_borrowed(nodes[n].a) { return }   // let p := &$"text" (#187, #612)
+    if nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_LIST && nodes[n].ty >= 0 && types[nodes[n].ty].kind == Y_STRUCT && struct_of(nodes[n].ty) >= 0 {   // let p:point = [1, 2], as kelvinc says it
+        var m = $"'[...]' initializes an array, and this is "
+        m += nodes[struct_of(nodes[n].ty)].flag == 1 ? "union " : "struct "
+        let w:String = kelvin_type_text(nodes[n].ty)
+        m += &w
+        m += ": a struct or union is initialized with '{...}'"
+        gen_error(nodes[n].a, m.cstr)
+        return
+    }
     if written && nodes[n].a >= 0 && nodes[n].t < eof_pos {   // its value of its type, in Kelvin's words (#255, #612)
         if record_differs(nodes[n].a, nodes[n].ty) { return }
         var lead = $"'"
@@ -15029,6 +15249,64 @@ let named_fn_type(n:int64):int64 {
     return decl_fn_type(d)
 }
 
+// { $0 } given to a call where no function type goes, kelvinc's error of
+// it: a C function's, whose parameters kelvinc does not see; a parameter
+// that is no function; whether n was one
+let anon_arg_refused(n:int64):bool {
+    var call:int64 = 0 - 1
+    var at:int64 = 0
+    var c:int64 = 0
+    while c < nodes.count as int64 && call < 0 {
+        if nodes[c].kind == N_CALL {
+            var a:int64 = nodes[c].b
+            var k:int64 = 0
+            while a >= 0 {
+                if a == n {
+                    call = c
+                    at = k
+                }
+                k += 1
+                a = nodes[a].next
+            }
+        }
+        c += 1
+    }
+    if call < 0 { return false }
+    let f:int64 = nodes[call].a
+    if nodes[f].kind != N_ID { return false }
+    let d:int64 = var_type(nodes[f].t) < 0 ? fn_named(nodes[f].t) : 0 - 1
+    var note = $""
+    if d >= 0 {
+        var p:int64 = nodes[d].a
+        var k:int64 = 0
+        while p >= 0 && k < at {
+            p = nodes[p].next
+            k += 1
+        }
+        if p < 0 { return false }
+        let py:int64 = nodes[p].ty
+        if py >= 0 && types[py].kind == Y_FN { return false }
+        if py >= 0 && types[py].kind != Y_C && types[py].kind != Y_TYPEOF {
+            var m = $"an anonymous function cannot be passed here: the parameter is "
+            let w:String = kelvin_type_text(py)
+            m += &w
+            m += ", not a function"
+            gen_error(n, m.cstr)
+            return true
+        }
+        note += "; it is argument "
+        note += String(at + 1)
+        note += ", whose parameter is "
+        let w:String = py >= 0 ? kelvin_type_text(py) : $"not seen"
+        note += &w
+        note += ": is an argument missing?"
+    }
+    var m = $"kelvinc cannot see this anonymous function's parameters, so '$0' has no type: write them, as in '{ (a:i32, b:i32):bool in ... }'"
+    m += &note
+    gen_error(n, m.cstr)
+    return true
+}
+
 // the function type of the anonymous function n as a value (#428): its
 // written parameters' and result's; one of $0 or of names without types
 // takes them from where it goes, so here it is kelvinc's error
@@ -15037,6 +15315,11 @@ let anon_type(n:int64):int64 {
         var none:$[int64] = $[]
         return fn_type_of(&none, nodes[n].ty)
     }
+    if nodes[n].flag == 2 {                              // let f = { a, b in a + b }, as kelvinc says it
+        gen_error(n, "the parameters of this function are named without their types, which nothing here gives: write them, as in '{ (a:i64, b:i64):i64 in ... }'")
+        return 0 - 1
+    }
+    if nodes[n].flag != 0 && anon_arg_refused(n) { return 0 - 1 }   // an argument of a call, as kelvinc says it
     if nodes[n].flag != 0 {
         gen_error(n, "'$0' is a parameter of an anonymous function, and this is not in one; there, '{' starts an initializer list, so an anonymous function writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
         return 0 - 1
