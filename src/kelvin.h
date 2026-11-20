@@ -206,6 +206,7 @@ typedef struct {
     Type *align_type;   /* or alignas(T) */
     char *cname;      /* an enumerator of an enum defined inside a function (#391): its name
                          in C, _kv_main_red, the program's of the top level; name the block's */
+    bool thread_local; /* thread_local var x (#641): each thread its own, C's _Thread_local */
     bool first_use;   /* a global given its value at its first use, once (#493): one that owns, or of a
                          value that is not C's constant, read in C by its accessor, _kv_get_x() */
 } Var;   /* also a parameter, struct member or enumerator */

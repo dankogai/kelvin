@@ -2655,7 +2655,17 @@ static Type *const_type(Type *t) {
     return c;
 }
 
+static char *var_decl_of(const char *storage, Var *v);
+
+/* a variable's declaration in C: thread_local's _Thread_local after its
+   storage (#641) */
 static char *var_decl(const char *storage, Var *v) {
+    if (v->thread_local)
+        return var_decl_of(storage ? strfmt("%s _Thread_local", storage) : "_Thread_local", v);
+    return var_decl_of(storage, v);
+}
+
+static char *var_decl_of(const char *storage, Var *v) {
     /* an owner (#54): its block frees it (cleanup), it starts empty, and
        a let one is const to kelvinc only, as C's free takes it */
     const char *frees = text_bufs && !(storage && (!strcmp(storage, "static") || !strcmp(storage, "extern")))

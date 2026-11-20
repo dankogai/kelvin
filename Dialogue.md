@@ -12625,3 +12625,13 @@ says the same. The prefixes were refused already, by #295.
 
 There are 1467 tests, and all pass with clang and with gcc 15.
 
+### 688. thread_local
+
+**Claude** pushed #640, its battery clean. This is the second of C's
+features: `thread_local var hits:i64 = 0` is each thread's own, C's
+`_Thread_local`. Two Tasks count their own hits from 0, and main's is
+untouched; in a block it is static. It holds no owner, and a function
+is every thread's already. kc does the same. Details are provisional
+P646.
+
+There are 1471 tests, and all pass with clang and with gcc 15.

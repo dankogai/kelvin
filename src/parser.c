@@ -12367,12 +12367,46 @@ static void parse_var_list(List *out, bool is_let, const char *storage) {
     }
 }
 
+/* thread_local before or after static or extern (#641): each thread its
+   own of the variable, C's _Thread_local, which the declaration takes */
+static bool thread_next;
+static Token *thread_tok;
+
+static void parse_thread_local(void) {
+    if (peek()->kind == TK_IDENT && !strcmp(peek()->text, "thread_local") &&
+        (is_kw(peek2(), "var") || is_kw(peek2(), "let") || is_kw(peek2(), "static") || is_kw(peek2(), "extern"))) {
+        if (thread_next)
+            error_at(peek()->pos, "'thread_local' is written once");
+        thread_tok = advance();
+        thread_next = true;
+    }
+}
+
+/* a variable thread_local makes its thread's own (#641): of no owner,
+   which a thread's end would not free, and of a value C initializes */
+static void take_thread_local(Var *v) {
+    if (!thread_next)
+        return;
+    if (v->type && is_owner(v->type))
+        error_at(v->pos, "a thread_local holds no owner (#641): '%s' is %s, which no thread's end frees; keep a "
+                         "pointer to one, or give each Task its own",
+                 v->name, kelvin_type(v->type));
+    if (v->first_use)
+        error_at(v->pos, "a thread_local's value is one C initializes, a constant (#641): '%s' is given its value "
+                         "at its first use otherwise; give it one, or set it in each thread",
+                 v->name);
+    v->thread_local = true;
+}
+
 static const char *parse_storage(void) {
+    parse_thread_local();
+    const char *storage = NULL;
     if (accept_kw("static"))
-        return "static";
-    if (accept_kw("extern"))
-        return "extern";
-    return NULL;
+        storage = "static";
+    else if (accept_kw("extern"))
+        storage = "extern";
+    parse_thread_local();
+    return storage;
 }
 
 /* inline let f(...) (#392): C's static inline, the function parse_fn_tail
@@ -14097,10 +14131,16 @@ static Stmt *parse_declaration(void) {
     bool is_let = accept_kw("let");
     if (!is_let && !accept_kw("var"))
         error_at(peek()->pos, "expected 'let' or 'var'");
+    bool thread = thread_next;
+    if (thread && !s->storage)
+        s->storage = "static"; /* a thread_local in a block is static, each thread's own (#641) */
     bool saved = static_init;
     static_init = s->storage && !strcmp(s->storage, "static");
     parse_var_list(&s->vars, is_let, s->storage);
     static_init = saved;
+    for (int i = 0; thread && i < s->vars.len; i++)
+        take_thread_local(s->vars.data[i]);
+    thread_next = false;
     return s;
 }
 
@@ -15264,6 +15304,17 @@ static Stmt *parse_stmt_here(void) {
     stmt_is_body = false;
     reject_typedef(t);
 
+    if (t->kind == TK_IDENT && !strcmp(t->text, "thread_local") &&
+        (is_kw(peek2(), "var") || is_kw(peek2(), "let") || is_kw(peek2(), "static"))) { /* (#641) */
+        if (as_body)
+            error_at(pos, "a declaration cannot be the body of a statement or follow a label; put it in a block, "
+                          "or write 'label: ;' before it");
+        Stmt *s = parse_declaration();
+        end_statement();
+        return s;
+    }
+    if (is_kw(t, "_Thread_local"))
+        error_at(pos, "'_Thread_local' is C's spelling: Kelvin writes 'thread_local var x' (#641)");
     if (t->kind == TK_INLINE_C) { /* C statements where they stand (#198) */
         if (as_body)
             error_at(pos, "#inline C cannot be the body of a statement or follow a label; put it in a block");
@@ -18527,9 +18578,14 @@ Program *parse(Token *tokens, int ntoks) {
             list_push(&prog->decls, d);
             continue;
         }
+        if (is_kw(peek(), "_Thread_local"))
+            error_at(peek()->pos, "'_Thread_local' is C's spelling: Kelvin writes 'thread_local var x' (#641)");
         const char *storage = parse_storage_inline();
         /* a function, a method and an operator are lets (#45) */
         bool binding = is_kw(peek(), "let") || is_kw(peek(), "var");
+        if (thread_next && (!binding || !(peek2()->kind == TK_IDENT) || is_p(peek_at(2), "(") || is_p(peek_at(2), ".")))
+            error_at(thread_tok->pos, "'thread_local' is of a variable, each thread's own: a function is every "
+                                      "thread's already (#641)");
         if (!binding && !storage && peek()->kind == TK_IDENT && !strcmp(peek()->text, "typealias")) {
             parse_typealias(); /* typealias A = T (#149) */
             continue;
@@ -18682,8 +18738,10 @@ Program *parse(Token *tokens, int ntoks) {
                     v->first_use = true;
                     list_push(&first_use_globals, v->name);
                 }
+                take_thread_local(v); /* (#641) */
                 add_top_decl(prog, d);
             } while (accept_p(","));
+            thread_next = false;
             end_statement();
         } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "=") || is_p(peek2(), ":="))) {
             error_at(peek()->pos, "declarations start with let or var: write 'var %s ...', or 'let %s ...' if it "

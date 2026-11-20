@@ -46,6 +46,15 @@ ordinary function, which may as well be called as always.
     given a `String` takes its text instead.
   - A global is the program's, shared as C's are, with nothing to keep
     two threads from it at once.
+  - `thread_local var hits:i64 = 0` is each thread's own (#641), C's
+    `_Thread_local`: a Task counts its own from the value written, and
+    main's is untouched.
+    - In a block it is static, each thread's own as well:
+      `thread_local var calls:i64 = 0` lives on from call to call.
+    - It holds no owner, which no thread's end would free, and its value
+      is one C initializes, a constant.
+    - A function is every thread's already: `thread_local let f()` is
+      an error, and C's `_Thread_local` says to write `thread_local`.
 - **`await t`** waits for the thread and gives the value, once.
   - `t` holds nothing afterwards, as a move leaves it, so a second
     `await t` is an error.

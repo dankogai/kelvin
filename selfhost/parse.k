@@ -195,6 +195,7 @@ var local_next = false         // the struct or enum parse_struct or parse_enum 
 var inline_fns:$[int64]        // the functions written inline (#392), C's static inline
 var static_decls:$[int64]      // the functions, globals and locals written static, C's (#459)
 var extern_decls:$[int64]      // and those written extern, declared for C's
+var thread_decls:$[int64]      // and those written thread_local, each thread's own, C's _Thread_local (#641)
 var variadic_fns:$[int64]      // the functions whose parameters end in ..., C's variadic ones (#453)
 var c_tags:Dictionary<String, int64>   // struct T; and union T;, C's, -2 or -3 by T (#453)
 var c_tag_types:$[int64]       // and their types, which gen declares so
@@ -3426,6 +3427,25 @@ let parse_statement():int64 {
         end_statement()
         return n
     }
+    if at_word("thread_local") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let") || tok_is(pos + 1, "static")) {   // each thread's own, static in a block (#641)
+        advance()
+        if at_word("static") { advance() }
+        static_init = true
+        let n:int64 = parse_vars()
+        static_init = false
+        var v:int64 = n
+        while v >= 0 {
+            static_decls += v
+            thread_decls += v
+            v = nodes[v].next
+        }
+        end_statement()
+        return n
+    }
+    if at_word("_Thread_local") {                        // as kelvinc says it (#641)
+        parse_error("'_Thread_local' is C's spelling: Kelvin writes 'thread_local var x' (#641)")
+        return make_node(S_BLOCK, t)
+    }
     if at_word("static") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {   // a local that lives on, C's (#459)
         advance()
         static_init = true                               // (#612)
@@ -5065,9 +5085,27 @@ let parse_program() {
     skip_newlines()
     while !at_kind(T_EOF) && !failed {
         var storage:int64 = 0                            // static 1, extern 2, as C's (#459)
+        var thread = false                               // thread_local, before or after it (#641)
+        let thread_at:int64 = pos
+        if at_word("_Thread_local") {                    // as kelvinc says it
+            parse_error("'_Thread_local' is C's spelling: Kelvin writes 'thread_local var x' (#641)")
+            return
+        }
+        if at_word("thread_local") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let") || tok_is(pos + 1, "static") || tok_is(pos + 1, "extern")) {
+            thread = true
+            advance()
+        }
         if (at_word("static") || at_word("extern")) && !at_word("static_assert") {
             storage = at_word("static") ? 1 : 2
             advance()
+        }
+        if at_word("thread_local") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {
+            thread = true
+            advance()
+        }
+        if thread && !((at_word("var") || at_word("let")) && toks[pos + 1].kind == T_ID && !tok_is(pos + 2, "(") && !tok_is(pos + 2, ".")) {
+            parse_error_at(thread_at, "'thread_local' is of a variable, each thread's own: a function is every thread's already (#641)")
+            return
         }
         parse_alignas()                                  // alignas(64) var line:[u8](64) (#396)
         parse_alignas()                                  // a second, kelvinc's error
@@ -5248,6 +5286,7 @@ let parse_program() {
             let n:int64 = parse_var(0)
             nodes[n].kind = D_GLOBAL
             if is_let { nodes[n].flag = 1 }
+            if thread { thread_decls += n }              // (#641)
             if is_let && nodes[n].a < 0 && storage != 2 && !failed { let_needs_value(n) }   // but an extern's, C's (#611)
             decls += n
             if at_word(";") { advance() }                // var calls = 0; (#451)

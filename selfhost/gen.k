@@ -10168,6 +10168,17 @@ let empty_error(v:int64) {
     }
 }
 
+// a thread_local of an owner, as kelvinc says it (#641)
+let thread_owner_error(n:int64, y:int64) {
+    var m = $"a thread_local holds no owner (#641): '"
+    m += tok_text(nodes[n].t)
+    m += "' is "
+    let w:String = kelvin_type_text(y)
+    m += &w
+    m += ", which no thread's end frees; keep a pointer to one, or give each Task its own"
+    gen_error(n, m.cstr)
+}
+
 // whether the token t names a global of the program
 let global_named(t:int64):bool {
     for d in decls {
@@ -13702,6 +13713,10 @@ let gen_var(n:int64) {
         put_free(y)
         put("))) ")
     }
+    if thread_decls.contains(n) && is_owner(y) {         // as kelvinc says it (#641)
+        thread_owner_error(n, y)
+        return
+    }
     if static_decls.contains(n) {                        // a local that lives on, C's (#459)
         if is_owner(y) {
             gen_error(n, "a static local lives on past its block, which frees an owner: make it a global")
@@ -13709,6 +13724,7 @@ let gen_var(n:int64) {
         }
         put("static ")
     }
+    if thread_decls.contains(n) { put("_Thread_local ") }   // each thread's own (#641)
     put_alignas(n)                                       // (#396)
     put_ctype(y)
     put(" ")
@@ -21788,8 +21804,13 @@ let gen_program() {
             current = d
             var before:String = out.copy()
             out = $""
+            if thread_decls.contains(d) && is_owner(nodes[d].ty) {   // as kelvinc says it (#641)
+                thread_owner_error(d, nodes[d].ty)
+                return
+            }
             if static_decls.contains(d) { put("static ") }   // C's (#459)
             if extern_decls.contains(d) { put("extern ") }
+            if thread_decls.contains(d) { put("_Thread_local ") }   // each thread's own (#641)
             put_alignas(d)                               // (#396)
             if nodes[d].flag == 1 { put("const ") }
             put_ctype(nodes[d].ty)
