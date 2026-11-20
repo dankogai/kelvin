@@ -2155,6 +2155,39 @@ static Expr *chained(Expr *e, Token *t) {
     return c;
 }
 
+/* v(...) of a variable whose type kelvinc sees is no function's (#620):
+   a number, a struct, an owner, a pointer to data. Where the variable
+   hides a function of its name, `let sqrt = 2.0; sqrt(sqrt)`, it says
+   so; C would only say the type is not a function. A function type, an
+   alias of one and a C typedef kelvinc does not see into are called as
+   they are. */
+static void reject_value_call(Expr *callee) {
+    if (callee->kind != E_IDENT || binding_index(callee->text) < 0 || is_function_designator(callee))
+        return;
+    Type *t = value_type(callee);
+    while (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    if (!t || fn_typed(t))
+        return;
+    Decl *record;
+    if (type_class(t, &record) == 'u')
+        return;
+    if (t->kind == T_PTR && t->elem && type_class(t->elem, &record) == 'u' && !is_cstr(t))
+        return; /* a pointer to a C typedef, which may be a function type's */
+    bool hides = false;
+    for (int j = 0; j < functions.len && !hides; j++) {
+        Decl *d = functions.data[j];
+        hides = !d->recv && !d->op && !strcmp(d->name, callee->text);
+    }
+    if (hides)
+        error_at(callee->pos, "'%s' is a variable here, of %s, which hides the function of its name: rename one "
+                              "of them",
+                 callee->text, kelvin_type(t));
+    error_at(callee->pos, "'%s' is a variable of %s, not a function: what is called is a function or a variable "
+                          "of a function type",
+             callee->text, kelvin_type(t));
+}
+
 static Expr *parse_postfix_steps(Expr *e) {
     for (;;) {
         reject_valueless_args(e);
@@ -2390,6 +2423,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = x;
                 continue;
             }
+            reject_value_call(x->a);
             /* f(x) { ... }: a trailing anonymous function is the last
                argument (#32), except where `{` starts a body, as it does
                on the next line at the top level of a statement (#35) */

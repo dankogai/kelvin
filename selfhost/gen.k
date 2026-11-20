@@ -7769,8 +7769,20 @@ let gen_call(n:int64) {
         return
     }
     if failed { return }
-    if nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 {   // a variable of no function type
-        gen_error(n, "this calls a variable, which hides the function of its name here: rename one of them")
+    if nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 {   // a variable of no function type, as kelvinc's (#620)
+        let w:String = kelvin_type_text(var_type(nodes[f].t))
+        var m = $"'"
+        m += tok_text(nodes[f].t)
+        if fn_named(nodes[f].t) >= 0 {
+            m += "' is a variable here, of "
+            m += &w
+            m += ", which hides the function of its name: rename one of them"
+        } else {
+            m += "' is a variable of "
+            m += &w
+            m += ", not a function: what is called is a function or a variable of a function type"
+        }
+        gen_error(n, m.cstr)
         return
     }
     let d = call_target(n)                          // the overload its arguments fit (#234)

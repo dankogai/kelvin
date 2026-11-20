@@ -65,6 +65,11 @@ prelude uses; `Kelvin.name` then still reaches the prelude's.
 - **A variable or a parameter of the name** hides the bare name, as
   it does of any function, and not `Kelvin.name`:
   `let f(exp:f64):f64 { Kelvin.exp(exp) }`.
+  - Calling it, `let sqrt = 2.0; sqrt(sqrt)`, is kelvinc's error (#620):
+    `'sqrt' is a variable here, of f64, which hides the function of
+    its name: rename one of them`.
+  - A variable of a function type is called as it is:
+    `let sqrt:(f64):f64 := half; sqrt(3.0)`.
 - **A function's name is a value** with `Kelvin.` too:
   `let f:(f64):f64 := Kelvin.sqrt`.
 - **An operator has no `Kelvin.`**, so one of the prelude's own

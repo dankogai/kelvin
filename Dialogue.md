@@ -12271,3 +12271,35 @@ documents/README.md, versusC.md and README list it. Details are
 provisional P631.
 
 There are 1435 tests, and all pass with clang and with gcc 15.
+
+### 667. A variable called
+
+**User**: "push", for #619, which **Claude** pushed, its battery
+clean; CI's nine jobs passed. Then:
+
+> List todos before 0.4.0.  You have been insisting releasing 0.4.0 but forget about it and think again
+
+**Claude** listed what is left, the release chores last: the three
+faults of kelvinc found with #600 and left, BigFloat's last-1 rule,
+kc's 226 errors in its own words, closures and protocols, the open
+questions, the provisional rows and C's features not yet written.
+Then:
+
+> fix the three kelvinc faults first
+
+This is the first. `let sqrt = 2.0; sqrt(sqrt)` was C's error,
+called object type 'double' is not a function or function pointer.
+It is kelvinc's now:
+
+    'sqrt' is a variable here, of f64, which hides the function of its name: rename one of them
+
+and, where no function has the name, `let x = 2.0; x(1.0)`:
+
+    'x' is a variable of f64, not a function: what is called is a function or a variable of a function type
+
+A variable of a function type is called as before, and so is one of a
+C typedef. kc said the first of both, and says kelvinc's two now.
+Details are provisional P632.
+
+There are 1439 tests, and all pass with clang and with gcc 15.
+
