@@ -20738,6 +20738,38 @@ let call_never_returns(e:int64):bool {
 
 // whether a break in s, or in the statements after it in a block, leaves
 // what holds them: one not inside a loop or a switch of its own
+// a break outside a loop or a switch, and a continue outside a loop, as
+// kelvinc says it (#649): the statements from s0, inside so many loops
+// and switches; an anonymous function's body is its own
+let stray_jump(s0:int64, chain:bool, loops:int64, switches:int64):bool {
+    var s:int64 = s0
+    while s >= 0 {
+        let k:nkind = nodes[s].kind
+        if k == S_BREAK && loops == 0 && switches == 0 {
+            gen_error(s, "'break' leaves a loop or a switch, and this is in neither")
+            return true
+        }
+        if k == S_CONTINUE && loops == 0 {
+            gen_error(s, "'continue' goes on to the next turn of a loop, and this is in none")
+            return true
+        }
+        if k == S_BLOCK && stray_jump(nodes[s].a, true, loops, switches) { return true }
+        if (k == S_IF || k == S_IFLET) && (stray_jump(nodes[s].b, false, loops, switches) || stray_jump(nodes[s].c, false, loops, switches)) { return true }
+        if (k == S_WHILE || k == S_DO) && stray_jump(nodes[s].b, false, loops + 1, switches) { return true }
+        if (k == S_FOR || k == S_EACH || k == S_CFOR) && stray_jump(nodes[s].c, false, loops + 1, switches) { return true }
+        if k == S_SWITCH {
+            var c:int64 = nodes[s].b
+            while c >= 0 {
+                if stray_jump(nodes[c].b, true, loops, switches + 1) { return true }
+                c = nodes[c].next
+            }
+        }
+        if !chain { return false }
+        s = nodes[s].next
+    }
+    return false
+}
+
 let breaks_out(s0:int64, chain:bool):bool {
     var s:int64 = s0
     while s >= 0 {
@@ -21027,6 +21059,7 @@ let gen_function(d:int64) {
         gen_block(nodes[d].b, 0)
     }
     if var_method { put("#undef self\n") }
+    if !failed && nodes[d].b >= 0 && stray_jump(nodes[d].b, false, 0, 0) { return }   // after the body's own errors, as kelvinc's (#649)
     if !failed && missing_return(d) { return }           // after the body's own errors, as kelvinc's (#625)
     rp = nodes[d].a
     while rp >= 0 {

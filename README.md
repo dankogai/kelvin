@@ -787,3 +787,5 @@ So far the changes from C are these, by topic.
   error, where C only warned (#647)
 - A fixed array set whole, `a = b`, is kelvinc's error, where it was
   C's (#648)
+- `break` and `continue` outside a loop are kelvinc's errors, where
+  they were C's (#649)

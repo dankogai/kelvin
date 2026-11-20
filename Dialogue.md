@@ -12733,3 +12733,15 @@ kc's words already.
 Details are provisional P653.
 
 There are 1501 tests, and all pass with clang and with gcc 15.
+
+### 696. break and continue outside a loop
+
+**Claude** pushed #648, its battery clean, and made the last fault
+#649: a `break` in no loop and no switch, and a `continue` in no loop,
+were C's errors; they are kelvinc's and kc's now, and an anonymous
+function's body is its own, so a loop around it does not hold its
+`break`.
+
+Details are provisional P654.
+
+There are 1506 tests, and all pass with clang and with gcc 15.

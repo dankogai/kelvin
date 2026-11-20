@@ -127,6 +127,11 @@ case rect(q): return q.w * q.h
   - Any other switch has `default:`.
 - **`break`** leaves the switch, as in C, and `continue` goes on with
   the loop around it; `return` returns. `goto` is C's.
+  - A `break` in no loop and no switch, and a `continue` in no loop,
+    are kelvinc's errors (#649), where they were C's: `'continue' goes
+    on to the next turn of a loop, and this is in none`.
+  - An anonymous function's body is its own: a loop around it does not
+    hold its `break`.
 - **`fallthrough`** (#386), Swift's, goes on into the body of the next
   case, as C does without a `break`.
   - The next case's label is not checked: its body just runs.

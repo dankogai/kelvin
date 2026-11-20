@@ -18509,6 +18509,54 @@ static void reject_missing_return(Decl *d) {
                  fn_shown(d));
 }
 
+/* a break outside a loop or a switch, and a continue outside a loop
+   (#649): kelvinc's errors, where they were C's. A function's own body
+   is walked, an anonymous function's apart, which a loop around it does
+   not hold */
+static void reject_stray_jumps(Stmt *s, int loops, int switches) {
+    if (!s)
+        return;
+    switch (s->kind) {
+    case S_BREAK:
+        if (!loops && !switches)
+            error_at(s->pos, "'break' leaves a loop or a switch, and this is in neither");
+        return;
+    case S_CONTINUE:
+        if (!loops)
+            error_at(s->pos, "'continue' goes on to the next turn of a loop, and this is in none");
+        return;
+    case S_WHILE:
+    case S_DO:
+    case S_FOR:
+    case S_FOR_IN:
+    case S_FOR_EACH:
+        reject_stray_jumps(s->init, loops, switches);
+        reject_stray_jumps(s->body, loops + 1, switches);
+        return;
+    case S_SWITCH:
+        reject_stray_jumps(s->body, loops, switches + 1);
+        return;
+    default:
+        for (int i = 0; s->kind == S_BLOCK && i < s->stmts.len; i++)
+            reject_stray_jumps(s->stmts.data[i], loops, switches);
+        reject_stray_jumps(s->body, loops, switches);
+        reject_stray_jumps(s->els, loops, switches);
+    }
+}
+
+static void reject_stray_jumps_all(void) {
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (d->kind == D_FN && d->body && !d->imported)
+            reject_stray_jumps(d->body, 0, 0);
+    }
+    for (int i = 0; i < anon_written.len; i++) {
+        Decl *d = anon_written.data[i];
+        if (!list_has(&functions, d) && d->body)
+            reject_stray_jumps(d->body, 0, 0);
+    }
+}
+
 static void reject_missing_returns(void) {
     noreturn_fns = (List){0};
     for (bool more = true; more;) { /* those that call one another, to the last */
@@ -18964,6 +19012,7 @@ Program *parse(Token *tokens, int ntoks) {
         error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
     end_alignas(); /* (#396) */
     reject_unseen_overloads(); /* (#492) */
+    reject_stray_jumps_all(); /* (#649) */
     reject_missing_returns(); /* (#625) */
     reject_duplicates(prog); /* (#646) */
     name_functions();
