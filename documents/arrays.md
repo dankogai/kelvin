@@ -142,6 +142,11 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
 - **`var p := a`** is the pointer C makes of the array, and `p^` is
   `a[0]`. A declaration without a type does the same: `let ap := arr` is
   a pointer, since C does not copy an array into a variable.
+- **An array is not set whole** (#648): `a = b`, `a = [3, 4]`,
+  `s.a = b` and `a += 1` are kelvinc's error, `an array is not
+  assigned: assign its elements, a[i]`, where they were C's.
+  - A case of an enum with values that holds an array is set whole,
+    `v.c = [7, 8]` (#360).
 - **A compound literal** of an array, `([i32])[10, 20, 30]`, declares
   the array itself in `let c = ([i32])[10, 20, 30]`, and is a pointer
   where one is declared (`let q:i32^ := ([i32])[1, 2]`).

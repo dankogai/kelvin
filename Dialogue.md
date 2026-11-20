@@ -12721,3 +12721,15 @@ union's in kelvinc's words.
 Details are provisional P652.
 
 There are 1495 tests, and all pass with clang and with gcc 15.
+
+### 695. A fixed array set whole
+
+**Claude** pushed #647, its battery clean, and made the third fault
+#648: a fixed array set whole, `a = b`, `a = 1`, `s.a = b` or `a += 1`,
+was C's error, and `a = [3, 4]` kelvinc's of a list as no value; each
+is kelvinc's `an array is not assigned: assign its elements, a[i]` now,
+kc's words already.
+
+Details are provisional P653.
+
+There are 1501 tests, and all pass with clang and with gcc 15.

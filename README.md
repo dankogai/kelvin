@@ -785,3 +785,5 @@ So far the changes from C are these, by topic.
   kelvinc's error, where they were C's (#646)
 - A value past a struct's last member or an array's count is kelvinc's
   error, where C only warned (#647)
+- A fixed array set whole, `a = b`, is kelvinc's error, where it was
+  C's (#648)

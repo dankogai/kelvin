@@ -10441,6 +10441,10 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                                    "or 'p^'",
                          value, t->text);
             reject_let_change(lhs, t);
+            Type *whole = value_type(lhs);
+            if (whole && whole->kind == T_ARRAY &&
+                !(lhs->kind == E_FIELD && lhs->a && tagged_record(value_type(lhs->a)))) /* v.c = [a, b], a case's (#360) */
+                error_at(t->pos, "an array is not assigned: assign its elements, a[i]"); /* (#648), C's error before */
             /* a cstr's bytes never change, and it does not step (#52) */
             if ((lhs->kind == E_INDEX || lhs->kind == E_DEREF) && is_cstr(value_type(lhs->a)))
                 error_at(t->pos, "a cstr is immutable (#52): to change text, copy it into a byte array, "
