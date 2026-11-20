@@ -92,15 +92,21 @@ static Decl *function_named(const char *name);
 static const char *lent_words(bool what);
 static bool declaring_fn; /* a function's name is being declared: its prototype's, an overload's, is one (#505) */
 
+static int case_floor = -1; /* where the names of the case being read begin, of a switch's block (#628) */
+static int block_depth, case_depth = -1;
+
 static void declare_binding(const char *name, Type *type, int let) {
     int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
+    if (case_floor > here && case_depth == block_depth) /* each case is a block of its own in C (#63) */
+        here = case_floor;
     bool wide = false;
     for (const char *q = name; *q; q++)
         wide = wide || (unsigned char)*q >= 0x80;
-    for (int i = scope_names.len - 1; wide && !(declaring_fn && function_named(name)) && i >= here; i--)
+    for (int i = scope_names.len - 1; (wide || scope_marks.len) && !(declaring_fn && function_named(name)) && i >= here; i--)
         if (!strcmp(scope_names.data[i], name)) {
-            /* a name past ASCII declared twice in a block (#385), which C
-               would say in the name it gives it */
+            /* a name declared twice in a block, which C would say in the
+               name it gives it, past ASCII (#385), and in its words of any
+               (#628) */
             Pos pos = toks[cur > 0 ? cur - 1 : 0].pos;
             for (int k = cur; k >= 0 && k > cur - 64; k--)
                 if (toks[k].text && !strcmp(toks[k].text, name)) {
@@ -1222,7 +1228,6 @@ static void move_argument(Expr *arg, Type *param, const char *what);
 static Decl *switch_record;
 /* the depth of blocks being parsed, and the depth at which the cases of
    the switch being parsed are written: at the top of its block (#63) */
-static int block_depth, case_depth = -1;
 /* a fallthrough of the case being parsed (#386), and where: the next case
    is its, which must come and must bind nothing */
 static bool fall_pending;
@@ -15398,7 +15403,7 @@ static Stmt *parse_stmt_here(void) {
             s->expr = x;
         }
         Decl *saved = switch_record;
-        int saved_depth = case_depth;
+        int saved_depth = case_depth, saved_floor = case_floor;
         bool saved_fall = fall_pending;
         Pos saved_fall_pos = fall_pos;
         switch_record = tr;
@@ -15421,6 +15426,7 @@ static Stmt *parse_stmt_here(void) {
         fall_pending = saved_fall;
         fall_pos = saved_fall_pos;
         case_depth = saved_depth;
+        case_floor = saved_floor;
         switch_record = saved;
         check_switch(s);
         for (int k = 0; k < s->body->stmts.len; k++) /* a case that binds (#119): the subject is read in its body */
@@ -15450,6 +15456,7 @@ static Stmt *parse_stmt_here(void) {
             error_at(fall_pos, "'fallthrough' cannot go on into a case that binds a value, 'case %s(%s):'", s->name,
                      s->name2);
         case_begins(fall_pending); /* (#605) */
+        case_floor = scope_names.len; /* (#628) */
         fall_pending = false;
         expect_p(":");
         return s;
@@ -15460,6 +15467,7 @@ static Stmt *parse_stmt_here(void) {
         if (case_depth != block_depth)
             error_at(pos, "'default' is written at the top of the switch's block, not inside a statement of it");
         case_begins(fall_pending); /* (#605) */
+        case_floor = scope_names.len; /* (#628) */
         fall_pending = false;
         expect_p(":");
         return new_stmt(S_DEFAULT, pos);

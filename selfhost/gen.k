@@ -539,7 +539,7 @@ let close_scope() {
 }
 
 let declare_as(t:int64, y:int64, how:int64) {
-    if wide_tok(t) && marks.count > 0 {                  // as kelvinc says it (#385)
+    if marks.count > 0 {                                 // as kelvinc says it, past ASCII (#385) and of any name (#628)
         var i:int64 = locals.count as int64 - 1
         while i >= marks[marks.count - 1] {
             if same_text(locals[i].t, t) {

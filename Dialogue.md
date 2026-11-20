@@ -12441,3 +12441,19 @@ gone. kc says the same. Details are provisional P639.
 
 There are 1462 tests, and all pass with clang and with gcc 15.
 
+### 675. A name declared twice in a block
+
+**Claude** pushed #627, its battery clean. This is the last of what the
+second look found. **Claude** asked about names never declared, which
+C says, and the user answered with the recommended:
+
+- **Leave it to C**: kelvinc does not read C's headers, so it cannot
+  tell a name never declared from one a header or a macro declares.
+
+So this is only `let n = 1` and then `var n = 2` in one block, C's
+redefinition of 'n', which is kelvinc's now, `'n' is declared already in
+this block`. A block inside may declare it again, and so may each case
+of a switch. kc says the same. Details are provisional P640.
+
+There are 1464 tests, and all pass with clang and with gcc 15.
+

@@ -761,3 +761,6 @@ So far the changes from C are these, by topic.
 - A wrong count of arguments, a value returned of another type, `^` of
   what is no pointer and a comma in an Array's subscript are kelvinc's
   errors, where they were C's (#627)
+- A name declared twice in one block is kelvinc's error, where it was
+  C's; a block inside, and each case of a switch, may declare it again
+  (#628)

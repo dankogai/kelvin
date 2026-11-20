@@ -465,7 +465,11 @@ let main():int32 {
     declared ahead, `struct b;`, as in Swift.
     - Not past an `#import` before it: a file imported reads what is
       written before it.
-  - A local is still declared before it is used, as in C.
+  - A local is still declared before it is used, as in C, and once in
+    a block: `let n = 1` and then `var n = 2` is kelvinc's error, `'n'
+    is declared already in this block` (#628), where it was C's. A
+    block inside may declare it again, which hides it there, and so
+    may each case of a switch, a block of its own.
 - **The choice** is the overload that every argument fits exactly, or
   else the one that fits at least as well as every other on each
   argument and better on one.
