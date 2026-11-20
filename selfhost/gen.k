@@ -21681,10 +21681,187 @@ let gen_assert(n:int64) {
     put(");\n")
 }
 
+// where a name was defined first, for #646's errors: its line, and its
+// file where that is another, as kelvinc's
+let defined_at(first:int64, later:int64):String {
+    var s = $" ("
+    if toks[first].file != toks[later].file {
+        var base = $""
+        for c in fnames[toks[first].file].codepoints {
+            if c == '/' {
+                base = $""
+            } else {
+                base += c
+            }
+        }
+        s += &base
+        s += ":"
+    } else {
+        s += "line "
+    }
+    s += String(toks[first].line)
+    s += ")"
+    return s
+}
+
+// a function's identity among the program's, for #646: its type, what
+// it is, its name and its parameters' types
+let defined_key(d:int64):String {
+    var key = $""
+    if nodes[d].c >= 0 {
+        let recv:String = tok_text(nodes[d].c)
+        key += &recv
+    }
+    key += nodes[d].flag == 1 ? "|static|" : "|"
+    key += String(attributes.get(d, 0) == 3 ? 2 : attributes.get(d, 0) > 0 ? 1 : 0)
+    key += String(subscripts.get(d, 0))
+    key += "|"
+    let plain:String = plain_key(d)
+    key += &plain
+    key += "|"                                       // another result is #41's error, said where overloads are counted
+    if nodes[d].ty >= 0 {
+        let r:String = type_text(nodes[d].ty)
+        key += &r
+    }
+    return key
+}
+
+// what a top-level word is, for #646: a function, a global, a type or an
+// enumerator, and its kind, 1, 2, 3 or 4
+var word_names:$[String]
+var word_whats:$[String]
+var word_toks:$[int64]
+var word_kinds:$[int64]
+
+let top_word(t:int64, what:String^, kind:int64) {
+    if tok_starts(t, "_kv_") { return }                 // a block's own, renamed in C, or one kc makes
+    word_names += tok_text(t)
+    word_whats += what^.copy()
+    word_toks += t
+    word_kinds += kind
+}
+
+// two definitions of one name at the top level, as kelvinc says it
+// (#646): two functions of the same parameters, both with a body; two
+// types; a global, an enumerator, a type and a function of one name; a
+// member twice. A prototype and its definition are one function, and a
+// type and a function of its name, T(...), are its maker
+let reject_duplicates() {
+    var defined:Dictionary<String, int64> = ${:}
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].b < 0 || anon_fns.contains(d) || tok_starts(nodes[d].t, "_kv_") { continue }
+        var key:String = defined_key(d)
+        if prelude_file(toks[nodes[d].t].file) { key += "|prelude" }
+        if defined.has(key) {
+            let e:int64 = defined.get(key, d)
+            var m = $"'"
+            if is_operator(d) {
+                m += "operator "
+            } else if nodes[d].c >= 0 {
+                let recv:String = tok_text(nodes[d].c)
+                m += &recv
+                m += "."
+            }
+            let name:String = tok_text(nodes[d].t)
+            m += &name
+            m += "' is defined already"
+            let at:String = defined_at(nodes[e].t, nodes[d].t)
+            m += &at
+            m += ", with these parameter types: a function is defined once, and its overloads differ in their parameter types"
+            gen_error(d, m.cstr)
+            return
+        }
+        defined[key] = d
+    }
+    for d in decls {
+        let k = nodes[d].kind
+        if k == D_FN && nodes[d].c < 0 && !is_operator(d) && !anon_fns.contains(d) {
+            var what = $"a function"
+            top_word(nodes[d].t, &what, 1)
+        } else if k == D_GLOBAL && !extern_decls.contains(d) {
+            var what = $"a global"
+            top_word(nodes[d].t, &what, 2)
+        } else if k == D_STRUCT || k == D_ENUM {
+            let nested:bool = nested_of.has(tok_text(nodes[d].t))
+            let anonymous:bool = k == D_ENUM && tok_is(nodes[d].t, "enum")
+            var kind = $"struct "
+            if k == D_STRUCT && nodes[d].flag == 1 { kind = $"union " }
+            if k == D_ENUM { kind = $"enum " }
+            let shown:String = tok_text(nodes[d].t)
+            kind += &shown
+            if !nested && !anonymous { top_word(nodes[d].t, &kind, 3) }
+            var m:int64 = nodes[d].a
+            while m >= 0 {
+                var u:int64 = nodes[d].a
+                while u != m {
+                    if same_text(nodes[u].t, nodes[m].t) {
+                        var e = $"'"
+                        let name:String = tok_text(nodes[m].t)
+                        e += &name
+                        e += k == D_ENUM ? "' is a case of " : "' is a member of "
+                        if anonymous {
+                            e += "this enum"
+                        } else {
+                            e += &kind
+                        }
+                        e += " already"
+                        let at:String = defined_at(nodes[u].t, nodes[m].t)
+                        e += &at
+                        e += ": name this one otherwise"
+                        gen_error(m, e.cstr)
+                        return
+                    }
+                    u = nodes[u].next
+                }
+                if k == D_ENUM && nodes[d].flag != 1 && !nested {
+                    var what = $"a word of an enum with no name"
+                    if !anonymous {
+                        what = $"a word of enum "
+                        what += &shown
+                    }
+                    top_word(nodes[m].t, &what, 4)
+                }
+                m = nodes[m].next
+            }
+        }
+    }
+    for i in 0..<word_names.count as int64 {
+        let p:bool = prelude_file(toks[word_toks[i]].file)
+        for j in 0..<i {
+            if word_names[j] != word_names[i] || prelude_file(toks[word_toks[j]].file) != p { continue }
+            let a:int64 = word_kinds[j]
+            let b:int64 = word_kinds[i]
+            if a == 1 && b == 1 { continue }
+            if (a == 1 && b == 3) || (a == 3 && b == 1) { continue }   // T(...), a function of its type's name, makes one (#57)
+            var first:int64 = j
+            var later:int64 = i
+            if toks[word_toks[i]].file == toks[word_toks[j]].file && toks[word_toks[i]].line < toks[word_toks[j]].line {
+                first = i
+                later = j
+            }
+            var m = $"'"
+            m += &word_names[later]
+            m += "' is "
+            m += &word_whats[first]
+            m += " already"
+            let at:String = defined_at(word_toks[first], word_toks[later])
+            m += &at
+            m += ", and this is "
+            m += &word_whats[later]
+            m += ": a name at the top level names one thing, so name this one otherwise"
+            let n:int64 = make_node(N_ID, word_toks[later])
+            gen_error(n, m.cstr)
+            return
+        }
+    }
+}
+
 let gen_program() {
     text_methods_of()                                    // (#542)
     if failed { return }
     index_names()
+    reject_duplicates()                                  // (#646)
+    if failed { return }
     count_overloads()
     fixed_params()
     put("/* generated by kc, selfhost/kc.k */\n")

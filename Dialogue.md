@@ -12684,3 +12684,26 @@ supported; C's preprocessor Kelvin leaves out (#296)", in kelvinc and
 in kc. Details are provisional P650.
 
 There are 1478 tests, and all pass with clang and with gcc 15.
+
+### 693. Two definitions of one name
+
+**Claude** listed what is left, checked against the code after #645,
+and found four faults that kelvinc leaves to C: two definitions of one
+name at the top level, too many values in a literal, a fixed array set
+whole, and `break` or `continue` outside a loop.
+
+**User:** fix the four kelvinc faults first
+
+**Claude** asked whether the first is of any two of one name, or of one
+kind alone, and whether to push each when its battery is clean.
+
+**User:** any two of one name; push each when clean (both recommended)
+
+**Claude** made it #646: two functions of the same parameters, two
+types, a global, an enumerator and a function of one name, and a member
+twice, are kelvinc's errors, and kc's in the same words; kc built two
+structs of one name.
+
+Details are provisional P651.
+
+There are 1488 tests, and all pass with clang and with gcc 15.

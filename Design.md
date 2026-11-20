@@ -701,6 +701,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 643 | #if os(macOS), #elseif os(Linux), #else and #endif are Swift's conditional compilation, of the platform kelvinc runs on: a condition is os(name), joined by !, && and || and parentheses; an os is macOS, Linux, FreeBSD or Windows, and another name is kelvinc's error, os(MacOS): an os is macOS, Linux, FreeBSD or Windows (#643); a branch not taken is read as text alone, to its #elseif, #else or #endif, an #if in it counted, so that what is in it need not even be Kelvin; at the top level and among a function's statements. An #if with no #endif, and an #else or #endif with no #if, are errors. #define stays left out. kc does the same, of SYS.platform. The last of C's features, and of the six asked the user's answer, the recommended: #if os(...) of Kelvin's own; kelvinc and kc | src/lexer.c; selfhost/lex.k; documents/versusC.md; Design.md's TODO | tests/run/if_os.k; tests/error/if_os_unknown.k, if_os_no_endif.k, if_os_else_alone.k | 2026-11-20 |
 | 644 | Two lines the preprocessor's change left behind: Design.md's principle, The preprocessor is TODO, except #import, is now The preprocessor is Kelvin's own, #import, #inline C and #if os(...), C's directives left out; and c-interfaces.md's Every other directive (#include, #define, #if, ...) is an error now says #if os(...) chooses code by the platform, #if DEBUG an error, and that every other directive, #include, #define, #ifdef, is one. The user's order, "fix the two stale preprocessor lines too" | Design.md's principles; documents/c-interfaces.md | — | 2026-11-20 |
 | 645 | The error of #296, of a directive Kelvin leaves out, names #if os(...) too, which #643 made one of Kelvin's: #include <stdio.h> is kelvinc's error, only '#import <header.h> as C', '#inline C { ... }' and '#if os(...)' are supported; C's preprocessor Kelvin leaves out (#296), where it named #import and #inline C alone. kc says it in the same words. The user's order, "make the #296 error #645 too"; kelvinc and kc | src/lexer.c; selfhost/lex.k | tests/error/preprocessor.k | 2026-11-20 |
+| 646 | Two definitions of one name at the top level are kelvinc's error, where they were C's redefinition: two functions, two methods or two functions of a type of the same parameters, let f():i64 { return 1 } twice being 'f' is defined already (line 3), with these parameter types: a function is defined once, and its overloads differ in their parameter types; and a global, a type, an enumerator and a function of one name, whatever their kinds, enum c { red, green } beside let red() being 'red' is a word of enum c already (line 2), and this is a function: a name at the top level names one thing, so name this one otherwise; a member twice in a struct, or a case twice in an enum, 'x' is a member of struct p already (line 2): name this one otherwise. A prototype and its definition stay one function, overloads differ in their parameter types, a function of a type's name, T(...), makes one, and a block's own enum and struct are the block's. kc does the same, where it built two structs of one name. The user's order, "fix the four kelvinc faults first", and of the question asked the user's answer, the recommended: any two of one name, whatever their kinds; kelvinc and kc | src/parser.c; selfhost/gen.k; documents/functions.md | tests/error/defined_twice_function.k, defined_twice_method.k, defined_twice_type_function.k, defined_twice_struct.k, defined_twice_global.k, defined_twice_enumerator.k, defined_twice_member.k, defined_twice_enumerator_function.k, defined_twice_enumerator_global.k; tests/run/defined_once.k | 2026-11-21 |
 
 Notes:
 
@@ -1285,6 +1286,19 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (646) Agreed details: two definitions of one name at the top level
+  - The user's order: "fix the four kelvinc faults first", the four
+    found by the sweep after #645; push each when its battery is clean.
+  - The user's answer: any two of one name, whatever their kinds
+    (recommended), not those of one kind alone.
+  - Claude's choices, the user's to change:
+    - A type and a function of its name are not two: `T(...)` makes a
+      `T`, as `RegExp(...)` and `c64(...)` of the prelude do.
+    - The error is said where the later of the two is written, and
+      names the line of the first, and its file where that is another.
+    - The program's own and the prelude's of one name are two still,
+      as #600 and #604 have them.
 
 - (645) Agreed details: the #296 error names `#if os(...)`
   - The user's order: "make the #296 error #645 too".
@@ -11716,6 +11730,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P648 | Details of #643 | kelvinc's lexer: `lex_condition` after a #, of if, elseif, else and endif; `cond_or`, `cond_and` and `cond_factor` read a condition, `host_os` the platform by C's macros; `cond_skip` passes a branch not taken line by line, an #if in it counted; Lexer.conds the #if open, checked at the end. kc's lex.k: `cond_word_at`, `cond_skip`, `cond_value` of SYS.platform, the lines passed counted. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P649 | Details of #644 | Docs alone, no code: Design.md's principle of the preprocessor and documents/c-interfaces.md's list of directives, brought up to #643. Checked: tests/docs.sh and the rest of the battery. |
 | P650 | Details of #645 | kelvinc: lex_directive's error after lex_condition, of a word neither inline nor import. kc: lex.k's of a directive neither #import nor #inline. tests/error/preprocessor.k's expected error; Design.md's #612 row quotes the old words as they were. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
+| P651 | Details of #646 | kelvinc: `reject_duplicates` after `reject_missing_returns`, over `functions` (a body each, the same receiver, name or operator, the same kind of getter, setter, subscript or function of a type, and signature()) and over the program's decls as words (`TopWord`: a function, a global not extern, a struct, union or enum with a body and no spelling, and a C enum's enumerators, not a nested type's, nor a block's, whose names begin _kv_ or whose enumerators have a C name); `defined_at` and `written_before` order the two by their positions, hoisting (#626) aside. kc: gen.k's `reject_duplicates` before `count_overloads`, by `defined_key` (receiver, static, attribute, subscript, plain_key and the result's type, so that #41's another-result error is said first, as kelvinc's), and `top_word` of the words; nested_of tells a nested type. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 
 ## Open questions
 

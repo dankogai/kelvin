@@ -781,3 +781,5 @@ So far the changes from C are these, by topic.
   of Kelvin's directives (#644)
 - The error of a C directive names `#if os(...)` among Kelvin's own
   (#645)
+- Two definitions of one name at the top level, of any kinds, are
+  kelvinc's error, where they were C's (#646)

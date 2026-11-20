@@ -18495,6 +18495,135 @@ static void reject_missing_returns(void) {
             reject_missing_return(anon_written.data[i]);
 }
 
+/* where a name was defined first, for #646's errors: its line, and its
+   file where that is another */
+static char *defined_at(Pos first, Pos later) {
+    if (first.file && later.file && strcmp(first.file, later.file)) {
+        const char *base = strrchr(first.file, '/');
+        return strfmt(" (%s:%d)", base ? base + 1 : first.file, first.line);
+    }
+    return strfmt(" (line %d)", first.line);
+}
+
+/* whether a comes before b in what the program wrote: by position in a
+   file, and by the order kelvinc read them across files (#646) */
+static bool written_before(Pos a, int ia, Pos b, int ib) {
+    if (a.file && b.file && !strcmp(a.file, b.file))
+        return a.line < b.line || (a.line == b.line && a.col < b.col);
+    return ia < ib;
+}
+
+/* a word of the program at the top level, for #646 */
+typedef struct {
+    const char *name, *what;
+    Pos pos;
+    int index;
+    bool prelude, function, type;
+} TopWord;
+
+static void top_word(List *words, const char *name, const char *what, Pos pos, int index, bool prelude,
+                     bool function, bool type) {
+    if (!name || !strncmp(name, "_kv_", 4))
+        return; /* a block's own, renamed in C, or one kelvinc makes */
+    TopWord *w = xcalloc(1, sizeof *w);
+    *w = (TopWord){name, what, pos, index, prelude, function, type};
+    list_push(words, w);
+}
+
+/* two definitions of one name at the top level (#646): two functions, two
+   methods or two functions of a type of the same parameters, both with a
+   body; two types; a global, an enumerator, a type and a function of one
+   name, whatever their kinds; and a member twice in a struct, a union or
+   an enum. A prototype and its definition are one function, and overloads
+   differ in their parameter types. C said each in its words. */
+static void reject_duplicates(Program *prog) {
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (!d->body || d->anon || d->task || d->nested_in)
+            continue;
+        for (int j = 0; j < i; j++) {
+            Decl *e = functions.data[j];
+            if (!e->body || e->anon || e->task || e->nested_in || e == d || e->prelude != d->prelude)
+                continue;
+            if ((!e->recv) != (!d->recv) || (e->recv && strcmp(e->recv_name, d->recv_name)))
+                continue;
+            if ((e->op ? !d->op || strcmp(e->op, d->op) : d->op || strcmp(e->name, d->name)))
+                continue;
+            if (e->setter != d->setter || e->attribute != d->attribute || e->subscript != d->subscript ||
+                e->static_attr != d->static_attr || e->type_fn != d->type_fn || strcmp(signature(e), signature(d)))
+                continue;
+            Decl *first = e, *later = d;
+            if (!written_before(e->pos, j, d->pos, i)) {
+                first = d;
+                later = e;
+            }
+            const char *what = later->op ? strfmt("operator %s", later->op)
+                               : later->recv && !later->type_fn ? strfmt("%s.%s", later->recv_name, later->name)
+                                                                : later->name;
+            error_at(later->pos, "'%s' is defined already%s, with these parameter types: a function is defined once, "
+                                 "and its overloads differ in their parameter types",
+                     what, defined_at(first->pos, later->pos));
+        }
+    }
+    List words = {0};
+    for (int i = 0; i < prog->decls.len; i++) {
+        Decl *d = prog->decls.data[i];
+        bool prelude = prelude_file(d->pos.file);
+        if (d->kind == D_FN && !d->recv && !d->type_fn && !d->op && !d->anon && !d->task && !d->nested_in)
+            top_word(&words, d->name, "a function", d->pos, i, d->prelude || prelude, true, false);
+        else if (d->kind == D_VAR && !(d->storage && !strcmp(d->storage, "extern")))
+            for (int k = 0; k < d->members.len; k++) {
+                Var *v = d->members.data[k];
+                top_word(&words, v->name, "a global", v->pos.file ? v->pos : d->pos, i, prelude, false, false);
+            }
+        else if ((d->kind == D_STRUCT || d->kind == D_UNION || d->kind == D_ENUM) && d->has_body && !d->lazy &&
+                 !d->spelling) {
+            const char *kind = d->kind == D_UNION ? "union" : d->kind == D_STRUCT && !d->tagged ? "struct" : "enum";
+            const char *shown = d->kelvin_name ? d->kelvin_name : d->name;
+            if (d->name && !d->outer)
+                top_word(&words, d->name, strfmt("%s %s", kind, shown), d->pos, i, prelude, false, true);
+            for (int k = 0; k < d->members.len; k++) {
+                Var *v = d->members.data[k];
+                if (!v->name)
+                    continue;
+                for (int m = 0; m < k; m++) {
+                    Var *u = d->members.data[m];
+                    if (u->name && !strcmp(u->name, v->name))
+                        error_at(v->pos.file ? v->pos : d->pos, "'%s' is %s of %s already%s: name this one otherwise",
+                                 v->name, d->kind == D_ENUM || d->tagged ? "a case" : "a member",
+                                 d->name ? strfmt("%s %s", kind, shown) : "this enum",
+                                 defined_at(u->pos.file ? u->pos : d->pos, v->pos.file ? v->pos : d->pos));
+                }
+                if (d->kind == D_ENUM && !d->outer && !v->cname) /* a block's enumerator has a C name of its own */
+                    top_word(&words, v->name,
+                             d->name ? strfmt("a word of enum %s", shown) : "a word of an enum with no name",
+                             v->pos.file ? v->pos : d->pos, i, prelude, false, false);
+            }
+        }
+    }
+    for (int i = 0; i < words.len; i++) {
+        TopWord *b = words.data[i];
+        for (int j = 0; j < i; j++) {
+            TopWord *a = words.data[j];
+            if (strcmp(a->name, b->name) || a->prelude != b->prelude || (a->function && b->function))
+                continue;
+            if ((a->function && b->type) || (a->type && b->function))
+                continue; /* T(...), a function of its type's name, makes one (#57) */
+            if (a->index == b->index && !strcmp(a->what, b->what) && a->pos.line == b->pos.line &&
+                a->pos.col == b->pos.col)
+                continue; /* one declaration, seen twice */
+            TopWord *first = a, *later = b;
+            if (!written_before(a->pos, a->index, b->pos, b->index)) {
+                first = b;
+                later = a;
+            }
+            error_at(later->pos, "'%s' is %s already%s, and this is %s: a name at the top level names one thing, "
+                                 "so name this one otherwise",
+                     later->name, first->what, defined_at(first->pos, later->pos), later->what);
+        }
+    }
+}
+
 Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
     c_called = (List){0};
@@ -18800,6 +18929,7 @@ Program *parse(Token *tokens, int ntoks) {
     end_alignas(); /* (#396) */
     reject_unseen_overloads(); /* (#492) */
     reject_missing_returns(); /* (#625) */
+    reject_duplicates(prog); /* (#646) */
     name_functions();
     /* a Dictionary has == where its values compare (#235), known once every
        enum's no_eq is: an enum of the values may hold the Dictionary */

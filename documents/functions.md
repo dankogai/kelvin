@@ -468,6 +468,17 @@ let main():int32 {
     is declared already in this block` (#628), where it was C's. A
     block inside may declare it again, which hides it there, and so
     may each case of a switch, a block of its own.
+  - At the top level a name names one thing (#646): a global, a type,
+    an enumerator and a function of one name are kelvinc's error,
+    where they were C's redefinition.
+    - `'red' is a word of enum c already (line 2), and this is a
+      function: a name at the top level names one thing, so name this
+      one otherwise`.
+    - A function of a type's name, `T(...)`, is not one: it makes a
+      `T`.
+    - Nor is a block's own enum or struct, which is the block's.
+    - A member written twice in a struct, or a case twice in an enum,
+      is an error too: `'x' is a member of struct p already (line 2)`.
 - **The choice** is the overload that every argument fits exactly, or
   else the one that fits at least as well as every other on each
   argument and better on one.
@@ -518,6 +529,9 @@ let main():int32 {
 - **Overloads differ in their parameter types**, not only in their
   results, nor in a parameter's own `const`.
   - A prototype and its definition are one overload.
+  - Two definitions of the same parameter types are kelvinc's error
+    (#646), of a function, a method or a function of a type alike:
+    `'f' is defined already (line 3), with these parameter types`.
   - `main` has one form, and methods are chosen by their receiver
     instead.
 - **A function's name as a value** is the overload of the function type
