@@ -28,8 +28,10 @@ conversions and undefined behavior.
 The table below is the whole language at a glance; the documents beside
 this one have the details, one topic each.
 
-Items marked *(provisional)* were chosen during implementation and have
-not been agreed yet. See the P-numbers in [Design.md](../Design.md).
+The decisions made during implementation, the P-numbers in
+[Design.md](../Design.md), were reviewed and confirmed by #633 to #639;
+those of later changes are provisional until reviewed, and a document
+marks one *(provisional)*.
 
 ### At a glance
 

@@ -147,7 +147,7 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
     `(point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`.
   - An array's takes `[...]` (#48), and `[T]` counts its items:
     `([size_t])[1, 2]`, `sizeof ([i32])[1, 2, 3]` is 12,
-    `for x in ([i32])[5, 6, 7] { }` *(provisional P19, P60)*.
+    `for x in ([i32])[5, 6, 7] { }`.
 - **A list is not a value:** where C expects a value, as for
   `memcpy(buf, ['a', 'b'], 2)` or `show([1, 2])`, write a compound
   literal, `([u8])['a', 'b']`. kelvinc says so, rather than taking the
