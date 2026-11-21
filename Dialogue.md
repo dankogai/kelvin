@@ -12965,3 +12965,21 @@ none of the sweep's three left.
 Details are provisional P668.
 
 There are 1533 tests, and all pass with clang and with gcc 15.
+
+### 711. The review, batch 10
+
+**Claude** pushed #663, its battery clean.
+
+**User:** then review P662 to P668
+
+**Claude** put the 7 detail rows to the user as a file, the details of
+#657 to #663: none superseded, none marked in a document.
+
+**User:** confirm, as amended later (recommended)
+
+**Claude** made it #664: each row is marked confirmed, as later numbers
+amend it, and no row before P669 is provisional.
+
+Details are provisional P669.
+
+There are 1533 tests, and all pass with clang and with gcc 15.

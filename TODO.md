@@ -54,7 +54,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P662 to P668, the details of #657 to #663, until reviewed.
+- P669, the details of #664, until reviewed.
 
 ## Open design
 
