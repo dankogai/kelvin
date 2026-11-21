@@ -191,6 +191,19 @@ looser than prefix operators, and it chains left to right:
     rejects them with "expected expression" at your line. They never
     compile as a cast.
 
+### Shifts by their width
+
+- **A shift by a constant count at or past the width** of what it
+  shifts, or by a negative one, is an error (#665), where C only warned:
+  `x << 64` of an `i64`, `x >> -1`, and `x <<= n` and `x >>= n` so.
+  - The width is as C shifts it: a `u8`, an `i16` and the like are made
+    an `i32` first, so `y << 9` of a `u8` is 512, and `y << 32` the
+    error.
+  - A bare literal is C's `int`, 32 bits: `1 << 63` says to write
+    `1:i64 << 63`; where kelvinc reckons it an `i64`, as a method's
+    receiver (#548), `(1 << 40).plus(1)`, its width is 64.
+  - A count known only at run time is C's, as before.
+
 ### Division by zero
 
 - **An integer divided by a constant 0** is an error (#662): `n / 0`,

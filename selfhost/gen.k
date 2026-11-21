@@ -2392,6 +2392,72 @@ let cstr_ref_error(n:int64) {
     gen_error(n, m.cstr)
 }
 
+// a << n, a >> n of a constant n at or past the width of a's type as C
+// shifts it, a literal C's int unless kc reckons it an i64 (#548), a
+// narrower integer made an int, or of a negative n, as kelvinc says it (#665)
+let wide_shift_error(a:int64, b:int64, op:int64):bool {
+    if b < 0 || failed { return false }
+    let neg = nodes[b].kind == N_UNARY && tok_is(nodes[b].t, "-") && nodes[b].a >= 0 && nodes[nodes[b].a].kind == N_NUM
+    let num:int64 = neg ? nodes[b].a : b
+    if nodes[num].kind != N_NUM { return false }
+    let n:int64 = tok_count(nodes[num].t)
+    if n < 0 { return false }
+    var m = $"'"
+    m += tok_text(op)
+    m += " "
+    if neg && n > 0 {
+        m += "-"
+        m += String(n)
+        m += "' shifts by a negative count, which C leaves undefined"
+        gen_error(b, m.cstr)
+        return true
+    }
+    m += String(n)
+    m += "' shifts "
+    let lit = nodes[a].kind == N_NUM || (nodes[a].kind == N_UNARY && tok_is(nodes[a].t, "-") && nodes[a].a >= 0 && nodes[nodes[a].a].kind == N_NUM)
+    if lit {
+        let av:int64 = tok_count(nodes[lit && nodes[a].kind == N_UNARY ? nodes[a].a : a].t)
+        let width:int64 = widen_ints || av < 0 || av > 2147483647 ? 64 : 32
+        if n < width { return false }
+        if width == 64 {
+            m += "an i64 by "
+            m += String(n)
+            m += ", its width or more, which C leaves undefined"
+        } else {
+            m += "an i32, a literal and so C's int here, by "
+            m += String(n)
+            m += ", its width or more, which C leaves undefined: write '"
+            let w:String = nodes[a].kind == N_UNARY ? $"-" : $""
+            m += &w
+            m += String(av)
+            m += ":i64 "
+            m += tok_text(op)
+            m += " "
+            m += String(n)
+            m += "'"
+        }
+        gen_error(b, m.cstr)
+        return true
+    }
+    let y:int64 = type_of(a)
+    if y < 0 { return false }
+    let k = types[y].kind
+    var width:int64 = 0
+    var as_int = false
+    if k == Y_I8 || k == Y_U8 || k == Y_I16 || k == Y_U16 { width = 32; as_int = true }
+    if k == Y_I32 || k == Y_U32 { width = 32 }
+    if k == Y_I64 || k == Y_U64 { width = 64 }
+    if width == 0 || n < width { return false }
+    let name:String = type_text(y)
+    m += k == Y_U8 || k == Y_U16 || k == Y_U32 || k == Y_U64 ? "a " : "an "
+    m += &name
+    m += " by "
+    m += String(n)
+    m += as_int ? ", the width or more of the i32 C makes of it, which C leaves undefined" : ", its width or more, which C leaves undefined"
+    gen_error(b, m.cstr)
+    return true
+}
+
 // x / 0, x % 0 of an integer, the divisor a literal 0: C's undefined
 // behavior, as kelvinc says it; a float's is IEEE 754's infinity (#662)
 let divides_by_zero(a:int64, b:int64):bool {
@@ -13173,6 +13239,7 @@ let gen_expr_of(n:int64) {
         } else if builtin_kind(type_of(nodes[n].b)) == Y_STRING && is_comparison(t) && !tok_is(t, "==") && !tok_is(t, "!=") {
             gen_error(n, "a String compares with another String")
         } else {
+            if (tok_is(t, "<<") || tok_is(t, ">>")) && wide_shift_error(nodes[n].a, nodes[n].b, t) { return }   // (#665)
             if is_comparison(t) { put("(bool)") }    // C's comparisons give an int
             put("(")
             gen_expr(nodes[n].a)
@@ -14963,6 +15030,7 @@ let gen_assign(n:int64) {
     if text_outlived(n) { return }                      // (#445, #447)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
+    if (tok_is(t, "<<=") || tok_is(t, ">>=")) && wide_shift_error(lhs, nodes[n].b, t) { return }   // (#665)
     if (tok_is(t, "/=") || tok_is(t, "%=")) && divides_by_zero(lhs, nodes[n].b) {
         var m = $"'"                                     // as kelvinc says it (#662)
         m += tok_text(t)

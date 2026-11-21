@@ -799,3 +799,5 @@ So far the changes from C are these, by topic.
   warned (#662)
 - A literal that does not fit its integer type, or a float's fraction
   where an integer goes, is kelvinc's error (#663)
+- A shift by a constant count past its type's width is kelvinc's error,
+  where C only warned (#665)

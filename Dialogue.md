@@ -12983,3 +12983,20 @@ amend it, and no row before P669 is provisional.
 Details are provisional P669.
 
 There are 1533 tests, and all pass with clang and with gcc 15.
+
+### 712. A constant shift past the width
+
+**User:** List todos before 0.4.1
+
+**Claude** listed them, and found one more by a sweep: `1 << 63` was
+only C's warning, a bare 1 being C's int.
+
+**User:** make the constant shift kelvinc's error too
+
+**Claude** made it #665: a shift by a constant count at or past the
+width of what it shifts, as C shifts it, or by a negative one, is
+kelvinc's error and kc's in the same words.
+
+Details are provisional P670.
+
+There are 1540 tests, and all pass with clang and with gcc 15.

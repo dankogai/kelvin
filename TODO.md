@@ -7,7 +7,7 @@ text is declared with `:=`, and `s[0] = 65` of `let s := "abc"` says a
 cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
 error (#662); a literal that does not fit its type, kelvinc's error
-(#663). Each item becomes a
+(#663); a constant shift past its type's width, kelvinc's error (#665). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
 known, not what is planned.
 
@@ -54,7 +54,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P669, the details of #664, until reviewed.
+- P669 and P670, the details of #664 and #665, until reviewed.
 
 ## Open design
 

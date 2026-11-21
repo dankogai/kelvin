@@ -5703,6 +5703,86 @@ static Expr *parse_binary_ops(int min_prec);
 
 /* x / 0, x % 0 of an integer, the divisor a literal 0: C's undefined
    behavior, which it only warns of; a float's is IEEE 754's infinity (#662) */
+static List literal_shifts; /* a literal's shifts by 32 or more: its value, the count and the operator, in turn (#665) */
+
+/* each of them whose literal is C's int still, none making it an i64:
+   past its width, an error, as of any other (#665) */
+static void reject_literal_shifts(void) {
+    for (int i = 0; i + 2 < literal_shifts.len; i += 3) {
+        Expr *a = literal_shifts.data[i], *b = literal_shifts.data[i + 1];
+        const char *op = literal_shifts.data[i + 2];
+        unsigned long long am, n;
+        bool an, neg;
+        if (b->kind == E_CAST && b->a) /* widened too, as the literal is (#548) */
+            b = b->a;
+        if (!int_literal_value(b, &n, &neg))
+            continue;
+        if (a->kind == E_CAST) { /* made an i64 (#548) */
+            if (n >= 64)
+                error_at(b->pos, "'%s %llu' shifts an i64 by %llu, its width or more, which C leaves undefined", op, n, n);
+            continue;
+        }
+        if (!int_literal_value(a, &am, &an))
+            continue;
+        int width = am <= 2147483647ULL ? 32 : 64; /* C's int, or a long where it does not fit one */
+        if (n >= (unsigned long long)width)
+            error_at(b->pos, "'%s %llu' shifts an %s, a literal and so C's int here, by %llu, its width or more, which C "
+                             "leaves undefined: write '%s%llu:i64 %s %llu'",
+                     op, n, width == 32 ? "i32" : "i64", n, an ? "-" : "", am, op, n);
+    }
+}
+
+/* a << n, a >> n of a constant n at or past the width of a's type as C
+   shifts it, a literal C's int and a narrower integer made one, or of a
+   negative n: C's undefined behavior, which it only warns of (#665) */
+static void reject_wide_shift(Expr *a, Expr *b, const char *op, Pos pos) {
+    unsigned long long n;
+    bool neg;
+    if (!int_literal_value(b, &n, &neg))
+        return;
+    if (neg && n) {
+        error_at(pos, "'%s -%llu' shifts by a negative count, which C leaves undefined", op, n);
+        return;
+    }
+    unsigned long long am;
+    bool an;
+    const char *name = NULL, *shifted = NULL;
+    int width = 0;
+    if (int_literal_value(a, &am, &an)) { /* C's int, unless what holds it makes it an i64 (#548): seen once all is read */
+        if (n >= 32) {
+            list_push(&literal_shifts, a);
+            list_push(&literal_shifts, b);
+            list_push(&literal_shifts, (void *)op);
+        }
+        return;
+    } else {
+        Type *t = value_type(a);
+        t = t ? unqualified(t) : NULL;
+        if (!t || t->kind != T_BASE)
+            return;
+        static const struct { const char *name; int width; const char *as; } ints[] = {
+            {"i8", 32, "i32"}, {"u8", 32, "i32"}, {"i16", 32, "i32"}, {"u16", 32, "i32"},
+            {"i32", 32, NULL}, {"u32", 32, NULL}, {"i64", 64, NULL}, {"u64", 64, NULL}};
+        for (int i = 0; i < (int)(sizeof ints / sizeof ints[0]); i++)
+            if (!strcmp(t->name, ints[i].name)) {
+                name = ints[i].name;
+                width = ints[i].width;
+                shifted = ints[i].as;
+            }
+        if (!name)
+            return;
+    }
+    if (n < (unsigned long long)width)
+        return;
+    const char *art = name[0] == 'i' ? "an" : "a";
+    if (shifted)
+        error_at(pos, "'%s %llu' shifts %s %s by %llu, the width or more of the %s C makes of it, which C leaves "
+                      "undefined",
+                 op, n, art, name, n, shifted);
+    else
+        error_at(pos, "'%s %llu' shifts %s %s by %llu, its width or more, which C leaves undefined", op, n, art, name, n);
+}
+
 static bool divides_by_zero(Expr *a, Expr *b) {
     unsigned long long m;
     bool neg;
@@ -5764,6 +5844,8 @@ static Expr *parse_binary_ops(int min_prec) {
             chain_temps = NULL;
         e->b = parse_binary(prec + 1);
         chain_temps = saved_chain;
+        if (!strcmp(e->op, "<<") || !strcmp(e->op, ">>")) /* (#665) */
+            reject_wide_shift(e->a, e->b, e->op, e->b->pos);
         if ((!strcmp(e->op, "/") || !strcmp(e->op, "%")) && divides_by_zero(e->a, e->b)) /* (#662) */
             error_at(e->b->pos, "'%s 0' divides an integer by zero, which has no value: C leaves it undefined", e->op);
         if (!strcmp(e->op, "/") && e->b->kind == E_LITERAL && e->b->text && !strcmp(e->b->text, "0")) {
@@ -10616,6 +10698,8 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             }
             e->b = parse_assign();
             assign_ok = ok;
+            if (!strcmp(t->text, "<<=") || !strcmp(t->text, ">>=")) /* (#665) */
+                reject_wide_shift(lhs, e->b, t->text, e->b->pos);
             if ((!strcmp(t->text, "/=") || !strcmp(t->text, "%=")) && divides_by_zero(lhs, e->b)) /* (#662) */
                 error_at(e->b->pos, "'%s 0' divides an integer by zero, which has no value: C leaves it undefined",
                          t->text);
@@ -18864,6 +18948,7 @@ static void reject_self_holding(void) {
 Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
     c_called = (List){0};
+    literal_shifts = (List){0};
     toks = tokens;
     cur = 0;
     fold_nested_heads();
@@ -19162,6 +19247,7 @@ Program *parse(Token *tokens, int ntoks) {
         }
     }
     reject_self_holding(); /* (#659) */
+    reject_literal_shifts(); /* (#665) */
     if (inline_next) /* (#392) */
         error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
     end_alignas(); /* (#396) */
