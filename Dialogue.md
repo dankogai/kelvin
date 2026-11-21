@@ -13000,3 +13000,21 @@ kelvinc's error and kc's in the same words.
 Details are provisional P670.
 
 There are 1540 tests, and all pass with clang and with gcc 15.
+
+### 713. The review, batch 11
+
+**Claude** pushed #665, its battery clean, and CI passed.
+
+**User:** then review P669 and P670
+
+**Claude** put the 2 detail rows to the user as a file, the details of
+#664 and #665: neither superseded, neither marked in a document.
+
+**User:** confirm, as amended later (recommended)
+
+**Claude** made it #666: each row is marked confirmed, as later numbers
+amend it, and no row before P671 is provisional.
+
+Details are provisional P671.
+
+There are 1540 tests, and all pass with clang and with gcc 15.

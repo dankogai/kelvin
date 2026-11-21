@@ -30,7 +30,7 @@ this one have the details, one topic each.
 
 The decisions made during implementation, the P-numbers in
 [Design.md](../Design.md), were reviewed and confirmed by #633 to #639, #651,
-#657 and #664;
+#657, #664 and #666;
 those of later changes are provisional until reviewed, and a document
 marks one *(provisional)*.
 
