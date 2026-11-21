@@ -12953,3 +12953,15 @@ float's division by zero is IEEE 754's infinity, as before.
 Details are provisional P667.
 
 There are 1524 tests, and all pass with clang and with gcc 15.
+
+### 710. A literal that does not fit
+
+**Claude** pushed #662, its battery clean, and made the last #663: a
+literal that does not fit the integer type it goes into, and a float
+with a fraction where an integer goes, are kelvinc's errors and kc's in
+the same words, where C only warned and changed the value. TODO.md has
+none of the sweep's three left.
+
+Details are provisional P668.
+
+There are 1533 tests, and all pass with clang and with gcc 15.

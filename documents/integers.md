@@ -77,6 +77,14 @@ Everything else about literals is C's:
 - A literal inside an expression still has C's type, so a bare `1` is
   C's `int` (an `i32`).
 - Where C would write `1UL << 40`, Kelvin writes `1:u64 << 40`.
+- **A literal that does not fit the type it goes into** is an error
+  (#663), where C only warned and changed its value: in a declaration,
+  an assignment, an argument, a return and a literal's member or
+  element.
+  - `let c:u8 = 300` is `300 does not fit u8, whose values are 0 to
+    255`, and so is `let u:u32 = -1` of its range.
+  - A float with a fraction where an integer goes, `let x:i64 = 1.5`,
+    says it has a fraction; `2.0` and `1e3` fit, as integers.
 
 ### Conversions (no C casts)
 

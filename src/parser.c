@@ -11583,7 +11583,63 @@ static Expr *dollar_retarget(Expr *x, Type *target) {
     return x;
 }
 
+/* a literal that does not fit the integer type it goes into, which C only
+   warns of, its value changed (#663): an integer out of the type's range,
+   and a float with a fraction, or out of the range, written where an
+   integer goes */
+static void reject_unfit_literal(Expr *x, Type *target) {
+    if (!x || !target || x->paren)
+        return;
+    Type *t = target;
+    while (t->kind == T_TYPEOF && t->elem)
+        t = t->elem;
+    if (t->kind != T_BASE || t->cname)
+        return;
+    /* each type's least, as a magnitude, and greatest, exactly: a long
+       double is a double on some machines, which rounds 2^63 - 1 */
+    static const struct { const char *name; unsigned long long lo, hi; } ints[] = {
+        {"i8", 128ULL, 127ULL},        {"i16", 32768ULL, 32767ULL},
+        {"i32", 2147483648ULL, 2147483647ULL},
+        {"i64", 9223372036854775808ULL, 9223372036854775807ULL},
+        {"u8", 0, 255ULL},             {"u16", 0, 65535ULL},
+        {"u32", 0, 4294967295ULL},     {"u64", 0, 18446744073709551615ULL}};
+    int k = -1;
+    for (int i = 0; i < (int)(sizeof ints / sizeof ints[0]); i++)
+        if (!strcmp(t->name, ints[i].name))
+            k = i;
+    if (k < 0)
+        return;
+    Expr *lit = x;
+    bool neg = false;
+    if (lit->kind == E_PREFIX && lit->op && (!strcmp(lit->op, "-") || !strcmp(lit->op, "+"))) {
+        neg = lit->op[0] == '-';
+        lit = lit->a;
+    }
+    if (lit->kind != E_LITERAL || !lit->text || !isdigit((unsigned char)lit->text[0]))
+        return;
+    const char *lt = literal_type(lit);
+    char *text = strfmt("%s%s", neg ? "-" : "", lit->text);
+    char *range = strfmt("%s does not fit %s, whose values are %s%llu to %llu", text, ints[k].name, ints[k].lo ? "-" : "",
+                         ints[k].lo, ints[k].hi);
+    unsigned long long mag;
+    if (lt && !strcmp(lt, "f64")) { /* 1.5 where an integer goes */
+        long double v = strtold(lit->text, NULL);
+        if (v != floorl(v))
+            error_at(x->pos, "%s has a fraction, and %s has none: write an integer", text, ints[k].name);
+        if (v >= 18446744073709551616.0L)
+            error_at(x->pos, "%s", range);
+        mag = (unsigned long long)v;
+    } else {
+        bool n;
+        if (!int_literal_value(x, &mag, &n))
+            return;
+    }
+    if ((neg && mag > ints[k].lo) || (!neg && mag > ints[k].hi))
+        error_at(x->pos, "%s", range);
+}
+
 static Expr *string_of_literal(Expr *x, Type *target) {
+    reject_unfit_literal(x, target); /* (#663) */
     x = dollar_retarget(x, target); /* (#616) */
     Decl *opt = target && is_range_literal(x) && !is_range(target) ? optional_record(target) : NULL;
     for (int i = 0; opt && i < opt->members.len; i++) /* a Range<T>? takes one too */
@@ -13580,6 +13636,7 @@ static void implicit_return_of(Decl *d) {
                      kelvin_type(d->ret));
         last->kind = S_RETURN;
         last->closed = false; /* its owner is returned, not dropped (#81) */
+        reject_unfit_literal(last->expr, d->ret); /* (#663) */
         pick_overload(last->expr, d->ret);
         last->expr = optional_of(string_of_ranged(last->expr, d->ret), d->ret, last->expr->pos); /* a T, or none, of a T? result, as return wraps it (#114) */
         reject_record_mismatch(last->expr, d->ret, last->expr->pos); /* a T? where a T goes (#218) */
@@ -15760,6 +15817,8 @@ static Stmt *parse_stmt_here(void) {
             reject_record_mismatch(s->expr, parsing_fn->ret, s->expr->pos);  /* a T? where a T goes (#218) */
             if (result)
                 require_bool_return(s->expr, parsing_fn); /* a bool of a bool function (#240) */
+            if (result)
+                reject_unfit_literal(s->expr, parsing_fn->ret); /* (#663) */
             if (result && parsing_fn->ret->kind != T_FUNC && !is_optional_type(parsing_fn->ret) &&
                 !variant_record(parsing_fn->ret)) /* in Kelvin's words, where C's were (#627) */
                 check_typed_value(s->expr, parsing_fn->ret, strfmt("%s returns", fn_shown(parsing_fn)), s->expr->pos);

@@ -11084,7 +11084,155 @@ let init_as_case(n:int64, y:int64) {
     }
 }
 
+// the decimal digits of an integer literal's magnitude, of any base, or
+// "" where it is past a u64 (#663)
+let literal_digits(t:int64):String {
+    let text:String = tok_text(t)
+    var cs:$[uint32] = $[]
+    for c in text.codepoints { if c != '_' { cs += c } }
+    var base:uint64 = 10
+    var at:int64 = 0
+    if cs.count > 2 && cs[0] == '0' && (cs[1] == 'x' || cs[1] == 'X') { base = 16; at = 2 }
+    if cs.count > 2 && cs[0] == '0' && (cs[1] == 'b' || cs[1] == 'B') { base = 2; at = 2 }
+    if cs.count > 2 && cs[0] == '0' && (cs[1] == 'o' || cs[1] == 'O') { base = 8; at = 2 }
+    if base == 10 {
+        var d = $""
+        var lead = true
+        for i in 0..<cs.count as int64 {
+            if lead && cs[i] == '0' && i + 1 < cs.count as int64 { continue }
+            lead = false
+            d += cs[i]
+        }
+        return d
+    }
+    var v:uint64 = 0
+    for i in at..<cs.count as int64 {
+        let c:uint32 = cs[i]
+        var digit:uint64 = 0
+        if c >= '0' && c <= '9' { digit = (c - '0') as uint64 }
+        if c >= 'a' && c <= 'f' { digit = (c - 'a') as uint64 + 10 }
+        if c >= 'A' && c <= 'F' { digit = (c - 'A') as uint64 + 10 }
+        if v > (18446744073709551615 as uint64 - digit) / base { return $"" }
+        v = v * base + digit
+    }
+    return String(v)
+}
+
+// whether magnitude a, decimal digits, is greater than b
+let digits_above(a:String^, b:String^):bool {
+    if a^.count != b^.count { return a^.count > b^.count }
+    return a^ > b^
+}
+
+// a literal that does not fit the integer type it goes into, as kelvinc
+// says it: an integer out of the type's range, and a float with a
+// fraction, or out of the range, where an integer goes (#663)
+let unfit_literal(n:int64, y:int64):bool {
+    if y < 0 || failed { return false }
+    let k = types[y].kind
+    if !is_int_kind(k) || k == Y_I128 || k == Y_U128 { return false }
+    var lit:int64 = n
+    var neg = false
+    if nodes[n].kind == N_UNARY && (tok_is(nodes[n].t, "-") || tok_is(nodes[n].t, "+")) && nodes[n].a >= 0 {
+        neg = tok_is(nodes[n].t, "-")
+        lit = nodes[n].a
+    }
+    if nodes[lit].kind != N_NUM { return false }
+    let text:String = tok_text(nodes[lit].t)
+    let name:String = type_text(y)
+    var lo = $"0"
+    var hi = $"255"
+    if k == Y_I8 { lo = $"128"; hi = $"127" }
+    if k == Y_I16 { lo = $"32768"; hi = $"32767" }
+    if k == Y_I32 { lo = $"2147483648"; hi = $"2147483647" }
+    if k == Y_I64 { lo = $"9223372036854775808"; hi = $"9223372036854775807" }
+    if k == Y_U16 { hi = $"65535" }
+    if k == Y_U32 { hi = $"4294967295" }
+    if k == Y_U64 { hi = $"18446744073709551615" }
+    let sign_kind = is_signed_kind(k)
+    var shown = $""
+    if neg { shown += "-" }
+    shown += &text
+    var range = $" does not fit "
+    range += &name
+    range += ", whose values are "
+    if sign_kind { range += "-" }
+    range += &lo
+    range += " to "
+    range += &hi
+    var mag = $""                                        // the digits, the fraction's after the int part's
+    var frac:int64 = 0
+    var dot = false
+    var exp = false
+    var eneg = false
+    var e:int64 = 0
+    var first:$[uint32] = $[]
+    for c in text.codepoints { if first.count < 2 { first += c } }
+    let hexy = first.count == 2 && first[0] == '0' && (first[1] == 'x' || first[1] == 'X' || first[1] == 'b' || first[1] == 'B' || first[1] == 'o' || first[1] == 'O')
+    if !hexy {
+        for c in text.codepoints {
+            if c == '_' { continue }
+            if exp {
+                if c == '-' { eneg = true } else if c != '+' && e < 100000 { e = e * 10 + (c - '0') as int64 }
+            } else if c == 'e' || c == 'E' {
+                exp = true
+            } else if c == '.' {
+                dot = true
+            } else {
+                mag += c
+                if dot { frac += 1 }
+            }
+        }
+    }
+    if dot || exp {                                      // a float, where an integer goes: its value's digits (#663)
+        let shift:int64 = (eneg ? 0 - e : e) - frac
+        var ds:$[uint32] = $[]
+        for c in mag.codepoints { ds += c }
+        var fraction = false
+        var keep:int64 = ds.count as int64
+        if shift < 0 {
+            keep = ds.count as int64 + shift
+            var i:int64 = keep < 0 ? 0 : keep
+            while i < ds.count as int64 {
+                if ds[i] != '0' { fraction = true }
+                i += 1
+            }
+        }
+        if fraction {
+            var m = shown.copy()
+            m += " has a fraction, and "
+            m += &name
+            m += " has none: write an integer"
+            gen_error(n, m.cstr)
+            return true
+        }
+        var whole = $""
+        var lead = true
+        for i in 0..<(keep < 0 ? 0 : keep) {
+            if lead && ds[i] == '0' { continue }
+            lead = false
+            whole += ds[i]
+        }
+        if whole.count == 0 { return false }
+        if shift > 0 {
+            for _ in 0..<(shift > 40 ? 40 : shift) { whole += "0" }
+        }
+        mag = whole.copy()
+    } else {
+        mag = literal_digits(nodes[lit].t)
+    }
+    let past = mag.count == 0 || (neg && mag != $"0" && (!sign_kind || digits_above(&mag, &lo))) || (!neg && digits_above(&mag, &hi))
+    if past {
+        var m = shown.copy()
+        m += &range
+        gen_error(n, m.cstr)
+        return true
+    }
+    return false
+}
+
 let gen_value(n:int64, y:int64) {
+    if unfit_literal(n, y) { return }                    // (#663)
     init_as_case(n, y)
     gen_value_of(n, y)
     if nodes[n].kind == N_CALL || nodes[n].kind == N_METHOD { moves_done() }

@@ -797,3 +797,5 @@ So far the changes from C are these, by topic.
   only warned (#661)
 - An integer divided by a constant 0 is kelvinc's error, where C only
   warned (#662)
+- A literal that does not fit its integer type, or a float's fraction
+  where an integer goes, is kelvinc's error (#663)

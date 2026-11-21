@@ -6,7 +6,8 @@ cstr's byte set, which was none: `let s = "abc"` is the error there, as
 text is declared with `:=`, and `s[0] = 65` of `let s := "abc"` says a
 cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
-error (#662). Each item becomes a
+error (#662); a literal that does not fit its type, kelvinc's error
+(#663). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
 known, not what is planned.
 
@@ -25,10 +26,8 @@ known, not what is planned.
 
 ## Faults in kelvinc
 
-- **C warns, and the program runs**, each to be kelvinc's error (the
-  user's order, 0.4.x, #661 to #663):
-  - a literal that does not fit the type written, `let c:u8 = 300`,
-    which is 44.
+- None known: the sweep's three that C only warned of are kelvinc's
+  errors (#661 to #663).
 
 ## kc
 
@@ -55,7 +54,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P662 to P667, the details of #657 to #662, until reviewed.
+- P662 to P668, the details of #657 to #663, until reviewed.
 
 ## Open design
 
