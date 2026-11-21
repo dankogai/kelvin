@@ -1,13 +1,14 @@
 # TODO
 
-What is left, checked against the code after #657; done since: the
+What is left, checked against the code after #666; done since #657: the
 crash of a struct that holds itself (#659); and the wrong message of a
 cstr's byte set, which was none: `let s = "abc"` is the error there, as
 text is declared with `:=`, and `s[0] = 65` of `let s := "abc"` says a
 cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
 error (#662); a literal that does not fit its type, kelvinc's error
-(#663); a constant shift past its type's width, kelvinc's error (#665). Each item becomes a
+(#663); a constant shift past its type's width, kelvinc's error (#665);
+and the reviews of P662 to P670 (#664, #666). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
 known, not what is planned.
 
@@ -19,20 +20,26 @@ known, not what is planned.
     kc reading more of what kelvinc reads are 0.4.x.
   - A change of what a program means, or of what is written, is 0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on.
+  - The CHANGELOG entry, from #651 on: #651 to #667 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
 
-- None known: the sweep's three that C only warned of are kelvinc's
-  errors (#661 to #663).
+- An attribute or a method of an integer type, read of a value C makes
+  an `int`, gives C's error and not Kelvin's: with `extend u8 { let
+  foo:bool { ... } }`, `(n + 1).foo` of a `u8` `n` is C's `member
+  reference base type 'int' is not a structure or union`, where `x.foo`
+  of an `i32` `x` is kelvinc's `i32 has no member 'foo'`. Found while
+  <Prime> was being tried; not yet ordered.
+- The sweep's three that C only warned of are kelvinc's errors (#661 to
+  #663), and so is a constant shift past its width (#665).
 
 ## kc
 
-- kc says each of the 990 programs kelvinc refuses in kelvinc's words
-  (#652 to #656).
+- kc says each of the 1019 programs kelvinc refuses in kelvinc's words:
+  the 990 of #652 to #656, and those of #659 to #665 alike.
 - 29 places where kc reads not yet what kelvinc reads:
   - a function defined inside a function (#180);
   - an enum with no name whose cases have values (#120), the methods of
@@ -54,7 +61,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P671, the details of #666, until reviewed.
+- P671 and P672, the details of #666 and #667, until reviewed.
 
 ## Open design
 

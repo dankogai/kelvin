@@ -13018,3 +13018,20 @@ amend it, and no row before P671 is provisional.
 Details are provisional P671.
 
 There are 1540 tests, and all pass with clang and with gcc 15.
+
+### 714. TODO.md after #666
+
+**User:** List todos before 0.4.1
+
+**Claude** listed the release chores as what is left before 0.4.1, with
+kc's gaps, the provisional row and the open design for later.
+
+**User:** update `TODO.md` accordingly.
+
+**Claude** made it #667: TODO.md says kc's 1019 programs, the CHANGELOG's
+range so far and P671 and P672, and lists a fault found while trying
+<Prime>: `(n + 1).foo` of a u8 gives C's error, not Kelvin's.
+
+Details are provisional P672.
+
+There are 1540 tests, and all pass with clang and with gcc 15.
