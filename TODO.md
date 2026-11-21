@@ -20,7 +20,7 @@ known, not what is planned.
     kc reading more of what kelvinc reads are 0.4.x.
   - A change of what a program means, or of what is written, is 0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #667 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #668 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,7 +61,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P671 and P672, the details of #666 and #667, until reviewed.
+- P671 to P673, the details of #666 to #668, until reviewed.
 
 ## Open design
 

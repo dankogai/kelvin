@@ -1415,6 +1415,13 @@ let method_of(n:int64):int64 {
     let chosen:int64 = sub_targets.get(n, 0 - 1)        // v[i], its subscript (#136)
     if chosen >= 0 { return chosen }
     let a:int64 = nodes[n].a
+    if number_named(a) >= 0 {                           // i64.primes, int64.primes, an integer type's computed attribute (#668)
+        var tw:String = type_word(number_named(a))
+        tw += "."
+        tw += tok_text(nodes[n].t)
+        let g:int64 = method_names.get(tw, 0 - 1)
+        if g >= 0 && static_attrs.has(g) { return method_chosen(n, g) }
+    }
     if nodes[a].kind == N_TYPE && builtin_recv(nodes[a].t) {   // Bytes.unescape(s, re), a module's function of the type (#515)
         let g:int64 = method_named(nodes[a].t, nodes[n].t)
         return g >= 0 && nodes[g].flag == 1 ? method_chosen(n, g) : 0 - 1
@@ -1849,8 +1856,16 @@ let resolve_attr(n:int64) {
             nodes[n].a = 0 - 1
             return
         }
-        if number_named(a) >= 0 { return }
-        let sf:int64 = method_named(nodes[a].t, nodes[n].t)   // static let T.x:R { }, computed (#595): T.x() from here on
+        var sf:int64 = 0 - 1
+        if number_named(a) >= 0 {                       // an integer type's computed one, i64.primes, int64.primes too (#668)
+            var tw:String = type_word(number_named(a))
+            if !int_word_named(&tw) { return }
+            tw += "."
+            tw += &nm
+            sf = method_names.get(tw, 0 - 1)
+        } else {
+            sf = method_named(nodes[a].t, nodes[n].t)   // static let T.x:R { }, computed (#595): T.x() from here on
+        }
         if sf >= 0 && static_attrs.has(sf) {
             nodes[n].kind = N_METHOD
             nodes[n].b = 0 - 1
@@ -9444,12 +9459,13 @@ let gen_method_of(n:int64) {
         if count_wrong(n, f, none) { return }            // (#627)
     }
     if f >= 0 && static_attrs.has(f) && !static_reads.has(n) {      // as kelvinc says it (#595)
+        let rw:String = number_word(nodes[f].c) >= 0 ? type_word(number_word(nodes[f].c)) : tok_text(nodes[f].c)   // int64 is i64 (#668)
         var m = $"'"
-        m += tok_text(nodes[f].c)
+        m += &rw
         m += "."
         m += tok_text(t)
         m += "' is an attribute of the type: read it as '"
-        m += tok_text(nodes[f].c)
+        m += &rw
         m += "."
         m += tok_text(t)
         m += "', with no parentheses"

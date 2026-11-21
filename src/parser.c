@@ -5241,6 +5241,28 @@ static Expr *parse_primary(void) {
                 e->text = cn;
                 return e;
             }
+        char *full = strfmt("%s.%s", t->text, peek_at(2)->text);
+        List own = int_width(base_type(t->text, t->pos)) ? overloads_of(full, NULL) : (List){0};
+        if (own.len == 1 && ((Decl *)own.data[0])->static_attr) {
+            /* i64.primes, an integer type's computed attribute (#668): each
+               read calls it, as a struct's T.x (#595) */
+            advance();
+            advance();
+            advance();
+            if (is_p(peek(), "(") && !line_ends_expression())
+                error_at(peek()->pos, "'%s' is an attribute of the type: read it as '%s', with no parentheses", full,
+                         full);
+            if (is_p(peek(), "=") || is_p(peek(), ":=") || compound_op(peek()))
+                error_at(peek()->pos, "'%s' is computed, and never set: a stored attribute, 'static var %s = v', is",
+                         full, full);
+            Expr *e = new_expr(E_IDENT, t->pos);
+            e->text = full;
+            e->target = own.data[0];
+            Expr *x = new_expr(E_CALL, t->pos);
+            x->a = e;
+            resolve_call(x);
+            return x;
+        }
         if (!strcmp(peek_at(2)->text, "random") && is_p(peek_at(3), "("))
             return random_call(t); /* i64.random(), f64.random(lim), bool.random() (#547) */
         Expr *lim = int_limit(t, peek_at(2)->text); /* i64.max, u8.min (#545), where the program has none of its own */
@@ -16343,16 +16365,19 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
            T a struct, union or enum with values of the program */
         bool builtin_owner_type = is_kw(recv, "Bytes") || is_kw(recv, "String"); /* Bytes.f(...) too (#168) */
         bool computed = is_p(peek2(), ":"); /* static let T.x:R { } (#595) */
-        if (recv->kind == TK_KEYWORD && !builtin_owner_type && computed)
+        /* an integer type's computed attribute too (#668), i64.primes of
+           <Prime>: read as T.x, a call of the function T.x */
+        bool int_attr = computed && recv->kind == TK_KEYWORD && int_width(base_type(recv->text, recv->pos));
+        if (recv->kind == TK_KEYWORD && !builtin_owner_type && computed && !int_attr)
             error_at(recv->pos, "a computed attribute of a type is declared on a struct, union or enum of the program, "
-                                "or on Bytes or String: of '%s', which is built in, write a stored one, 'static let "
-                                "%s.%s = ...'",
+                                "on Bytes or String, or on an integer type: of '%s', which is built in, write a stored "
+                                "one, 'static let %s.%s = ...'",
                      recv->text, recv->text, name->text);
-        if (recv->kind == TK_KEYWORD && !builtin_owner_type)
+        if (recv->kind == TK_KEYWORD && !builtin_owner_type && !int_attr)
             error_at(recv->pos, "a function of a type is declared on a struct, union or enum of the program, or on "
                                 "Bytes or String: '%s' is built in",
                      recv->text);
-        if (!builtin_owner_type && !record_named(recv->text))
+        if (!builtin_owner_type && !int_attr && !record_named(recv->text))
             error_at(recv->pos, "'%s' is not a struct, union or enum declared before this function", recv->text);
         if (is_kw(name, "cstr"))
             error_at(name->pos, "'.cstr' is a method, the text of a value: write 'let %s.cstr():cstr'", recv->text);

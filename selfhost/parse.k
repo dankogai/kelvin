@@ -4886,6 +4886,12 @@ let is_inline(d:int64):bool {
     return false
 }
 
+// whether w names an integer type, i8 to u128, whose computed attributes a
+// program may declare (#668)
+let int_word_named(w:const String^):bool {
+    return w^ == "i8" || w^ == "i16" || w^ == "i32" || w^ == "i64" || w^ == "i128" || w^ == "u8" || w^ == "u16" || w^ == "u32" || w^ == "u64" || w^ == "u128"
+}
+
 // whether recv, the type of static let T.f() or of static let T.x:R { }
 // whose name is at the cursor, is built in, with kelvinc's error (#111,
 // #595, #611): a function and a computed attribute of a type are of a
@@ -4894,9 +4900,10 @@ let builtin_static(recv:int64, computed:bool):bool {
     let ny:int64 = number_word(recv)
     if ny < 0 && !tok_is(recv, "bool") && !tok_is(recv, "cstr") && !tok_is(recv, "any") && !tok_is(recv, "IO") { return false }
     let w:String = ny >= 0 ? type_word(ny) : tok_text(recv)
+    if computed && int_word_named(&w) { return false }   // an integer type's, i64.primes (#668)
     var m = $""
     if computed {
-        m = $"a computed attribute of a type is declared on a struct, union or enum of the program, or on Bytes or String: of '"
+        m = $"a computed attribute of a type is declared on a struct, union or enum of the program, on Bytes or String, or on an integer type: of '"
         m += &w
         m += "', which is built in, write a stored one, 'static let "
         m += &w

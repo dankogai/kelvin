@@ -25,8 +25,8 @@ files, its prelude header and its libraries live in one directory,
 library, `M.kh` and `libkM` (#143). This document has the import, the
 search, the overlays (#551), the layout, and the modules so far:
 `SION.k` and `MsgPack.k`, sources, and `IO`, `OS`, `UnicodeData`,
-`RegExp`, `BigInt`, `math`, `JSON`, `Rational`, `BigNum` and
-`Combinatorics`, each a header and a library. C headers are in
+`RegExp`, `BigInt`, `math`, `JSON`, `Rational`, `BigNum`,
+`Combinatorics` and `Prime`, each a header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
 ### Kelvin files: `#import <Rational>`
@@ -298,6 +298,9 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     Combinatorics.k       #import <Combinatorics> (#614, combinatorics.md): Permutation, Combination, PowerSet, BaseN, CartesianProduct, UniquePermutation, Permutations, Combinations
     Combinatorics.kh      its header, built by make so too
     libkCombinatorics.a|.dylib|.so   its library
+    Prime.k               #import <Prime> (#668, prime.md): n.isPrime, n.nextPrime, n.prevPrime, n.isSurelyPrime and N.primes of every integer type and of BigInt
+    Prime.kh              its header, built by make so too
+    libkPrime.a|.dylib|.so   its library
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
     MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
@@ -414,6 +417,18 @@ indices of its elements that is indexed by an `i64` or a `BigInt`,
 - It is a header and a library, `Combinatorics.kh` and
   `libkCombinatorics`, built by `make` as `<Rational>`'s are.
 - It is built on the prelude's `BigInt`, in which it counts.
+
+### Prime: `modules/Prime.k`
+
+`#import <Prime>` (#668) gives each integer type and `BigInt`
+`n.isPrime`, `n.nextPrime`, `n.prevPrime`, `n.isProbablePrime` and
+`n.isSurelyPrime`, and `N.primes`, an Iterator of the type's primes, as
+swift-bignum has them: see [prime.md](prime.md).
+
+- It is a header and a library, `Prime.kh` and `libkPrime`, built by
+  `make` as `<Combinatorics>`' are.
+- It is built on the prelude's `BigInt`, which tests an `i128`'s, a
+  `u128`'s and a `BigInt`'s past 2^64.
 
 ### JSON: `modules/JSON.k`
 

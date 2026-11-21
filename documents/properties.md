@@ -477,8 +477,12 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
   - One name is a stored attribute, a computed one, or a function of
     the type, `static let T.x()`, and not two of them.
   - `T` is a struct, a union or an enum with values of the program, or
-    `Bytes` or `String` in an `extend`, as for a function of the type;
-    a number type has stored ones alone, `static let f64.half = 0.5`.
+    `Bytes` or `String` in an `extend`, as for a function of the type.
+  - `T` may be an integer type too (#668), `static let i64.answer:i64 {
+    42 }`, read as `i64.answer` and `int64.answer` alike, as `<Prime>`'s
+    `u8.primes` is ([prime.md](prime.md)); an integer type has no
+    function of its own, and a floating-point type has stored ones
+    alone, `static let f64.half = 0.5`.
   - It may be read before the line that declares it, as a function
     may be called (#505).
 

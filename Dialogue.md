@@ -13035,3 +13035,27 @@ range so far and P671 and P672, and lists a fault found while trying
 Details are provisional P672.
 
 There are 1540 tests, and all pass with clang and with gcc 15.
+
+### 715. <Prime>
+
+**User:** then add a module which adds primarity tests to all integer
+types (though it is mostly done in BigInt) as a module `<Prime>`, with
+`n.isPrime`, `n.nextPrime`, `n.prevPrime` and `static N.primes`;
+consult swift-bignum for algorithms.
+
+**Claude** read swift-bignum's Primality.swift and found that
+`static N.primes` needs what kelvinc refused, a computed attribute of a
+built-in type, and asked four questions.
+
+**User:** 0.4.x (recommended); always `bool` for the API's sake, but for
+`BigInt` provide `isProbablePrime` and `isSurelyPrime`, which returns
+`{isPrime:bool, isProbable:bool}`; nextPrime ends the program and
+prevPrime is a `T?` (recommended); push each when clean (recommended).
+
+**Claude** made it #668: modules/Prime.k, exact Miller-Rabin of 64 bits
+and fewer and swift-bignum's tests past them, and a computed attribute
+of an integer type, in kelvinc and kc alike.
+
+Details are provisional P673.
+
+There are 1546 tests, and all pass with clang and with gcc 15.

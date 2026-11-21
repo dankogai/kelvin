@@ -801,3 +801,8 @@ So far the changes from C are these, by topic.
   where an integer goes, is kelvinc's error (#663)
 - A shift by a constant count past its type's width is kelvinc's error,
   where C only warned (#665)
+- `#import <Prime>` is primality of every integer type and of
+  `BigInt`, as swift-bignum has it: `97.isPrime`, `100.nextPrime`,
+  `100.prevPrime`, a `T?`, `n.isSurelyPrime` and `u8.primes`, an
+  Iterator of a type's primes; and a computed attribute of a type may
+  be of an integer type, `static let i64.answer:i64 { 42 }` (#668)
