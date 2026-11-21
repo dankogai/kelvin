@@ -15707,7 +15707,8 @@ let anon_arg_refused(n:int64):bool {
         if p < 0 { return false }
         let py:int64 = nodes[p].ty
         if py >= 0 && types[py].kind == Y_FN { return false }
-        if py >= 0 && types[py].kind != Y_C && types[py].kind != Y_TYPEOF {
+        let c_named = py >= 0 && types[py].kind == Y_STRUCT && types[py].name >= 0 && decl_named(types[py].name, D_STRUCT) < 0 && tagged_of(py) < 0   // a name no struct of the program's has, C's typedef, as kelvinc has it (#654)
+        if py >= 0 && types[py].kind != Y_C && types[py].kind != Y_TYPEOF && !c_named {
             var m = $"an anonymous function cannot be passed here: the parameter is "
             let w:String = kelvin_type_text(py)
             m += &w

@@ -180,6 +180,8 @@ var nest_outer:int64 = 0 - 1   // the token of the struct a nested definition is
 var late_seen = false          // whether the program has an x.type gen tells (#423)
 var brace_ends = false         // whether a { at the cursor ends a condition, its body's: as kelvinc's brace_ends_condition (#470)
 var anon_depth:int64 = 0       // how many anonymous functions the cursor is in, whose $0.type gen tells (#424)
+var anon_head:int64 = 0        // how many anonymous functions' parameters and result the cursor is in (#654)
+var anon_head_from:int64 = 0   // locals_seen's count where the head began: those before are the function's around it
 var anon_named:$[int64]        // the names of { v in ... }'s parameters the cursor is among (#424)
 var literal_brace = false      // whether the { at the cursor is a compound literal's, (T){$0.y, $0.x} (#424)
 var locals_seen:$[int64]       // the names declared in the function being read, which a nested type's bare name yields to (#389)
@@ -1289,6 +1291,36 @@ let span_text(a:int64, b:int64):String {
 // C's T[N] after a type, from token from, as kelvinc says it, with the
 // hint that spells it as [T](N) (#49, #652)
 let c_order_error(from:int64) {
+    if anon_head > 0 {                                   // a name in the count, read first, as kelvinc reads it (#654)
+        var q:int64 = pos
+        while tok_is(q, "[") {
+            q += 1
+            while !at_kind(T_EOF) && toks[q].kind != T_EOF && !tok_is(q, "]") {
+                if codes[toks[q].at] == '$' && toks[q].len > 1 && is_digit(codes[toks[q].at + 1]) {
+                    var m = $"'"
+                    m += tok_text(q)
+                    m += "' cannot be used in the parameters or result of the function it names"
+                    parse_error_at(q, m.cstr)
+                    return
+                }
+                if toks[q].kind == T_ID {
+                    var outer = false
+                    for i in 0..<anon_head_from {
+                        if same_text(locals_seen[i], q) { outer = true }
+                    }
+                    if outer {
+                        var m = $"an anonymous function cannot use '"
+                        m += tok_text(q)
+                        m += "' of the function around it: C has no closures, so pass it as an argument, or make it a global"
+                        parse_error_at(q, m.cstr)
+                        return
+                    }
+                }
+                q += 1
+            }
+            if tok_is(q, "]") { q += 1 }
+        }
+    }
     var spelled:String = span_text(from, pos)
     var dims:$[String] = $[]
     while at_word("[") && !failed {
@@ -1993,6 +2025,9 @@ let parse_anon():int64 {
         advance()
         var last = -1
         var k:int64 = 0
+        let saved_from:int64 = anon_head_from
+        anon_head += 1
+        anon_head_from = locals_seen.count as int64
         while !at_word(")") && !failed {
             let is_var = at_word("var")                  // { (var s:T):R in ... } may change s, its own (#470)
             if is_var { advance() }
@@ -2016,6 +2051,8 @@ let parse_anon():int64 {
             advance()
             set_ty(n, parse_type())
         }
+        anon_head -= 1
+        anon_head_from = saved_from
         if !at_word("in") {                              // as kelvinc says it
             parse_error("expected 'in' after the parameters, as in '{ (a:i32):i32 in a * 2 }'")
             return n
@@ -3523,6 +3560,49 @@ let parse_assert(kind:nkind):int64 {
 let parse_struct():int64    // prototypes: a block defines types too (#391)
 let parse_enum():int64
 
+// let f(...) { } inside a function, which kc reads not yet (#180): what
+// kelvinc says of a local of the function around it used in its body,
+// else that kc does not read it (#654)
+let nested_function_error() {
+    let open:int64 = pos + 2
+    let close:int64 = group_end(open)                    // the ) of its parameters
+    var own:$[int64] = $[]                               // its parameters and the names its body declares
+    var q:int64 = open + 1
+    while q < close {
+        if toks[q].kind == T_ID && tok_is(q + 1, ":") && (tok_is(q - 1, "(") || tok_is(q - 1, ",") || tok_is(q - 1, "var")) { own += q }
+        q += 1
+    }
+    var b:int64 = close
+    while toks[b].kind != T_EOF && !tok_is(b, "{") { b += 1 }
+    var depth:int64 = 0
+    var e:int64 = b
+    while toks[e].kind != T_EOF {
+        if tok_is(e, "{") { depth += 1 }
+        if tok_is(e, "}") {
+            depth -= 1
+            if depth == 0 { break }
+        }
+        if (tok_is(e, "let") || tok_is(e, "var")) && toks[e + 1].kind == T_ID { own += e + 1 }
+        e += 1
+    }
+    for k in b..<e {
+        if toks[k].kind != T_ID || tok_is(k - 1, ".") { continue }
+        var mine = false
+        for o in own { if same_text(o, k) { mine = true } }
+        if mine { continue }
+        var outer = false
+        for l in locals_seen { if same_text(l, k) { outer = true } }
+        if outer {
+            var m = $"a function defined inside a function cannot use '"
+            m += tok_text(k)
+            m += "' of the function around it: C has no closures, so pass it as an argument, or make it a global"
+            parse_error_at(k, m.cstr)
+            return
+        }
+    }
+    parse_error("kc reads a function defined inside a function not yet (#180): define it at the top level")
+}
+
 let parse_statement():int64 {
     let t:int64 = pos
     if at_word("case") || (at_word("default") && tok_is(pos + 1, ":")) {   // a switch reads its own, as kelvinc says it
@@ -3535,6 +3615,10 @@ let parse_statement():int64 {
     }
     if at_word("{") && tok_is(pos + 1, "(") && ((toks[pos + 2].kind == T_ID && tok_is(pos + 3, ":")) || (tok_is(pos + 2, ")") && tok_is(pos + 3, "in"))) && prev_line_ends_call(pos) {   // f(x)\n{ (a:T) in ... }, as kelvinc says it
         parse_error("a trailing function starts on the line of the call's ')': on the next line, '{' starts a block")
+        return make_node(S_BLOCK, t)
+    }
+    if at_word("let") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "(") && fn_parsing >= 0 && anon_depth == 0 {   // a function inside a function (#180, #654)
+        nested_function_error()
         return make_node(S_BLOCK, t)
     }
     if at_word("register") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {   // left out on purpose, as kelvinc says it (#640)

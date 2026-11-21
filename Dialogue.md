@@ -12819,3 +12819,16 @@ a function inside a function, and six of enums with no name.
 Details are provisional P658.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 701. kc's last 30, the third batch
+
+**Claude** pushed #653, its battery clean, and made the third batch
+#654: a local or a $0 in a C-order count of an anonymous function's
+parameters, an anonymous function where size_t without its header goes,
+and a function inside a function that uses a local around it are kc's in
+kelvinc's words. 10 are left: four of an array's count in a function
+type, and six of enums with no name.
+
+Details are provisional P659.
+
+There are 1506 tests, and all pass with clang and with gcc 15.
