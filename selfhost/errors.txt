@@ -15,11 +15,5 @@ words enum_anon_fn_clash.k
 words enum_anon_static.k
 words enum_anon_word_clash.k
 words extend_spelled_static.k
-words inline_c_inner.k
-words io_exec_dir.k
-words io_exec_fresh.k
 words nested_function_local.k
 words self_type_spelled_call.k
-words template_in_type.k
-words type_result_param.k
-words variant_map_no_result.k

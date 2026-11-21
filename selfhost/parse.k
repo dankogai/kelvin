@@ -1596,6 +1596,16 @@ let parse_bare_type():int64 {
         if counted {
             advance()
             count = tok_is(pos + 1, ")") ? tok_count(pos) : 0 - 1
+            var q:int64 = pos                        // a template with ${...} in it, as kelvinc says it (#653)
+            var qd:int64 = 0
+            while !failed && toks[q].kind != T_EOF && !(qd == 0 && tok_is(q, ")")) {
+                if tok_is(q, "(") { qd += 1 }
+                if tok_is(q, ")") { qd -= 1 }
+                if toks[q].kind == T_TPL_HEAD {
+                    parse_error_at(q, "a template literal with ${...} is made at run time, so it cannot be part of a type")
+                }
+                q += 1
+            }
             if count < 0 {                           // a count C computes, a local's (#366): -10 - its node
                 count = 0 - 10 - parse_expr()
             } else {
@@ -4158,6 +4168,24 @@ let parse_function():int64 {
         advance()
     } else if at_word(":") {
         advance()
+        if toks[pos].kind == T_ID && tok_is(pos + 1, ".") {   // p.x.type of a parameter, as kelvinc says it (#653)
+            var q:int64 = pos
+            while tok_is(q + 1, ".") && toks[q + 2].kind == T_ID && !tok_is(q, "type") { q += 2 }
+            var named = false
+            var p:int64 = nodes[n].a
+            while p >= 0 {
+                if same_text(nodes[p].t, pos) { named = true }
+                p = nodes[p].next
+            }
+            if named && tok_is(q, "type") {
+                var m = $"the result type, "
+                let w:String = span_text(pos, q + 1)
+                m += &w
+                m += ", names a parameter, which C has not seen where it writes the result: write the type itself"
+                parse_error_at(pos, m.cstr)
+                return n
+            }
+        }
         set_ty(n, parse_type())
     }
     let outer_fn:int64 = fn_parsing

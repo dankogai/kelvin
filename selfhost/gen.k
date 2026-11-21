@@ -2277,6 +2277,20 @@ let variant_method_wrong(n:int64):bool {
         from_name = $"ok"
     }
     let f:int64 = nodes[n].b
+    if f >= 0 && nodes[f].kind == N_ANON && nodes[f].flag == 1 && nodes[f].ty < 0 && !flat && nodes[f].b >= 0 {   // { $0 * 2.5 }, as kelvinc says it (#653)
+        let st:int64 = nodes[nodes[f].b].a
+        if st >= 0 && nodes[st].next < 0 && nodes[st].kind == S_EXPR {
+            open_scope()
+            var dollar = $"$0"
+            declare_as(made_token(&dollar), from, 2)
+            let unseen = arith_one_type(nodes[st].a) == 0 - 3
+            close_scope()
+            if unseen {
+                gen_error(nodes[st].a, "the result of this function is not a type kelvinc sees: write its parameters and result, as in '{ (v:i64):i64 in v * 2 }', or convert the value, as in 'i64(...)'")
+                return true
+            }
+        }
+    }
     if f < 0 || nodes[f].kind != N_ID || var_type(nodes[f].t) >= 0 { return false }
     let fd:int64 = fn_named(nodes[f].t)
     if fd < 0 || nodes[fd].a < 0 || nodes[nodes[fd].a].next >= 0 { return false }
@@ -9263,6 +9277,52 @@ let gen_unseen_method(n:int64, found:const $[int64]^) {
     put("); })")
 }
 
+// text for IO.exec: a String's bytes, else the value (#653)
+let put_exec_text(x:int64) {
+    let y:int64 = type_of(x)
+    if y >= 0 && types[y].kind == Y_STRING {
+        put("kv_bytes_cstr(&(")
+        gen_expr(x)
+        put(").b)")
+    } else {
+        gen_expr(x)
+    }
+}
+
+// the items from x0, C's NULL-ended list of text (#653)
+let put_exec_list(x0:int64) {
+    put("(const char *const[]){")
+    var x:int64 = x0
+    while x >= 0 {
+        put("(const char *)(")
+        put_exec_text(x)
+        put("), ")
+        x = nodes[x].next
+    }
+    put("NULL}")
+}
+
+// whether x is text or a String, else kelvinc's error, lead and what x is (#653)
+let exec_text_ok(x:int64, lead:cstr):bool {
+    if nodes[x].kind == N_STR || nodes[x].kind == N_TPL { return true }
+    if nodes[x].kind == N_NUM {
+        var m = $""
+        m += lead
+        m += "a number"
+        gen_error(x, m.cstr)
+        return false
+    }
+    let y:int64 = type_of(x)
+    if failed { return false }
+    if y < 0 || types[y].kind == Y_CSTR || types[y].kind == Y_STRING || types[y].kind == Y_BYTES { return true }
+    var m = $""
+    m += lead
+    let w:String = kelvin_type_text(y)
+    m += &w
+    gen_error(x, m.cstr)
+    return false
+}
+
 let gen_method_of(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
@@ -9451,13 +9511,57 @@ let gen_method_of(n:int64) {
                 return
             }
         }
-        put("kv_io_exec_strings((")
-        gen_expr(args)
-        put(").at, (")
-        gen_expr(args)
-        put(").count, ")
-        gen_expr(nodes[args].next)
-        put(", NULL, NULL, false)")
+        let mode:int64 = args >= 0 ? nodes[args].next : 0 - 1   // IO.exec(args, mode, dir, env, fresh), as kelvinc's (#90, #92, #93, #653)
+        let dir:int64 = mode >= 0 ? nodes[mode].next : 0 - 1
+        let env:int64 = dir >= 0 ? nodes[dir].next : 0 - 1
+        let fresh:int64 = env >= 0 ? nodes[env].next : 0 - 1
+        if dir >= 0 && !exec_text_ok(dir, "the directory of IO.exec is text or a String, \"\" for the current one, and this is ") { return }
+        if fresh >= 0 {
+            let fy:int64 = type_of(fresh)
+            if failed { return }
+            if fy < 0 || types[fy].kind != Y_BOOL {
+                gen_error(fresh, "the fifth argument of IO.exec is a bool: true for an environment made from nothing but the entries, false for them added to this program's")
+                return
+            }
+        }
+        let env_var = env >= 0 && nodes[env].kind != N_LIST
+        if env_var {                                     // an Array's environment, a vector made and freed around the call
+            let ey:int64 = type_of(env)
+            let strings = ey >= 0 && types[ey].kind == Y_ARRAY && types[types[ey].elem].kind == Y_STRING
+            put(strings ? "({ const char **_kv_env = kv_io_vector_strings((" : "({ const char **_kv_env = kv_io_vector_cstrs((const uint8_t *const *)(")
+            gen_expr(env)
+            put(").at, (")
+            gen_expr(env)
+            put(").count); kv_io _kv_f = ")
+        }
+        if args >= 0 && nodes[args].kind == N_LIST {
+            put("kv_io_exec(")
+            put_exec_list(nodes[args].b)
+        } else {
+            let ay:int64 = type_of(args)
+            let strings = ay >= 0 && types[ay].kind == Y_ARRAY && types[types[ay].elem].kind == Y_STRING
+            put(strings ? "kv_io_exec_strings((" : "kv_io_exec_cstrs((const uint8_t *const *)(")
+            gen_expr(args)
+            put(").at, (")
+            gen_expr(args)
+            put(").count")
+        }
+        put(", ")
+        put_exec_text(mode)
+        put(", ")
+        if dir >= 0 { put_exec_text(dir) } else { put("NULL") }
+        put(", ")
+        if env < 0 {
+            put("NULL")
+        } else if env_var {
+            put("(const char *const *)_kv_env")
+        } else {
+            put_exec_list(nodes[env].b)
+        }
+        put(", ")
+        if fresh >= 0 { gen_expr(fresh) } else { put("false") }
+        put(")")
+        if env_var { put("; kv_io_vector_free(_kv_env); _kv_f; })") }
         return
     }
     let y:int64 = type_of(a)

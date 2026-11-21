@@ -1689,6 +1689,8 @@ on a new line`
     println(cz_total, " ", ck_tally, " ", cz_r ?? 0, " ", cz_o ?? 9, " ", strlen("kelvin").dec, " ", cz_n.hex, " ", cz_twice(2).n, 1, 2, 3)
     let last_comma:int64 = (strlen("ab"), 21 * 2)       // (a, b), C's comma, its value b's (#652)
     println(last_comma, " ", atoi("21").cm_tripled())   // a method of a C call's value, by C's _Generic (#652)
+    var ex_env = IO.exec(["env"], "r", "", ["KC_X=ok"], true)   // a directory, an environment and fresh (#653)
+    println((ex_env.string ?? $"").trim())
     return 0
 }
 

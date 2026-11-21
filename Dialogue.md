@@ -12806,3 +12806,16 @@ three of C's T[N] are kc's in kelvinc's words, and 20 are left.
 Details are provisional P657.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 700. kc's last 30, the second batch
+
+**Claude** pushed #652, its battery clean, and made the second batch
+#653: kc's IO.exec takes a directory, an environment and fresh, as
+kelvinc's, and says its two errors; #inline C in a struct, a template in
+a type, a result type that names a parameter and .map's unseen result
+are kc's in kelvinc's words. 14 are left: seven of anonymous functions,
+a function inside a function, and six of enums with no name.
+
+Details are provisional P658.
+
+There are 1506 tests, and all pass with clang and with gcc 15.

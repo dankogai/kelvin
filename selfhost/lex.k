@@ -606,6 +606,27 @@ let error_at_text(t:int64):String {
     return s
 }
 
+// whether the innermost { open among the tokens read is a struct's, a
+// union's or an enum's body: struct T {, enum {, extend's own aside (#653)
+let in_record_body():bool {
+    var depth:int64 = 0
+    var j:int64 = toks.count as int64 - 1
+    while j >= 0 {
+        if toks[j].kind == T_PUNCT && tok_is(j, "}") {
+            depth += 1
+        } else if toks[j].kind == T_PUNCT && tok_is(j, "{") {
+            if depth == 0 {
+                var k:int64 = j - 1
+                if k >= 0 && toks[k].kind == T_ID && !tok_is(k, "struct") && !tok_is(k, "union") && !tok_is(k, "enum") { k -= 1 }
+                return k >= 0 && (tok_is(k, "struct") || tok_is(k, "union") || tok_is(k, "enum"))
+            }
+            depth -= 1
+        }
+        j -= 1
+    }
+    return false
+}
+
 let lex_error(file:int64, line:int64, what:cstr) {
     let said:String = as_shown(what)
     println(fnames[file], ":", line, ": error: ", said)
@@ -1150,6 +1171,10 @@ let lex_range(from:int64, to:int64, file:int64) {
             }
             let imports = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'm' && codes[w + 2] == 'p' && codes[w + 3] == 'o' && codes[w + 4] == 'r' && codes[w + 5] == 't' && !(is_alpha(code_at(w + 6)) || is_digit(code_at(w + 6)))
             let inlines = w + 6 <= i && codes[w] == 'i' && codes[w + 1] == 'n' && codes[w + 2] == 'l' && codes[w + 3] == 'i' && codes[w + 4] == 'n' && codes[w + 5] == 'e'
+            if inlines && !imports && in_record_body() { // as kelvinc says it (#653)
+                lex_error(file, line, "#inline C is for the top level of a file and a function's blocks, outside structs, unions and enums")
+                continue
+            }
             if inlines && !imports {                     // #inline C { ... }, kelvinc's words of what is wrong in it (#629)
                 inline_c_check(w + 6, to, file, line)
             }
