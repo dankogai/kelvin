@@ -122,7 +122,8 @@ the design decisions, numbered `#N` throughout, are in
   `UniquePermutation`, `Permutations` and `Combinations` (#615).
 - [prime.md](prime.md): `#import <Prime>`, `n.isPrime`,
   `n.nextPrime`, `n.prevPrime` and `N.primes` of every integer type and
-  of `BigInt`, as swift-bignum has them (#668).
+  of `BigInt`, as swift-bignum has them (#668), and
+  `BigInt.generatePrime(bits)`, a random prime (#672).
 - [json.md](json.md): `#import <JSON>`, `JSON.parse` and
   `JSON.stringify` as JS has them.
 - [sion.md](sion.md): `#import <SION>`, SION values, JSON with more.

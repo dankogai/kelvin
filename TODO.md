@@ -26,7 +26,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #671 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #672 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -63,7 +63,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P675 and P676, the details of #670 and #671, until reviewed.
+- P675 to P677, the details of #670 to #672, until reviewed.
 
 ## Open design
 

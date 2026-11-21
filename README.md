@@ -812,3 +812,6 @@ So far the changes from C are these, by topic.
 - A `_` among a numeric literal's digits is left out, as Swift and Perl
   have it: `0x7fff_ffff`, `1_000_000`, `1_000.000_1`, `1_000n`; after a
   digit or another `_`, and text read at run time is as before (#671)
+- `<Prime>` has `BigInt.generatePrime(bits)`, a random prime of exactly
+  that many bits, as OpenSSL's libcrypto makes one: top two bits set,
+  sieved, Baillie-PSW and 64 or 128 rounds of random bases (#672)

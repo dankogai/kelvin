@@ -13113,3 +13113,24 @@ and quote a literal's error as written; the VS Code grammar colors them.
 Details are provisional P676.
 
 There are 1555 tests, and all pass with clang and with gcc 15.
+
+### 719. BigInt.generatePrime(bits)
+
+**User:** are primarity tests in BigInt cryptographically acceptable?
+Implement `BigInt.generatePrime(bits)` where `bits` represents the size of
+prime. You may consult `libcrypto`.
+
+**Claude** answered: strong, and not hardened; exact where proven and
+Baillie-PSW past it, but fixed bases, the standard Lucas test, no constant
+time and no wiping; the random source is the system's CSPRNG. It read
+OpenSSL's bn_prime.c and asked four questions.
+
+**User:** Baillie-PSW and random Miller-Rabin; OpenSSL's sieve; no safe
+primes yet; push when clean (each the recommended)
+
+**Claude** made it #672: BigInt.generatePrime(bits), as BN_generate_prime_ex,
+and prime.md's For cryptography.
+
+Details are provisional P677.
+
+There are 1557 tests, and all pass with clang and with gcc 15.

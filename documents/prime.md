@@ -2,9 +2,11 @@
 
 Whether an integer is prime, the primes beside it, and each integer
 type's primes in order, of every integer type and of `BigInt`, as
-[swift-bignum] has them.
+[swift-bignum] has them; and a random prime of any size, as OpenSSL's
+[libcrypto] makes one.
 
 [swift-bignum]: https://github.com/dankogai/swift-bignum
+[libcrypto]: https://github.com/openssl/openssl/blob/master/crypto/bn/bn_prime.c
 
 ## Synopsis
 
@@ -26,6 +28,8 @@ let main():int32 {
     let big = (1n << 200).nextPrime
     println(big - (1n << 200), " ", big.isSurelyPrime)             // 235n {isPrime: true, isProbable: true}
     println(u64.max.prevPrime, " ", i128.max.isPrime)              // some(18446744073709551557) true
+    let p = BigInt.generatePrime(512)                              // a random prime of 512 bits
+    println(p.bits.count - 1, " ", p >> 510, " ", p.isProbablePrime)   // 512 3n true
     return 0
 }
 ```
@@ -91,6 +95,54 @@ attribute.
 
 [OEIS A014233]: https://oeis.org/A014233
 
+### A random prime: `BigInt.generatePrime(bits)`
+
+`BigInt.generatePrime(bits)` (#672) is a random prime of exactly `bits`
+bits, a function of the type, as OpenSSL's `BN_generate_prime_ex` makes
+one.
+
+- **A candidate** is drawn as OpenSSL's `probable_prime` draws it:
+  - `bits` random bits of the system's CSPRNG, as `u64.random()` draws
+    them (`arc4random_buf`, or `getrandom` on Linux);
+  - its top two bits set, so that the product of two has `2 * bits`
+    bits, as an RSA modulus wants, and its lowest, so that it is odd;
+  - the remainders of the first small primes kept, 64 of them to 512
+    bits, 128 to 1024, 384 to 2048, 1024 to 4096 and 2048 past, and the
+    candidate stepped by 2 past each one a small prime divides; drawn
+    again where it would grow past `bits` bits.
+- **Each candidate is tested** by Baillie-PSW, then by rounds of
+  Miller-Rabin of random bases, each from 2 to `p - 2`: 64 rounds, a
+  false positive of 2^-128 at most, and 128 past 2048 bits, 2^-256, as
+  OpenSSL's; FIPS 186-5 allows Miller-Rabin with a Lucas test.
+  - A prime of 64 bits or fewer is tested exactly instead.
+- **Fewer than 2 bits** ends the program, as OpenSSL's says
+  `BN_R_BITS_TOO_SMALL`: `kelvin: BigInt.generatePrime(1) has no value:
+  a prime has 2 bits or more`. `BigInt.generatePrime(2)` is 3, and
+  `(3)` 7, the only ones with their top two bits set.
+- It takes about a second for 1024 bits and for 2048, and some five for
+  3072, as candidates come.
+- Safe primes, `p` with `(p - 1) / 2` prime, are not made yet.
+
+### For cryptography
+
+The tests are strong, and not hardened:
+
+- **Strong:** below 2^64 and below 3317044064679887385961981 they are
+  exact, and a Mersenne number's by Lucas-Lehmer; past them Baillie-PSW
+  is known to be passed by no composite, and `generatePrime` adds 64 or
+  128 rounds of random bases.
+- **The bases of `isPrime` are fixed:** 2, and Selfridge's parameters of
+  the Lucas test, the standard one that swift-bignum ports, not the
+  strong one of Baillie and Wagstaff. Against a number an adversary
+  chose, one tests with random bases, which nobody can prepare for:
+  `generatePrime` does, and `isPrime` does not.
+- **Not constant-time:** `BigInt`'s arithmetic takes time by its
+  values, so timing may tell of a secret prime, and a freed `BigInt`'s
+  memory is not wiped.
+- So `generatePrime` is good for primes where those do not matter, as
+  in tests and in research; a key a service keeps is made by a library
+  hardened for it, as libcrypto is.
+
 ## Where it lives
 
 A module, modules/Prime.k, built by `make` into a header and a library,
@@ -114,5 +166,6 @@ does.
 | | `n.isProbablePrime` | Baillie-PSW's answer, a `bool` |
 | | `n.isSurelyPrime` | a `Primality`: whether prime, and whether only probably |
 | | `N.primes` | an `Iterator<N>` of the primes from 2, to the type's greatest; `BigInt`'s endless |
+| `BigInt` | `BigInt.generatePrime(bits)` | a random prime of exactly `bits` bits, its top two bits set (#672) |
 | `Primality` | `.isPrime` | whether prime |
 | | `.isProbable` | whether that rests on Baillie-PSW alone |

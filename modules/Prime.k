@@ -13,9 +13,14 @@
 // Primality.swift tests them: below 2^64 as above; a Mersenne number,
 // 2^p - 1, by Lucas-Lehmer; below 3317044064679887385961981 (OEIS A014233)
 // by Miller-Rabin of the primes 2 to 41 as bases, exactly; past it by
-// Baillie-PSW, Miller-Rabin of base 2 and a strong Lucas test of Selfridge's
+// Baillie-PSW, Miller-Rabin of base 2 and a Lucas test of Selfridge's
 // parameters, which no composite is known to pass, and n.isSurelyPrime says
 // that it is only probable. n.isPrime is always a bool: true there too.
+//
+// BigInt.generatePrime(bits) (#672) is a random prime of that many bits, as
+// OpenSSL's BN_generate_prime_ex makes one: a random number of the system's
+// CSPRNG with its top two bits set, sieved by small primes, then Baillie-PSW
+// and 64 rounds of Miller-Rabin of random bases, 128 past 2048 bits.
 
 #import <stdio.h> as C
 #import <stdlib.h> as C
@@ -140,6 +145,12 @@ let prime_u64_max():BigInt { BigInt(0xffffffffffffffff as i128) }
 // n odd and above 2: true where base a does not witness that n is composite
 let prime_mr(n:lent BigInt, a:i64):bool {
     let b = BigInt(a) % n
+    return prime_mr_base(n, b)
+}
+
+// n odd and above 2: true where base b, below n, does not witness that n is
+// composite
+let prime_mr_base(n:lent BigInt, b:lent BigInt):bool {
     if b.isZero { return true }
     let last = n - 1
     var d = n - 1
@@ -572,7 +583,104 @@ extend u128 {
     }
 }
 
+// ---------- a random prime (#672), as OpenSSL's ----------
+
+// a random BigInt of bits bits, of the system's CSPRNG, as u64.random()
+// draws (#547): arc4random_buf, or getrandom on Linux
+let prime_random(bits:i64):BigInt {
+    var r = BigInt(0)
+    var have:i64 = 0
+    while have < bits {
+        r = (r << 64) + BigInt(u64.random() as i128)
+        have += 64
+    }
+    return r >> (have - bits)
+}
+
+// the count of a BigInt's bits, 0 of 0, of one above 0
+let prime_bit_count(n:lent BigInt):i64 { n.bits.count as i64 - 1 }
+
+// the primes OpenSSL's calc_trial_divisions sieves by for a prime of bits
+// bits: 64 to 512 bits, 128 to 1024, 384 to 2048, 1024 to 4096, 2048 past
+let prime_sieve_primes(bits:i64):$[i64] {
+    let count:i64 = bits <= 512 ? 64 : bits <= 1024 ? 128 : bits <= 2048 ? 384 : bits <= 4096 ? 1024 : 2048
+    var ps:$[i64] = $[]
+    var k:i64 = 2
+    while ps.count as i64 < count {
+        if prime_u64(k as u64) { ps += k }
+        k += 1
+    }
+    return ps
+}
+
+// a candidate of bits bits, as OpenSSL's probable_prime draws it: random,
+// its top two bits set, so that a product of two has 2 * bits bits, and odd;
+// then stepped by 2 past each one a small prime divides, by the remainders
+// kept, and drawn again where the step grows past 2^40 or past bits bits
+let prime_candidate(bits:i64, ps:const $[i64]^):BigInt {
+    while true {
+        var r = prime_random(bits)
+        r = r | (BigInt(3) << (bits - 2))
+        r = r | BigInt(1)
+        var mods:$[i64] = $[]
+        for i in 0..<ps^.count as i64 { mods += (r % ps^[i]).i64 }
+        let small:i64 = bits <= 31 ? r.i64 : 0           // of a word, a small prime may be the candidate itself
+        var delta:i64 = 0
+        var clean = false
+        while !clean && delta < (1:i64 << 40) {
+            clean = true
+            for i in 1..<ps^.count as i64 {             // 2 is not asked: the candidate is odd
+                let p:i64 = ps^[i]
+                if bits <= 31 && p * p > small + delta { break }
+                if (mods[i] + delta) % p == 0 {
+                    clean = false
+                    delta += 2
+                    break
+                }
+            }
+        }
+        if clean {
+            let c = r + delta
+            if prime_bit_count(c) == bits { return c }
+        }
+    }
+    return BigInt(0)
+}
+
+// rounds of Miller-Rabin of random bases from 2 to n - 2, n odd past 2^64
+let prime_random_rounds(n:lent BigInt, rounds:i64):bool {
+    let span = n - 3
+    let width:i64 = prime_bit_count(n) + 64            // 64 bits more than n has, so that % leaves no bias to speak of
+    for i in 0..<rounds {
+        let b = prime_random(width) % span + 2
+        if !prime_mr_base(n, b) { return false }
+    }
+    return true
+}
+
+// BigInt.generatePrime(bits) (#672): Baillie-PSW and OpenSSL's rounds of
+// Miller-Rabin of random bases, 64, 128 past 2048 bits, of each candidate
+// past 2^64; one of 64 bits or fewer is tested exactly
+let prime_generate(bits:i64):BigInt {
+    if bits < 2 {
+        let m = $`BigInt.generatePrime(${bits}) has no value: a prime has 2 bits or more`
+        prime_fail(&m)
+    }
+    let ps = prime_sieve_primes(bits)
+    let rounds:i64 = bits > 2048 ? 128 : 64
+    while true {
+        let c = prime_candidate(bits, &ps)
+        if bits <= 64 {
+            if prime_u64(c.u64) { return c }
+        } else if prime_bpsw(c) && prime_random_rounds(c, rounds) {
+            return c
+        }
+    }
+    return BigInt(0)
+}
+
 extend BigInt {
+    static let generatePrime(bits:i64):BigInt { prime_generate(bits) }
     let isPrime:bool { prime_surely(self).isPrime }
     let isProbablePrime:bool { prime_bpsw(self) }
     let isSurelyPrime:Primality { prime_surely(self) }

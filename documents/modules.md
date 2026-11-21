@@ -298,7 +298,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     Combinatorics.k       #import <Combinatorics> (#614, combinatorics.md): Permutation, Combination, PowerSet, BaseN, CartesianProduct, UniquePermutation, Permutations, Combinations
     Combinatorics.kh      its header, built by make so too
     libkCombinatorics.a|.dylib|.so   its library
-    Prime.k               #import <Prime> (#668, prime.md): n.isPrime, n.nextPrime, n.prevPrime, n.isSurelyPrime and N.primes of every integer type and of BigInt
+    Prime.k               #import <Prime> (#668, prime.md): n.isPrime, n.nextPrime, n.prevPrime, n.isSurelyPrime and N.primes of every integer type and of BigInt; BigInt.generatePrime(bits) (#672)
     Prime.kh              its header, built by make so too
     libkPrime.a|.dylib|.so   its library
     JSON.k                #import <JSON> (#113, json.md)
@@ -423,7 +423,9 @@ indices of its elements that is indexed by an `i64` or a `BigInt`,
 `#import <Prime>` (#668) gives each integer type and `BigInt`
 `n.isPrime`, `n.nextPrime`, `n.prevPrime`, `n.isProbablePrime` and
 `n.isSurelyPrime`, and `N.primes`, an Iterator of the type's primes, as
-swift-bignum has them: see [prime.md](prime.md).
+swift-bignum has them, and `BigInt.generatePrime(bits)`, a random prime
+of that many bits, as OpenSSL's libcrypto makes one (#672): see
+[prime.md](prime.md).
 
 - It is a header and a library, `Prime.kh` and `libkPrime`, built by
   `make` as `<Combinatorics>`' are.
