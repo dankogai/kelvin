@@ -719,6 +719,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 657 | The review of the provisional rows, batch 9: the detail rows P656 to P661, 6 rows of Details of #651 to #656, are confirmed as they stand, each read as later numbers amend it, each row marked so, no document marking any of them provisional. With it no row before P662 is provisional; Design.md's status and versusC.md say the rows were confirmed by #633 to #639, #651 and #657. The user's order, "then review P656 to P661", and of the batch put to the user the answer, the recommended: confirm, as amended later; records | Design.md's P rows and status; documents/versusC.md | tests/docs.sh, the documents' examples as they were | 2026-11-21 |
 | 658 | TODO.md, at the top of the repository, is what is left, checked against the code after #657: the rule of the versions, that the version stays 0.4.x so long as the grammar and the semantics stay the same, a change of either 0.5.0, and the release chores done only when ordered; the faults in kelvinc found by the sweep after #656, a crash of a struct that holds itself by value, a wrong message of s[0] = 65 of a let cstr, and three that C only warns of, a constant index past a fixed array's end, a constant division by zero and a literal that does not fit its type, to decide; kc's 29 places of not yet and its const const; the provisional rows; and the open design, closures and protocols, long double and f128. README.md names it. The user's order, "Save the list above in TODO.md. Also note so long as the grammar and the semantics stays the same, the version stays 0.4.x"; records | TODO.md; README.md | — | 2026-11-21 |
 | 659 | A struct, a union or an enum with values that holds itself by value is kelvinc's error, where kelvinc ran out of stack and ended with a segmentation fault, exit 139, going round its members to free them: struct node { x:i64; next:node } is 'next' makes node hold itself, and a value that holds itself has no size: hold it by a pointer, node^, or in an Array<node>; so of a node? and a [node](2), which hold their value, of a case of an enum with values, enum tree { leaf; node: tree }, of a union, where C said field has incomplete type, and of two that hold each other, the first written said. A pointer, an Optional of a pointer and an Array<node> each have a size, and stay as they were. kc ended the same way, and says it in the same words. The user's order, "fix the kelvinc crash on a self-holding struct first", the first of TODO.md's faults; kelvinc and kc | src/parser.c; selfhost/gen.k; documents/structs.md; TODO.md | tests/error/self_holding_struct.k, self_holding_pair.k, self_holding_optional.k, self_holding_array.k, self_holding_enum.k, self_holding_union.k; tests/run/self_holding_by_pointer.k | 2026-11-21 |
+| 660 | TODO.md's wrong message of a let cstr's byte set is taken off, as it was none: the sweep wrote let s = "abc", which is the error kelvinc says first, 's' is a reference (cstr): assign it with ':=', not '=', at the declaration, as text is declared with :=; of let s := "abc" or var s := "abc", s[0] = 65 is a cstr is immutable (#52), as it was, of kelvinc and of kc. No code changes. The user's order, "then fix the wrong message of a let cstr's byte set"; records | TODO.md | — | 2026-11-21 |
 
 Notes:
 
@@ -1303,6 +1304,13 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (660) Agreed details: the byte set of a let cstr, no fault
+  - The user's order: "then fix the wrong message of a let cstr's byte
+    set", from TODO.md.
+  - Found: the message was right, and the sweep's program wrong, as
+    `let s = "abc"` is itself an error; TODO.md says so, and loses the
+    item.
 
 - (659) Agreed details: a struct that holds itself
   - The user's order: "fix the kelvinc crash on a self-holding struct
@@ -11893,6 +11901,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P662 | Details of #657 | scratchpad's markbatch.py of 657, detail, P656 to P661: each row's second column begins `Confirmed (#657), as later numbers amend it: `; Design.md's status and versusC.md name #657 beside #633 to #639 and #651. No test is added. 1506 tests, the documents' blocks and the bootstrap. |
 | P663 | Details of #658 | TODO.md, of five parts: the versions, the faults in kelvinc, kc, the provisional rows and the open design; README.md's line of it after CHANGELOG.md's. No test is added. 1506 tests, the documents' blocks and the bootstrap. |
 | P664 | Details of #659 | kelvinc: `holds_by_value` and `reject_self_holding`, after the top level is read, over `records`, a fixed array's element where it is counted, a variant_record's or a struct's members; the earliest member by its position. kc: gen.k's `holds_by_value` and `reject_self_holding` before reject_duplicates, over decls, by decl_named, tagged_of and some_type, those kc makes (_kv_, an Optional's) passed over. TODO.md: the crash taken off. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
+| P665 | Details of #660 | TODO.md: the item taken off, and said under done since; checked by kelvinc of let s := "abc" and var s := "abc", each `a cstr is immutable (#52)` at s[0] = 65. No test is added. 1513 tests, the documents' blocks and the bootstrap. |
 
 ## Open questions
 

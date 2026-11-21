@@ -1,7 +1,10 @@
 # TODO
 
 What is left, checked against the code after #657; done since: the
-crash of a struct that holds itself (#659). Each item becomes a
+crash of a struct that holds itself (#659); and the wrong message of a
+cstr's byte set, which was none: `let s = "abc"` is the error there, as
+text is declared with `:=`, and `s[0] = 65` of `let s := "abc"` says a
+cstr is immutable (#660). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
 known, not what is planned.
 
@@ -20,9 +23,6 @@ known, not what is planned.
 
 ## Faults in kelvinc
 
-- **A wrong message:** `s[0] = 65` of a `let` cstr says `'s' is a
-  reference (cstr): assign it with ':='`, where it is that a cstr is
-  immutable (#52).
 - **C warns, and the program runs** (to decide: implicit conversions
   are unchanged from C on purpose):
   - a constant index past a fixed array's end, `a[5]` of `[i64](3)`;
@@ -55,7 +55,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P662 to P664, the details of #657 to #659, until reviewed.
+- P662 to P665, the details of #657 to #660, until reviewed.
 
 ## Open design
 

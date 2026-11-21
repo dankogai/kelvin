@@ -12910,3 +12910,15 @@ and stay as they were.
 Details are provisional P664.
 
 There are 1513 tests, and all pass with clang and with gcc 15.
+
+### 707. A let cstr's byte set
+
+**User:** then fix the wrong message of a let cstr's byte set
+
+**Claude** found no wrong message: the sweep wrote `let s = "abc"`,
+which kelvinc refuses first, at the declaration, as text is declared
+with `:=`; of `let s := "abc"`, `s[0] = 65` says a cstr is immutable
+(#52), as it should. #660 takes the item off TODO.md, and changes no
+code. Details are provisional P665.
+
+There are 1513 tests, and all pass with clang and with gcc 15.
