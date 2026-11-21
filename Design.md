@@ -23,11 +23,15 @@ C is also the symbol for Celsius, and Kelvin is its natural successor. The
 step size is the same, so everything you know about C carries over one to
 one, but it sits on an absolute scale. The source extension is `.k`.
 
-## Status: v0.3.0 (#608)
+## Status: v0.4.0 (#650)
 
-- 0.3.0 puts math and `UnicodeData` in the prelude, with `Kelvin.name`
-  to reach the prelude past a program's own names, makes a String's
-  elements its graphemes, and adds the numbers of any size,
+- 0.4.0 writes C's last features in Kelvin, `thread_local`, `atomic`
+  and `#if os(...)`, adds `<Combinatorics>` and `gather`, makes the `$`
+  of `$[...]` reach every literal inside it, and says Kelvin's own
+  errors where C's came before, kc in kelvinc's words, #609 to #649.
+- 0.3.0 put math and `UnicodeData` in the prelude, with `Kelvin.name`
+  to reach the prelude past a program's own names, made a String's
+  elements its graphemes, and added the numbers of any size,
   `<Rational>` and `<BigNum>`, #515 to #607.
 - 0.2.0 put `RegExp` and `BigInt` in the prelude, with the `123n`
   literal, and the language changes they asked for, #497 to #513:
@@ -705,6 +709,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 647 | A value past the last member of a struct, or the count of a fixed array, is kelvinc's error, where C only warned and dropped it: let q:p = {1, 2} and (p){1, 2} of a struct of one member being p has 1 member, and this gives 2; var a:[i64](3) = [1, 2, 3, 4] being [i64](3) holds 3 elements, and this gives 4, of rows too; after a designator of the last member, p has 2 members, and this value is past its last; and a union's second value, u holds one of its members at a time, and this gives a second value: write one, as in '{.f = v}'. Fewer values leave the rest zero, as in C, and where kelvinc does not follow C's current object, inside a member given no braces, C counts. kc does the same, its words kelvinc's, where it said this struct has fewer members. The user's order, "fix the four kelvinc faults first", the second; kelvinc and kc | src/parser.c; selfhost/gen.k; documents/structs.md, arrays.md, unions.md | tests/error/literal_past_struct.k, literal_past_compound.k, literal_past_array.k, literal_past_rows.k, literal_past_union.k, literal_past_designated.k; tests/run/literal_fills.k | 2026-11-21 |
 | 648 | A fixed array set whole is kelvinc's error, where it was C's: var a:[i64](3) and a = 1, a = b of another array, a = [3, 4], a struct's member s.a = b, and a += 1, each an array is not assigned: assign its elements, a[i], the words kc said already; kelvinc said of a = [3, 4] that an array is no value there, and C the rest. A case of an enum with values that holds an array is still set whole, v.c = [7, 8] (#360), and an element, a row's element too, is set as before. The user's order, "fix the four kelvinc faults first", the third; kelvinc, kc's words | src/parser.c; documents/arrays.md | tests/error/array_assign_value.k, array_assign_array.k, array_assign_literal.k, array_assign_member.k, array_assign_compound.k; tests/run/array_assign_elements.k | 2026-11-21 |
 | 649 | A break in no loop and no switch, and a continue in no loop, are kelvinc's errors, where they were C's: 'break' leaves a loop or a switch, and this is in neither, and 'continue' goes on to the next turn of a loop, and this is in none, of a continue in a switch with no loop around it too. An anonymous function's body is its own, so a loop around it does not hold its break. kc does the same, in the same words. The user's order, "fix the four kelvinc faults first", the last; kelvinc and kc | src/parser.c; selfhost/gen.k; documents/flow-controls.md | tests/error/jump_break_outside.k, jump_continue_outside.k, jump_continue_in_switch.k, jump_break_in_anonymous.k; tests/run/jump_inside_loops.k | 2026-11-21 |
+| 650 | The version bumped to 0.4.0, the release chores the user ordered once the four faults ordered before them were in (#646 to #649): kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.4.0 notes, #609 to #649, the language, the library, Kelvin's errors where C's came, the documents and kc; README.md's line of the release notes; then, as the user ordered, the tag v0.4.0 and the release Kelvin 0.4.0 once CI is clean | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.4.0` | 2026-11-21 |
 
 Notes:
 
@@ -1289,6 +1294,28 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (650) Agreed details: "go on with the release chores"
+  - The user's order, of the chores Claude listed after #649: a
+    CHANGELOG entry, KELVIN_VERSION and the VS Code package's version,
+    the README's release line, then the tag and the release.
+  - The places #467, #496, #514 and #608 set: kelvinc's KELVIN_VERSION,
+    the VS Code package's version and the .vsix's name in its README,
+    which tests/run.sh checks agree; Design.md's status; CHANGELOG.md;
+    the README's line of the release notes.
+  - Claude's choices, the user's to change:
+    - CHANGELOG.md's 0.4.0 comes before 0.3.0's, #609 to #649, in five
+      parts: the language; the library; Kelvin's errors where C's
+      came; the documents, with the review of the provisional rows;
+      and kc.
+    - What a program of 0.3.0 must change is said where it is, "where
+      it was": `$["a", "b"]` an `Array<String>`, a missing return an
+      error, `red.typename` its enum.
+    - Each example of the notes was built and run before it was
+      written there.
+  - The Benchmark workflow is not run: it was not among the chores
+    listed, and it runs on the user's order alone.
+  - The tag and the release follow the push, once CI is clean.
 
 - (649) Agreed details: break and continue outside a loop
   - The user's order: "fix the four kelvinc faults first", the last.
@@ -11759,6 +11786,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P652 | Details of #647 | kelvinc: parse_initializer_for notes `past`, the first value with no designator past the limit, a record's members (one of a union) or a fixed array's count where int_literal_value reads it, while it has not lost C's current object, and says it once the literal ends, by its count or, after a designator, as past the last. kc: gen.k's `past_last_error`, of gen_init where a value has no member, and of a union's second value; its array's count was kelvinc's words already. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P653 | Details of #648 | kelvinc: after reject_let_change in the assignment of a place, an lhs whose value_type is a T_ARRAY is the error, said at the operator, before the value is parsed; not a member of an enum with values, a case its _set (#360). A parameter's array is a reference, whose own errors stand. kc unchanged: gen.k's words, of #354. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P654 | Details of #649 | kelvinc: `reject_stray_jumps` of each function's body, and of each anonymous function's written apart, counting the loops (while, do, for, for-in, for-each) and switches it is inside; `reject_stray_jumps_all` before reject_missing_returns. kc: gen.k's `stray_jump`, of a function's body at the end of gen_function, before missing_return, over S_BLOCK, S_IF, S_IFLET, the loops (S_WHILE, S_DO, S_FOR, S_EACH, S_CFOR) and a switch's cases. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
+| P655 | Details of #650 | src/main.c: KELVIN_VERSION 0.4.0; editors/vscode/package.json and README.md: 0.4.0 and kelvin-lang-0.4.0.vsix; Design.md: the status's heading and its lines of 0.4.0 and 0.3.0; CHANGELOG.md: 0.4.0 before 0.3.0; README.md: the release notes' line. No test is added: tests/run.sh's check that `kelvinc --version` and the package agree is the one of #467. 1506 tests, the documents' blocks and the bootstrap. |
 
 ## Open questions
 

@@ -1,5 +1,119 @@
 # Changelog
 
+## 0.4.0 (#650)
+
+C's last features written in Kelvin, `thread_local`, `atomic` and
+`#if os(...)`; `<Combinatorics>` and `gather`; a `$` that reaches every
+literal inside it; and Kelvin's own errors where C's came before, kc
+saying kelvinc's words: #609 to #649.
+
+### The language
+
+- **The `$` of `$[...]` and `${...}` reaches every literal inside it**
+  (#616) ([arrays.md](documents/arrays.md)): `$["a", "b"]` is an
+  `Array<String>`, where it was an `Array<cstr>`, and
+  `${"k": ["v"]}` a `Dictionary<String, Array<String>>`.
+  - A type written wins: `var cs:$[cstr] = $["x"]` is of cstrs.
+  - `$""` is the type `String` wherever a type goes, `var s:$""`.
+- **Used before written:** a struct, a union, an enum and its words, a
+  typealias and a global, at the top level, as a function is since
+  #505 and as in Swift (#626).
+- **Every path of a function with a result returns a value** (#625)
+  ([functions.md](documents/functions.md)): one that can reach the end
+  of its body is an error, where it was C's warning and the program
+  ran.
+  - A function of no result that never returns is C's `noreturn`, so
+    `_Noreturn` needs no word (#640).
+- **A number prefers a parameter of its own kind** (#632):
+  `twice(small)` of an `i32` calls `twice(n:i64)` over
+  `twice(x:f64)`, where it was an error asking for a conversion.
+- **`thread_local var x`** is each thread's own, C's `_Thread_local`,
+  at the top level and, static, in a block (#641)
+  ([tasks.md](documents/tasks.md)).
+- **`atomic`** is C's `_Atomic`, a qualifier as `const` is, of a
+  number, a bool or a pointer: `var hits:atomic i64 = 0`, and
+  `hits += 1` from eight Tasks loses none (#642).
+- **`#if os(macOS)`, `#elseif`, `#else` and `#endif`**, Swift's
+  conditional compilation, choose code by the platform (#643, #644)
+  ([versusC.md](documents/versusC.md)).
+  - A condition is `os(name)`, joined by `!`, `&&` and `||`; a branch
+    not taken is read as text alone.
+  - `#define` stays left out.
+- **Left out on purpose:** `register`, an error that says so (#640);
+  the text prefixes `L"..."`, `u8"..."`, `u"..."` and `U"..."`, as
+  #295 had them.
+- An enum's word is of its enum to `.typename`: `red.typename` is
+  `color`, where it was `i32` (#622).
+
+### The library
+
+- **`#import <Combinatorics>`** (#614, #615)
+  ([combinatorics.md](documents/combinatorics.md)), as
+  js-combinatorics and swift-combinatorics are:
+  - `Permutation`, `Combination`, `PowerSet`, `BaseN`,
+    `CartesianProduct`, `UniquePermutation`, `Permutations` and
+    `Combinations`, each of indices, a `$[i64]`;
+  - `x.count` a `BigInt`, which any count fits, `Permutation(3).count`
+    `6n`; `x[i]` of an `i64` or a `BigInt`, `for ix in x`, and
+    `x.sample()`;
+  - `factorial`, `permutation`, `combination`, `factoradic` and
+    `combinadic`.
+- **`xs.gather(ix)`** of every Array, and **`s.gather(ix)`** of a
+  String, the elements or graphemes at the indices of a `$[i64]` or an
+  `[i64](N)` (#617, #618): `$"kelvin".gather(Permutation(6)[719])` is
+  `nivlek`.
+- A `BigFloat`'s range is of its leading bit, where it was of its last:
+  2^(2^63) and more is an infinity at any precision, and bits below the
+  least number are rounded off as an `f64`'s subnormals are (#623).
+
+### Kelvin's errors where C's came
+
+Each was C's error or warning, or a program that ran; each is kelvinc's
+now, and kc's in the same words.
+
+- A call of a variable that is no function, and one that hides a
+  function of its name, `let sqrt = 2.0; sqrt(sqrt)` (#620).
+- `self` in a function with no receiver, or in a global's value
+  (#621).
+- A call with another count of arguments than the function takes; a
+  `return` of a value of another type; `p^` of what is no pointer; a
+  comma in a built-in type's subscript, `a[0, 1]` (#627).
+- A name declared twice in one block (#628).
+- Two definitions of one name at the top level, whatever their kinds:
+  two functions of the same parameters, two types, an enumerator and a
+  function, a member twice (#646).
+- A value past a struct's last member or an array's count, which C only
+  warned of and dropped: `[i64](3) holds 3 elements, and this gives 4`
+  (#647).
+- A fixed array set whole, `a = b` or `a = [3, 4]` (#648).
+- `break` in no loop and no switch, and `continue` in no loop (#649).
+- The error of a C directive names `#if os(...)` among Kelvin's own
+  (#645).
+- An undeclared name stays C's to report.
+
+### Documents
+
+- [gotcha.md](documents/gotcha.md) says what Kelvin is not, for one who
+  comes from Swift, JavaScript or Python, and what to write instead: no
+  closures, no generics or protocols of a program's own, no classes,
+  no exceptions (#619).
+- [ownership.md](documents/ownership.md) says what owns by its name, a
+  capital first letter, and names the prelude's owners in a table
+  (#613).
+- The decisions made during implementation, P1 to P644, are reviewed:
+  639 confirmed, as later numbers amend them, and 5 retired (#633 to
+  #639); the open questions Q5, Q10, Q12 and Q14 are answered (#632).
+
+### kc
+
+- `selfhost/errors.sh` runs kc over the programs kelvinc refuses, in
+  the battery and in CI, against a list that only shrinks (#609).
+- kc says kelvinc's errors where it built a program kelvinc refuses
+  (#611), left one to the C compiler (#612), ended itself (#610, #624)
+  or said its own words (#629 to #631): of 431 programs listed, 30 are
+  left, each in kc's own words.
+- It does the same of each change above.
+
 ## 0.3.0 (#608)
 
 math and `UnicodeData` in the prelude, beside `RegExp` and `BigInt`,

@@ -12745,3 +12745,24 @@ function's body is its own, so a loop around it does not hold its
 Details are provisional P654.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 697. Version 0.4.0
+
+**Claude** pushed #649, its battery clean: the four faults ordered
+before the release are in. Then:
+
+> go on with the release chores.
+
+**Claude** had listed them: a CHANGELOG entry, the version of kelvinc
+and of the VS Code package, the README's release line, then the tag and
+the release. The version is 0.4.0, with Design.md's status and the
+README's line. CHANGELOG.md's notes are of #609 to #649: C's last
+features, `thread_local`, `atomic` and `#if os(...)`; `<Combinatorics>`
+and `gather`; a `$` that reaches every literal; Kelvin's own errors
+where C's came; the review of the provisional rows; and kc, which says
+kelvinc's words of all but 30 of the programs kelvinc refuses.
+
+The tag v0.4.0 and the release follow once CI is clean. Details are
+provisional P655.
+
+There are 1506 tests, and all pass with clang and with gcc 15.

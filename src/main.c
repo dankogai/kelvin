@@ -17,7 +17,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define KELVIN_VERSION "0.3.0"
+#define KELVIN_VERSION "0.4.0"
 
 static void usage(FILE *f) {
     fprintf(f,
