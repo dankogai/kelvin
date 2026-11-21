@@ -12832,3 +12832,17 @@ type, and six of enums with no name.
 Details are provisional P659.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 702. kc's last 30, the fourth batch
+
+**Claude** pushed #654, its battery clean, and made the fourth batch
+#655: kc reads an enum with no name whose cases have values far enough
+to say kelvinc's words of its cases, ok or none among them, an
+enumerator and a function of a case's name, and of a type with no tag
+in static let and extend; it builds such an enum not yet, and says so
+where none of these is. 4 are left, of an array's count in a function
+type.
+
+Details are provisional P660.
+
+There are 1506 tests, and all pass with clang and with gcc 15.

@@ -4242,6 +4242,17 @@ let parse_params(n:int64) {
 
 let parse_function():int64 {
     reject_kv_name(pos)                                  // (#611)
+    let w:int64 = self_name < 0 ? anon_case_enum(pos) : 0 - 1
+    if w >= 0 {                                          // a case's name, a word of the program, as kelvinc says it (#655)
+        var e = $"'"
+        e += tok_text(pos)
+        e += "' is a case of "
+        let sp:String = anon_enum_spelling(w)
+        e += &sp
+        e += ", a word of the program: name the function otherwise, or give the enum a tag"
+        parse_error(e.cstr)
+        return make_node(D_FN, pos)
+    }
     let n:int64 = make_node(D_FN, advance())
     begin_function(n)
     parse_params(n)
@@ -4653,6 +4664,40 @@ let parse_struct():int64 {
 // enum t { a, b = 3, c }, C's enum (#210); enum t { none; n: int64 },
 // an enum with values (#215), where a case says the type of its value:
 // then the enum's flag is 1, and each case's ty its value's, or -1
+// the enums with no name whose cases have values, read for their words (#655)
+var anon_tagged:$[int64]
+
+// the enum with no name of a case named as token t, or -1
+let anon_case_enum(t:int64):int64 {
+    for n in anon_tagged {
+        var m:int64 = nodes[n].a
+        while m >= 0 {
+            if same_text(nodes[m].t, t) { return n }
+            m = nodes[m].next
+        }
+    }
+    return 0 - 1
+}
+
+// its spelling, as kelvinc's: enum{red, rgb: {r: u8, g: u8, b: u8}}
+let anon_enum_spelling(n:int64):String {
+    var s = $"enum{"
+    var m:int64 = nodes[n].a
+    while m >= 0 {
+        if m != nodes[n].a { s += ", " }
+        let w:String = tok_text(nodes[m].t)
+        s += &w
+        if nodes[m].ty >= 0 {
+            s += ": "
+            let ty:String = kelvin_type_text(nodes[m].ty)
+            s += &ty
+        }
+        m = nodes[m].next
+    }
+    s += "}"
+    return s
+}
+
 let parse_enum():int64 {
     let local:bool = local_next || block_depth > 0       // its enumerators the block's (#391)
     if at_word("{") && local {
@@ -4704,8 +4749,36 @@ let parse_enum():int64 {
         }
     }
     if nodes[n].flag == 1 && tok_is(nodes[n].t, "enum") {   // as kelvinc's #120, its cases words of the program
-        parse_error("kc reads an enum with no name of plain enumerators, C's constants; not yet with cases of values (#120)")
+        var m:int64 = nodes[n].a
+        while m >= 0 {
+            if tok_is(nodes[m].t, "ok") || tok_is(nodes[m].t, "err") || tok_is(nodes[m].t, "none") || tok_is(nodes[m].t, "some") {
+                var e = $"'"
+                e += tok_text(nodes[m].t)
+                e += "' is a word of Result and Optional (#72, #75): a case of an enum with no tag is a word of the program, so name it otherwise, or give the enum a tag"
+                parse_error_at(nodes[m].t, e.cstr)
+                return n
+            }
+            m = nodes[m].next
+        }
+        anon_tagged += n                                 // read on, its words the program's; kc builds it not yet (#655)
         return n
+    }
+    if nodes[n].flag != 1 {                              // an enumerator named as such a case, as kelvinc says it (#655)
+        var m:int64 = nodes[n].a
+        while m >= 0 {
+            let w:int64 = anon_case_enum(nodes[m].t)
+            if w >= 0 {
+                var e = $"'"
+                e += tok_text(nodes[m].t)
+                e += "' is a case of "
+                let sp:String = anon_enum_spelling(w)
+                e += &sp
+                e += ", a word of the program: name the enumerator otherwise"
+                parse_error_at(nodes[m].t, e.cstr)
+                return n
+            }
+            m = nodes[m].next
+        }
     }
     if nodes[n].flag == 1 && hidden > 0 {                // an enum with values: its cases keep their names
         var m:int64 = nodes[n].a
@@ -4887,7 +4960,55 @@ let receiver_wrong(recv:int64, at:int64, extends:bool):bool {
 // self, a T, first; a function of the type, static, does not; each goes
 // into decls as a D_FN whose c is T's token, its flag 1 where static, 2
 // for a var method, var m(...), whose self is the caller's var (#320)
+// extend enum{...} { }, of a type with no tag, which kc reads not yet
+// (#121): what kelvinc says of what it holds, a type's attribute or
+// function, and Self called, else that kc does not read it (#655)
+let extend_spelled() {
+    var q:int64 = pos + 1
+    var depth:int64 = 0
+    while toks[q].kind != T_EOF {                        // past the spelled type
+        if tok_is(q, "{") { depth += 1 }
+        if tok_is(q, "}") {
+            depth -= 1
+            if depth == 0 { break }
+        }
+        q += 1
+    }
+    q += 1
+    while toks[q].kind == T_NL { q += 1 }
+    if !tok_is(q, "{") {
+        parse_error_at(q, "expected '{' after the type extend names")
+        return
+    }
+    depth = 0
+    while toks[q].kind != T_EOF {
+        if tok_is(q, "{") { depth += 1 }
+        if tok_is(q, "}") {
+            depth -= 1
+            if depth == 0 { break }
+        }
+        if depth == 1 && tok_is(q, "static") && (tok_is(q + 1, "let") || tok_is(q + 1, "var")) && toks[q + 2].kind == T_ID {
+            if tok_is(q + 3, "(") {
+                parse_error_at(q, "a function of a type is called by the type's name, and a type with no tag has none")
+            } else {
+                parse_error_at(q, "a type attribute is read by the type's name, as T.x, and a type with no tag has none")
+            }
+            return
+        }
+        if tok_is(q, "Self") && tok_is(q + 1, ".") && toks[q + 2].kind == T_ID && tok_is(q + 3, "(") {
+            parse_error_at(q, "'Self' here is a type with no tag, which has no name to call a function by")
+            return
+        }
+        q += 1
+    }
+    parse_error("kc reads the methods of a type with no tag not yet (#121): give the type a tag")
+}
+
 let parse_extend() {
+    if (at_word("enum") || at_word("struct") || at_word("union")) && tok_is(pos + 1, "{") {   // a type with no tag (#655)
+        extend_spelled()
+        return
+    }
     let recv_at:int64 = pos
     let recv:int64 = type_path(pos)                      // extend point.kind { } (#389)
     if toks[recv_at].kind == T_ID && receiver_wrong(recv, recv_at, true) { return }   // (#612)
@@ -5399,6 +5520,10 @@ let parse_program() {
             inl = parse_inline(inl)
         }
         if failed { continue }                           // an error put it at the end: read no further (#624)
+        if storage == 1 && at_word("let") && (tok_is(pos + 1, "enum") || tok_is(pos + 1, "struct") || tok_is(pos + 1, "union")) && tok_is(pos + 2, "{") {   // as kelvinc says it (#655)
+            parse_error_at(pos + 1, "a function of a type is called by the type's name, and a type with no tag has none")
+            continue
+        }
         if storage == 1 && (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && !head_method(pos + 1) && head_attribute(pos + 1) {
             let is_let = at_word("let")                  // static let T.x:R = v (#133)
             advance()
@@ -5638,5 +5763,8 @@ let parse_program() {
             }
         }
         skip_newlines()
+    }
+    if !failed && anon_tagged.count > 0 {                // read for kelvinc's errors of its words, not yet built (#655)
+        parse_error_at(nodes[anon_tagged[0]].t, "kc reads an enum with no name of plain enumerators, C's constants; not yet with cases of values (#120)")
     }
 }
