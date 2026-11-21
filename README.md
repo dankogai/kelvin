@@ -806,3 +806,6 @@ So far the changes from C are these, by topic.
   `100.prevPrime`, a `T?`, `n.isSurelyPrime` and `u8.primes`, an
   Iterator of a type's primes; and a computed attribute of a type may
   be of an integer type, `static let i64.answer:i64 { 42 }` (#668)
+- A member a value's type does not have is kelvinc's error of
+  arithmetic too, named by C's type of it: `(n + 1).foo` of a `u8` is
+  `i32 has no member 'foo'`, where it was C's error (#669)

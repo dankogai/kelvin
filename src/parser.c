@@ -1845,6 +1845,7 @@ static Expr *int_limit(Token *t, const char *member);
 static Expr *random_call(Token *t);
 static Expr *float_constant(Token *t, const char *member);
 static Type *seen_number_type(Expr *e);
+static bool c_literal_ints; /* seen_number_type's integer literal is C's type, not Kelvin's i64 (#669) */
 static Decl *plain_enum_of(Type *t);
 static Decl *enum_of(const char *name);
 static Expr *parse_initializer_for(Type *t);
@@ -7178,6 +7179,11 @@ static void reject_unknown_member(Expr *e, Token *name, const char *member) {
     Type *t = value_type(e);
     if (t && t->kind == T_TYPEOF)
         t = t->elem;
+    if (!t) { /* (n + 1).foo of a u8, C's int: an i32's (#669); of literals alone an i64, as #548 has it */
+        c_literal_ints = !literal_arithmetic(e);
+        t = seen_number_type(e);
+        c_literal_ints = false;
+    }
     if (!t)
         return;
     const char *what = kelvin_type(t);
@@ -9587,6 +9593,14 @@ static Type *seen_number_type(Expr *e) {
     if (t)
         return t->kind == T_BASE ? unqualified(t) : NULL;
     const char *lit = literal_type(e);
+    unsigned long long mag;
+    bool neg;
+    if (lit && c_literal_ints && e->kind == E_LITERAL && int_literal_value(e, &mag, &neg)) {
+        /* C's: an int where one holds it, an unsigned int of hex, octal or
+           binary where that does, else a long */
+        bool decimal = e->text[0] != '0' || !e->text[1];
+        return base_type(mag <= 0x7fffffffULL ? "i32" : !decimal && mag <= 0xffffffffULL ? "u32" : "i64", e->pos);
+    }
     if (lit)
         return base_type(lit, e->pos);
     if (e->kind == E_LITERAL && e->text[0] == '\'')

@@ -3478,6 +3478,51 @@ let gen_place(n:int64) {
     put(")")
 }
 
+// a number's type as C has it, as kelvinc's error of a member names it
+// (#669): an integer literal C's int where one holds it, an unsigned int
+// of hex, octal or binary where that does, else a long; a character an
+// int; and of a prefix and arithmetic C's promotions and conversions; -1
+// where kc sees none
+let c_number_type(x:int64):int64 {
+    let k:nkind = nodes[x].kind
+    let t:int64 = nodes[x].t
+    if k == N_NUM {
+        if float_tok(t) { return base_type(Y_F64) }
+        var d:String = literal_digits(t)
+        var int_max = $"2147483647"
+        var uint_max = $"4294967295"
+        if d.count > 0 && !digits_above(&d, &int_max) { return base_type(Y_I32) }
+        let text:String = tok_text(t)
+        let decimal:bool = text.count == 1 || !tok_is_prefixed_zero(&text)
+        if d.count > 0 && !decimal && !digits_above(&d, &uint_max) { return base_type(Y_U32) }
+        return base_type(Y_I64)
+    }
+    if k == N_CHAR { return base_type(Y_I32) }
+    if k == N_UNARY && (tok_is(t, "-") || tok_is(t, "+") || tok_is(t, "~")) { return promoted_int(c_number_type(nodes[x].a)) }
+    if k == N_BIN && (tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "&") || tok_is(t, "|") || tok_is(t, "~") || tok_is(t, "<<") || tok_is(t, ">>")) {
+        let a:int64 = c_number_type(nodes[x].a)
+        let b:int64 = c_number_type(nodes[x].b)
+        if a < 0 || b < 0 { return -1 }
+        let ak:ykind = types[a].kind
+        let bk:ykind = types[b].kind
+        if tok_is(t, "<<") || tok_is(t, ">>") { return is_int_kind(ak) ? promoted_int(a) : 0 - 1 }
+        if ak == Y_F64 || bk == Y_F64 { return base_type(Y_F64) }
+        if ak == Y_F32 || bk == Y_F32 { return base_type(Y_F32) }
+        if !is_int_kind(ak) || !is_int_kind(bk) { return -1 }
+        return usual_int(promoted_int(a), promoted_int(b))
+    }
+    let y:int64 = type_of(x)
+    if y < 0 { return -1 }
+    let yk:ykind = types[y].kind
+    return is_int_kind(yk) || yk == Y_F64 || yk == Y_F32 ? y : 0 - 1
+}
+
+// whether text, a number's, starts with a 0 and so is no decimal
+let tok_is_prefixed_zero(text:const String^):bool {
+    for c in text^.codepoints { return c == '0' }
+    return false
+}
+
 // a type as kelvinc's messages name it: an Array an Array<T> (#284, #286)
 // n, an N_FIELD of the type y whose member kc does not know: kelvinc's
 // error (#497), a built-in type's documents named, its runtime field's
@@ -3600,7 +3645,7 @@ let member_unknown(n:int64, y:int64) {
         gen_error(n, e.cstr)
         return
     }
-    if is_number_kind(k) && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_NUM {   // 1.f, as kelvinc says it
+    if is_number_kind(k) && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_NUM && !tok_is(nodes[nodes[n].a].t + 1, ")") {   // 1.f, as kelvinc says it; (1).f is a value's (#669)
         var e = $"'"
         e += tok_text(nodes[nodes[n].a].t)
         e += "."
@@ -3612,7 +3657,12 @@ let member_unknown(n:int64, y:int64) {
         return
     }
     if is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_FIXED || k == Y_PTR || enum_int(y) {
-        var e = kelvin_type_text(y)
+        var cy:int64 = y
+        if is_number_kind(k) && nodes[n].a >= 0 && literal_arith(nodes[n].a) == 0 {   // (n + 1).foo of a u8: C's int, an i32 (#669)
+            let c:int64 = c_number_type(nodes[n].a)
+            if c >= 0 { cy = c }
+        }
+        var e = kelvin_type_text(cy)
         e += " has no member '"
         e += tok_text(t)
         e += "'"

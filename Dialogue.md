@@ -13059,3 +13059,19 @@ of an integer type, in kelvinc and kc alike.
 Details are provisional P673.
 
 There are 1546 tests, and all pass with clang and with gcc 15.
+
+### 716. A member of arithmetic
+
+**User:** fix the (n + 1).foo fault too
+
+**Claude** found that kelvinc checked a member only of a value whose type it
+sees, and Kelvin infers no type of arithmetic; kelvinc's seen_number_type
+reckons it, but with a literal as Kelvin's i64, where C makes `1` an int.
+
+**Claude** made it #669: the member's error names C's type of the
+arithmetic, `i32 has no member 'foo'`, a literal-only sum staying an i64,
+and kc says it in the same words.
+
+Details are provisional P674.
+
+There are 1550 tests, and all pass with clang and with gcc 15.

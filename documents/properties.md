@@ -275,6 +275,14 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     IO's names its document.
   - A number, a bool, an enum's value, a cstr and a fixed array have
     none.
+    - Arithmetic, whose type C gives, is named by C's type of it
+      (#669): `(n + 1).foo` of a `u8` is `i32 has no member 'foo'`, as
+      C makes `n + 1` an `int`, and `(n + 0xffffffff).foo` of an `i32`
+      names a `u32`; an attribute of that type is read of it, as
+      `(n + 1).small` of an `extend i32` is.
+    - Arithmetic of literals alone is an `i64`, as #548 has it:
+      `(5).foo` and `(2 + 3).foo` name an `i64`, and `5.foo` is the
+      error of a suffix.
   - The runtime's own C fields, as `b.cap` and `s.b`, are no members:
     the error names `.capacity` or `.bytes`.
     `.at` of a Bytes or an Array stays, a borrow.
