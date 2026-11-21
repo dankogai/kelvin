@@ -12922,3 +12922,23 @@ with `:=`; of `let s := "abc"`, `s[0] = 65` says a cstr is immutable
 code. Details are provisional P665.
 
 There are 1513 tests, and all pass with clang and with gcc 15.
+
+### 708. A constant index past the end
+
+**Claude** pushed #660, its battery clean.
+
+**User:** make all three kelvinc's errors
+
+**Claude** asked four things: which literals, which divisions, the
+version, and the push.
+
+**User:** a float's fraction too; integers only; 0.4.x; push each when
+clean
+
+**Claude** made the first #661: a constant index outside a fixed
+array, past its end or before its start, is kelvinc's error and kc's
+in the same words, where C only warned.
+
+Details are provisional P666.
+
+There are 1519 tests, and all pass with clang and with gcc 15.

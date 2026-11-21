@@ -142,6 +142,10 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
 - **`var p := a`** is the pointer C makes of the array, and `p^` is
   `a[0]`. A declaration without a type does the same: `let ap := arr` is
   a pointer, since C does not copy an array into a variable.
+- **A constant index outside a fixed array** is an error (#661):
+  `a[5]` of `[i64](3)` is `index 5 is past the end of [i64](3): its
+  indices are 0 to 2`, and `a[-1]` is before its start.
+  - An index that is no constant is unchecked, as C has it.
 - **An array is not set whole** (#648): `a = b`, `a = [3, 4]`,
   `s.a = b` and `a += 1` are kelvinc's error, `an array is not
   assigned: assign its elements, a[i]`, where they were C's.
@@ -398,7 +402,7 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 | | `.size` | the bytes |
 | | `.align` | its elements' alignment, `alignof` (#395) |
 | | `.typename` | `[i32](4)` |
-| | `a[i]` | an element, unchecked, as C has it |
+| | `a[i]` | an element, unchecked, as C has it; a constant index outside it is an error (#661) |
 | | `for x in a` | each element |
 | | `.pretty` | its text indented, a line for each element (#481) |
 | | printed | `[a, b]`, as inside a struct; a `[u8](N)` its text (#481) |

@@ -793,3 +793,5 @@ So far the changes from C are these, by topic.
   they were C's (#649)
 - A struct that holds itself by value is kelvinc's error, where kelvinc
   ended with a segmentation fault (#659)
+- A constant index outside a fixed array is kelvinc's error, where C
+  only warned (#661)

@@ -2826,6 +2826,29 @@ let type_of(n:int64):int64 {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         let yk:ykind = types[y].kind
+        let ix:int64 = nodes[n].b
+        if yk == Y_FIXED && types[y].name >= 0 && ix >= 0 && !is_slice(n) && !failed {   // a constant index outside it, as kelvinc says it (#661)
+            let neg = nodes[ix].kind == N_UNARY && tok_is(nodes[ix].t, "-") && nodes[ix].a >= 0 && nodes[nodes[ix].a].kind == N_NUM
+            let num:int64 = neg ? nodes[ix].a : ix
+            let at:int64 = nodes[num].kind == N_NUM ? tok_count(nodes[num].t) : 0 - 1
+            let count:int64 = types[y].name
+            if at >= 0 && ((neg && at > 0) || (!neg && at >= count)) {
+                var m = $"index "
+                if neg { m += "-" }
+                m += String(at)
+                m += neg ? " is before the start of " : " is past the end of "
+                let w:String = type_text(y)
+                m += &w
+                if count > 0 {
+                    m += ": its indices are 0 to "
+                    m += String(count - 1)
+                } else {
+                    m += ": it has none"
+                }
+                gen_error(ix, m.cstr)
+                return -1
+            }
+        }
         let iy:int64 = nodes[n].b >= 0 ? type_of(nodes[n].b) : 0 - 1
         if iy >= 0 && types[iy].kind == Y_RANGE {                    // xs[r], a slice, a new one (#377)
             if yk == Y_BYTES {                                       // not yet kc's (#439)

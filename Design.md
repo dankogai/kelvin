@@ -720,6 +720,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 658 | TODO.md, at the top of the repository, is what is left, checked against the code after #657: the rule of the versions, that the version stays 0.4.x so long as the grammar and the semantics stay the same, a change of either 0.5.0, and the release chores done only when ordered; the faults in kelvinc found by the sweep after #656, a crash of a struct that holds itself by value, a wrong message of s[0] = 65 of a let cstr, and three that C only warns of, a constant index past a fixed array's end, a constant division by zero and a literal that does not fit its type, to decide; kc's 29 places of not yet and its const const; the provisional rows; and the open design, closures and protocols, long double and f128. README.md names it. The user's order, "Save the list above in TODO.md. Also note so long as the grammar and the semantics stays the same, the version stays 0.4.x"; records | TODO.md; README.md | — | 2026-11-21 |
 | 659 | A struct, a union or an enum with values that holds itself by value is kelvinc's error, where kelvinc ran out of stack and ended with a segmentation fault, exit 139, going round its members to free them: struct node { x:i64; next:node } is 'next' makes node hold itself, and a value that holds itself has no size: hold it by a pointer, node^, or in an Array<node>; so of a node? and a [node](2), which hold their value, of a case of an enum with values, enum tree { leaf; node: tree }, of a union, where C said field has incomplete type, and of two that hold each other, the first written said. A pointer, an Optional of a pointer and an Array<node> each have a size, and stay as they were. kc ended the same way, and says it in the same words. The user's order, "fix the kelvinc crash on a self-holding struct first", the first of TODO.md's faults; kelvinc and kc | src/parser.c; selfhost/gen.k; documents/structs.md; TODO.md | tests/error/self_holding_struct.k, self_holding_pair.k, self_holding_optional.k, self_holding_array.k, self_holding_enum.k, self_holding_union.k; tests/run/self_holding_by_pointer.k | 2026-11-21 |
 | 660 | TODO.md's wrong message of a let cstr's byte set is taken off, as it was none: the sweep wrote let s = "abc", which is the error kelvinc says first, 's' is a reference (cstr): assign it with ':=', not '=', at the declaration, as text is declared with :=; of let s := "abc" or var s := "abc", s[0] = 65 is a cstr is immutable (#52), as it was, of kelvinc and of kc. No code changes. The user's order, "then fix the wrong message of a let cstr's byte set"; records | TODO.md | — | 2026-11-21 |
+| 661 | A constant index outside a fixed array is kelvinc's error, where C only warned, array index 5 is past the end of the array, and the program read or wrote past it: var a:[i64](3) and a[5] is index 5 is past the end of [i64](3): its indices are 0 to 2, so of a[3] = 4, of a row's index, m[1][2] of [[i64](2)](3), and of an array whose type is inferred, let a = [1, 2, 3]; a[-1] is index -1 is before the start of [i64](3). An index that is no constant is unchecked, as C has it, and a parameter's array, a pointer in C, is as it was. kc says it in the same words. The user's order, "make all three kelvinc's errors", the first, and of the four asked the answers: of the literals, a float's fraction too; of division, integers only; 0.4.x; push each when clean; kelvinc and kc | src/parser.c; selfhost/gen.k; documents/arrays.md; TODO.md | tests/error/index_const_past.k, index_const_set.k, index_const_negative.k, index_const_rows.k, index_const_inferred.k; tests/run/index_const_inside.k | 2026-11-21 |
 
 Notes:
 
@@ -1304,6 +1305,20 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (661) Agreed details: TODO.md's three, a constant index past the end
+  - The user's order: "make all three kelvinc's errors", of a constant
+    index past a fixed array's end, a constant division by zero and a
+    literal that does not fit its type, one number each, #661 to #663.
+  - The user's answers: the literals of an integer type out of range and
+    a float's fraction into an integer too (not the recommended);
+    division of integers alone (recommended); 0.4.x, an error where C
+    warned of what is wrong changing no correct program (recommended);
+    push each when its battery is clean (recommended).
+  - Claude's choices, the user's to change:
+    - A constant is a literal, signed or not; an index that is an
+      expression C folds is unchecked, as before.
+    - A parameter's array, which C passes as a pointer, is not checked.
 
 - (660) Agreed details: the byte set of a let cstr, no fault
   - The user's order: "then fix the wrong message of a let cstr's byte
@@ -11902,6 +11917,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P663 | Details of #658 | TODO.md, of five parts: the versions, the faults in kelvinc, kc, the provisional rows and the open design; README.md's line of it after CHANGELOG.md's. No test is added. 1506 tests, the documents' blocks and the bootstrap. |
 | P664 | Details of #659 | kelvinc: `holds_by_value` and `reject_self_holding`, after the top level is read, over `records`, a fixed array's element where it is counted, a variant_record's or a struct's members; the earliest member by its position. kc: gen.k's `holds_by_value` and `reject_self_holding` before reject_duplicates, over decls, by decl_named, tagged_of and some_type, those kc makes (_kv_, an Optional's) passed over. TODO.md: the crash taken off. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P665 | Details of #660 | TODO.md: the item taken off, and said under done since; checked by kelvinc of let s := "abc" and var s := "abc", each `a cstr is immutable (#52)` at s[0] = 65. No test is added. 1513 tests, the documents' blocks and the bootstrap. |
+| P666 | Details of #661 | kelvinc: where the postfix [ reads an index, of value_type(e) as written (unqualified() makes an array a pointer), through T_TYPEOF, a T_ARRAY whose size and the index are int_literal_value: past the count, or negative, the error, not of a slice. kc: gen.k's type_of of N_INDEX, a Y_FIXED of a literal count, the index an N_NUM or - of one, by tok_count, not is_slice. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 
 ## Open questions
 

@@ -2278,6 +2278,22 @@ static Expr *parse_postfix_steps(Expr *e) {
                                         "indices; a slice is [lo..<hi]",
                              n);
                 }
+                unsigned long long count, at;
+                bool count_neg, at_neg;
+                Type *at_t = value_type(e); /* as written: unqualified() makes an array the pointer C passes */
+                while (at_t && at_t->kind == T_TYPEOF)
+                    at_t = at_t->elem;
+                if (at_t && at_t->kind == T_ARRAY && at_t->size && int_literal_value(at_t->size, &count, &count_neg) &&
+                    int_literal_value(x->b, &at, &at_neg) && ((at_neg && at) || at >= count) &&
+                    !is_p(peek(), "..<") && !is_p(peek(), "...")) {
+                    /* a constant index outside a fixed array, which C only warns of (#661) */
+                    bare_tags = true;
+                    char *shown = kelvin_type(at_t);
+                    bare_tags = false;
+                    char *range = count ? strfmt("its indices are 0 to %llu", count - 1) : strfmt("it has none");
+                    error_at(x->b->pos, "index %s%llu is %s %s: %s", at_neg ? "-" : "", at,
+                             at_neg ? "before the start of" : "past the end of", shown, range);
+                }
                 if (is_range_literal(x->b) && !x->b->paren) { /* [lo..<hi], [lo...hi], [lo...] (#68), read as a range (#373) */
                     Expr *r = x->b;
                     slice = true;
