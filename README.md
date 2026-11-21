@@ -791,3 +791,5 @@ So far the changes from C are these, by topic.
   C's (#648)
 - `break` and `continue` outside a loop are kelvinc's errors, where
   they were C's (#649)
+- A struct that holds itself by value is kelvinc's error, where kelvinc
+  ended with a segmentation fault (#659)

@@ -37,6 +37,10 @@ let q = (point){.y = 7}     // a compound literal; q is a point
 
 - **Struct and union members** are written `name: type`, ended by `;` or
   a new line, with no keyword: `struct p { x: i32; y: i32 }`.
+  - A struct holds itself by a pointer, `next: node^`, or in an
+    `Array<node>`, never by value (#659): `next: node`, a `node?`, a
+    `[node](2)`, or another struct that holds it so, is an error that
+    says so, as no size fits it.
 - **A struct, union or enum is a type by its bare name** (#29), as if C
   had `typedef struct point point;`.
   - `var p:point`, `next: node^` inside `struct node`, `sizeof(point)`,

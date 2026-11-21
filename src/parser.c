@@ -18708,6 +18708,65 @@ static void reject_duplicates(Program *prog) {
     }
 }
 
+/* whether a value of type t holds a target by value: itself, an element
+   of a fixed array, a member of a struct or a union, a case of an enum
+   with values, an Optional's or a Result's value (#659) */
+static bool holds_by_value(Type *t, Decl *target, List *seen) {
+    if (!t)
+        return false;
+    if (t->kind == T_ARRAY)
+        return t->size && holds_by_value(t->elem, target, seen);
+    if (t->kind != T_BASE)
+        return false;
+    Decl *r = variant_record(t);
+    if (!r && type_class(t, &r) != 's')
+        r = NULL;
+    if (!r)
+        return false;
+    if (r == target)
+        return true;
+    if (list_has(seen, r))
+        return false;
+    list_push(seen, r);
+    for (int i = 0; i < r->members.len; i++)
+        if (holds_by_value(((Var *)r->members.data[i])->type, target, seen))
+            return true;
+    return false;
+}
+
+/* a struct, a union or an enum with values that holds itself by value,
+   directly or through another: no size fits it, and kelvinc went round
+   its members until its stack ran out (#659) */
+static void reject_self_holding(void) {
+    Decl *r = NULL; /* the first written of the members that do so: types are moved up before others (#626) */
+    Var *m = NULL;
+    for (int i = 0; i < records.len; i++) {
+        Decl *ri = records.data[i];
+        if ((ri->kind != D_STRUCT && ri->kind != D_UNION) || !ri->has_body || ri->lazy)
+            continue;
+        for (int k = 0; k < ri->members.len; k++) {
+            Var *mk = ri->members.data[k];
+            List seen = {0};
+            if (!holds_by_value(mk->type, ri, &seen))
+                continue;
+            if (!m || (mk->pos.file && m->pos.file && !strcmp(mk->pos.file, m->pos.file) &&
+                       (mk->pos.line < m->pos.line || (mk->pos.line == m->pos.line && mk->pos.col < m->pos.col)))) {
+                r = ri;
+                m = mk;
+            }
+        }
+    }
+    if (!m)
+        return;
+    bare_tags = true;
+    Type self = {.kind = T_BASE, .name = strfmt("%s %s", r->kind == D_UNION ? "union" : "struct", r->name)};
+    char *shown = kelvin_type(&self);
+    bare_tags = false;
+    error_at(m->pos, "'%s' makes %s hold itself, and a value that holds itself has no size: hold it by a pointer, %s^, "
+                     "or in an Array<%s>",
+             m->name, shown, shown, shown);
+}
+
 Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
     c_called = (List){0};
@@ -19008,6 +19067,7 @@ Program *parse(Token *tokens, int ntoks) {
             error_at(peek()->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }
     }
+    reject_self_holding(); /* (#659) */
     if (inline_next) /* (#392) */
         error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
     end_alignas(); /* (#396) */

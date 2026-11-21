@@ -1,6 +1,7 @@
 # TODO
 
-What is left, checked against the code after #657. Each item becomes a
+What is left, checked against the code after #657; done since: the
+crash of a struct that holds itself (#659). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
 known, not what is planned.
 
@@ -19,10 +20,6 @@ known, not what is planned.
 
 ## Faults in kelvinc
 
-- **A crash:** `struct p { x:i64; next:p }`, a struct that holds itself
-  by value, ends kelvinc with a segmentation fault (exit 139), where it
-  is an error that says to hold a `p^`.
-  - kc is not checked of it yet.
 - **A wrong message:** `s[0] = 65` of a `let` cstr says `'s' is a
   reference (cstr): assign it with ':='`, where it is that a cstr is
   immutable (#52).
@@ -58,7 +55,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P662 and P663, the details of #657 and #658, until reviewed.
+- P662 to P664, the details of #657 to #659, until reviewed.
 
 ## Open design
 

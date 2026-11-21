@@ -12894,3 +12894,19 @@ grammar and the semantics stays the same, the version stays 0.4.x.
 README.md names it. Details are provisional P663.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 706. A struct that holds itself
+
+**Claude** pushed #658, its battery clean.
+
+**User:** fix the kelvinc crash on a self-holding struct first
+
+**Claude** made it #659: a struct, a union or an enum with values that
+holds itself by value, through a member, a fixed array, an Optional or
+another struct, is kelvinc's error and kc's in the same words, where
+both ran out of stack. A pointer and an Array are the ways to hold one,
+and stay as they were.
+
+Details are provisional P664.
+
+There are 1513 tests, and all pass with clang and with gcc 15.

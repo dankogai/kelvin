@@ -22238,10 +22238,66 @@ let reject_duplicates() {
 
 var vla_pending:int64 = 0 - 1   // a parameter's array of arrays whose inner count C computes, kc's not yet (#656)
 
+// whether a value of type y holds the declaration target by value: itself,
+// an element of a fixed array, a member of a struct or a union, a case of
+// an enum with values, an Optional's value (#659)
+let holds_by_value(y:int64, target:int64, seen:$[int64]^):bool {
+    if y < 0 { return false }
+    let k = types[y].kind
+    if k == Y_FIXED { return types[y].name != 0 - 2 && types[y].name != 0 - 4 && holds_by_value(types[y].elem, target, seen) }
+    if k != Y_STRUCT { return false }
+    var d:int64 = decl_named(types[y].name, D_STRUCT)
+    if d < 0 { d = tagged_of(y) }
+    if d < 0 {
+        let v:int64 = some_type(y)
+        return v >= 0 && holds_by_value(v, target, seen)
+    }
+    if d == target { return true }
+    if seen^.contains(d) { return false }
+    seen^ += d
+    var m:int64 = nodes[d].a
+    while m >= 0 {
+        if holds_by_value(nodes[m].ty, target, seen) { return true }
+        m = nodes[m].next
+    }
+    return false
+}
+
+// a struct, a union or an enum with values that holds itself by value, as
+// kelvinc says it: no size fits it, and kc went round its members until
+// its stack ran out (#659)
+let reject_self_holding() {
+    for d in decls {
+        let k = nodes[d].kind
+        if !(k == D_STRUCT || (k == D_ENUM && nodes[d].flag == 1)) || tok_starts(nodes[d].t, "_kv_") { continue }   // not one kc makes, an Optional's
+        var m:int64 = nodes[d].a
+        while m >= 0 {
+            var seen:$[int64] = $[]
+            if holds_by_value(nodes[m].ty, d, &seen) {
+                let shown:String = kelvin_name(nodes[d].t)
+                var e = $"'"
+                e += tok_text(nodes[m].t)
+                e += "' makes "
+                e += &shown
+                e += " hold itself, and a value that holds itself has no size: hold it by a pointer, "
+                e += &shown
+                e += "^, or in an Array<"
+                e += &shown
+                e += ">"
+                gen_error(m, e.cstr)
+                return
+            }
+            m = nodes[m].next
+        }
+    }
+}
+
 let gen_program() {
     text_methods_of()                                    // (#542)
     if failed { return }
     index_names()
+    reject_self_holding()                                // (#659)
+    if failed { return }
     reject_duplicates()                                  // (#646)
     if failed { return }
     count_overloads()
