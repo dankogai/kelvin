@@ -3292,7 +3292,7 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
         }
         lead += &name
         lead += "' is"
-        if !typed_value_ok(a, py0, &lead) { return false }
+        if !computed_count_in(py0, 0 - 1) && !typed_value_ok(a, py0, &lead) { return false }   // a count C computes, C's to check, as kelvinc leaves it (#656)
     }
     if bare_init(a) && nodes[p].ty >= 0 && (types[nodes[p].ty].kind == Y_FIXED || (types[nodes[p].ty].kind == Y_STRUCT && tagged_of(nodes[p].ty) < 0 && !enum_int(nodes[p].ty))) {
         var m = $"a list is not a value here: the parameter is "   // as kelvinc says it (#32, #612)
@@ -3309,11 +3309,11 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
     who += "' of '"
     who += tok_text(nodes[d].t)
     who += "'"
-    if !fixed_ptr_ok(a, nodes[p].ty, &who) { return false }
+    if !computed_count_in(nodes[p].ty, 0 - 1) && !fixed_ptr_ok(a, nodes[p].ty, &who) { return false }   // (#656)
     if !takes_borrow(a, nodes[p].ty, &who) { return false }
     let py:int64 = nodes[p].ty
     if py >= 0 && types[py].kind == Y_FIXED {            // an array, which C passes as a pointer (#357)
-        if !fixed_arg_ok(a, py, &who) { return false }
+        if !computed_count_in(py, 0 - 1) && !fixed_arg_ok(a, py, &who) { return false }   // a count C computes, C's to check (#656)
         gen_expr(a)
         return true
     }
@@ -13078,6 +13078,44 @@ let indent(depth:int64) {
 // infers it (#214): a literal, a bool, a comparison, a cast, and what kc
 // sees of a name, a call, a member or an element; not arithmetic, nor
 // what only C sees; "text" by := is a cstr
+// whether type y holds a fixed array whose count C computes, of a name
+// or an expression of another scope, which a function type cannot carry
+// (#656); of the parameters of anonymous function an alone where an >= 0
+let computed_count_in(y:int64, an:int64):bool {
+    if y < 0 { return false }
+    let k = types[y].kind
+    if k == Y_FIXED && types[y].name <= 0 - 10 {
+        if an < 0 { return true }
+        let c:int64 = 0 - 10 - types[y].name
+        var p:int64 = nodes[an].a
+        while p >= 0 {
+            if nodes[c].kind == N_ID && same_text(nodes[c].t, nodes[p].t) { return true }
+            p = nodes[p].next
+        }
+    }
+    if k == Y_FIXED || k == Y_PTR { return computed_count_in(types[y].elem, an) }
+    return false
+}
+
+// an anonymous function's type as kelvinc writes it: (i64, [[i64](n)](2)):i64
+let anon_type_text(an:int64):String {
+    var s = $"("
+    var p:int64 = nodes[an].a
+    while p >= 0 {
+        if p != nodes[an].a { s += ", " }
+        let w:String = kelvin_type_text(nodes[p].ty)
+        s += &w
+        p = nodes[p].next
+    }
+    s += ")"
+    if nodes[an].ty >= 0 {
+        s += ":"
+        let r:String = kelvin_type_text(nodes[an].ty)
+        s += &r
+    }
+    return s
+}
+
 let inferred(n:int64):int64 {
     let v:int64 = nodes[n].a
     if v < 0 {
@@ -13086,6 +13124,22 @@ let inferred(n:int64):int64 {
     }
     resolve_op(v)
     let k:nkind = nodes[v].kind
+    if k == N_ANON && nodes[v].flag == 0 {               // a count of its own parameter, as kelvinc says it (#656)
+        var p:int64 = nodes[v].a
+        while p >= 0 {
+            if computed_count_in(nodes[p].ty, v) {
+                var m = $"'"
+                m += tok_text(nodes[n].t)
+                m += "' needs a type: in "
+                let w:String = anon_type_text(v)
+                m += &w
+                m += ", an array length names a parameter, which a function type cannot carry; write a type without it, as in a pointer"
+                gen_error(n, m.cstr)
+                return -1
+            }
+            p = nodes[p].next
+        }
+    }
     if k == N_STR {
         if nodes[n].c != 1 { cstr_ref_error(n) }
         return base_type(Y_CSTR)
@@ -13202,7 +13256,7 @@ let type_text(y:int64):String {
         if types[y].name <= 0 - 10 {                     // [u8](n), of a count C computes (#366)
             let c:int64 = 0 - 10 - types[y].name
             s += "("
-            s += nodes[c].kind == N_ID ? tok_text(nodes[c].t) : $"n"
+            s += nodes[c].kind == N_ID || nodes[c].kind == N_NUM ? tok_text(nodes[c].t) : $"..."   // as kelvinc writes what it does not spell (#656)
             s += ")"
         } else if types[y].name >= 0 {
             s += "("
@@ -15448,6 +15502,28 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
     name += "_fn"
     anon_serial += 1                                 // its own number, where one inside another is made first (#444)
     name += String(anon_serial)
+    if nodes[an].flag == 1 {                         // a count of another scope in $k's type, as kelvinc says it (#656)
+        for k in 0..<ps^.count as int64 {
+            if computed_count_in(ps^[k], 0 - 1) {
+                var m = $"the type of $"
+                m += String(k)
+                m += ", "
+                let w:String = kelvin_type_text(ps^[k])
+                m += &w
+                m += ", has an array length or a .type written in another scope, which kelvinc cannot carry into this function: write its parameters, as in '{ (a:T):R in ... }'"
+                gen_error(an, m.cstr)
+                return 0 - 1
+            }
+        }
+    }
+    if nodes[an].ty < 0 && ry >= 0 && computed_count_in(ry, 0 - 1) {   // and in its result, so
+        var m = $"the result type, "
+        let w:String = kelvin_type_text(ry)
+        m += &w
+        m += ", has an array length or a .type written in another scope, which kelvinc cannot carry into this function: write the result"
+        gen_error(an, m.cstr)
+        return 0 - 1
+    }
     let d:int64 = make_node(D_FN, made_token(&name))
     anon_outer[d] = current                          // where it is written (#602)
     if lend >= 0 { lent_from[d] = lend }
@@ -15824,6 +15900,14 @@ let gen_fn_value(n:int64, y:int64) {
     if failed { return }
     if given >= 0 && types[given].kind == Y_C {          // nowhere, and what only C sees
         gen_expr(n)
+        return
+    }
+    if k == N_ANON && nodes[n].flag == 0 && nodes[n].ty < 0 && y >= 0 && types[y].kind == Y_FN && computed_count_in(types[y].elem, 0 - 1) {   // as kelvinc says it (#656)
+        var m = $"the result type, "
+        let w:String = kelvin_type_text(types[y].elem)
+        m += &w
+        m += ", has an array length or a .type written in another scope, which kelvinc cannot carry into this function: write the result"
+        gen_error(n, m.cstr)
         return
     }
     if given != y {
@@ -21166,6 +21250,17 @@ let gen_function(d:int64) {
             inner = types[inner].elem
         }
         if as_param && !counted {
+            var computed = true                          // each inner count one C computes, as kelvinc takes it (#656)
+            var q:int64 = pe
+            while q >= 0 && types[q].kind == Y_FIXED {
+                if types[q].name < 0 && types[q].name > 0 - 10 { computed = false }
+                q = types[q].elem
+            }
+            if computed {                                // which kc builds not yet: said once all is read, after kelvinc's errors
+                if vla_pending < 0 { vla_pending = p }
+                close_scope()
+                return
+            }
             gen_error(p, "a parameter's array of arrays counts the inner ones, as C must: [[T](N)]")
             return
         }
@@ -22141,6 +22236,8 @@ let reject_duplicates() {
     }
 }
 
+var vla_pending:int64 = 0 - 1   // a parameter's array of arrays whose inner count C computes, kc's not yet (#656)
+
 let gen_program() {
     text_methods_of()                                    // (#542)
     if failed { return }
@@ -22399,4 +22496,7 @@ let gen_program() {
     put_async_bodies()
     for i in 0..<shown.count as int64 { gen_show(shown[i]) }
     for i in 0..<compared.count as int64 { gen_eq(compared[i]) }
+    if !failed && vla_pending >= 0 {                     // (#656)
+        gen_error(vla_pending, "kc reads a parameter's array of arrays whose inner count C computes not yet (#366): count it with a constant, or take a pointer")
+    }
 }

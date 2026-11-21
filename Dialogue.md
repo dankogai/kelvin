@@ -12846,3 +12846,16 @@ type.
 Details are provisional P660.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 703. kc's last 30, the last batch
+
+**Claude** pushed #655, its battery clean, and made the last batch
+#656: a $0 and a result typed by a function type whose array count is
+of another scope, and a let of an anonymous function whose count names
+its own parameter, are kc's in kelvinc's words. kc says each of the 990
+programs kelvinc refuses in kelvinc's words, and selfhost/errors.txt
+lists none.
+
+Details are provisional P661.
+
+There are 1506 tests, and all pass with clang and with gcc 15.

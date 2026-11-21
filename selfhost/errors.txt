@@ -3,7 +3,3 @@
 # own; c, the C compiler's; built; crash. selfhost/errors.sh checks kc
 # against it, and writes it anew with --write. A line goes as kc learns
 # the error.
-words anon_context_length.k
-words anon_context_sizeof.k
-words anon_infer_length.k
-words anon_result_length.k
