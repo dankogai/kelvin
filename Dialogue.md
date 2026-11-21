@@ -12766,3 +12766,21 @@ The tag v0.4.0 and the release follow once CI is clean. Details are
 provisional P655.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 698. The review, batch 8
+
+**Claude** released 0.4.0, and listed what is left: the review of
+P645 to P655, and kc's gaps.
+
+**User:** then review P645 to P655
+
+**Claude** put the 11 detail rows to the user as a file, the details
+of #640 to #650: none superseded, none marked in a document.
+
+**User:** confirm, as amended later (recommended)
+
+**Claude** made it #651: each row is marked confirmed, as later numbers
+amend it, and no row before P656 is provisional. Details are
+provisional P656.
+
+There are 1506 tests, and all pass with clang and with gcc 15.
