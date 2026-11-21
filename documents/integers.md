@@ -74,6 +74,22 @@ Everything else about literals is C's:
   - It is `0o` or `0O` and digits of 0 to 7: `0o18` is an error.
 - An `n` after an integer's digits makes a `BigInt` (#508), as in JS:
   `123n`, `0xffn`, `0o17n`, `0b101n`; see [bigint.md](bigint.md).
+- **A `_` among the digits** is left out, as Swift and Perl have it
+  (#671): `1_000_000` is 1000000, `0x7fff_ffff` 2147483647, and
+  `0b1010_1010`, `0o7_7` and `1_000n` likewise.
+  - It goes after a digit or another `_`, so `1__0` and `1_` are 10
+    and 1, as Swift's are.
+  - The digits after `0x`, `0o` or `0b` begin with a digit: `0x_ff` is
+    an error that says where a `_` goes, and so is `0_x10`, whose `0x`
+    is not written as it is.
+  - A float's fraction and exponent are the same: `1_000.000_1`,
+    `1e1_0`, `0x1_0.8p1`; `1e_5` is an error.
+  - `0_10` is `010`, C's octal 8, as `010` is.
+  - It is of literals alone: text read at run time is as before, so
+    `i64("1_000")` is 1, as `strtol` reads it; a number's text never has
+    one, so what `print` writes reads back.
+  - An error of a literal quotes it as written: `1_000u` names
+    `'1_000u'`.
 - A literal inside an expression still has C's type, so a bare `1` is
   C's `int` (an `i32`).
 - Where C would write `1UL << 40`, Kelvin writes `1:u64 << 40`.

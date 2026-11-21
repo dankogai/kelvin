@@ -40,6 +40,8 @@ text, print and show as text. Integers are in
     constants as attributes of the type, `f64.pi` (#148); see
     [modules.md](modules.md).
 - **Literals** are C's: `1.5`, exponents `1e9`, and hex floats `0x1p4`.
+  - A `_` among the digits is left out (#671), as an integer's is:
+    `1_000.000_1`, `1e1_0`; see [integers.md](integers.md#literals).
   - C's suffixes `f` and `L` (`1.5f`, `1.5L`) are errors. The type
     belongs on the declaration, or on the value as an annotation:
     `var f:f32 = 1.5`, `1.5:f32`.

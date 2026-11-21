@@ -249,7 +249,8 @@ static void skip_space(Lexer *lx) {
 /* Kelvin literals carry no size or type hints: C's suffixes (10UL, 10u,
    1.5f, 1.5L) are rejected, and the type goes on the declaration instead,
    as in `x: u64 = 10`. */
-static void check_number(Pos pos, const char *s, const char *end) {
+static void check_number(Pos pos, const char *s, const char *end, const char *ts, const char *te) {
+    /* ts to te: the text as written, its _ too (#671), which a message quotes */
     const char *p = s;
     bool hex = p[0] == '0' && (p[1] == 'x' || p[1] == 'X');
     bool bin = p[0] == '0' && (p[1] == 'b' || p[1] == 'B');
@@ -259,7 +260,7 @@ static void check_number(Pos pos, const char *s, const char *end) {
             ;
         if (p == end && end - s > 2)
             return;
-        error_at(pos, "malformed number '%.*s': an octal number is 0o and digits of 0 to 7, as in 0o17", (int)(end - s), s);
+        error_at(pos, "malformed number '%.*s': an octal number is 0o and digits of 0 to 7, as in 0o17", (int)(te - ts), ts);
     }
     if (hex || bin)
         p += 2;
@@ -280,16 +281,16 @@ static void check_number(Pos pos, const char *s, const char *end) {
     }
     if (p == end)
         return;
-    int n = (int)(end - s);
+    int n = (int)(te - ts);
     if (strspn(p, "uUlLfF") >= (size_t)(end - p)) {
         /* suggest the Kelvin type closest to what the suffix meant */
         bool has_f = memchr(p, 'f', (size_t)(end - p)) || memchr(p, 'F', (size_t)(end - p));
         bool has_u = memchr(p, 'u', (size_t)(end - p)) || memchr(p, 'U', (size_t)(end - p));
         const char *type = floating ? (has_f ? "f32" : "f64") : has_u ? "u64" : "i64";
         error_at(pos, "'%.*s': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'x:%s = %.*s'",
-                 n, s, type, (int)(p - s), s);
+                 n, ts, type, n - (int)(end - p), ts);
     }
-    error_at(pos, "malformed number '%.*s'", n, s);
+    error_at(pos, "malformed number '%.*s'", n, ts);
 }
 
 /* Does the '.' at `dot` start a method call on the number that began at
@@ -316,7 +317,7 @@ static bool method_after_number(const char *start, const char *dot) {
 /* 123n, 0xffn, 0b101n (#508), as JS writes a BigInt: an integer's digits
    and an n, which become BigInt("123", 10), the prelude's; false where
    the text before the n is no integer, which check_number refuses */
-static bool big_literal(Lexer *lx, Pos pos, const char *s, const char *end) {
+static bool big_literal(Lexer *lx, Pos pos, const char *s, const char *end, const char *ts, const char *te) {
     int base = 10;
     const char *d = s;
     if (end - s > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X' || s[1] == 'b' || s[1] == 'B' || s[1] == 'o' || s[1] == 'O')) {
@@ -332,9 +333,9 @@ static bool big_literal(Lexer *lx, Pos pos, const char *s, const char *end) {
     if (d == end)
         return false;
     if (base == 10 && end - s > 1 && s[0] == '0')
-        error_at(pos, "'%.*sn': a BigInt literal is decimal, 0x hex, 0o octal or 0b binary, with no leading 0: C's "
+        error_at(pos, "'%.*s': a BigInt literal is decimal, 0x hex, 0o octal or 0b binary, with no leading 0: C's "
                       "octal is none of them",
-                 (int)(end - s), s);
+                 (int)(te - ts), ts); /* as written, its _ too (#671) */
     push_text(lx, TK_IDENT, pos, "BigInt");
     lx->toks[lx->len - 1].bigint = true;
     push_text(lx, TK_PUNCT, pos, "(");
@@ -345,6 +346,35 @@ static bool big_literal(Lexer *lx, Pos pos, const char *s, const char *end) {
     push_text(lx, TK_PUNCT, pos, ")");
     free(digits);
     return true;
+}
+
+/* 1_000, 0xff_ff, 1_000.000_1, 1e1_0, 1_000n (#671): a _ among a number's
+   digits, as Swift has it, after a digit or another _, so that the digits
+   of the integer part, of the fraction and of the exponent each begin with
+   a digit, and a 0x, 0o or 0b is as written: 0x_ff, 1e_5 and 0_x10 are
+   none. The text without them, which a number's other checks read, or the
+   error */
+static char *without_separators(Pos pos, const char *s, const char *end) {
+    bool prefixed = s[1] && s[0] == '0' && strchr("xXbBoO", s[1]);
+    bool hex = prefixed && (s[1] == 'x' || s[1] == 'X'), exponent = false;
+    Buf out = {0};
+    buf_puts(&out, "");
+    for (const char *p = s; p < end; p++) {
+        if (hex && (*p == 'p' || *p == 'P'))
+            exponent = true; /* a hex float's exponent, decimal digits */
+        if (*p != '_') {
+            buf_putn(&out, p, 1);
+            continue;
+        }
+        char prev = p[-1]; /* p > s: a number begins with a digit */
+        if (prev != '_' && !isdigit((unsigned char)prev) && !(hex && !exponent && isxdigit((unsigned char)prev)))
+            error_at(pos, "malformed number '%.*s': a '_' separates digits and follows one, as in 1_000 or 0xff_ff",
+                     (int)(end - s), s);
+    }
+    if (!prefixed && out.buf[0] == '0' && out.buf[1] && strchr("xXbBoO", out.buf[1]))
+        error_at(pos, "malformed number '%.*s': a '_' separates digits and follows one, as in 1_000 or 0xff_ff",
+                 (int)(end - s), s);
+    return out.buf;
 }
 
 /* A C "preprocessing number": digits, letters, underscores and dots, plus
@@ -364,18 +394,28 @@ static void lex_number(Lexer *lx) {
             break;
         }
     }
-    if (lx->p - start >= 2 && lx->p[-1] == 'n' && big_literal(lx, pos, start, lx->p - 1))
+    const char *end = lx->p, *ts = start, *te = lx->p;
+    char *bare = memchr(start, '_', (size_t)(end - start)) ? without_separators(pos, start, end) : NULL;
+    if (bare) { /* 1_000 is 1000 from here on (#671) */
+        start = bare;
+        end = bare + strlen(bare);
+    }
+    if (end - start >= 2 && end[-1] == 'n' && big_literal(lx, pos, start, end - 1, ts, te)) {
+        free(bare);
         return; /* 123n (#508) */
-    check_number(pos, start, lx->p);
+    }
+    check_number(pos, start, end, ts, te);
     if (start[0] == '0' && (start[1] == 'o' || start[1] == 'O')) {
         /* 0o52 (#561), the text of n.oct: from here on C's own octal, 052,
            which every reader of a literal's text and the C compiler know */
-        char *octal = strfmt("0%.*s", (int)(lx->p - start - 2), start + 2);
+        char *octal = strfmt("0%.*s", (int)(end - start - 2), start + 2);
         push_text(lx, TK_NUMBER, pos, octal);
         free(octal);
+        free(bare);
         return;
     }
-    push(lx, TK_NUMBER, pos, start, lx->p);
+    push(lx, TK_NUMBER, pos, start, end);
+    free(bare);
 }
 
 /* The \u escapes of a C string literal's text (#292): \u{...}, \uXXXX and

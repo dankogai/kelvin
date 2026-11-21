@@ -20,9 +20,13 @@ known, not what is planned.
   stays 0.4.x.
   - A fix, an error in Kelvin's words where C's came, a document, and
     kc reading more of what kelvinc reads are 0.4.x.
-  - A change of what a program means, or of what is written, is 0.5.0.
+  - An addition that leaves every program as it was is 0.4.x too, as
+    the user chose for an integer type's computed attribute (#668) and
+    for `_` among a literal's digits (#671).
+  - A change of what a program means, or of what it must write, is
+    0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #670 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #671 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -59,7 +63,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P675, the details of #670, until reviewed.
+- P675 and P676, the details of #670 and #671, until reviewed.
 
 ## Open design
 

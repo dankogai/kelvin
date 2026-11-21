@@ -155,6 +155,7 @@ const samples = [
     ['println(`n = ${n * 2}`, " ", $"héllo\\n")', [['println', 'support.function'], ['`', 'string.template'], ['n * 2', 'meta.embedded.line'], ['\\n', 'constant.character.escape'], ['$', 'keyword.operator.string-maker']]],
     ['#import <RegExp>', [['#import', 'keyword.control.import'], ['<RegExp>', 'string.quoted.other.module']]],
     ['let b = 123n * 0xffn + 0b101n', [['123n', 'constant.numeric.bigint'], ['0xffn', 'constant.numeric.bigint'], ['0b101n', 'constant.numeric.bigint']]],
+    ['let m = 0x7fff_ffff + 1_000_000 + 1_000.000_1e1_0 + 0b1010_1010 + 1_000n', [['0x7fff_ffff', 'constant.numeric.hex'], ['1_000_000', 'constant.numeric.decimal'], ['1_000.000_1e1_0', 'constant.numeric.decimal'], ['0b1010_1010', 'constant.numeric.binary'], ['1_000n', 'constant.numeric.bigint']]],
     ['#import <math.h> as C', [['as', 'keyword.control.import'], ['C', 'support.constant.language']]],
     ['struct point { x: int64; y: int64 }', [['struct', 'storage.type'], ['point', 'entity.name.type']]],
     ['extend point { let norm:float64 { .x * .x } }', [['extend', 'storage.type'], ['point', 'entity.name.type'], ['float64', 'support.type.primitive']]],

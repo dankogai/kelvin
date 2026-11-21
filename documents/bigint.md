@@ -44,6 +44,9 @@ names it has it, with no import.
     - A leading `0`, C's octal, is an error, as in JS: `017n`. `0o17n`
       is the octal one.
     - `-5n` is `-` of `5n`.
+    - A `_` among its digits is left out (#671), as an integer's is:
+      `1_000_000n`, `0xffff_ffffn`; `BigInt("1_000")` is 1, as text is
+      read as before.
   - `BigInt(n)` of any integer, an `i64` or a `u64`.
   - `BigInt(text)` of a `cstr` or a `String` by reference, `BigInt(&s)`,
     and `BigInt(text, base)` with a base from 2 to 36.

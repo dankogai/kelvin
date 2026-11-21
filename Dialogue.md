@@ -13094,3 +13094,22 @@ amend it, and no row before P675 is provisional.
 Details are provisional P675.
 
 There are 1550 tests, and all pass with clang and with gcc 15.
+
+### 718. _ among a literal's digits
+
+**User:** I got `malformed number '0x7fff_ffff'`. `_` should be allowed as
+a part of numeric literals like Perl and Swift
+
+**Claude** asked four questions: the version, as the grammar changes; where
+a `_` may go; whether text read at run time takes one; and the push.
+
+**User:** 0.4.x; Swift's; literals only; push when clean (each the
+recommended)
+
+**Claude** made it #671: kelvinc's and kc's lexers leave out each `_` that
+follows a digit or another `_`, refuse one elsewhere in kelvinc's words,
+and quote a literal's error as written; the VS Code grammar colors them.
+
+Details are provisional P676.
+
+There are 1555 tests, and all pass with clang and with gcc 15.

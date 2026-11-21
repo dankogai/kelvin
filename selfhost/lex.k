@@ -193,7 +193,7 @@ var rx_lits:$[int64]      // the RegExp token of each $/.../, the prelude's RegE
 // 123n, 0xffn, 0o17n (#562), 0b101n from s up to the n at e (#508), as
 // kelvinc's big_literal: BigInt("123", 10), the prelude's; false where
 // the text before the n is no integer, which is then a number's error
-let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
+let big_literal(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64):bool {
     var base = 10
     var d:int64 = s
     if e - s > 2 && codes[s] == '0' && (codes[s + 1] == 'x' || codes[s + 1] == 'X' || codes[s + 1] == 'b' || codes[s + 1] == 'B' || codes[s + 1] == 'o' || codes[s + 1] == 'O') {
@@ -211,8 +211,8 @@ let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
     }
     if base == 10 && e - s > 1 && codes[s] == '0' {
         var m = $"'"
-        for q in s..<e { m += codes[q] }
-        m += "n': a BigInt literal is decimal, 0x hex, 0o octal or 0b binary, with no leading 0: C's octal is none of them"
+        for q in ts..<te { m += codes[q] }               // as written, its _ too (#671)
+        m += "': a BigInt literal is decimal, 0x hex, 0o octal or 0b binary, with no leading 0: C's octal is none of them"
         lex_error(file, line, m.cstr)
         return true
     }
@@ -252,8 +252,8 @@ let foreign_hint(t:int64):cstr {
 // as kelvinc's check_number has it (#612): C's suffixes, 10UL, 1.5f, are
 // its error, the type goes on the declaration; and what else follows the
 // digits, 12ab, is a malformed number
-let check_number(s:int64, e:int64, line:int64, file:int64) {
-    var p:int64 = s
+let check_number(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64) {
+    var p:int64 = s                                      // ts to te: the text as written, its _ too, which a message quotes (#671)
     let hex = e - s > 1 && codes[s] == '0' && (codes[s + 1] == 'x' || codes[s + 1] == 'X')
     let bin = e - s > 1 && codes[s] == '0' && (codes[s + 1] == 'b' || codes[s + 1] == 'B')
     var floating = false
@@ -272,7 +272,7 @@ let check_number(s:int64, e:int64, line:int64, file:int64) {
     }
     if p == e { return }
     var text = $""
-    for q in s..<e { text += codes[q] }
+    for q in ts..<te { text += codes[q] }
     var suffix = true
     var has_f = false
     var has_u = false
@@ -287,7 +287,7 @@ let check_number(s:int64, e:int64, line:int64, file:int64) {
         m += "': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'x:"
         m += floating ? (has_f ? "f32" : "f64") : has_u ? "u64" : "i64"
         m += " = "
-        for q in s..<p { m += codes[q] }
+        for q in ts..<te - (e - p) { m += codes[q] }
         m += "'"
     } else {
         m = $"malformed number '"
@@ -297,18 +297,52 @@ let check_number(s:int64, e:int64, line:int64, file:int64) {
     lex_error(file, line, m.cstr)
 }
 
+// 1_000, 0xff_ff, 1_000.000_1, 1e1_0, 1_000n from s to e (#671), as
+// kelvinc's without_separators: a _ among a number's digits, as Swift has
+// it, after a digit or another _, so that the digits of the integer part,
+// of the fraction and of the exponent each begin with a digit, and a 0x,
+// 0o or 0b is as written: 0x_ff, 1e_5 and 0_x10 are none. The text without
+// them appended to codes, where it starts; -1 after the error
+let without_separators(s:int64, e:int64, line:int64, file:int64):int64 {
+    let x:uint32 = e - s > 1 ? codes[s + 1] : 0
+    let prefixed = codes[s] == '0' && (x == 'x' || x == 'X' || x == 'b' || x == 'B' || x == 'o' || x == 'O')
+    let hex = prefixed && (x == 'x' || x == 'X')
+    var exponent = false
+    var ok = true
+    let at:int64 = codes.count as int64
+    for q in s..<e {
+        let c:uint32 = codes[q]
+        if hex && (c == 'p' || c == 'P') { exponent = true }   // a hex float's exponent, decimal digits
+        if c != '_' {
+            codes += c
+            continue
+        }
+        let prev:uint32 = codes[q - 1]                   // q > s: a number begins with a digit
+        let hexd = (prev >= 'a' && prev <= 'f') || (prev >= 'A' && prev <= 'F')
+        if prev != '_' && !is_digit(prev) && !(hex && !exponent && hexd) { ok = false }
+    }
+    let y:uint32 = codes.count as int64 - at > 1 ? codes[at + 1] : 0
+    if !prefixed && codes[at] == '0' && (y == 'x' || y == 'X' || y == 'b' || y == 'B' || y == 'o' || y == 'O') { ok = false }
+    if ok { return at }
+    var m = $"malformed number '"
+    for q in s..<e { m += codes[q] }
+    m += "': a '_' separates digits and follows one, as in 1_000 or 0xff_ff"
+    lex_error(file, line, m.cstr)
+    return -1
+}
+
 // 0o52 from s to e (#562), as kelvinc reads it (#561): 0o or 0O and
 // digits of 0 to 7, the text n.oct writes; from here on C's own octal,
 // 052, which gen.k and the C compiler know. What is not one, 0o18, 0o,
 // 0o1.5, is the error kelvinc says
-let octal_literal(s:int64, e:int64, line:int64, file:int64) {
+let octal_literal(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64) {
     var ok = e - s > 2
     for q in s + 2..<e {
         if codes[q] < '0' || codes[q] > '7' { ok = false }
     }
     if !ok {
         var m = $"malformed number '"
-        for q in s..<e { m += codes[q] }
+        for q in ts..<te { m += codes[q] }
         m += "': an octal number is 0o and digits of 0 to 7, as in 0o17"
         lex_error(file, line, m.cstr)
         return
@@ -1035,24 +1069,34 @@ let lex_range(from:int64, to:int64, file:int64) {
                 if !hex && d == '.' && is_digit(code_at(i + 1)) {       // 1.5, not 0..<n (#262)
                     i += 1
                     more = true
-                } else if !hex && (d == '+' || d == '-') && (code_at(i - 1) == 'e' || code_at(i - 1) == 'E') && is_digit(code_at(i + 1)) {
+                } else if !hex && (d == '+' || d == '-') && (code_at(i - 1) == 'e' || code_at(i - 1) == 'E') && (is_digit(code_at(i + 1)) || code_at(i + 1) == '_') {
                     i += 1                                              // 2.5e-8
                     more = true
                 } else if hex && d == '.' && hex_fraction(i + 1) {      // 0x1.8p1, 0x1.p3, not 0xff.cstr (#556)
                     i += 1
                     more = true
-                } else if hex && (d == '+' || d == '-') && (code_at(i - 1) == 'p' || code_at(i - 1) == 'P') && is_digit(code_at(i + 1)) {
+                } else if hex && (d == '+' || d == '-') && (code_at(i - 1) == 'p' || code_at(i - 1) == 'P') && (is_digit(code_at(i + 1)) || code_at(i + 1) == '_') {
                     i += 1                                              // 0x1p-1074, a hex float's exponent (#556)
                     more = true
                 }
             }
-            if i - s >= 2 && codes[i - 1] == 'n' && big_literal(s, i - 1, line, file) {
+            var b:int64 = s                                     // the number without its _ (#671)
+            var f:int64 = i
+            for q in s..<i {
+                if codes[q] == '_' && b == s {
+                    b = without_separators(s, i, line, file)
+                    f = codes.count as int64
+                }
+            }
+            if b < 0 {
+                // the error said
+            } else if f - b >= 2 && codes[f - 1] == 'n' && big_literal(b, f - 1, s, i, line, file) {
                 // 123n, the prelude's BigInt (#508, #515)
-            } else if c == '0' && (code_at(s + 1) == 'o' || code_at(s + 1) == 'O') {
-                octal_literal(s, i, line, file)                         // 0o52 (#562)
+            } else if codes[b] == '0' && f - b > 1 && (codes[b + 1] == 'o' || codes[b + 1] == 'O') {
+                octal_literal(b, f, s, i, line, file)                   // 0o52 (#562)
             } else {
-                check_number(s, i, line, file)                          // 10UL, 12ab (#612)
-                add_tok(T_NUM, s, i - s, line, file)
+                check_number(b, f, s, i, line, file)                    // 10UL, 12ab (#612)
+                add_tok(T_NUM, b, f - b, line, file)
             }
         } else if c == '`' || (c == '$' && code_at(i + 1) == '`') || (c == '}' && tpls.count > 0 && tpls[tpls.count as int64 - 1] == outer.count as int64 - 1) {
             let head = c != '}'                  // a template, `a${x}b`, or the } that ends its ${...} (#445)

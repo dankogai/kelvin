@@ -223,6 +223,10 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 An integer's digits and an `n`, `123n`, `0xffn`, `0o17n` or `0b101n`, is a
 `BigInt`, the prelude's (#508): see [bigint.md](bigint.md).
 
+A `_` among a number's digits is left out, after a digit or another `_`,
+as Swift has it (#671): `1_000_000`, `0x7fff_ffff`, `1_000.000_1`,
+`1_000n`; see [integers.md](integers.md#literals).
+
 - **`"..."`** is C's string literal (#52).
   - It has no prefix: C's `L"..."`, `u8"..."`, `u"..."` and `U"..."`,
     and `L'x'` and the rest of a character, are errors (#295); its text

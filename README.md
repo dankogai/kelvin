@@ -809,3 +809,6 @@ So far the changes from C are these, by topic.
 - A member a value's type does not have is kelvinc's error of
   arithmetic too, named by C's type of it: `(n + 1).foo` of a `u8` is
   `i32 has no member 'foo'`, where it was C's error (#669)
+- A `_` among a numeric literal's digits is left out, as Swift and Perl
+  have it: `0x7fff_ffff`, `1_000_000`, `1_000.000_1`, `1_000n`; after a
+  digit or another `_`, and text read at run time is as before (#671)
