@@ -5701,6 +5701,15 @@ static int expr_begin(void);
 static Expr *expr_end(Expr *e, int mark);
 static Expr *parse_binary_ops(int min_prec);
 
+/* x / 0, x % 0 of an integer, the divisor a literal 0: C's undefined
+   behavior, which it only warns of; a float's is IEEE 754's infinity (#662) */
+static bool divides_by_zero(Expr *a, Expr *b) {
+    unsigned long long m;
+    bool neg;
+    Decl *r;
+    return int_literal_value(b, &m, &neg) && m == 0 && expr_class(a, &r) == 'i';
+}
+
 static Expr *parse_binary(int min_prec) {
     int mark = expr_begin();
     return expr_end(parse_binary_ops(min_prec), mark);
@@ -5755,6 +5764,13 @@ static Expr *parse_binary_ops(int min_prec) {
             chain_temps = NULL;
         e->b = parse_binary(prec + 1);
         chain_temps = saved_chain;
+        if ((!strcmp(e->op, "/") || !strcmp(e->op, "%")) && divides_by_zero(e->a, e->b)) /* (#662) */
+            error_at(e->b->pos, "'%s 0' divides an integer by zero, which has no value: C leaves it undefined", e->op);
+        if (!strcmp(e->op, "/") && e->b->kind == E_LITERAL && e->b->text && !strcmp(e->b->text, "0")) {
+            Decl *r; /* f / 0 of a float, IEEE's infinity: a 0.0 in C, of which gcc does not warn as of an int 0 */
+            if (expr_class(e->a, &r) == 'f')
+                e->b->text = "0.0";
+        }
         if (!strcmp(e->op, "&&") || !strcmp(e->op, "||")) {
             require_bool(e->a);
             require_bool(e->b);
@@ -10600,6 +10616,9 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             }
             e->b = parse_assign();
             assign_ok = ok;
+            if ((!strcmp(t->text, "/=") || !strcmp(t->text, "%=")) && divides_by_zero(lhs, e->b)) /* (#662) */
+                error_at(e->b->pos, "'%s 0' divides an integer by zero, which has no value: C leaves it undefined",
+                         t->text);
             pick_overload(e->b, target_type(lhs));
             if (!strcmp(t->text, ":="))
                 e->b = drop_cstr(e->b, target_type(lhs));

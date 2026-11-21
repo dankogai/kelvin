@@ -12942,3 +12942,14 @@ in the same words, where C only warned.
 Details are provisional P666.
 
 There are 1519 tests, and all pass with clang and with gcc 15.
+
+### 709. Division by a constant zero
+
+**Claude** pushed #661, its battery clean, and made the second #662:
+an integer divided by a constant 0, `/`, `%`, `/=` or `%=`, is
+kelvinc's error and kc's in the same words, where C only warned; a
+float's division by zero is IEEE 754's infinity, as before.
+
+Details are provisional P667.
+
+There are 1524 tests, and all pass with clang and with gcc 15.

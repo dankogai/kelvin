@@ -795,3 +795,5 @@ So far the changes from C are these, by topic.
   ended with a segmentation fault (#659)
 - A constant index outside a fixed array is kelvinc's error, where C
   only warned (#661)
+- An integer divided by a constant 0 is kelvinc's error, where C only
+  warned (#662)

@@ -2392,6 +2392,14 @@ let cstr_ref_error(n:int64) {
     gen_error(n, m.cstr)
 }
 
+// x / 0, x % 0 of an integer, the divisor a literal 0: C's undefined
+// behavior, as kelvinc says it; a float's is IEEE 754's infinity (#662)
+let divides_by_zero(a:int64, b:int64):bool {
+    if b < 0 || nodes[b].kind != N_NUM || tok_count(nodes[b].t) != 0 { return false }
+    let y:int64 = type_of(a)
+    return y >= 0 && is_int_kind(types[y].kind)
+}
+
 let type_of(n:int64):int64 {
     if nodes[n].kind == N_CALL && word_misused(n, false) { return 0 - 1 }   // int(x), cstr(p) (#612); a bare i32 where it is written
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
@@ -2401,6 +2409,13 @@ let type_of(n:int64):int64 {
     pick_call_args(n)                                    // apply(over, 2), the overload of its parameter's type (#537)
     resolve_codepoints(n)                                // grapheme(c0, c1, ...) (#526)
     let k:nkind = nodes[n].kind
+    if k == N_BIN && (tok_is(nodes[n].t, "/") || tok_is(nodes[n].t, "%")) && divides_by_zero(nodes[n].a, nodes[n].b) {
+        var m = $"'"                                     // as kelvinc says it (#662)
+        m += tok_text(nodes[n].t)
+        m += " 0' divides an integer by zero, which has no value: C leaves it undefined"
+        gen_error(nodes[n].b, m.cstr)
+        return 0 - 1
+    }
     if k == N_COMMA { return 0 - 1 }                     // what only C sees, as kelvinc has a comma's value (#652)
     if k == N_FIELD && comma_cstr(n) { return base_type(Y_CSTR) }
     if k == N_CHAIN { return chain_type(n) }
@@ -13016,7 +13031,12 @@ let gen_expr_of(n:int64) {
             put(" ")
             if tok_is(t, "~") { put("^") } else { put_tok(t) }   // Kelvin's XOR is ~ (#276)
             put(" ")
-            gen_expr(nodes[n].b)
+            let b:int64 = nodes[n].b
+            if tok_is(t, "/") && nodes[b].kind == N_NUM && tok_is(nodes[b].t, "0") && y >= 0 && (types[y].kind == Y_F64 || types[y].kind == Y_F32) {
+                put("0.0")                               // f / 0, IEEE's infinity, of which gcc warns as of an int 0, as kelvinc writes it (#662)
+            } else {
+                gen_expr(b)
+            }
             put(")")
         }
     } else if k == N_CAST {
@@ -14795,6 +14815,13 @@ let gen_assign(n:int64) {
     if text_outlived(n) { return }                      // (#445, #447)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
+    if (tok_is(t, "/=") || tok_is(t, "%=")) && divides_by_zero(lhs, nodes[n].b) {
+        var m = $"'"                                     // as kelvinc says it (#662)
+        m += tok_text(t)
+        m += " 0' divides an integer by zero, which has no value: C leaves it undefined"
+        gen_error(nodes[n].b, m.cstr)
+        return
+    }
     if tok_is(t, "**=") {                                // x **= y is x = x ** y (#380), as kelvinc's
         if has_call(lhs) {
             gen_error(lhs, "'x **= y' is 'x = x ** y', which evaluates x twice, so x may not hold a call")

@@ -183,6 +183,15 @@ looser than prefix operators, and it chains left to right:
     rejects them with "expected expression" at your line. They never
     compile as a cast.
 
+### Division by zero
+
+- **An integer divided by a constant 0** is an error (#662): `n / 0`,
+  `n % 0`, `n /= 0` and `n %= 0` say `'/ 0' divides an integer by zero,
+  which has no value: C leaves it undefined`, where C only warned.
+  - A divisor known only at run time is C's, as before.
+  - A float divided by zero is IEEE 754's infinity, `1.0 / 0.0` and
+    `f / 0` of an `f64`, which `f64.infinity` is.
+
 ### Powers: `**` and `pow`
 
 ```swift

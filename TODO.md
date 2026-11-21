@@ -5,7 +5,8 @@ crash of a struct that holds itself (#659); and the wrong message of a
 cstr's byte set, which was none: `let s = "abc"` is the error there, as
 text is declared with `:=`, and `s[0] = 65` of `let s := "abc"` says a
 cstr is immutable (#660); a constant index past a fixed array's end,
-kelvinc's error (#661). Each item becomes a
+kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
+error (#662). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
 known, not what is planned.
 
@@ -26,7 +27,6 @@ known, not what is planned.
 
 - **C warns, and the program runs**, each to be kelvinc's error (the
   user's order, 0.4.x, #661 to #663):
-  - a constant division by zero, `1 / 0`;
   - a literal that does not fit the type written, `let c:u8 = 300`,
     which is 44.
 
@@ -55,7 +55,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P662 to P666, the details of #657 to #661, until reviewed.
+- P662 to P667, the details of #657 to #662, until reviewed.
 
 ## Open design
 
