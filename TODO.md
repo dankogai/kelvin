@@ -1,0 +1,67 @@
+# TODO
+
+What is left, checked against the code after #657. Each item becomes a
+numbered change of Design.md when it is ordered; this list says what is
+known, not what is planned.
+
+## Versions
+
+- So long as the grammar and the semantics stay the same, the version
+  stays 0.4.x.
+  - A fix, an error in Kelvin's words where C's came, a document, and
+    kc reading more of what kelvinc reads are 0.4.x.
+  - A change of what a program means, or of what is written, is 0.5.0.
+- Release chores are done only when ordered.
+  - The CHANGELOG entry, from #651 on.
+  - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
+  - The README's line of the release notes.
+  - The tag and the release.
+
+## Faults in kelvinc
+
+- **A crash:** `struct p { x:i64; next:p }`, a struct that holds itself
+  by value, ends kelvinc with a segmentation fault (exit 139), where it
+  is an error that says to hold a `p^`.
+  - kc is not checked of it yet.
+- **A wrong message:** `s[0] = 65` of a `let` cstr says `'s' is a
+  reference (cstr): assign it with ':='`, where it is that a cstr is
+  immutable (#52).
+- **C warns, and the program runs** (to decide: implicit conversions
+  are unchanged from C on purpose):
+  - a constant index past a fixed array's end, `a[5]` of `[i64](3)`;
+  - a constant division by zero, `1 / 0`;
+  - a literal that does not fit the type written, `let c:u8 = 300`,
+    which is 44.
+
+## kc
+
+- kc says each of the 990 programs kelvinc refuses in kelvinc's words
+  (#652 to #656).
+- 29 places where kc reads not yet what kelvinc reads:
+  - a function defined inside a function (#180);
+  - an enum with no name whose cases have values (#120), the methods of
+    a type with no tag (#121), and a plain enum with no name in a
+    block;
+  - a parameter's array of arrays whose inner count C computes;
+  - a fixed array in another type, `(T){...}` and an array's compound
+    literal of other types;
+  - printing and showing some types: a fixed array that is a parameter,
+    one in a template;
+  - a value's text in a global's initializer;
+  - `typeof` of an expression, and `x.type` where `x`'s type is
+    inferred;
+  - overloads of a variadic function, an atomic pointer, a pointer
+    walked up to a 0, and the number of a prelude enum's word.
+- kc writes `const const` of a top-level `let p := "x"`, which C warns
+  of.
+- Self-hosting's mid goal, no C emission, has no number yet.
+
+## Provisional rows
+
+- P662 and P663, the details of #657 and #658, until reviewed.
+
+## Open design
+
+- Closures and protocols: neither is in 0.4.0, and protocols come first
+  when one is taken up.
+- `long double` and `f128` have no Kelvin spelling yet.

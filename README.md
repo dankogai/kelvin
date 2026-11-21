@@ -55,6 +55,7 @@ let main(argc:i32, argv:[cstr]): i32 {
   `Kelvin.name`, a String of graphemes and the numbers of any size
   (#608), 0.4.0 the latest, with C's last features, `<Combinatorics>`
   and Kelvin's own errors where C's came (#650).
+- [TODO.md](TODO.md) is what is left, checked against the code (#658).
 - [Design.md](Design.md) has the design decisions, and
   [Dialogue.md](Dialogue.md) how they were made.
 - [Style.md](Style.md) is how Kelvin code is written.

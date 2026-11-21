@@ -12877,3 +12877,20 @@ amend it, and no row before P662 is provisional. Details are
 provisional P662.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 705. TODO.md
+
+**User:** List todos before 0.5.0
+
+**Claude** listed them, checked against the code after #657: a crash
+of kelvinc on a struct that holds itself by value, a wrong message of
+a let cstr's byte set, three that C only warns of, kc's 29 places of not
+yet, the provisional rows, and the open design.
+
+**User:** Save the list above in `TODO.md`. Also note so long as the
+grammar and the semantics stays the same, the version stays 0.4.x.
+
+**Claude** made it #658: TODO.md has the list and the rule, and
+README.md names it. Details are provisional P663.
+
+There are 1506 tests, and all pass with clang and with gcc 15.
