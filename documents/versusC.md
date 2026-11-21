@@ -29,8 +29,8 @@ The table below is the whole language at a glance; the documents beside
 this one have the details, one topic each.
 
 The decisions made during implementation, the P-numbers in
-[Design.md](../Design.md), were reviewed and confirmed by #633 to #639 and
-#651;
+[Design.md](../Design.md), were reviewed and confirmed by #633 to #639, #651
+and #657;
 those of later changes are provisional until reviewed, and a document
 marks one *(provisional)*.
 

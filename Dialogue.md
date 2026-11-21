@@ -12859,3 +12859,21 @@ lists none.
 Details are provisional P661.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 704. The review, batch 9
+
+**Claude** pushed #656, its battery clean: kc says each of the 990
+programs kelvinc refuses in kelvinc's words.
+
+**User:** then review P656 to P661
+
+**Claude** put the 6 detail rows to the user as a file, the details of
+#651 to #656: none superseded, none marked in a document.
+
+**User:** confirm, as amended later (recommended)
+
+**Claude** made it #657: each row is marked confirmed, as later numbers
+amend it, and no row before P662 is provisional. Details are
+provisional P662.
+
+There are 1506 tests, and all pass with clang and with gcc 15.
