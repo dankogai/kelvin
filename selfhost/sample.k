@@ -1687,6 +1687,8 @@ on a new line`
     let cz_r:Result<int64, String> = ok(5)
     let cz_o:int64? = none
     println(cz_total, " ", ck_tally, " ", cz_r ?? 0, " ", cz_o ?? 9, " ", strlen("kelvin").dec, " ", cz_n.hex, " ", cz_twice(2).n, 1, 2, 3)
+    let last_comma:int64 = (strlen("ab"), 21 * 2)       // (a, b), C's comma, its value b's (#652)
+    println(last_comma, " ", atoi("21").cm_tripled())   // a method of a C call's value, by C's _Generic (#652)
     return 0
 }
 
@@ -1753,3 +1755,4 @@ let js_doubled(key:cstr, v:const JSON^):JSON? {
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }
 let fw_later(n:i64):i64 { n * 2 }
+let int32.cm_tripled():int32 { self * 3 }

@@ -31,6 +31,8 @@ var codes:$[uint32]       // every file's text
 var toks:$[tok]
 var fnames:$[String]      // every file's name
 var file_by:$[int64]      // the #import token each file was first read for; -1 the program's own and the prelude's (#550)
+var codes_from:$[int64]   // where each file's codes begin and end, for a token's column (#652)
+var codes_to:$[int64]
 var reading_by:int64 = 0 - 1
 var file_with_a:$[int64]  // an overlay's two modules, A and B of A+B.k, as files (#551); -1 of any other file,
 var file_with_b:$[int64]  // and an overlay's file_by is -2 until the pass before parsing places it
@@ -538,6 +540,68 @@ let shown_text(what:cstr, prelude:bool):String {
         }
         s += cs[i]
         i += 1
+    }
+    return s
+}
+
+// the column of token t, as kelvinc counts it: 1 and the bytes of UTF-8
+// before it on its line; 0 of a token kc made, which is in no file (#652)
+let tok_col(t:int64):int64 {
+    let k:tok = toks[t]
+    if k.file < 0 || k.file >= codes_from.count as int64 { return 0 }
+    let lo:int64 = codes_from[k.file]
+    if k.at < lo || k.at >= codes_to[k.file] { return 0 }
+    var i:int64 = k.at
+    while i > lo && codes[i - 1] != '\n' { i -= 1 }
+    var at:int64 = k.at
+    if k.kind == T_IMPORT {                              // #import's column is its #, as kelvinc's
+        var h:int64 = k.at
+        while h > i && codes[h] != '#' { h -= 1 }
+        at = h
+    }
+    var col:int64 = 1
+    while i < at {
+        let c:uint32 = codes[i]
+        col += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4
+        i += 1
+    }
+    return col
+}
+
+// where file f ends, as kelvinc says an error there: file:line:col of
+// the place after its last character (#652)
+let file_end_text(f:int64):String {
+    var line:int64 = 1
+    var col:int64 = 1
+    if f >= 0 && f < codes_from.count as int64 {
+        for i in codes_from[f]..<codes_to[f] - 1 {       // its text, without the newline kc puts after it
+            let c:uint32 = codes[i]
+            if c == '\n' {
+                line += 1
+                col = 1
+            } else {
+                col += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4
+            }
+        }
+    }
+    var s:String = fnames[f].copy()
+    s += ":"
+    s += String(line)
+    s += ":"
+    s += String(col)
+    return s
+}
+
+// where an error at token t is, as kelvinc writes it: file:line:col
+let error_at_text(t:int64):String {
+    let k:tok = toks[t]
+    var s:String = fnames[k.file].copy()
+    s += ":"
+    s += String(k.line)
+    let col:int64 = tok_col(t)
+    if col > 0 {
+        s += ":"
+        s += String(col)
     }
     return s
 }

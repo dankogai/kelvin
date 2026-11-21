@@ -231,9 +231,9 @@ let ascii_names(s:const String^):String {
 // an error at token t, as gen_error's at a node
 let tok_error(t:int64, what:cstr) {
     if !failed {
-        let k:tok = toks[t]
         let said:String = as_shown(what)                    // (#600)
-        println(fnames[k.file], ":", k.line, ": error: ", said)
+        let at:String = error_at_text(t)                    // file:line:col, as kelvinc's (#652)
+        println(at, ": error: ", said)
     }
     failed = true
 }
@@ -351,9 +351,9 @@ let put_int(n:int64) {
 
 let gen_error(n:int64, what:cstr) {
     if !failed {
-        let t:tok = toks[nodes[n].t]
         let said:String = as_shown(what)                    // (#600)
-        println(fnames[t.file], ":", t.line, ": error: ", said)
+        let at:String = error_at_text(nodes[n].t)           // file:line:col, as kelvinc's (#652)
+        println(at, ": error: ", said)
     }
     failed = true
 }
@@ -2387,6 +2387,8 @@ let type_of(n:int64):int64 {
     pick_call_args(n)                                    // apply(over, 2), the overload of its parameter's type (#537)
     resolve_codepoints(n)                                // grapheme(c0, c1, ...) (#526)
     let k:nkind = nodes[n].kind
+    if k == N_COMMA { return 0 - 1 }                     // what only C sees, as kelvinc has a comma's value (#652)
+    if k == N_FIELD && comma_cstr(n) { return base_type(Y_CSTR) }
     if k == N_CHAIN { return chain_type(n) }
     if k == N_METHOD && with_key_misused(n) { return 0 - 1 }   // xs.mapWithKey, as kelvinc says it
     if k == N_METHOD && variant_method_wrong(n) { return 0 - 1 }   // x.map(f) of an Optional or a Result, kelvinc's errors of it
@@ -7007,6 +7009,37 @@ let scalar_cstr(n:int64):bool {
     return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_PTR
 }
 
+// (a, b).cstr: kelvinc sees no type of a comma's value, so it writes C's
+// _Generic of what has text, a Kelvin struct there kv_cstr_unseen_struct,
+// which C refuses, as it has no buffer sized for its text (#652)
+let comma_cstr(n:int64):bool {
+    return nodes[n].kind == N_FIELD && tok_is(nodes[n].t, "cstr") && nodes[nodes[n].a].kind == N_COMMA
+}
+
+let gen_comma_cstr(n:int64) {
+    serial += 1
+    let s = serial
+    var d = $"uint8_t _kv_text"
+    d += String(s)
+    d += "[KV_CSTR_SCALAR]"
+    block_store += &d
+    put("_Generic((")
+    gen_expr(nodes[n].a)
+    put("), KV_PROPERTY_cstr ")
+    for x in decls {
+        if nodes[x].kind == D_STRUCT && !tok_starts(nodes[x].t, "_kv_") {
+            put(nodes[x].flag == 1 ? "union " : "struct ")
+            put_tok(nodes[x].t)
+            put(": kv_cstr_unseen_struct, ")
+        }
+    }
+    put("default: kv_cstr_ptr)(")
+    gen_expr(nodes[n].a)
+    put(", _kv_text")
+    put_int(s)
+    put(")")
+}
+
 // x.cstr, as kelvinc writes it: by the prelude's KV_PROPERTY_cstr of x's
 // type into a buffer the statement declares before it, KV_CSTR_SCALAR
 // long; a bool as one, where C's < gives an int (#462)
@@ -7597,6 +7630,7 @@ let put_string_part(y:int64, v:cstr) {
 // a number's .dec, .hex, .oct or .bin (#447); or -1
 let text_in_buffer(e:int64):int64 {
     let k = nodes[e].kind
+    if k == N_COMMA { return text_in_buffer(nodes[e].b) }   // the comma's value, as kelvinc looks (#652)
     if k == N_TPL { return nodes[e].flag == 0 ? e : 0 - 1 }
     if number_text(e) || shown_cstr(e) || scalar_cstr(e) { return e }   // .cstr of what print shows too (#450), of a number (#462)
     if k == N_CAST { return text_in_buffer(nodes[e].a) }
@@ -9172,10 +9206,74 @@ let gen_bytes_bin(n:int64) {
     if ha { hold_close(a) }
 }
 
+// whether n is a call of a function the program does not define, C's,
+// whose value kelvinc does not see, as kc may (#652)
+let c_call_value(n:int64):bool {
+    if nodes[n].kind != N_CALL || nodes[n].a < 0 || nodes[nodes[n].a].kind != N_ID { return false }
+    let f:int64 = nodes[nodes[n].a].t
+    for d in decls {
+        if (nodes[d].kind == D_FN || nodes[d].kind == D_GLOBAL) && nodes[d].c < 0 && same_text(nodes[d].t, f) { return false }
+    }
+    return var_type(f) < 0
+}
+
+// the methods of the program named as m, of a type, for a receiver only
+// C sees (#652)
+let unseen_methods(m:int64):$[int64] {
+    var found:$[int64] = $[]
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c < 0 || nodes[d].flag == 1 || attributes.get(d, 0) != 0 || subscripts.get(d, 0) != 0 { continue }
+        if !same_text(method_names_of.get(d, nodes[d].t), m) { continue }
+        var listed = false                               // overloads share a type: the first stands, as kelvinc's dispatch
+        for e in found { if same_text(nodes[e].c, nodes[d].c) { listed = true } }
+        if !listed { found += d }
+    }
+    return found
+}
+
+// x.m(...) of an x only C sees, as kelvinc writes it: C's _Generic of the
+// methods of the name, by their receivers' C types, else kv_no_such_method,
+// which C refuses (#652)
+let gen_unseen_method(n:int64, found:const $[int64]^) {
+    serial += 1
+    let s = serial
+    put("({ __auto_type _kv_self")
+    put_int(s)
+    put(" = ")
+    gen_expr(nodes[n].a)
+    put("; _Generic((_kv_self")
+    put_int(s)
+    put("), ")
+    for d in found^ {
+        put_ctype(recv_type(nodes[d].c))
+        put(": ")
+        put_tok(nodes[d].c)
+        put("__")
+        put_tok(nodes[d].t)
+        put(", ")
+    }
+    put("default: kv_no_such_method)(_kv_self")
+    put_int(s)
+    var b:int64 = nodes[n].b
+    while b >= 0 {
+        put(", ")
+        gen_expr(b)
+        b = nodes[b].next
+    }
+    put("); })")
+}
+
 let gen_method_of(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
     if refuse_valueless_args(n) { return }
+    if nodes[a].kind != N_TYPE && !names_type(a) && !failed && (c_call_value(a) || (method_of(n) < 0 && type_of(a) < 0)) {
+        let found:$[int64] = unseen_methods(t)
+        if found.count > 0 {                             // of what only C sees (#652)
+            gen_unseen_method(n, &found)
+            return
+        }
+    }
     let f:int64 = method_of(n)
     if f >= 0 && nodes[f].c >= 0 && nodes[f].flag != 1 && attributes.get(f, 0) == 0 && !static_attrs.has(f) && subscripts.get(f, 0) == 0 && one_method(f) && !next_blocks.has(n) {   // a block on the next line is its own error, said after
         let none = $""
@@ -12557,6 +12655,18 @@ let gen_expr_of(n:int64) {
     }
     if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {
         gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
+        return
+    }
+    if k == N_COMMA {                                    // (a, b), C's comma (#652)
+        put("(")
+        gen_expr(nodes[n].a)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(")")
+        return
+    }
+    if k == N_FIELD && comma_cstr(n) {
+        gen_comma_cstr(n)                                // (a, b).cstr, by C's _Generic, as kelvinc writes it (#652)
         return
     }
     if k == N_FIELD && scalar_cstr(n) {
@@ -20559,6 +20669,7 @@ let generic_result(n:int64):int64 {
 // none (#317), as kelvinc's no_value
 let no_value(e:int64):bool {
     let k = nodes[e].kind
+    if k == N_COMMA { return no_value(nodes[e].b) }      // (#652)
     if k == N_COND { return no_value(nodes[e].b) || no_value(nodes[e].c) }
     if k == N_METHOD {
         let a:int64 = nodes[e].a

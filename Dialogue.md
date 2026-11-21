@@ -12784,3 +12784,25 @@ amend it, and no row before P656 is provisional. Details are
 provisional P656.
 
 There are 1506 tests, and all pass with clang and with gcc 15.
+
+### 699. kc's last 30, the first batch
+
+**Claude** pushed #651, its battery clean.
+
+**User:** then fix kc's 30 errors in its own words
+
+**Claude** asked three things: whether kc prints line:col, as three of
+the tests have the place in their words; whether kc writes the C marker
+kelvinc leaves to C in two; and whether each batch is pushed when its
+battery is clean.
+
+**User:** kc prints line:col too; write kelvinc's marker; push each
+when clean (each recommended)
+
+**Claude** made the first batch #652: kc's errors say file:line:col;
+the three of #import, the two of C's markers, two of C's comma and the
+three of C's T[N] are kc's in kelvinc's words, and 20 are left.
+
+Details are provisional P657.
+
+There are 1506 tests, and all pass with clang and with gcc 15.

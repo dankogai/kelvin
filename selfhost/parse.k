@@ -45,6 +45,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_SIZEOF,   // sizeof(ty), or sizeof a of a value (#420), C's sizeof; flag 1 of sizeof ty, an error, 2 of sizeof(x.type) (#421)
     N_TRY,      // try a (#449): a's ok (some), or a return of its err (none)
     N_TPL,      // `a${x}b` (#445): b the first of its parts, N_STR, and values in turn; flag 1 of $`...`, a String
+    N_COMMA,    // (a, b), C's comma operator: b's value, after a (#652)
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -346,11 +347,45 @@ let annotation_ahead():bool {
     return name_annotation
 }
 
+// an error at the end of file f, as kelvinc says one there (#652)
+let parse_error_at_end(f:int64, what:cstr) {
+    if !failed {
+        let said:String = as_shown(what)
+        let at:String = file_end_text(f)
+        println(at, ": error: ", said)
+    }
+    failed = true
+    pos = eof_pos
+}
+
+// whether token t is past the file of token from: the end, or another file's
+let past_file(t:int64, from:int64):bool {
+    return toks[t].kind == T_EOF || toks[t].file != toks[from].file
+}
+
+// what is found at token t, in kelvinc's words: the end of the program's
+// file, or of an imported one, or the token
+let found_text(t:int64, from:int64):String {
+    if past_file(t, from) {
+        if toks[from].file == 0 { return $"end of file" }
+        var s = $"the end of "
+        s += &fnames[toks[from].file]
+        return s
+    }
+    if toks[t].kind == T_TPL_HEAD { return $"a template literal" }
+    if toks[t].kind == T_TPL_MID || toks[t].kind == T_TPL_TAIL { return $"'}', the end of ${...}" }
+    var s = $"'"
+    let w:String = tok_text(t)
+    s += &w
+    s += "'"
+    return s
+}
+
 let parse_error(what:cstr) {
     if !failed {
-        let t:tok = toks[pos]
         let said:String = as_shown(what)                    // (#600)
-        println(fnames[t.file], ":", t.line, ": error: ", said)
+        let at:String = error_at_text(pos)                  // file:line:col, as kelvinc's (#652)
+        println(at, ": error: ", said)
     }
     failed = true
     pos = eof_pos                       // the end: every loop stops
@@ -416,9 +451,9 @@ let let_needs_value(n:int64) {
 // an error at token t, not at the cursor (#611)
 let parse_error_at(t:int64, what:cstr) {
     if !failed {
-        let k:tok = toks[t]
         let said:String = as_shown(what)
-        println(fnames[k.file], ":", k.line, ": error: ", said)
+        let at:String = error_at_text(t)                    // file:line:col, as kelvinc's (#652)
+        println(at, ": error: ", said)
     }
     failed = true
     pos = eof_pos
@@ -1243,7 +1278,72 @@ let late_refused(t:int64):bool {
 var lent_at:int64 = 0 - 1             // the lent of a parameter b:lent T, which parse_type steps over (#510)
 var lent_params:Dictionary<int64, bool>  // the parameters written b:lent T, an owner their caller keeps (#510)
 
+// the source text of tokens a up to b, as written (#652)
+let span_text(a:int64, b:int64):String {
+    var s = $""
+    if b <= a { return s }
+    for i in toks[a].at..<toks[b - 1].at + toks[b - 1].len { s += codes[i] }
+    return s
+}
+
+// C's T[N] after a type, from token from, as kelvinc says it, with the
+// hint that spells it as [T](N) (#49, #652)
+let c_order_error(from:int64) {
+    var spelled:String = span_text(from, pos)
+    var dims:$[String] = $[]
+    while at_word("[") && !failed {
+        advance()
+        let at:int64 = pos
+        var depth:int64 = 0
+        while !at_kind(T_EOF) && !(depth == 0 && at_word("]")) {
+            if at_word("[") || at_word("(") { depth += 1 }
+            if at_word("]") || at_word(")") { depth -= 1 }
+            advance()
+        }
+        dims += span_text(at, pos)
+        if at_word("]") { advance() }
+    }
+    var i:int64 = dims.count as int64 - 1
+    while i >= 0 {
+        var w = $"["
+        w += &spelled
+        w += "]"
+        if dims[i].count > 0 {
+            w += "("
+            w += &dims[i]
+            w += ")"
+        }
+        spelled = w.copy()
+        i -= 1
+    }
+    let rest:int64 = pos
+    while at_word("^") || at_word("const") || at_word("volatile") || at_word("restrict") { advance() }
+    var m = $"an array type is written '[T]', or '[T](N)' with its count (#49): write '"
+    m += &spelled
+    let after:String = span_text(rest, pos)
+    m += &after
+    m += "' for '"
+    let all:String = span_text(from, pos)
+    m += &all
+    m += "'"
+    parse_error_at(from, m.cstr)
+}
+
+// a type, and C's T[N] after it, kelvinc's error (#652)
 let parse_type():int64 {
+    let from:int64 = pos
+    let y:int64 = parse_type_core()
+    if at_word("[") && !failed {
+        if tok_is(from, "(") && types[y].kind == Y_FN {
+            parse_error("an array of functions is written [T](N), as any array: [(i64):i64](4) (#403)")
+        } else {
+            c_order_error(from)
+        }
+    }
+    return y
+}
+
+let parse_type_core():int64 {
     if pos == lent_at {
         advance()
         lent_at = 0 - 1
@@ -1726,6 +1826,12 @@ let parse_bare_type():int64 {
             }
         }
         y = type_of_kind(Y_STRUCT, c_tag, nt)
+    }
+    if at_word(".") && tok_is(pos + 1, "type") && tok_is(pos + 2, "[") && toks[pos - 1].kind == T_ID {   // f.type[2], C's order, as kelvinc says it (#652)
+        let from:int64 = pos - 1
+        pos += 2
+        c_order_error(from)
+        return base_type(Y_VOID)
     }
     if at_word(".") && tok_is(pos + 1, "type") {         // as kelvinc says it (#422)
         let w:String = types[y].kind == Y_STRUCT ? kelvin_name(types[y].name) : type_word(y)
@@ -2410,7 +2516,13 @@ let parse_primary():int64 {
         let saved_ends = brace_ends
         name_annotation = true                   // (c ? (p:point) : q) (#265)
         brace_ends = false                       // if (f(1) { $0 }) > 0 { ... } (#470)
-        let e:int64 = parse_expr()
+        var e:int64 = parse_expr()
+        while at_word(",") && !failed {                  // (a, b), C's comma, as kelvinc reads it (#652)
+            let c:int64 = make_node(N_COMMA, advance())
+            nodes[c].a = e
+            nodes[c].b = parse_expr()
+            e = c
+        }
         name_annotation = saved
         brace_ends = saved_ends
         expect(")")
@@ -2625,7 +2737,17 @@ let parse_primary():int64 {
         parse_error_at(pos - 1, "write 'p^.member' instead of 'p->member'")
         return make_node(N_NUM, t)
     }
-    parse_error("an expression is expected")
+    var q:int64 = pos                                    // as kelvinc says it, which reads past a newline (#652)
+    while toks[q].kind == T_NL && !past_file(q + 1, pos) { q += 1 }
+    if toks[q].kind == T_NL { q += 1 }
+    var m = $"expected an expression, found "
+    let found:String = found_text(q, pos)
+    m += &found
+    if past_file(q, pos) {
+        parse_error_at_end(toks[pos].file, m.cstr)
+    } else {
+        parse_error_at(q, m.cstr)
+    }
     return make_node(N_NUM, t)
 }
 
@@ -3929,6 +4051,14 @@ let parse_block():int64 {
     var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
+        if past_file(pos, nodes[n].t) {                  // as kelvinc says it, at the { (#652)
+            parse_error_at(nodes[n].t, "unterminated block")
+            break
+        }
+        if at_kind(T_IMPORT) {                           // as kelvinc says it (#652)
+            parse_error("#import is for the top level of a file, outside functions, structs and blocks")
+            break
+        }
         if at_word(";") {                                // an empty statement, as `for ... { ... };` ends one (#451)
             advance()
             skip_newlines()

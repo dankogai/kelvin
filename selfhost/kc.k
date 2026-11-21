@@ -151,6 +151,8 @@ let load(path:String^):Result<int64, String> {
         codes += c
     }
     codes += '\n'
+    codes_from += from                                   // (#652)
+    codes_to += codes.count as int64
     lex_range(from, codes.count as int64, file)
     return ok(file)
 }
