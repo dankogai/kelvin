@@ -13134,3 +13134,23 @@ and prime.md's For cryptography.
 Details are provisional P677.
 
 There are 1557 tests, and all pass with clang and with gcc 15.
+
+### 720. The review, batch 13
+
+**Claude** pushed #672, its battery clean, and CI passed.
+
+**User:** then review P675 to P677
+
+**Claude** put the 3 detail rows to the user as a file, the details of
+#670 to #672: none amended since, each name they cite still in the
+code, none marked in a document.
+
+**User:** confirm, as amended later (recommended); push when clean
+(recommended)
+
+**Claude** made it #673: each row is marked confirmed, as later numbers
+amend it, and no row before P678 is provisional.
+
+Details are provisional P678.
+
+There are 1557 tests, and all pass with clang and with gcc 15.
