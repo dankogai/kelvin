@@ -8,7 +8,7 @@ cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
 error (#662); a literal that does not fit its type, kelvinc's error
 (#663); a constant shift past its type's width, kelvinc's error (#665);
-the reviews of P662 to P670 (#664, #666); and a member of arithmetic
+the reviews of P662 to P674 (#664, #666, #670); and a member of arithmetic
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
 no member 'foo'`, where it was C's error (#669). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
@@ -22,7 +22,7 @@ known, not what is planned.
     kc reading more of what kelvinc reads are 0.4.x.
   - A change of what a program means, or of what is written, is 0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #669 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #670 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -59,7 +59,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P671 to P674, the details of #666 to #669, until reviewed.
+- P675, the details of #670, until reviewed.
 
 ## Open design
 

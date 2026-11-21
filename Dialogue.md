@@ -13075,3 +13075,22 @@ and kc says it in the same words.
 Details are provisional P674.
 
 There are 1550 tests, and all pass with clang and with gcc 15.
+
+### 717. The review, batch 12
+
+**Claude** pushed #669, its battery clean, and CI passed.
+
+**User:** then review P671 to P674
+
+**Claude** put the 4 detail rows to the user as a file, the details of
+#666 to #669: P672's fault, listed and not fixed, fixed since by #669;
+none marked in a document.
+
+**User:** confirm, as amended later (recommended)
+
+**Claude** made it #670: each row is marked confirmed, as later numbers
+amend it, and no row before P675 is provisional.
+
+Details are provisional P675.
+
+There are 1550 tests, and all pass with clang and with gcc 15.
