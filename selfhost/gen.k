@@ -22765,8 +22765,13 @@ let gen_program() {
             if extern_decls.contains(d) { put("extern ") }
             if thread_decls.contains(d) { put("_Thread_local ") }   // each thread's own (#641)
             put_alignas(d)                               // (#396)
-            if nodes[d].flag == 1 { put("const ") }
+            let gk:int64 = types[nodes[d].ty].kind      // a let pointer is a const pointer, as kelvinc's const_type (#680)
+            let gp:bool = gk == Y_CSTR || gk == Y_PTR || gk == Y_ARGV
+            if nodes[d].flag == 1 && !gp { put("const ") }
             put_ctype(nodes[d].ty)
+            if nodes[d].flag == 1 && gp {               // const uint8_t *const p, int64_t *const q
+                put(gk == Y_PTR && ptr_restrict(nodes[d].ty) ? " const" : "const")
+            }
             put(" ")
             put_tok(nodes[d].t)
             let declared = extern_decls.contains(d) && nodes[d].a < 0   // an extern's value is C's, elsewhere

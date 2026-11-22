@@ -13283,3 +13283,23 @@ numbers amend them, and P684, #679's own row, is confirmed by #679.
 Details are P684, confirmed by #679 itself.
 
 There are 1564 tests, and all pass with clang and with gcc 15.
+
+### 727. A top-level let of a pointer in kc
+
+**Claude** pushed #679, its battery clean and CI's 9 jobs passed.
+
+**User:** go on
+
+**Claude** took the one fault TODO.md listed, kc's const const of a
+top-level let p := "x", and found a second at the same place: kc wrote
+let q:int64^ := &x as const int64_t * q, so C refused q^ = 5, which
+kelvinc builds; and asked whether to fix both.
+
+**User:** fix both (recommended); push when clean (recommended)
+
+**Claude** made it #680: kc writes the const after the *, as kelvinc
+does, const uint8_t *const p and int64_t *const q.
+
+Details are provisional P685.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

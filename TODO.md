@@ -12,7 +12,10 @@ the reviews of P662 to P684 (#664, #666, #670, #673 to #675, #679); and a member
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
 no member 'foo'`, where it was C's error (#669); and an integer literal
 past u64's greatest, or past i64's in a declaration with no type,
-kelvinc's error (#678). Added since #657, each
+kelvinc's error (#678); and kc's top-level let of a pointer, a const
+pointer as kelvinc writes it, `const uint8_t *const p`, where kc wrote
+`const const uint8_t *` and `const int64_t *`, which C refused `q^ = 5`
+of (#680). Added since #657, each
 leaving every program as it was: `#import <Prime>`, with a computed
 attribute of an integer type (#668); `_` among a literal's digits
 (#671); and `BigInt.generatePrime(bits)` (#672). Each item becomes a
@@ -31,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #679 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #680 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -64,14 +67,13 @@ known, not what is planned.
     inferred;
   - overloads of a variadic function, an atomic pointer, a pointer
     walked up to a 0, and the number of a prelude enum's word.
-- kc writes `const const` of a top-level `let p := "x"`, which C warns
-  of.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P684, and a review's own
-  detail row is confirmed by that review (#675).
+- P685, the details of #680, until reviewed; the reviews confirmed
+  every row to P684, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

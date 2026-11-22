@@ -819,3 +819,6 @@ So far the changes from C are these, by topic.
   how its BigInt is written, `99999999999999999999n`, where it was C's;
   and `let x = 18446744073709551615`, an `i64`, does not fit, where it
   was -1 (#678)
+- kc writes a top-level let of a pointer as kelvinc does, a const
+  pointer, `int64_t *const q`, where it wrote `const int64_t * q`, which
+  C refused `q^ = 5` of, and `const const uint8_t *` of a cstr (#680)
