@@ -13454,3 +13454,19 @@ kelvinc's order. One position is left, anon_list_c_arg's.
 Details are provisional P694.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 737. errors.sh compares where
+
+**Claude** pushed #689, its battery clean, and went on to the second
+answer after #688.
+
+**User:** go on
+
+**Claude** made it #690: errors.sh compares the line and column of kc's
+first error with kelvinc's, a sixth state, place, and errors.txt lists
+the one, anon_list_c_arg.k, so a new difference of place fails the
+battery and CI.
+
+Details are provisional P695.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

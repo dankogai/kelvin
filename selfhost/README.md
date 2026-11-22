@@ -101,14 +101,20 @@ selfhost/errors.sh
   stages' own, with no memory error and no undefined behavior.
 - **The errors** (#609): `errors.sh` runs stage3 over every program
   of `tests/error`, which kelvinc refuses with the text of the test's
-  `// error:` line, and says which of five kc's answer is.
-  - `same`: kc refuses it, and what is printed has that text.
+  `// error:` line, and says which of six kc's answer is.
+  - `same`: kc refuses it, and what is printed has that text, at the
+    line and column kelvinc says it at, where both refuse it themselves
+    (#690).
+  - `place`: as `same`, at another line or column than kelvinc's
+    (#690).
   - `words`: kc refuses it in words of its own.
   - `c`: kc writes its C, and the C compiler refuses that.
   - `built`: kc builds what kelvinc refuses.
   - `crash`: kc itself ends, with no error of the program.
   - `errors.txt` lists each test that is not `same`, with which of
-    the four it is: as of #612, 226 of the 931, each of them `words`,
+    the five it is; as of #690 one, `place anon_list_c_arg.k`, kc's
+    error at the list's first comma and kelvinc's at its second, where
+    its parse of an anonymous function ends. Before, as of #612, as of #612, 226 of the 931, each of them `words`,
     and none is left to C, `built` or a `crash`.
     - The 100 that kc left to C (#612) are kelvinc's errors in its
       words.

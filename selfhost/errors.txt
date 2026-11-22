@@ -1,5 +1,7 @@
 # selfhost/errors.txt - the tests of tests/error that kc does not refuse
-# in kelvinc's words (#609), each with what kc does of it: words, its
+# in kelvinc's words at kelvinc's place (#609, #690), each with what kc
+# does of it: place, its words at another line or column; words, its
 # own; c, the C compiler's; built; crash. selfhost/errors.sh checks kc
 # against it, and writes it anew with --write. A line goes as kc learns
 # the error.
+place anon_list_c_arg.k

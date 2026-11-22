@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #689 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #690 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -52,16 +52,12 @@ known, not what is planned.
 
 - kc says each of the 1034 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678 alike.
-- kc places 1 of those errors elsewhere than kelvinc, which
-  selfhost/errors.sh, comparing the words alone, does not see; matched
-  in batches, as the user ordered after #680, the lines first (#681),
-  then the missing columns (#682), then the columns (#683 to #688), and
-  the 5 where they said different errors, each to the better (#689):
-  - 1 at another column, anon_list_c_arg, {'a', 'b', 'c'} given to a C
-    function, which kelvinc says at its second comma, where its parse of
-    an anonymous function ends.
-  - Then errors.sh compares the line and column too, this one listed
-    as known, as the user answered after #688.
+- kc places each of those errors at kelvinc's line and column, matched
+  in batches as the user ordered after #680 (#681 to #689), and
+  selfhost/errors.sh compares them (#690), but one, listed in
+  selfhost/errors.txt as `place`: anon_list_c_arg, {'a', 'b', 'c'}
+  given to a C function, which kelvinc says at its second comma, where
+  its parse of an anonymous function ends.
 - 29 places where kc reads not yet what kelvinc reads:
   - a function defined inside a function (#180);
   - an enum with no name whose cases have values (#120), the methods of
@@ -81,7 +77,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P685 to P694, the details of #680 to #689, until reviewed; the reviews confirmed
+- P685 to P695, the details of #680 to #690, until reviewed; the reviews confirmed
   every row to P684, and a review's own detail row is confirmed by that
   review (#675).
 

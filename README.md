@@ -135,7 +135,8 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
   - Its README lists what stands in the way of a Kelvin kelvinc.
   - `selfhost/errors.sh` runs kc over the programs kelvinc refuses,
     `tests/error`, against a list of those it does not yet refuse in
-    kelvinc's words, in CI too (#609).
+    kelvinc's words, in CI too (#609), at kelvinc's line and column
+    (#690).
 - **The runtime in Kelvin** (#289): `runtime/*.k`, which
   `kelvinc --runtime` builds into `libkelvin` beside its C.
   - Its `kv_` functions keep the names `kelvin_prelude.h` declares,
