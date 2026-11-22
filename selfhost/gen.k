@@ -11227,6 +11227,7 @@ let literal_digits(t:int64):String {
     if cs.count > 2 && cs[0] == '0' && (cs[1] == 'x' || cs[1] == 'X') { base = 16; at = 2 }
     if cs.count > 2 && cs[0] == '0' && (cs[1] == 'b' || cs[1] == 'B') { base = 2; at = 2 }
     if cs.count > 2 && cs[0] == '0' && (cs[1] == 'o' || cs[1] == 'O') { base = 8; at = 2 }
+    if base == 10 && cs.count > 1 && cs[0] == '0' { base = 8; at = 1 }   // C's octal, 0377, and 0o17's text, 017 (#678)
     if base == 10 {
         var d = $""
         var lead = true

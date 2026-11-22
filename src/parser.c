@@ -12498,6 +12498,7 @@ static Var *parse_var(bool with_init, int let) {
         int bound_at = scope_types.len - 1; /* the initializer may bind temporaries after it (#187) */
         v->init = parse_initializer();
         v->type = inferred_type(v->init, v->pos);
+        reject_unfit_literal(v->init, v->type); /* let x = 18446744073709551615, an i64 (#678) */
         reject_let_vla(v, let);
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_owner_array(v);

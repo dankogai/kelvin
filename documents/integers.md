@@ -104,6 +104,16 @@ Everything else about literals is C's:
     255`, and so is `let u:u32 = -1` of its range.
   - A float with a fraction where an integer goes, `let x:i64 = 1.5`,
     says it has a fraction; `2.0` and `1e3` fit, as integers.
+  - A declaration with no type is an `i64`'s, so `let x =
+    18446744073709551615` does not fit (#678), where it was -1: write
+    `let x:u64 = ...`.
+- **A literal past u64's greatest**, which no integer type holds, is an
+  error (#678), where C said `integer literal is too large to be
+  represented in any integer type`: `99999999999999999999` and
+  `0x1_0000_0000_0000_0000` say they are too large, and that a `BigInt`
+  is written `99999999999999999999n`.
+  - `BigInt(123456789012345678901234567890)` is the error too: its
+    literal is `123456789012345678901234567890n`.
 
 ### Conversions (no C casts)
 

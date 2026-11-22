@@ -13243,3 +13243,24 @@ error.
 Details are provisional P682.
 
 There are 1557 tests, and all pass with clang and with gcc 15.
+
+### 725. A literal too large
+
+**Claude** pushed #677, its battery clean.
+
+**User:** fix the too-large literal fault too
+
+**Claude** found a second case while probing: let x =
+18446744073709551615, an i64 inferred, was -1 with no word; and asked
+whether to fix both.
+
+**User:** both (recommended); push when clean (recommended)
+
+**Claude** made it #678: a literal past u64's greatest is kelvinc's
+error, with the BigInt that holds it, and one past i64's of an inferred
+declaration #663's; kc says the same, and reads C's octal as octal
+where it fits a literal, which it read as decimal.
+
+Details are provisional P683.
+
+There are 1564 tests, and all pass with clang and with gcc 15.

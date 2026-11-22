@@ -248,6 +248,47 @@ let foreign_hint(t:int64):cstr {
     return nowhere
 }
 
+// an integer literal from s to e, its _ left out, past u64's greatest,
+// which C has no type for, as kelvinc's reject_huge_int says it (#678):
+// the text as written, ts to te, and the BigInt literal that holds it,
+// 0o's of C's octal
+let huge_int(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64):bool {
+    var base:uint64 = 10
+    var p:int64 = s
+    var c_octal = false
+    let x:uint32 = e - s > 1 ? codes[s + 1] : 0
+    if e - s > 1 && codes[s] == '0' && (x == 'x' || x == 'X' || x == 'b' || x == 'B' || x == 'o' || x == 'O') {
+        base = x == 'x' || x == 'X' ? 16 : x == 'b' || x == 'B' ? 2 : 8
+        p = s + 2
+    } else if e - s > 1 && codes[s] == '0' {
+        base = 8
+        c_octal = true
+        p = s + 1
+    }
+    var v:uint64 = 0
+    for q in p..<e {
+        let c:uint32 = codes[q]
+        var d:uint64 = c - 'A' + 10
+        if is_digit(c) { d = c - '0' } else if c >= 'a' { d = c - 'a' + 10 }
+        if v > (uint64.max - d) / base {
+            var m = $"integer literal '"
+            for r in ts..<te { m += codes[r] }
+            m += "' is too large: u64's greatest is 18446744073709551615; a BigInt is written '"
+            if c_octal {
+                m += "0o"
+                for r in s + 1..<e { m += codes[r] }
+            } else {
+                for r in ts..<te { m += codes[r] }
+            }
+            m += "n'"
+            lex_error(file, line, m.cstr)
+            return true
+        }
+        v = v * base + d
+    }
+    return false
+}
+
 // a number from s to e is digits, a fraction and an exponent and no more,
 // as kelvinc's check_number has it (#612): C's suffixes, 10UL, 1.5f, are
 // its error, the type goes on the declaration; and what else follows the
@@ -270,7 +311,10 @@ let check_number(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64) {
         if p < e && (codes[p] == '+' || codes[p] == '-') { p += 1 }
         while p < e && is_digit(codes[p]) { p += 1 }
     }
-    if p == e { return }
+    if p == e {
+        if !floating { huge_int(s, e, ts, te, line, file) }     // (#678)
+        return
+    }
     var text = $""
     for q in ts..<te { text += codes[q] }
     var suffix = true
@@ -347,6 +391,7 @@ let octal_literal(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64) 
         lex_error(file, line, m.cstr)
         return
     }
+    if huge_int(s, e, ts, te, line, file) { return }    // (#678)
     let at:int64 = codes.count as int64
     codes += '0'
     for q in s + 2..<e { codes += codes[q] }

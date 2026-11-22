@@ -249,6 +249,39 @@ static void skip_space(Lexer *lx) {
 /* Kelvin literals carry no size or type hints: C's suffixes (10UL, 10u,
    1.5f, 1.5L) are rejected, and the type goes on the declaration instead,
    as in `x: u64 = 10`. */
+/* an integer literal from s to end, its _ left out, past u64's greatest,
+   which C has no type for (#678): kelvinc's error, quoting the text as
+   written, ts to te, with the BigInt literal that holds it; C's octal,
+   017, is 0o's there, as a BigInt has no leading 0 */
+static void reject_huge_int(Pos pos, const char *s, const char *end, const char *ts, const char *te) {
+    unsigned base = 10;
+    const char *p = s;
+    bool c_octal = false;
+    if (end - s > 1 && s[0] == '0' && strchr("xXbBoO", s[1])) {
+        base = s[1] == 'x' || s[1] == 'X' ? 16 : s[1] == 'b' || s[1] == 'B' ? 2 : 8;
+        p += 2;
+    } else if (end - s > 1 && s[0] == '0') {
+        base = 8;
+        c_octal = true;
+        p++;
+    }
+    unsigned long long v = 0;
+    for (; p < end; p++) {
+        unsigned d = isdigit((unsigned char)*p) ? (unsigned)(*p - '0') : (unsigned)(tolower((unsigned char)*p) - 'a' + 10);
+        if (v > (18446744073709551615ULL - d) / base) {
+            int n = (int)(te - ts);
+            if (c_octal)
+                error_at(pos, "integer literal '%.*s' is too large: u64's greatest is 18446744073709551615; a BigInt "
+                              "is written '0o%.*sn'",
+                         n, ts, (int)(end - s - 1), s + 1);
+            error_at(pos, "integer literal '%.*s' is too large: u64's greatest is 18446744073709551615; a BigInt is "
+                          "written '%.*sn'",
+                     n, ts, n, ts);
+        }
+        v = v * base + d;
+    }
+}
+
 static void check_number(Pos pos, const char *s, const char *end, const char *ts, const char *te) {
     /* ts to te: the text as written, its _ too (#671), which a message quotes */
     const char *p = s;
@@ -258,8 +291,10 @@ static void check_number(Pos pos, const char *s, const char *end, const char *ts
     if (p[0] == '0' && (p[1] == 'o' || p[1] == 'O')) { /* 0o52 (#561): digits of 0 to 7, at least one, and no more */
         for (p += 2; p < end && *p >= '0' && *p <= '7'; p++)
             ;
-        if (p == end && end - s > 2)
+        if (p == end && end - s > 2) {
+            reject_huge_int(pos, s, end, ts, te); /* (#678) */
             return;
+        }
         error_at(pos, "malformed number '%.*s': an octal number is 0o and digits of 0 to 7, as in 0o17", (int)(te - ts), ts);
     }
     if (hex || bin)
@@ -279,8 +314,11 @@ static void check_number(Pos pos, const char *s, const char *end, const char *ts
         while (p < end && isdigit((unsigned char)*p))
             p++;
     }
-    if (p == end)
+    if (p == end) {
+        if (!floating)
+            reject_huge_int(pos, s, end, ts, te); /* (#678) */
         return;
+    }
     int n = (int)(te - ts);
     if (strspn(p, "uUlLfF") >= (size_t)(end - p)) {
         /* suggest the Kelvin type closest to what the suffix meant */

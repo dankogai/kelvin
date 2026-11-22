@@ -42,7 +42,8 @@ Three questions tell the literals and their counterparts apart:
 - **A literal is checked.** What is wrong with one is kelvinc's error, at its line and column:
   - a malformed one, `0x_ff` or `1e_5`;
   - a C suffix, `10u`, `10UL`, `1.5f`;
-  - one that does not fit its type, `let c:u8 = 300` (#663), which says `300 does not fit u8, whose values are 0 to 255`.
+  - one that does not fit its type, `let c:u8 = 300` (#663), which says `300 does not fit u8, whose values are 0 to 255`;
+  - one past u64's greatest, which no integer type holds, `99999999999999999999` (#678), which says a BigInt is written `99999999999999999999n`.
 - **Text is read, never refused.** A converter reads it as C's `strtol` and `strtod` do (#36):
   - leading spaces and a sign, then the longest number: `i64("42abc")` is 42;
   - no number is 0: `i64("abc")`, `BigInt("")`;
@@ -95,6 +96,7 @@ Three questions tell the literals and their counterparts apart:
 
 - **No suffix:** the type belongs on the declaration, `var v:u64 = 10`, or on the value, `10:u64`.
 - **Inferred**, an integer literal is an `i64` and a floating one an `f64` (#47).
+  - So `let x = 18446744073709551615` is an error, as it does not fit an `i64` (#678): write `let x:u64 = 18446744073709551615`.
   - Arithmetic of literals alone is reckoned in 64 bits: `let big = 65536 * 65536` is 4294967296.
 - **Beside a variable**, a literal has C's type, so a bare `1` is C's `int`:
   - `let x:i64 = 1 << 40` is an error that says to write `1:i64 << 40` (#665).

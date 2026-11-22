@@ -10,7 +10,9 @@ error (#662); a literal that does not fit its type, kelvinc's error
 (#663); a constant shift past its type's width, kelvinc's error (#665);
 the reviews of P662 to P680 (#664, #666, #670, #673 to #675); and a member of arithmetic
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
-no member 'foo'`, where it was C's error (#669). Added since #657, each
+no member 'foo'`, where it was C's error (#669); and an integer literal
+past u64's greatest, or past i64's in a declaration with no type,
+kelvinc's error (#678). Added since #657, each
 leaving every program as it was: `#import <Prime>`, with a computed
 attribute of an integer type (#668); `_` among a literal's digits
 (#671); and `BigInt.generatePrime(bits)` (#672). Each item becomes a
@@ -29,19 +31,16 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #677 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #678 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
 
-- An integer literal too large for any of C's types gives C's error,
-  `integer literal is too large to be represented in any integer type`,
-  where kelvinc's should say so: `let x = 99999999999999999999`, and
-  `BigInt(123456789012345678901234567890)`, which is written
-  `123456789012345678901234567890n`; found while literals.md was written
-  (#677).
+- None known: an integer literal past u64's greatest is kelvinc's error,
+  and so is one past i64's in a declaration with no type (#678), found
+  while literals.md was written (#677).
 - A member of arithmetic, `(n + 1).foo`, is kelvinc's error (#669).
 - The sweep's three that C only warned of are kelvinc's errors (#661 to
   #663), and so is a constant shift past its width (#665).
@@ -71,7 +70,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P681 and P682, the details of #676 and #677, until reviewed; the reviews confirmed
+- P681 to P683, the details of #676 to #678, until reviewed; the reviews confirmed
   every row to P680, and a review's own detail row is confirmed by that
   review (#675).
 

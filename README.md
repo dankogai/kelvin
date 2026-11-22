@@ -815,3 +815,7 @@ So far the changes from C are these, by topic.
 - `<Prime>` has `BigInt.generatePrime(bits)`, a random prime of exactly
   that many bits, as OpenSSL's libcrypto makes one: top two bits set,
   sieved, Baillie-PSW and 64 or 128 rounds of random bases (#672)
+- An integer literal past u64's greatest is kelvinc's error, which says
+  how its BigInt is written, `99999999999999999999n`, where it was C's;
+  and `let x = 18446744073709551615`, an `i64`, does not fit, where it
+  was -1 (#678)
