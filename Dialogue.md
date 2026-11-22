@@ -13174,3 +13174,23 @@ amend it, and no row before P679 is provisional.
 Details are provisional P679.
 
 There are 1557 tests, and all pass with clang and with gcc 15.
+
+### 722. The review, batch 15, and the end of the chain
+
+**Claude** wrote #674, its battery run and pushed when clean.
+
+**User:** then review P679
+
+**Claude** said each review's own detail row had stayed provisional, so
+reviewing P679 would leave P680 so, without end, and asked whether a
+review should confirm its own row.
+
+**User:** end the chain (recommended); push when clean (recommended)
+
+**Claude** made it #675: P679 is marked confirmed, as later numbers
+amend it, and P680, #675's own row, is written confirmed by #675, so no
+row is provisional.
+
+Details are P680, confirmed by #675 itself.
+
+There are 1557 tests, and all pass with clang and with gcc 15.
