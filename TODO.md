@@ -1,6 +1,6 @@
 # TODO
 
-What is left, checked against the code after #666; done since #657: the
+What is left, checked against the code after #675; done since #657: the
 crash of a struct that holds itself (#659); and the wrong message of a
 cstr's byte set, which was none: `let s = "abc"` is the error there, as
 text is declared with `:=`, and `s[0] = 65` of `let s := "abc"` says a
@@ -10,7 +10,10 @@ error (#662); a literal that does not fit its type, kelvinc's error
 (#663); a constant shift past its type's width, kelvinc's error (#665);
 the reviews of P662 to P680 (#664, #666, #670, #673 to #675); and a member of arithmetic
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
-no member 'foo'`, where it was C's error (#669). Each item becomes a
+no member 'foo'`, where it was C's error (#669). Added since #657, each
+leaving every program as it was: `#import <Prime>`, with a computed
+attribute of an integer type (#668); `_` among a literal's digits
+(#671); and `BigInt.generatePrime(bits)` (#672). Each item becomes a
 numbered change of Design.md when it is ordered; this list says what is
 known, not what is planned.
 
@@ -26,7 +29,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #675 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #676 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -63,11 +66,15 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P680, and a review's own
-  detail row is confirmed by that review (#675).
+- P681, the details of #676, until reviewed; the reviews confirmed
+  every row to P680, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 
 - Closures and protocols: neither is in 0.4.0, and protocols come first
   when one is taken up.
 - `long double` and `f128` have no Kelvin spelling yet.
+- Safe primes of `<Prime>`, a prime p with (p - 1) / 2 prime, as
+  OpenSSL's `BN_generate_prime_ex` makes with `safe`: not now, as the
+  user answered for #672.

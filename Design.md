@@ -738,6 +738,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 673 | The review of the provisional rows, batch 13: the detail rows P675 to P677, 3 rows of Details of #670 to #672, are confirmed as they stand, each read as later numbers amend it, none amended since, each row marked so, no document marking any of them provisional. With it no row before P678 is provisional; Design.md's status and versusC.md say the rows were confirmed by #633 to #639, #651, #657, #664, #666, #670 and #673. The user's order, "then review P675 to P677", and of the two asked the answers, each the recommended: confirm, as amended later; push when clean; records | Design.md's P rows and status; documents/versusC.md; TODO.md | tests/docs.sh, the documents' examples as they were | 2026-11-22 |
 | 674 | The review of the provisional rows, batch 14: the detail row P678, of #673, is confirmed as it stands, read as later numbers amend it, none amended since, the row marked so, no document marking it provisional. With it no row before P679 is provisional; Design.md's status and versusC.md say the rows were confirmed by #633 to #639, #651, #657, #664, #666, #670, #673 and #674. The user's order, "then review P678", and of the two asked the answers, each the recommended: confirm, as amended later; push when clean; records | Design.md's P rows and status; documents/versusC.md; TODO.md | tests/docs.sh, the documents' examples as they were | 2026-11-22 |
 | 675 | The review of the provisional rows, batch 15: the detail row P679, of #674, is confirmed as it stands, read as later numbers amend it, the row marked so, no document marking it provisional; and the chain of reviews ends: a review's own detail row is confirmed by that review, as P680, this one's, is, where each review left its own row provisional and the next review was needed for it. With it no row is provisional; Design.md's status says the rule, and it and versusC.md say the rows were confirmed by #633 to #639, #651, #657, #664, #666, #670 and #673 to #675; TODO.md's provisional rows are none. The user's order, "then review P679", and of the two asked the answers, each the recommended: end the chain; push when clean; records | Design.md's P rows and status; documents/versusC.md; TODO.md | tests/docs.sh, the documents' examples as they were | 2026-11-22 |
+| 676 | TODO.md is brought up to date after #675: checked against the code after #675; added since #657, each leaving every program as it was, #import <Prime> with a computed attribute of an integer type (#668), _ among a literal's digits (#671) and BigInt.generatePrime(bits) (#672), said under done; the CHANGELOG entry so far #651 to #676; the provisional rows, P681, the details of this one, every row to P680 confirmed; and under open design, safe primes of <Prime>, not now as the user answered for #672. Nothing blocks 0.4.1 but its release chores, done only when ordered. The user's order, "update TODO.md accordingly", after the list of what is left before 0.4.1; records | TODO.md | tests/docs.sh, the documents' examples as they were | 2026-11-22 |
 
 Notes:
 
@@ -1322,6 +1323,16 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (676) Agreed details: TODO.md after #675
+  - Checked against the code after #675: kelvinc's and the VS Code
+    package's version 0.4.0, the last tag v0.4.0, no fault known, kc's
+    29 places and its const const as listed.
+  - The additions since #657, #668, #671 and #672, said under done.
+  - Safe primes, deferred by the user's answer for #672, listed under
+    open design.
+  - P681, this change's row, provisional, as the rule of #675 leaves a
+    change's row that is not a review.
 
 - (675) Agreed details: the review, batch 15, and the end of the chain
   - The detail row P679, of #674, confirmed as it stands, read as later
@@ -12066,6 +12077,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P678 | Confirmed (#674), as later numbers amend it: Details of #673 | scratchpad's markbatch.py of 673, detail, P675 to P677: each row's second column begins `Confirmed (#673), as later numbers amend it: `; Design.md's status and versusC.md name #673 beside #633 to #639, #651, #657, #664, #666 and #670; TODO.md's provisional rows, P678 alone, the reviews under done since #657, the CHANGELOG entry #651 to #673 so far. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P679 | Confirmed (#675), as later numbers amend it: Details of #674 | scratchpad's markbatch.py of 674, detail, P678: the row's second column begins `Confirmed (#674), as later numbers amend it: `; Design.md's status and versusC.md name #674 beside #633 to #639, #651, #657, #664, #666, #670 and #673; TODO.md's provisional rows, P679 alone, the reviews under done since #657, the CHANGELOG entry #651 to #674 so far. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 | P680 | Confirmed (#675), as later numbers amend it: Details of #675 | scratchpad's markbatch.py of 675, detail, P679, and P680 written with its mark: each row's second column begins `Confirmed (#675), as later numbers amend it: `; Design.md's status names #673 to #675 and says the rule; versusC.md names #673 to #675; TODO.md's provisional rows none, the reviews under done since #657, the CHANGELOG entry #651 to #675 so far. Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
+| P681 | Details of #676 | TODO.md: the head, checked after #675, the additions #668, #671 and #672 under done since #657; Versions, the CHANGELOG entry #651 to #676 so far; Provisional rows, P681; Open design, safe primes. Checked by src/main.c's KELVIN_VERSION, editors/vscode/package.json's version, git tag, and CHANGELOG.md's head, 0.4.0 (#650). Checked: tests/run.sh with clang and gcc 15, tests/asan.sh, both pedantic builds, tests/docs.sh, tests/grammar.js, the bootstrap and selfhost/errors.sh. |
 
 ## Open questions
 

@@ -13194,3 +13194,25 @@ row is provisional.
 Details are P680, confirmed by #675 itself.
 
 There are 1557 tests, and all pass with clang and with gcc 15.
+
+### 723. TODO.md after #675
+
+**Claude** pushed #675, its battery clean, and CI passed.
+
+**User:** List todos before 0.4.1
+
+**Claude** listed them: nothing blocks 0.4.1 but its release chores,
+the CHANGELOG entry of #651 to #675, the version, the README's line,
+the tag and the release; and open but not needed, kc's 29 places and
+its const const, closures and protocols, long double and f128, and safe
+primes; TODO.md's head said checked after #666.
+
+**User:** update TODO.md accordingly
+
+**Claude** made it #676: TODO.md checked after #675, the additions
+#668, #671 and #672 under done, the CHANGELOG entry #651 to #676 so
+far, P681 provisional, and safe primes under open design.
+
+Details are provisional P681.
+
+There are 1557 tests, and all pass with clang and with gcc 15.
