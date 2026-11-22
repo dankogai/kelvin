@@ -188,6 +188,8 @@ var locals_seen:$[int64]       // the names declared in the function being read,
 var local_types:$[int64]       // the types defined in the blocks being read (#391): the tokens kc names them by, _kv_main_point
 var local_type_depths:$[int64] // and the depth of the block each is in
 var local_enums:$[int64]       // the enumerators of the enums so defined, by their tokens, _kv_main_red
+var local_fns:$[int64]         // the functions defined inside a function, by their tokens, _kv_main_fib (#180, #697)
+var local_fn_depths:$[int64]   // and the depth of the block each is in
 var local_enum_depths:$[int64]
 var local_own_of:Dictionary<String, int64>   // each one's own name's token, by its C name
 var ended_types:$[int64]       // the types of the function whose blocks have ended
@@ -616,6 +618,18 @@ let local_enum_named(t:int64):int64 {
     var i:int64 = local_enums.count as int64 - 1
     while i >= 0 {
         let u:int64 = local_enums[i]
+        if same_text(local_own_of.get(tok_text(u), -1), t) { return u }
+        i -= 1
+    }
+    return 0 - 1
+}
+
+// the function defined inside a function that token t names in its
+// block (#180, #697), its hidden token, or -1
+let local_fn_named(t:int64):int64 {
+    var i:int64 = local_fns.count as int64 - 1
+    while i >= 0 {
+        let u:int64 = local_fns[i]
         if same_text(local_own_of.get(tok_text(u), -1), t) { return u }
         i -= 1
     }
@@ -2804,6 +2818,8 @@ let parse_primary():int64 {
         if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bytes(x) (#439)
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
         if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#391)
+        let lf:int64 = local_named(t) ? 0 - 1 : local_fn_named(t)
+        if lf >= 0 { return make_node(N_ID, lf) }        // a function defined in this block or one around it (#180, #697)
         if at_word(".") && toks[pos + 1].kind == T_ID && !local_named(t) {
             let nt:int64 = type_path(t)                  // point.kind.none, kind.none in point's method (#389)
             while pos < path_end { advance() }
@@ -3653,10 +3669,10 @@ let parse_assert(kind:nkind):int64 {
 let parse_struct():int64    // prototypes: a block defines types too (#391)
 let parse_enum():int64
 
-// let f(...) { } inside a function, which kc reads not yet (#180): what
-// kelvinc says of a local of the function around it used in its body,
-// else that kc does not read it (#654)
-let nested_function_error() {
+// let f(...) { } inside a function (#180): what kelvinc says of a local
+// of the function around it used in its body (#654); whether it said it
+// (#697)
+let nested_function_error():bool {
     let open:int64 = pos + 2
     let close:int64 = group_end(open)                    // the ) of its parameters
     var own:$[int64] = $[]                               // its parameters and the names its body declares
@@ -3690,10 +3706,10 @@ let nested_function_error() {
             m += tok_text(k)
             m += "' of the function around it: C has no closures, so pass it as an argument, or make it a global"
             parse_error_at(k, m.cstr)
-            return
+            return true
         }
     }
-    parse_error("kc reads a function defined inside a function not yet (#180): define it at the top level")
+    return false
 }
 
 let parse_statement():int64 {
@@ -3711,7 +3727,25 @@ let parse_statement():int64 {
         return make_node(S_BLOCK, t)
     }
     if at_word("let") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "(") && fn_parsing >= 0 && anon_depth == 0 {   // a function inside a function (#180, #654)
-        nested_function_error()
+        if nested_function_error() { return make_node(S_BLOCK, t) }
+        advance()                                        // a function of the program, _kv_outer_name in C, its block's, as kelvinc's (#697)
+        let name:int64 = pos
+        let hidden:int64 = hidden_token(name)
+        local_fns += hidden
+        local_fn_depths += block_depth
+        var saved_locals:$[int64] = $[]
+        for l in locals_seen { saved_locals += l }
+        var saved_ended:$[int64] = $[]
+        for e in ended_types { saved_ended += e }
+        let saved_tok:int64 = fn_tok
+        let f:int64 = parse_function()
+        while locals_seen.count > 0 { locals_seen.pop() }
+        for l in saved_locals { locals_seen += l }
+        while ended_types.count > 0 { ended_types.pop() }
+        for e in saved_ended { ended_types += e }
+        fn_tok = saved_tok
+        nodes[f].t = hidden
+        decls += f
         return make_node(S_BLOCK, t)
     }
     if at_word("register") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {   // left out on purpose, as kelvinc says it (#640)
@@ -4272,6 +4306,10 @@ let parse_block():int64 {
     while local_enums.count > 0 && local_enum_depths[local_enum_depths.count - 1] > block_depth {
         local_enums.pop()
         local_enum_depths.pop()
+    }
+    while local_fns.count > 0 && local_fn_depths[local_fn_depths.count - 1] > block_depth {   // (#697)
+        local_fns.pop()
+        local_fn_depths.pop()
     }
     return n
 }

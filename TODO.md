@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #696 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #697 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -73,9 +73,10 @@ known, not what is planned.
 - kc reads `typeof` of an expression and `x.type` where `x`'s type is
   inferred or only C sees, written `__typeof__(x)` as kelvinc writes it,
   and `(T){...}` of such a type (#696).
+- kc reads a function defined inside a function, `_kv_outer_name` in C,
+  its block's, as kelvinc's #180 (#697).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
-  - a function defined inside a function (#180);
   - a plain enum with no name in a block, and one with values inside a
     type;
   - a parameter's array of arrays whose inner count C computes;
@@ -100,7 +101,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 to P701, the details of #692 to #696, until reviewed; the reviews confirmed
+- P697 to P702, the details of #692 to #697, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

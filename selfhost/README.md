@@ -1188,6 +1188,16 @@ kc reads what it is written in, and little more.
     sizeof_c_pointer.k, which kc refused, print what kelvinc's print;
     typeof.k is built, `const i64` of a let's `typeof` the one
     difference left, listed in TODO.md.
+- **A function defined inside a function** (#697), as kelvinc's #180:
+  `let fib(n:i64):i64 { ... }` in a body is a function of the program,
+  named in C by hidden_token as kelvinc names it, `_kv_main_fib`,
+  `_kv_main_fib1` of another of its name in the same function; its name
+  is its block's from its definition on, local_fns by depth, hiding one
+  of the name outside and calling itself; parsed as a function at the
+  top level is, the reading of the function around it kept, and put
+  among decls. kelvinc's error of a local of the function around it
+  stays; where kc said "not yet", tests/run/nested_function.k prints
+  what kelvinc's prints.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -844,3 +844,5 @@ So far the changes from C are these, by topic.
 - kc reads `x.type` and `typeof` of what kelvinc does not see, C's
   `__typeof__`, an inferred global's, an expression's and a C name's,
   and compound literals of them, as kelvinc does (#696)
+- kc reads a function defined inside a function, `_kv_outer_name` in
+  C, its block's, as kelvinc does (#180, #697)

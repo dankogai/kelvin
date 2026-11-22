@@ -13567,3 +13567,16 @@ on the way and fixed, and one difference of typeof.k listed.
 Details are provisional P701.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 744. kc reads nested functions
+
+**Claude** wrote #696, its battery run and pushed when clean, and
+went on with the sixth batch.
+
+**Claude** made it #697: a function defined inside a function, named
+and scoped as kelvinc does it, so that nested_function.k prints what
+kelvinc's prints.
+
+Details are provisional P702.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
