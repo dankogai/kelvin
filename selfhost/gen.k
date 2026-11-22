@@ -5418,9 +5418,19 @@ let plain_shown(v:int64):bool {
     return is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_BYTES || k == Y_CSTR
 }
 
-// whether print shows v inside a value as it is: plain_shown's
+// whether print shows v inside a value by its text, as kelvinc's
+// text_writer: a pointer, an address or nowhere, a function's address,
+// an IO <IO>, a plain enum's number, and what only C sees as C decides
+// (#692)
+let text_shown(v:int64):bool {
+    let k:ykind = types[v].kind
+    return k == Y_PTR || k == Y_FN || k == Y_IO || k == Y_C || enum_int(v)
+}
+
+// whether print shows v inside a value as it is: plain_shown's, and
+// text_shown's (#692)
 let elem_shown(v:int64):bool {
-    return plain_shown(v)
+    return plain_shown(v) || text_shown(v)
 }
 
 // whether print shows y by a _kv_show_T of its own: an enum with values
@@ -5697,6 +5707,30 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put("kv_out_quoted_text(o, (const void *)(")
         put_self(path, t)
         put("));\n")
+    } else if text_shown(v) {                           // by its text, as kelvinc's text_writer (#692)
+        put("{ uint8_t _kv_b[256]; uint8_t *_kv_p = _kv_b; _kv_p = ")
+        let e:int64 = k == Y_PTR ? types[v].elem : 0 - 1
+        let ek:ykind = e >= 0 ? types[e].kind : Y_VOID
+        if k == Y_IO {
+            put("kv_cstr_put(_kv_p, \"<IO>\")")
+        } else if k == Y_FN {
+            put("kv_cstr_put_address(_kv_p, (const void *)(uintptr_t)(")
+            put_self(path, t)
+            put("))")
+        } else if k == Y_PTR && (ek == Y_U8 || ek == Y_I8) {   // text, quoted
+            put("kv_cstr_quoted_str((const char *)(")
+            put_self(path, t)
+            put("), _kv_p)")
+        } else if k == Y_PTR {                           // an address; to a C header's type, as C decides
+            put(ek == Y_C ? "kv_cstr_put_pointer(_kv_p, " : "kv_cstr_put_address(_kv_p, ")
+            put_self(path, t)
+            put(")")
+        } else {
+            put("kv_cstr_end(kv_cstr_any(")
+            put_self(path, t)
+            put(", _kv_p))")
+        }
+        put("; (void)_kv_p; kv_out_put(o, _kv_b); }\n")
     } else if !plain_shown(v) {
         put_show_name(v)
         put("(o, &(")
@@ -6252,7 +6286,8 @@ let gen_show(y:int64) {
     }
     put("    switch (self->tag)\n    {\n")
     var qual = $""                                      // num.n(1.5), as the value is written, so that it pastes back, as kelvinc's (#529)
-    if !anon_decls.has(tok_text(types[y].name)) && !tok_text(types[y].name).starts("_kv_") {   // ok(v) and some(v), kc's own, bare
+    let cn:String = tok_text(types[y].name)
+    if !anon_decls.has(cn) && !cn.starts("_kv_opt_") && !cn.starts("_kv_res_") {   // ok(v) and some(v), kc's own, bare; a block's, pair.kind, by its path (#692)
         let w:String = kelvin_name(types[y].name)
         qual += &w
         qual += "."

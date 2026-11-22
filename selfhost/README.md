@@ -1099,6 +1099,15 @@ kc reads what it is written in, and little more.
   `CodepointError.empty`, a nested one's path, `shape.kind.round`, so
   that the text pastes back; an untagged one, and kc's own Optionals
   and Results, `_kv_` names, stay bare.
+- **What a struct holds that has no printer prints by its text** (#692),
+  as kelvinc's text_writer: a pointer, its address or `nowhere`, a
+  function's address, an IO `<IO>`, a plain enum's number, and a C
+  header's type as C decides, where kc said "not yet what this holds".
+  - tests/run's io_basics.k, local_types.k and nested_types.k, which kc
+    refused, print what kelvinc's builds print.
+  - A block's enum with values prints by its path, `pair.kind.sides(4)`:
+    kc's own Optionals and Results, `_kv_opt_` and `_kv_res_`, alone
+    stay bare, where every `_kv_` name did, a block's too (#529's).
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

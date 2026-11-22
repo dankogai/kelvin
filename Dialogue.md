@@ -13491,3 +13491,25 @@ row, is confirmed by #691.
 Details are P696, confirmed by #691 itself.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 739. kc prints members by their text
+
+**Claude** wrote #691, its battery run and pushed when clean, and
+listed what TODO.md has left.
+
+**User:** go on
+
+**Claude** asked which item, and how to push.
+
+**User:** kc's 29 places (recommended); push each batch when clean
+(recommended)
+
+**Claude** ran kc over tests/run and examples, found 14 refused with
+kc's "not yet", and made the first batch #692: what a struct holds
+that has no printer of its own prints by its text, as kelvinc's, and a
+block's enum by its path, so that io_basics.k, local_types.k and
+nested_types.k print what kelvinc's print.
+
+Details are provisional P697.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

@@ -825,3 +825,6 @@ So far the changes from C are these, by topic.
   C refused `q^ = 5` of, and `const const uint8_t *` of a cstr (#680)
 - `(size_t)(n + 1)`, `(int32_t)*p` and `(size_t)-1` are kelvinc's error,
   C casts are not Kelvin, where C said expected expression (#689)
+- kc prints a struct's pointer, function, IO and plain enum members as
+  kelvinc does, by their text, where it said not yet, and a block's
+  enum's case by its path, `pair.kind.sides(4)` (#692)
