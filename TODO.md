@@ -8,7 +8,7 @@ cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
 error (#662); a literal that does not fit its type, kelvinc's error
 (#663); a constant shift past its type's width, kelvinc's error (#665);
-the reviews of P662 to P684 (#664, #666, #670, #673 to #675, #679); and a member of arithmetic
+the reviews of P662 to P696 (#664, #666, #670, #673 to #675, #679, #691); and a member of arithmetic
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
 no member 'foo'`, where it was C's error (#669); and an integer literal
 past u64's greatest, or past i64's in a declaration with no type,
@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #690 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #691 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -77,9 +77,8 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P685 to P695, the details of #680 to #690, until reviewed; the reviews confirmed
-  every row to P684, and a review's own detail row is confirmed by that
-  review (#675).
+- None: the reviews confirmed every row to P696, and a review's own
+  detail row is confirmed by that review (#675).
 
 ## Open design
 

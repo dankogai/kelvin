@@ -13470,3 +13470,24 @@ battery and CI.
 Details are provisional P695.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 738. The review, batch 17
+
+**Claude** wrote #690, its battery run and pushed when clean.
+
+**User:** then review P681 to P695
+
+**Claude** said P681 to P684 were confirmed by #679, checked each of
+P685 to P695 against its commit, found three that left something out,
+and asked how they should be confirmed, and whether to push when clean.
+
+**User:** amend 3, confirm all (recommended); push when clean
+(recommended)
+
+**Claude** made it #691: P685, P686 and P694 are amended, P685 to P695
+are marked confirmed, as later numbers amend them, and P696, #691's own
+row, is confirmed by #691.
+
+Details are P696, confirmed by #691 itself.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
