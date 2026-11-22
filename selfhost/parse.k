@@ -3314,6 +3314,8 @@ let end_statement() {
 
 // name:Type = value, its let or var read; without :Type, the type is
 // what the value gives, found when it is written (#214); c is 1 of :=
+var decl_ops:Dictionary<int64, int64>   // a declaration's = or :=, by its node (#683)
+
 let parse_var(is_let:int64):int64 {
     if fnptr_decl(pos, true) { return make_node(S_VAR, pos) }   // var T (*f)(...), as kelvinc says it
     reject_kv_name(pos)
@@ -3337,7 +3339,7 @@ let parse_var(is_let:int64):int64 {
     }
     if at_word("=") || at_word(":=") {          // := of a reference, as a cstr
         if at_word(":=") { nodes[n].c = 1 }
-        advance()
+        decl_ops[n] = advance()                  // its = or :=, where kelvinc says an error of it (#683)
         set_a(n, parse_expr())
     }
     return n

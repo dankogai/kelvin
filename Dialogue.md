@@ -13340,3 +13340,20 @@ too. All 74 have kelvinc's line and column; 204 are left.
 Details are provisional P687.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 730. kc's error positions, batch 3
+
+**Claude** pushed #682, its battery clean and CI's 9 jobs passed.
+
+**User:** go on
+
+**Claude** made the third batch #683, of the columns: an error of a
+change at its assignment's operator, of a declaration's = at that =,
+kept by the parser, and of a conversion or a case's word at its callee,
+as kelvinc says each; a rule of every call at its callee moved 14
+matching ones, a function's call being at its (, so it was left. 147
+are left, each of a site of its own.
+
+Details are provisional P688.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

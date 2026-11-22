@@ -358,6 +358,17 @@ let gen_error(n:int64, what:cstr) {
     failed = true
 }
 
+// an error of call n at its callee, as kelvinc says one of a conversion,
+// a case's word or a name that is no function, T(v), some(v), x(1); of a
+// function's call, or what is not a call, gen_error's (#683)
+let callee_error(n:int64, what:cstr) {
+    if nodes[n].kind == N_CALL && nodes[n].a >= 0 && !(nodes[nodes[n].a].kind == N_ID && fn_named(nodes[nodes[n].a].t) >= 0) {
+        tok_error(nodes[nodes[n].a].t, what)
+        return
+    }
+    gen_error(n, what)
+}
+
 // ---------- types ----------
 
 let tagged_of(y:int64):int64    // prototypes: an enum with values owns where a case does (#215)
@@ -832,6 +843,13 @@ let into_words(lead:cstr, dot:cstr, t:int64):String {
 
 let enum_constant_changed(n:int64):bool
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
+var change_op:int64 = 0 - 1     // the operator of the assignment being written, and its place, where kelvinc
+var change_lhs:int64 = 0 - 1    // says an error of the place's change (#683)
+
+// where an error of the change of place n is said: an assignment's at its operator (#683)
+let change_tok(n:int64):int64 {
+    return n == change_lhs && change_op >= 0 ? change_op : nodes[n].t
+}
 let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
 let owner_part(v:int64):bool    // a prototype: let, = and return refuse what it says (#365)
 let owner_name(v:int64):bool    // and their names and the words said of them (#440)
@@ -1006,7 +1024,7 @@ let unknown_wide(n:int64, t:int64) {
     } else {
         m += "' is not known: declare it before it is used"
     }
-    gen_error(n, m.cstr)
+    callee_error(n, m.cstr)
 }
 
 // arithmetic of literals alone (#385), as kelvinc's: 1 of integers, 2
@@ -2208,7 +2226,7 @@ let word_misused(n:int64, written:bool):bool {
     if failed { return true }
     let k:nkind = nodes[n].kind
     if written && k == N_CALL && nodes[nodes[n].a].kind == N_ID && tok_is(nodes[nodes[n].a].t, "_Pragma") && n != pragma_stmt {
-        gen_error(n, "_Pragma(\"...\") is only allowed as a statement of its own")
+        callee_error(n, "_Pragma(\"...\") is only allowed as a statement of its own")
         return true
     }
     var w:int64 = 0 - 1
@@ -2252,7 +2270,7 @@ let word_misused(n:int64, written:bool):bool {
     } else {
         return false
     }
-    gen_error(n, m.cstr)
+    callee_error(n, m.cstr)
     return true
 }
 
@@ -2404,7 +2422,7 @@ let cstr_ref_error(n:int64) {
     var m = $"'"
     m += tok_text(nodes[n].t)
     m += "' is a reference (cstr): assign it with ':=', not '='"
-    gen_error(n, m.cstr)
+    tok_error(decl_ops.get(n, nodes[n].t), m.cstr)      // (#683)
 }
 
 // a << n, a >> n of a constant n at or past the width of a's type as C
@@ -7889,22 +7907,22 @@ let string_args_refused(n:int64):bool {
     let x:int64 = nodes[n].b
     let takes:cstr := "String takes nothing, text, or a borrow of a Bytes, '&b'"
     if x >= 0 && nodes[x].next >= 0 {
-        gen_error(n, takes)
+        callee_error(n, takes)
         return true
     }
     if x < 0 || is_case_word(x) { return false }
     let y:int64 = type_of(x)
     if !is_owner(y) { return false }
     if is_place(x) {
-        gen_error(n, "String(x) would copy an owner: write x.copy(), String(&b) of a Bytes, or b.string() for a Result")
+        callee_error(n, "String(x) would copy an owner: write x.copy(), String(&b) of a Bytes, or b.string() for a Result")
         return true
     }
     if types[y].kind == Y_STRING {
-        gen_error(n, "String(x) of a String is one already: leave out String(...)")
+        callee_error(n, "String(x) of a String is one already: leave out String(...)")
         return true
     }
     if types[y].kind == Y_BYTES {                        // as kelvinc says it
-        gen_error(n, "String(b) of a Bytes is written String(&b), checked, or b.string() for a Result")
+        callee_error(n, "String(b) of a Bytes is written String(&b), checked, or b.string() for a Result")
         return true
     }
     var m = $""
@@ -7912,7 +7930,7 @@ let string_args_refused(n:int64):bool {
     m += ", and this is "
     let w:String = kelvin_type_text(y)
     m += &w
-    gen_error(n, m.cstr)
+    callee_error(n, m.cstr)
     return true
 }
 
@@ -8168,7 +8186,7 @@ let gen_converter(n:int64) {
         m += "(v) or "
         m += &name
         m += "(text, base)"
-        gen_error(n, m.cstr)
+        callee_error(n, m.cstr)
         return
     }
     if is_int_kind(k) && bools_value(v) {                // u8(bools), of a [bool] (#530)
@@ -8214,12 +8232,12 @@ let gen_converter(n:int64) {
             m += &name
             m += " { ... }'"
         }
-        gen_error(n, m.cstr)
+        callee_error(n, m.cstr)
         return
     }
     let text:bool = converter_text(v)
     if k == Y_BOOL && text && (nodes[v].kind == N_STR || nodes[v].kind == N_TPL) {   // as kelvinc says it (#611)
-        gen_error(n, "bool(...) reads no text, and this text is never nowhere, so it would always be true")
+        callee_error(n, "bool(...) reads no text, and this text is never nowhere, so it would always be true")
         return
     }
     if base >= 0 && (k == Y_F64 || k == Y_F32) {
@@ -8249,7 +8267,7 @@ let gen_converter(n:int64) {
         m += " is neither: an address is '.addr', and 'v as "
         m += &name
         m += "' is C's cast (#513)"
-        gen_error(n, m.cstr)
+        callee_error(n, m.cstr)
         return
     }
     if !text && !unseen && !number && !(k == Y_BOOL && (types[vy].kind == Y_PTR || types[vy].kind == Y_CSTR)) {
@@ -8257,7 +8275,7 @@ let gen_converter(n:int64) {
         m += " converts a number, or reads one from text, and this is "
         let w:String = kelvin_type_text(vy)
         m += &w
-        gen_error(v, m.cstr)
+        callee_error(v, m.cstr)
         return
     }
     var opened = hold_args(v, 0 - 1)
@@ -8328,7 +8346,7 @@ let gen_call(n:int64) {
     if nodes[f].kind == N_TYPE {
         if tok_is(nodes[f].t, "IO") {
             if args < 0 || (nodes[args].next >= 0 && nodes[nodes[args].next].next >= 0) {   // one or two, as kelvinc says it (#610)
-                gen_error(n, "IO takes a path and a mode, as in IO(\"log.txt\", \"w\"): text, a String or a Bytes; a path alone opens for reading (#101); or a file descriptor and a mode, IO(fd, \"r\")")
+                callee_error(n, "IO takes a path and a mode, as in IO(\"log.txt\", \"w\"): text, a String or a Bytes; a path alone opens for reading (#101); or a file descriptor and a mode, IO(fd, \"r\")")
                 return
             }
             let fy:int64 = type_of(args)
@@ -8428,7 +8446,7 @@ let gen_call(n:int64) {
             m += &w
             m += ", not a function: what is called is a function or a variable of a function type"
         }
-        gen_error(n, m.cstr)
+        tok_error(nodes[f].t, m.cstr)                    // at the name, as kelvinc's (#683)
         return
     }
     let d = call_target(n)                          // the overload its arguments fit (#234)
@@ -9216,7 +9234,7 @@ let gen_bytes_make(n:int64) {
     }
     let more:int64 = nodes[x].next
     if more >= 0 && nodes[more].next >= 0 {
-        gen_error(n, takes)
+        callee_error(n, takes)
         return
     }
     if more >= 0 {                                       // bytes and their count
@@ -9257,17 +9275,17 @@ let gen_bytes_make(n:int64) {
     if failed { return }
     if is_owner(y) {
         if types[y].kind == Y_STRING {
-            gen_error(n, "Bytes(s) of a String is written Bytes(&s), a copy of its bytes (#291)")
+            callee_error(n, "Bytes(s) of a String is written Bytes(&s), a copy of its bytes (#291)")
         } else if is_place(x) {
-            gen_error(n, "Bytes(x) would copy an owner: write x.copy(), or Bytes(&b)")
+            callee_error(n, "Bytes(x) would copy an owner: write x.copy(), or Bytes(&b)")
         } else if types[y].kind == Y_BYTES {
-            gen_error(n, "Bytes(x) of a Bytes is one already: leave out Bytes(...)")
+            callee_error(n, "Bytes(x) of a Bytes is one already: leave out Bytes(...)")
         } else {
             var m = String(takes)
             m += ", and this is "
             let w:String = kelvin_type_text(y)
             m += &w
-            gen_error(n, m.cstr)
+            callee_error(n, m.cstr)
         }
         return
     }
@@ -11202,7 +11220,7 @@ let init_as_case(n:int64, y:int64) {
             if nodes[c].next >= 0 { m += ", " }
             c = nodes[c].next
         }
-        gen_error(x, m.cstr)
+        callee_error(x, m.cstr)
     } else if value_case(y) < 0 && nodes[x].kind != N_DESIG && !(nodes[x].kind == N_FIELD && nodes[nodes[x].a].kind == N_SELF) {
         let first:int64 = nodes[d].a                     // a case is written by its name, as kelvinc says it (#61, #611)
         var m = $"a case of "
@@ -11471,7 +11489,7 @@ let gen_value_of(n:int64, y:int64) {
     }
     var m = case_word_of(n, d)
     if m >= 0 && nodes[d].c == 1 && nodes[n].kind == N_CALL && nodes[n].ty < 0 {   // Optional<T>.some(v) makes one (#449)
-        gen_error(n, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v); some(v) is a pattern, as in 'if let some(v) = x' (#224)")
+        callee_error(n, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v); some(v) is a pattern, as in 'if let some(v) = x' (#224)")
         return
     }
     if m < 0 && is_case_word(n) {                       // a case the type has not, as kelvinc says it (#341)
@@ -11489,7 +11507,7 @@ let gen_value_of(n:int64, y:int64) {
             return
         }
         if result && tok_is(w, "some") {                  // as kelvinc says it (#344)
-            gen_error(n, "a Result has no case 'some': write ok(v), or err(e) (#224)")
+            callee_error(n, "a Result has no case 'some': write ok(v), or err(e) (#224)")
             return
         }
     }
@@ -11640,7 +11658,7 @@ let gen_coalesce(n:int64) {
     if nodes[b].kind == N_CALL && is_case_word(b) && tagged_of(inner) < 0 {   // a case word that makes no T, in kelvinc's words (#410)
         let w:int64 = nodes[nodes[b].a].t
         if tok_is(w, "some") {
-            gen_error(b, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v), or write Optional<T>(v); some(v) is a pattern, as in 'if let some(v) = x' (#224)")
+            callee_error(b, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v), or write Optional<T>(v); some(v) is a pattern, as in 'if let some(v) = x' (#224)")
             return
         }
         if tok_is(w, "ok") || tok_is(w, "err") {
@@ -11649,7 +11667,7 @@ let gen_coalesce(n:int64) {
             m += "(...) is a Result's case only where a Result is expected, as by a return of a function that gives one: elsewhere write Result<T, E>."
             m += &word
             m += "(...) (#224)"
-            gen_error(b, m.cstr)
+            callee_error(b, m.cstr)
             return
         }
     }
@@ -12975,7 +12993,7 @@ let gen_expr_of(n:int64) {
                 m += ", "
                 m += tok_text(nodes[nodes[nodes[d].a].next].t)
             }
-            gen_error(n, m.cstr)
+            callee_error(n, m.cstr)
             return
         }
         gen_value(n, nodes[n].ty)
@@ -13709,7 +13727,7 @@ let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
         what += &ty_text
         what += reference ? "): assign it with ':=', not '='" : "): assign it with '=', not ':='"
     }
-    gen_error(n, what.cstr)
+    tok_error(decl_ops.get(n, nodes[n].t), what.cstr)   // at a declaration's = or :=, as kelvinc's (#683)
     return false
 }
 
@@ -14432,7 +14450,7 @@ let enum_constant_changed(n:int64):bool {
     m += "' is an enum's constant and cannot change; copy it into a var, as in 'var k:i32 = "
     m += tok_text(nodes[n].t)
     m += "'"
-    gen_error(n, m.cstr)
+    tok_error(change_tok(n), m.cstr)
     return true
 }
 
@@ -14461,7 +14479,7 @@ let may_change(n:int64):bool {
                 let w:String = type_text(ay)
                 m += &w
                 m += ", whose elements are const: declare it without const to change them"
-                gen_error(n, m.cstr)
+                tok_error(change_tok(n), m.cstr)
                 return false
             }
             if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].name == 0 - 4 {
@@ -14469,7 +14487,7 @@ let may_change(n:int64):bool {
                 let w:String = type_text(ay)
                 m += &w
                 m += ", which reads them alone, as [const T] takes them: take [T] to change them"
-                gen_error(n, m.cstr)
+                tok_error(change_tok(n), m.cstr)
                 return false
             }
         }
@@ -14478,11 +14496,11 @@ let may_change(n:int64):bool {
     var d = n                                           // p^ of a const T^, which a let's borrow is (#272)
     while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
     if nodes[d].kind == N_SELF && current >= 0 && subscripts.get(current, 0) == 1 {   // (#136)
-        gen_error(n, "a let subscript and a var subscript's getter read self and never change it: a var subscript's setter, 'set(v) { ... }', does")
+        tok_error(change_tok(n), "a let subscript and a var subscript's getter read self and never change it: a var subscript's setter, 'set(v) { ... }', does")
         return false
     }
     if nodes[d].kind == N_SELF && current >= 0 && (attributes.get(current, 0) == 1 || attributes.get(current, 0) == 2) {   // (#137)
-        gen_error(n, "a let attribute and a var attribute's getter read self and never change it: a var attribute's setter, 'set(v) { ... }', does")
+        tok_error(change_tok(n), "a let attribute and a var attribute's getter read self and never change it: a var attribute's setter, 'set(v) { ... }', does")
         return false
     }
     if nodes[d].kind == N_SELF && current >= 0 && nodes[current].c >= 0 && nodes[current].flag != 2 {   // (#320)
@@ -14491,7 +14509,7 @@ let may_change(n:int64):bool {
         m += "."
         m += tok_text(nodes[current].t)
         m += "(...)', changes the caller's var (#318)"
-        gen_error(n, m.cstr)
+        tok_error(change_tok(n), m.cstr)
         return false
     }
     if nodes[d].kind == N_DEREF {
@@ -14501,14 +14519,14 @@ let may_change(n:int64):bool {
             var s = $"'."
             s += tok_text(change_method)
             s += "' through a read-only borrow: a String's bytes change only as a String"
-            gen_error(n, s.cstr)
+            tok_error(change_tok(n), s.cstr)
             return false
         }
         if p >= 0 && types[p].kind == Y_PTR && ptr_const(p) {
             var s = $"this changes what a "
             s += kelvin_type_text(p)
             s += " points to, a read-only borrow, as a let's is: borrow a var, or take it without const"
-            gen_error(n, s.cstr)
+            tok_error(change_tok(n), s.cstr)
             return false
         }
         return true
@@ -14534,7 +14552,7 @@ let may_change(n:int64):bool {
     } else {
         s += "' is a let and cannot change; declare it with var"
     }
-    gen_error(n, s.cstr)
+    tok_error(change_tok(n), s.cstr)
     return false
 }
 
@@ -15046,7 +15064,7 @@ let gen_assign(n:int64) {
             m += " is a value, and no place to set: '"
             m += tok_text(t)
             m += "' sets a variable, a member, an element or 'p^'"
-            gen_error(lhs, m.cstr)
+            callee_error(lhs, m.cstr)
             return
         }
     }
@@ -20694,7 +20712,7 @@ let gen_switch(n:int64, depth:int64) {
                 e += " carries no value: nothing to bind, write 'case "
                 e += tok_text(case_word(first))
                 e += ":'"
-                gen_error(first, e.cstr)
+                callee_error(first, e.cstr)
                 return
             }
             indent(depth + 2)
@@ -20878,6 +20896,8 @@ let gen_stmt_of(n:int64, depth:int64) {
         gen_var(n)
         declare_as(nodes[n].t, nodes[n].ty, nodes[n].flag == 1 ? 1 : 0)   // a let or a var (#271)
     case S_ASSIGN:
+        change_op = nodes[n].t                           // an error of its place's change at its operator, as kelvinc's (#683)
+        change_lhs = nodes[n].a
         if compound_assign_call(n) || failed { return }  // z += w of z's own +=, in place (#518)
         if compound_by_operator(n) || failed { return }  // z += w, z = z + w of a struct's operator (#42)
         if tok_is(nodes[n].t, "=") && declaration_shaped(nodes[n].a) { put("if (1) ") }   // (#402)
