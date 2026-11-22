@@ -1390,7 +1390,7 @@ let parse_type_core():int64 {
         return atomic_base(y, at)
     }
     if at_word("const") {
-        advance()
+        let const_at:int64 = advance()                   // where kelvinc says an array's qualifier (#688)
         let typed = value_type_at(pos)
         let y = parse_bare_type()
         if typed && types[y].kind == Y_FIXED { return const_fixed(y) }   // const xs.type, const on its elements, as kelvinc's #34 (#425)
@@ -1402,7 +1402,7 @@ let parse_type_core():int64 {
         } else if types[y].kind == Y_SET {
             parse_error("a qualifier of a Set is the variable's: a let does not change")
         } else if types[y].kind == Y_FIXED || (types[y].kind == Y_PTR && types[types[y].elem].kind == Y_FIXED) {   // as kelvinc says it (#362)
-            parse_error("a qualifier of an array is its elements': write it inside the brackets, as in '[const u8]'")
+            parse_error_at(const_at, "a qualifier of an array is its elements': write it inside the brackets, as in '[const u8]'")
         }
         return const_pointee(y)
     }

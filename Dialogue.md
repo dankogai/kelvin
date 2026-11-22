@@ -13419,3 +13419,19 @@ lent and 0..n, each where kelvinc says it. 19 are left.
 Details are provisional P692.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 735. kc's error positions, batch 8
+
+**Claude** pushed #687, its battery clean and CI's 9 jobs passed.
+
+**User:** go on
+
+**Claude** made the eighth batch #688, of the last columns: each of 13 at
+the token kelvinc says it at, a list given as a value where kelvinc's
+parse of an anonymous function ends. 6 are left: the 5 lines where kc
+and kelvinc say different errors, and anon_list_c_arg, whose second
+comma no rule of the others gives.
+
+Details are provisional P693.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

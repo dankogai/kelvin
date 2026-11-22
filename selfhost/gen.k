@@ -369,6 +369,15 @@ let gen_error(n:int64, what:cstr) {
     failed = true
 }
 
+// an error of list v at its [, which kc's node keeps at its first element (#688)
+let gen_error_list(v:int64, what:cstr) {
+    if tok_is(nodes[v].t - 1, "[") {
+        tok_error(nodes[v].t - 1, what)
+        return
+    }
+    gen_error(v, what)
+}
+
 // an error of call n at its callee, as kelvinc says one of a conversion,
 // a case's word or a name that is no function, T(v), some(v), x(1); of a
 // function's call, or what is not a call, gen_error's (#683)
@@ -1717,6 +1726,16 @@ let member_dot(x:int64):int64 {
     return nodes[x].kind == N_FIELD && tok_is(nodes[x].t - 1, ".") ? nodes[x].t - 1 : nodes[x].t
 }
 
+// where kelvinc says a list given as a value is none: its parse of an
+// anonymous function ends after the first element, or after a label's
+// value, {x: 1} (#688)
+let list_fail_tok(n:int64):int64 {
+    let t:int64 = nodes[n].t
+    if !tok_is(t, "{") { return t }
+    if tok_is(t + 2, "}") { return t }                  // {1}: at its {
+    return tok_is(t + 2, ":") ? t + 3 : t + 2
+}
+
 // argument k of the list from first, counted from 0, or first (#687)
 let nth_arg(first:int64, k:int64):int64 {
     var a:int64 = first
@@ -2245,7 +2264,8 @@ let count_wrong(n:int64, d:int64, what:String):bool {
         m += ", and this call gives "
         m += String(given)
     }
-    gen_error(n, m.cstr)
+    let last_a:int64 = nth_arg(nodes[n].b, count_args(nodes[n].b) - 1)   // an anonymous one past the count at it, as kelvinc's (#688)
+    if last_a >= 0 && nodes[last_a].kind == N_ANON && count_args(nodes[n].b) > takes { gen_error(last_a, m.cstr) } else { gen_error(n, m.cstr) }
     return true
 }
 
@@ -2329,7 +2349,7 @@ let word_misused(n:int64, written:bool):bool {
     } else {
         return false
     }
-    callee_error(n, m.cstr)
+    if starred { tok_error(w, m.cstr) } else { callee_error(n, m.cstr) }   // T^(v) at T, as kelvinc's (#688)
     return true
 }
 
@@ -2618,7 +2638,8 @@ let type_of(n:int64):int64 {
             var m = $"'try' takes a Result or an Optional, and this is "
             let w:String = kelvin_type_text(ry0)
             m += &w
-            callee_error(nodes[n].a, m.cstr)
+            let tx:int64 = nodes[n].a                    // a static call's at its type, try IO.popen(...) at IO, as kelvinc's (#688)
+            if nodes[tx].kind == N_METHOD && nodes[tx].a >= 0 && nodes[nodes[tx].a].kind == N_TYPE { gen_error(nodes[tx].a, m.cstr) } else { callee_error(tx, m.cstr) }
             return 0 - 1
         }
         let ry:int64 = type_of(nodes[n].a)
@@ -2775,7 +2796,11 @@ let type_of(n:int64):int64 {
     }
     if k == N_ALIGN { return base_type(Y_I64) }         // alignof(T) (#395)
     if k == N_SIZEOF { return base_type(Y_I64) }        // sizeof(T), sizeof x (#420)
-    if k == N_FIELD && type_member(n) {                 // as kelvinc says it (#422)
+    if k == N_FIELD && type_member(n) {                 // as kelvinc says it (#422), at the ( it is written in (#688)
+        if nodes[n].a >= 0 && tok_is(nodes[nodes[n].a].t - 1, "(") && toks[nodes[nodes[n].a].t - 2].kind != T_ID {   // (v.type), not f(v.type)
+            tok_error(nodes[nodes[n].a].t - 1, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or 'x as v.type'")
+            return -1
+        }
         gen_error(n, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or 'x as v.type'")
         return -1
     }
@@ -3539,7 +3564,7 @@ let gen_args_to(first:int64, d:int64) {
                 return
             }
             if bare_init(a) {                            // {'a', 'b'} to C's function, as kelvinc says it (#32, #612)
-                gen_error(a, "a list is not a value here: write a compound literal, as in '(i32[3]){1, 2, 3}'; as a function with no parameters and no result, this would do nothing")
+                tok_error(list_fail_tok(a), "a list is not a value here: write a compound literal, as in '(i32[3]){1, 2, 3}'; as a function with no parameters and no result, this would do nothing")
                 return
             }
             gen_expr(a)
@@ -5249,6 +5274,8 @@ let gen_big_bit_set(n:int64) {
         gen_error(n, "setting a bit of a BigInt changes it, so that BigInt is a variable")
         return
     }
+    change_op = t                                        // at the assignment's operator, as kelvinc's (#688)
+    change_lhs = recv
     if !may_change(recv) { return }
     let vy:int64 = type_of(v)
     if vy >= 0 && types[vy].kind != Y_BOOL {
@@ -10485,7 +10512,7 @@ let gen_make_inferred(n:int64) {
         let y:int64 = is_case_word(e) ? 0 - 1 : type_of(e)
         while e >= 0 {
             if is_case_word(e) || type_of(e) != y || y < 0 {
-                gen_error(nodes[n].b >= 0 ? nodes[n].b : n, "the elements have no one type kelvinc sees here: write Array<T>([...])")   // at the list (#687)
+                gen_error_list(nodes[n].b >= 0 ? nodes[n].b : n, "the elements have no one type kelvinc sees here: write Array<T>([...])")   // at the list (#687)
                 return
             }
             e = nodes[e].next
@@ -13471,7 +13498,7 @@ let gen_expr_of(n:int64) {
     } else if k == N_ARRAY {
         gen_array(n, -1)
     } else if k == N_DICT && tok_is(t, "{") {           // {k: v} where no Dictionary is written (#460), as kelvinc says it
-        gen_error(n, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+        tok_error(list_fail_tok(n), "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
     } else if k == N_DICT {
         gen_dict(n, -1)
     } else if k == N_SET {
@@ -13905,7 +13932,9 @@ let refuse_fixed(n:int64, y:int64) {
     let ew:String = type_text(fe)
     s += &ew
     s += "]"
-    gen_error(n, s.cstr)
+    var q:int64 = nodes[n].t                             // at the ? of its type, as kelvinc's (#688)
+    while q < eof_pos && toks[q].line == toks[nodes[n].t].line && !tok_is(q, "?") && !tok_is(q, "=") { q += 1 }
+    if tok_is(q, "?") { tok_error(q, s.cstr) } else { gen_error(n, s.cstr) }
 }
 
 let fixed_refused(n:int64) {
@@ -14375,7 +14404,7 @@ let temp_borrowed(v:int64):bool {
     let w:String = kelvin_type_text(type_of(nodes[v].a))
     m += &w
     m += " that an expression gives, which nothing would free: bind it to a variable first"
-    gen_error(v, m.cstr)
+    gen_error(nodes[v].a, m.cstr)                        // at what it borrows, as kelvinc's (#688)
     return true
 }
 
@@ -15417,7 +15446,7 @@ let gen_assign(n:int64) {
         gen_value(nodes[n].b, y)
         put(");\n")
     } else if (yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) && tok_is(t, "=") && (bare_init(nodes[n].b) || (nodes[nodes[n].b].kind == N_DICT && tok_is(nodes[nodes[n].b].t, "{"))) {
-        gen_error(nodes[n].b, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+        tok_error(list_fail_tok(nodes[n].b), "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
     } else if is_owner(y) && (yk == Y_STRUCT || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) && tok_is(t, "=") {
         serial += 1                                      // the new value first, then the old one freed (#217, #225); an Array's, a Dictionary's, a Set's (#460)
         let sv = serial                                  // its own: the value may make names too (#341)
@@ -15491,7 +15520,7 @@ let owner_name(v:int64):bool {
 // kelvinc's words of an owner copied by '=', of v, its name or a part (#365, #440)
 let owner_assign_error(v:int64) {
     if nodes[v].kind != N_ID {
-        tok_error(value_tok(v), "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
+        tok_error(v != change_rhs && nodes[v].kind == N_FIELD ? member_dot(v) : value_tok(v), "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")   // a member's at its . (#688)
         return
     }
     var m = $"an owner is not copied by '=' (#54): copy its bytes with '"
@@ -15627,7 +15656,7 @@ let gen_return(n:int64) {
         return
     }
     if bare_init(a) && !(types[nodes[current].ty].kind == Y_STRUCT && !enum_int(nodes[current].ty)) {   // return {1} of a number, as kelvinc says it (#77, #611)
-        gen_error(a, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+        tok_error(list_fail_tok(a), "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
         return
     }
     put("return ")
@@ -19479,7 +19508,7 @@ let search_of(n:int64):int64 {
             m += " has no '==': give a function that says which, '."
             m += tok_text(t)
             m += " { ... }'"
-            gen_error(f, m.cstr)
+            if tok_is(nodes[f].t - 1, ")") && tok_is(nodes[f].t - 3, "(") { tok_error(nodes[f].t - 3, m.cstr) } else { gen_error(f, m.cstr) }   // a compound literal at its (, as kelvinc's (#688)
             return 0 - 1
         }
         let bad:String = value_mismatch_text(f, vy)
@@ -20779,7 +20808,8 @@ let gen_switch(n:int64, depth:int64) {
                 e += "("
                 e += tok_text(nodes[nodes[bound].b].t)
                 e += "):', stands alone: it cannot share a body with another case"
-                gen_error(bound, e.cstr)
+                let cw:int64 = case_word(bound)          // at its case, as kelvinc's (#688)
+                if tok_is(cw - 1, "case") { tok_error(cw - 1, e.cstr) } else { gen_error(bound, e.cstr) }
                 return
             }
             bound = nodes[bound].next
