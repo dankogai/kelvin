@@ -13264,3 +13264,22 @@ where it fits a literal, which it read as decimal.
 Details are provisional P683.
 
 There are 1564 tests, and all pass with clang and with gcc 15.
+
+### 726. The review, batch 16
+
+**Claude** wrote #678, its battery run and pushed when clean.
+
+**User:** then review P681 to P683
+
+**Claude** checked each row's claims against the code, and asked how
+they should be confirmed, and whether to push when clean.
+
+**User:** confirm, as amended later (recommended); push when clean
+(recommended)
+
+**Claude** made it #679: P681 to P683 are marked confirmed, as later
+numbers amend them, and P684, #679's own row, is confirmed by #679.
+
+Details are P684, confirmed by #679 itself.
+
+There are 1564 tests, and all pass with clang and with gcc 15.
