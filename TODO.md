@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #692 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #693 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,6 +61,9 @@ known, not what is planned.
 - kc prints a struct's members of no printer of their own by their text,
   a pointer, a function, an IO, a plain enum and a C header's type, as
   kelvinc's (#692), where it said "not yet what this holds".
+- kc shows a fixed array in a template and by `.pretty`, and a let
+  parameter's by its count as declared, a parameter's `[T]` by its
+  address, as kelvinc's (#693).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - a function defined inside a function (#180);
@@ -70,24 +73,26 @@ known, not what is planned.
   - a parameter's array of arrays whose inner count C computes;
   - a fixed array in another type, `(T){...}` and an array's compound
     literal of other types;
-  - printing and showing some types: a fixed array that is a parameter,
-    one in a template;
   - a value's text in a global's initializer;
   - `typeof` of an expression, and `x.type` where `x`'s type is
     inferred;
   - overloads of a variadic function, an atomic pointer, a pointer
     walked up to a 0, and the number of a prelude enum's word.
-- kc's output that differs from kelvinc's, found while #692 was made,
-  of programs it builds:
+- kc's output that differs from kelvinc's, found while #692 and #693
+  were made, of programs it builds:
   - `a < b ? a > 0 : b > 9` printed, a bool, is `1` (tests/run's
     conditions.k), where kelvinc's is `true`;
   - `.cstr` of a struct with an Array member shows its elements
-    (print_values.k), where kelvinc's shows `[...]`.
+    (print_values.k), where kelvinc's shows `[...]`;
+  - a struct in a template, `${w}`, is its printer's text cut at
+    KV_TEMPLATE_STR, 256 bytes, where kelvinc's is its `.cstr`, to the
+    struct's own longest text (template_bounds.k, 315 bytes), the same
+    root as the one before.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P697, the details of #692, until reviewed; the reviews confirmed
+- P697 and P698, the details of #692 and #693, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

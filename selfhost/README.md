@@ -1108,6 +1108,21 @@ kc reads what it is written in, and little more.
   - A block's enum with values prints by its path, `pair.kind.sides(4)`:
     kc's own Optionals and Results, `_kv_opt_` and `_kv_res_`, alone
     stay bare, where every `_kv_` name did, a block's too (#529's).
+- **A fixed array shown whole in a template and by `.pretty`** (#693),
+  as kelvinc's #481: `${a}` is `[1, 2, 3]`, as print shows it, and
+  `a.pretty` its elements a line each, at the level after the array's,
+  as kelvinc's printer of one, where kc said "not yet in a template".
+  - A let parameter's `[T](N)` is shown to its count as declared, where
+    kc said "not yet a parameter's"; a var one's is kelvinc's error, a
+    pointer that may have moved; a parameter's `[T]`, a pointer, is its
+    address, and its `.pretty` kelvinc's error of a `T^`.
+  - Found on the way and fixed: `for x in a` of an array of empty
+    structs walks its declared count (#499's), where it walked none, as
+    sizeof gave 0 / 0; and an empty struct prints `{}` at any level,
+    where `.pretty` gave `{` and `}` a line each.
+  - tests/run/empty_struct_count.k, which kc refused, prints what
+    kelvinc's prints; template_bounds.k is built, and its `${w}` of a
+    struct is the one difference left, listed in TODO.md.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

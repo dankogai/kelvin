@@ -2135,6 +2135,11 @@ let gen_string_method(n:int64, a:int64, y:int64)
 let owner_copy_error(v:int64, what:cstr)
 let std_io(n:int64):int64             // and IO.stdout's (#452)
 let pretty_value(n:int64):bool        // and v.pretty's (#452)
+let fixed_shown(y:int64):bool    // prototypes: a fixed array shown whole (#693)
+let fixed_ok(y:int64, v:int64):bool
+let put_fixed_top(w:int64, y:int64, target:cstr, wn:int64, level:cstr)
+let shown_count_of(y:int64, v:int64):int64
+let fixed_whole(v:int64):bool
 let io_int_member(t:int64):bool       // and an IO's int members (#452)
 let number_text_refused(n:int64, k:ykind):bool
 let fn_named(t:int64):int64    // and the function a name names
@@ -2948,8 +2953,8 @@ let type_of(n:int64):int64 {
             return -1
         }
         if yk == Y_STRUCT || yk == Y_C { return base_type(Y_C) }      // of what only C sees (#207)
-        if yk == Y_FIXED && tok_is(t, "pretty") {                   // kelvinc's #481
-            gen_error(n, "kc reads '.pretty' of a struct, an enum with values, an Array, a Dictionary, a Set or a Range; not yet of a fixed array: print it, println(a)")
+        if yk == Y_FIXED && tok_is(t, "pretty") {                   // a parameter's [T], a pointer, as kelvinc says it (#693)
+            member_unknown(n, type_of_kind(Y_PTR, types[y].elem, 0))
             return -1
         }
         member_unknown(n, y)
@@ -6268,6 +6273,10 @@ let gen_show(y:int64) {
         put(">\");\n}\n\n")
         return
     }
+    if d < 0 && nodes[struct_of(y)].a < 0 {              // {}, of no members, as kelvinc's (#693)
+        put("    (void)self;\n    (void)level;\n    kv_out_put(o, \"{}\");\n}\n\n")
+        return
+    }
     if d < 0 {
         let s = struct_of(y)
         put("    int _kv_nl = level < 0 ? -1 : level + 1;\n    kv_out_put(o, \"{\");\n")
@@ -6328,33 +6337,17 @@ let gen_print_args_to(first:int64, sink:cstr) {
         if a != first { put(", ") }
         let y = type_of(a)
         if y >= 0 && types[y].kind == Y_FIXED && nodes[a].kind != N_LIST && types[types[y].elem].kind != Y_U8 && types[types[y].elem].kind != Y_I8 {   // [a, b], as kelvinc's (#481); bytes are text
-            if types[y].name < 0 && nodes[a].kind == N_ID && how_declared(nodes[a].t) != 2 && how_declared(nodes[a].t) != 5 {   // a var parameter's, as kelvinc says it
-                var m = $"'"
-                m += tok_text(nodes[a].t)
-                m += "' is a var array parameter, a pointer in C that may have moved: show its elements, as in 'for i in 0..<n'"
-                gen_error(a, m.cstr)
-                return
+            if shown_count_of(y, a) < 0 {                // a parameter's [T], a pointer: its address, as kelvinc's (#693)
+                gen_expr(a)
+                a = nodes[a].next
+                continue
             }
-            if types[y].name < 0 {
-                gen_error(a, "kc prints a fixed array of its own count; not yet a parameter's: print its elements, a[i]")
-                return
-            }
-            var v = types[y].elem
-            while types[v].kind == Y_FIXED { v = types[v].elem }
-            if !elem_shown(v) && !shown_by_type(v) {
-                gen_error(a, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
-                return
-            }
-            if !elem_shown(v) && !need_show(v, a) { return }
-            put("({ const struct { __typeof__(")         // the array as a struct's one member, self->a, as a member's is printed
-            gen_expr(a)
-            put(") a; } *self = (const void *)&(")
-            gen_expr(a)
-            put("); kv_out *o = &(kv_out){.fp = ")
-            put(sink)
-            put(", .width = 2}; ")
-            show_value(y, "a", 0 - 1, "-1")
-            put(" (const uint8_t *)\"\"; })")
+            if !fixed_ok(y, a) { return }                // a let parameter's by its count as declared (#693)
+            var target = $".fp = "
+            target += sink
+            put("({ ")
+            put_fixed_top(a, y, target.cstr, 0 - 1, "-1")
+            put("(const uint8_t *)\"\"; })")
             a = nodes[a].next
             continue
         }
@@ -6366,7 +6359,13 @@ let gen_print_args_to(first:int64, sink:cstr) {
             return
         }
         let pr:int64 = nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "pretty") ? type_of(nodes[a].a) : 0 - 1
-        if pr >= 0 && pretty_value(a) && need_show(pr, a) {   // v.pretty where print shows it, written in place (#336, #337); of any printed value (#452)
+        if pr >= 0 && pretty_value(a) && fixed_shown(pr) && fixed_ok(pr, nodes[a].a) {   // a fixed array's, indented (#693)
+            var target = $".fp = "
+            target += sink
+            put("({ ")
+            put_fixed_top(nodes[a].a, pr, target.cstr, 0 - 1, "0")
+            put("(const uint8_t *)\"\"; })")
+        } else if pr >= 0 && pretty_value(a) && !fixed_shown(pr) && need_show(pr, a) {   // v.pretty where print shows it, written in place (#336, #337); of any printed value (#452)
             put("({ __auto_type _kv_sv = (")
             gen_expr(nodes[a].a)
             put("); ")
@@ -6558,6 +6557,7 @@ let gen_try(n:int64, value:bool) {
 let pretty_value(n:int64):bool {
     if nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "pretty") || tagged_named(nodes[n].a) >= 0 { return false }
     let y:int64 = type_of(nodes[n].a)
+    if fixed_shown(y) { return shown_count_of(y, nodes[n].a) >= 0 }   // a fixed array's, as kelvinc's #481; a parameter's [T] a pointer (#693)
     if y < 0 || !shown_by_type(y) { return false }
     let d = tagged_of(y)
     if d >= 0 { return case_named(d, nodes[n].t) == none }
@@ -7582,7 +7582,8 @@ let tpl_pretty(v:int64):bool {
     let k = nodes[v].kind
     if (k != N_FIELD && k != N_METHOD) || !tok_is(nodes[v].t, "pretty") { return false }
     if k == N_METHOD && (nodes[v].b < 0 || nodes[nodes[v].b].next >= 0) { return false }
-    return shown_by_type(type_of(nodes[v].a))
+    let y:int64 = type_of(nodes[v].a)
+    return shown_by_type(y) || (fixed_shown(y) && shown_count_of(y, nodes[v].a) >= 0)   // a fixed array's too (#693)
 }
 
 // what of v a template shows: its receiver where it is v.pretty
@@ -7643,12 +7644,114 @@ let tpl_value_ok(v:int64):bool {
         gen_error(v, "a Task has no text: show its value, as in ${await t}")
         return false
     }
-    if k == Y_FIXED && types[types[y].elem].kind != Y_U8 {
-        gen_error(v, "kc shows a fixed array by print, as kelvinc's [a, b]; not yet in a template: show its elements, a[i]")
-        return false
-    }
+    if fixed_shown(y) && shown_count_of(y, w) >= 0 { return fixed_ok(y, w) }   // [a, b], as print shows it, as kelvinc's; a parameter's [T] by its address (#693)
     if shown_by_type(y) && !need_show(y, v) { return false }
     return true
+}
+
+// whether a template or .pretty shows y, a fixed array, by its elements,
+// [a, b], as print does: not one of bytes, which is text (#693)
+let fixed_shown(y:int64):bool {
+    return y >= 0 && types[y].kind == Y_FIXED && types[types[y].elem].kind != Y_U8
+}
+
+// the [T](N) a parameter named by v is declared, or -1 (#693)
+let param_declared(v:int64):int64 {
+    if nodes[v].kind != N_ID || current < 0 { return 0 - 1 }
+    var p:int64 = nodes[current].a
+    while p >= 0 {
+        if same_text(nodes[p].t, nodes[v].t) { return param_arrays.get(p, 0 - 1) }
+        p = nodes[p].next
+    }
+    return 0 - 1
+}
+
+// whether y is a parameter's array, a pointer in C (#357)
+let param_array(y:int64):bool {
+    return types[y].kind == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4)
+}
+
+// the type whose count v, a fixed array of type y, is shown to: y, of
+// its own count; a parameter's [T](N) as declared; or -1 of a
+// parameter's [T], a pointer, whose text is its address, as kelvinc's
+// (#693)
+let shown_count_of(y:int64, v:int64):int64 {
+    if !param_array(y) { return y }
+    let d:int64 = param_declared(v)
+    return d >= 0 && (types[d].name >= 0 || types[d].name <= 0 - 10) ? d : 0 - 1
+}
+
+// whether v is shown whole, [a, b], a fixed array of a count (#693)
+let fixed_whole(v:int64):bool {
+    let y:int64 = type_of(v)
+    return fixed_shown(y) && shown_count_of(y, v) >= 0
+}
+
+// whether kc can show v, a fixed array of type y, whole: of a count, a
+// let parameter's too, of elements print shows; where it cannot, an
+// error, a var parameter's as kelvinc says it (#693)
+let fixed_ok(y:int64, v:int64):bool {
+    if param_array(y) && nodes[v].kind == N_ID && how_declared(nodes[v].t) != 2 && how_declared(nodes[v].t) != 5 {
+        var m = $"'"
+        m += tok_text(nodes[v].t)
+        m += "' is a var array parameter, a pointer in C that may have moved: show its elements, as in 'for i in 0..<n'"
+        gen_error(v, m.cstr)
+        return false
+    }
+    var e = types[y].elem
+    while types[e].kind == Y_FIXED { e = types[e].elem }
+    if !elem_shown(e) && !shown_by_type(e) {
+        gen_error(v, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
+        return false
+    }
+    return elem_shown(e) || need_show(e, v)
+}
+
+// the fixed array w of type y shown whole, as kelvinc's _kv_show_T of one
+// (#481, #693): into the kv_out of target, .fp = sink or .s = &s, width
+// spaces a level, of node wn, 2 where it is -1; at level, its elements
+// at the level after, each on a line of its own where level is not -1
+let put_fixed_top(w:int64, y:int64, target:cstr, wn:int64, level:cstr) {
+    let cy:int64 = shown_count_of(y, w)
+    put("{ const struct { __typeof__(")
+    gen_expr(w)
+    put(") a; } *self = (const void *)&(")
+    gen_expr(w)
+    put("); kv_out *o = &(kv_out){")
+    put(target)
+    put(", .width = ")
+    if wn < 0 {
+        put("2")
+    } else if nodes[wn].kind == N_NUM {
+        gen_expr(wn)
+    } else {
+        put("kv_out_width(")
+        gen_expr(wn)
+        put(")")
+    }
+    put("}; int _kv_nl = (")
+    put(level)
+    put(") < 0 ? -1 : (")
+    put(level)
+    put(") + 1; (void)_kv_nl;\n    kv_out_put(o, \"[\");\n    for (size_t _kv_t = 0; _kv_t < ")
+    if cy != y && types[cy].name >= 0 {                  // a parameter's, as declared
+        put("((size_t)")
+        put_int(types[cy].name)
+        put(")")
+    } else if cy != y {
+        put("((size_t)(")
+        gen_expr(0 - 10 - types[cy].name)
+        put("))")
+    } else if !put_zero_count(y) {
+        put("sizeof self->a / sizeof self->a[0]")
+    }
+    put("; _kv_t++)\n    {\n    kv_out_sep(o, ")
+    put(level)
+    put(", _kv_t == 0);\n    ")
+    show_value(types[y].elem, "a[_kv_t]", 0 - 1, "_kv_nl")
+    put("    }\n    kv_out_end(o, ")
+    put(level)
+    put(");\n    kv_out_put(o, \"]\"); } ")
 }
 
 // _kv_show_T(&(kv_out){.s = &s, .width = w}, &_kv_sv, level) of the
@@ -7656,6 +7759,13 @@ let tpl_value_ok(v:int64):bool {
 let tpl_show(v:int64, s:cstr) {
     let w = tpl_shown(v)
     let y = type_of(w)
+    if fixed_shown(y) {                                  // [a, b], as print writes it; indented of .pretty (#693)
+        var target = $".s = &"
+        target += s
+        let wn:int64 = tpl_pretty(v) && nodes[v].kind == N_METHOD ? nodes[v].b : 0 - 1
+        put_fixed_top(w, y, target.cstr, wn, tpl_pretty(v) ? "0" : "-1")
+        return
+    }
     put("{ __auto_type _kv_sv = (")
     gen_expr(w)
     put("); ")
@@ -7748,7 +7858,7 @@ let gen_text_template(n:int64) {
             }
         } else {
             let y = type_of(tpl_shown(x))
-            if y >= 0 && (tpl_pretty(x) || shown_by_type(y)) {   // ${xs} (#125): by its printer, cut as a string is
+            if y >= 0 && (tpl_pretty(x) || shown_by_type(y) || fixed_whole(tpl_shown(x))) {   // ${xs} (#125): by its printer, cut as a string is; a fixed array's [a, b] (#693)
                 serial += 1
                 var v = $"_kv_value"
                 v += String(serial)
@@ -7764,7 +7874,7 @@ let gen_text_template(n:int64) {
                 put(v.cstr)
                 put("); ")
                 bounds += " + KV_TEMPLATE_STR"
-            } else if y >= 0 && types[y].kind == Y_FIXED {   // a byte array, up to a NUL or its end
+            } else if y >= 0 && types[y].kind == Y_FIXED && !(fixed_shown(y) && param_array(y)) {   // a byte array, up to a NUL or its end; a parameter's [T] is its address (#693)
                 put("KV_TEMPLATE_BYTES(")
                 put(b.cstr)
                 put(", KV_TEMPLATE_STR, sizeof (")
@@ -7824,7 +7934,7 @@ let gen_string_template(n:int64) {
         } else {
             let y = type_of(tpl_shown(x))
             let k:ykind = y >= 0 ? types[y].kind : Y_C
-            if y >= 0 && (tpl_pretty(x) || shown_by_type(y)) {   // ${xs} (#125): its text, whole
+            if y >= 0 && (tpl_pretty(x) || shown_by_type(y) || fixed_whole(tpl_shown(x))) {   // ${xs} (#125): its text, whole; a fixed array's [a, b] (#693)
                 tpl_show(x, "_kv_s")
             } else if k == Y_STRING {                    // a String's by reference
                 put("kv_string_append_ref(&_kv_s, &(")
@@ -7838,7 +7948,7 @@ let gen_string_template(n:int64) {
                 put("kv_string_append_text(&_kv_s, ")
                 gen_expr(x)
                 put("); ")
-            } else if k == Y_FIXED {                     // a byte array, up to a NUL or its end
+            } else if k == Y_FIXED && !(fixed_shown(y) && param_array(y)) {   // a byte array, up to a NUL or its end; a parameter's [T] is its address (#693)
                 put("{ uint8_t _kv_t[sizeof (")
                 gen_expr(x)
                 put(") + 1] = {0}; memcpy(_kv_t, ")
@@ -9066,6 +9176,11 @@ let gen_member(n:int64) {
         put(tok_is(t, "count") ? ").count)" : ").cap)")     // a Bytes's room (#439)
     } else if yk == Y_SET && tok_is(t, "elements") {     // s.elements (#278): an Array of copies, in the order added
         gen_slots_array(a, y, types[y].elem, false)
+    } else if pretty_value(n) && fixed_shown(y) {        // a fixed array's, indented, a new String (#693)
+        if !fixed_ok(y, a) { return }
+        put("({ kv_string _kv_ps = kv_string_new(); ")
+        put_fixed_top(a, y, ".s = &_kv_ps", 0 - 1, "0")
+        put("_kv_ps; })")
     } else if pretty_value(n) {                         // v.pretty (#336, #337), as kelvinc's #124: its text indented, a new String; of any printed value (#452)
         if !need_show(y, n) { return }
         put("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (")
@@ -20371,11 +20486,14 @@ let gen_each(n:int64, depth:int64) {
         if counted {
             put("_kv_i")
             put_int(serial)
-            put(" < sizeof(*")
-            put(at.cstr)
-            put(") / sizeof((*")
-            put(at.cstr)
-            put(")[0])")
+            put(" < ")
+            if !put_zero_count(y) {                      // of elements of no size, its declared length, as kelvinc's (#499, #693)
+                put("sizeof(*")
+                put(at.cstr)
+                put(") / sizeof((*")
+                put(at.cstr)
+                put(")[0])")
+            }
             at = $"(*_kv_a"
             at += String(serial)
             at += ")"

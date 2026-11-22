@@ -13513,3 +13513,16 @@ nested_types.k print what kelvinc's print.
 Details are provisional P697.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 740. kc shows fixed arrays whole
+
+**Claude** wrote #692, its battery run and pushed when clean, and
+went on with the second batch.
+
+**Claude** made it #693: a fixed array in a template and by
+`.pretty`, and a parameter's as kelvinc shows it, with two faults
+found on the way and fixed, and one found and listed.
+
+Details are provisional P698.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

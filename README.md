@@ -828,3 +828,7 @@ So far the changes from C are these, by topic.
 - kc prints a struct's pointer, function, IO and plain enum members as
   kelvinc does, by their text, where it said not yet, and a block's
   enum's case by its path, `pair.kind.sides(4)` (#692)
+- kc shows a fixed array in a template, `${a}`, and by `.pretty` as
+  kelvinc does, and a let parameter's to its declared count, where it
+  said not yet; `for` over an array of empty structs walks its count,
+  and an empty struct prints `{}` (#693)
