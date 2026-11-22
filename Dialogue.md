@@ -13540,3 +13540,17 @@ fixed.
 Details are provisional P699.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 742. kc reads variadic overloads
+
+**Claude** wrote #694, its battery run and pushed when clean, and
+went on with the fourth batch.
+
+**Claude** made it #695: overloads of a variadic function, chosen as
+kelvinc chooses, with five faults of kc's choice of overloads found on
+the way and fixed, so that overload.k and overload_unseen.k print what
+kelvinc's print.
+
+Details are provisional P700.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

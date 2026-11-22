@@ -2781,6 +2781,12 @@ let type_of(n:int64):int64 {
             gen_error(n, "this function is not known")
             return -1
         }
+        if generic_at.has(n) {                           // C chooses: the result all it may choose have, else what only C sees, as kelvinc's (#41, #694)
+            let at:int64 = generic_at.get(n, 0)
+            for i in 0..<generic_sets[at] {
+                if nodes[generic_sets[at + 1 + i]].ty != nodes[d].ty { return base_type(Y_C) }
+            }
+        }
         return nodes[d].ty
     }
     if k == N_ANON { return nodes[n].flag != 0 ? 0 - 1 : anon_type(n) }   // a value of its function type (#428); of $0, as where it goes
@@ -3381,6 +3387,7 @@ let lent_words(what:bool):cstr {
 }
 
 let overloads_of(t:int64):int64    // a prototype: an argument asks how many functions have the name (#612)
+let fn_of_type(t:int64, y:int64):int64    // and which of them is of a type (#694)
 
 // whether v goes where a value of type want goes, or kelvinc's error of
 // it, as its check_typed_value says it (#246, #248, #612): "<lead> an
@@ -4179,12 +4186,14 @@ let pointer_text(y:int64):String {
 let params_key(d:int64):String {
     var s = $""
     var p:int64 = nodes[d].a
-    if p < 0 { s += "__void" }
+    let va = variadic_fns.contains(d)
+    if p < 0 && !va { s += "__void" }
     while p >= 0 {
         s += "__"
         s += mangled(nodes[p].ty)
         p = nodes[p].next
     }
+    if va { s += "__va" }                                // its ..., as kelvinc names it (#694)
     return s
 }
 
@@ -4493,12 +4502,6 @@ let count_overloads() {
         if kh { kh_fns[tok_text(nodes[d].t)] = 1 }
     }
     name_clashes()
-    for d in variadic_fns {                              // kc's error: kelvinc tells them apart by _Generic (#453)
-        if nodes[d].c < 0 && fn_overloads.get(tok_text(nodes[d].t), 0) > 1 {
-            gen_error(d, "kc reads a variadic function of a name of its own; not yet one of several overloads")
-            return
-        }
-    }
 }
 
 // whether d is an operator of the program's, let +(a:T, b:T):T (#42)
@@ -4624,11 +4627,23 @@ let arg_fit(a:int64, t:int64, wraps:bool):int64 {
         return case_named(d, w).is(some) ? 1 : 0
     }
     if k == N_ANON && nodes[a].flag != 0 { return tk == Y_FN ? 1 : 0 }   // { ... $0 ... }, of the function type it is given to (#515)
+    if k == N_ID && var_type(nodes[a].t) < 0 && overloads_of(nodes[a].t) >= 2 {   // an overloaded function: the one of that type, as kelvinc's fit (#694)
+        return tk == Y_FN && fn_of_type(nodes[a].t, t) >= 0 ? 2 : 0
+    }
     let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[a].t, "-") && nodes[nodes[a].a].kind == N_NUM)
     let at = type_of(a)
     if at == t { return 2 }
     if literal && is_number_kind(tk) { return 1 }
     if k == N_STR && tk == Y_STRING { return 1 }          // a String of it (#223)
+    let te:ykind = tk == Y_PTR && types[t].elem >= 0 ? types[types[t].elem].kind : Y_VOID
+    if at >= 0 && types[at].kind == Y_CSTR && tk == Y_PTR && te == Y_U8 && ptr_const(t) { return 2 }   // a cstr is a const u8^, as kelvinc's (#694)
+    if (k == N_STR || (at >= 0 && types[at].kind == Y_CSTR)) && tk == Y_PTR && (te == Y_U8 || te == Y_I8) { return 1 }   // text to a u8^ or an i8^, as kelvinc's fit (#694)
+    if at >= 0 && tk == Y_FIXED && types[at].kind == Y_FIXED && types[at].elem == types[t].elem { return 2 }   // an array to an array parameter of its elements, as kelvinc's (#694)
+    if at >= 0 && tk == Y_PTR && (types[at].kind == Y_PTR || types[at].kind == Y_CSTR) {   // to or from an any^, its const kept, as kelvinc's fit (#694)
+        let ak:bool = types[at].kind == Y_CSTR || ptr_const(at)
+        let ae:ykind = types[at].kind == Y_CSTR ? Y_U8 : types[at].elem >= 0 ? types[types[at].elem].kind : Y_VOID
+        if !(ak && !ptr_const(t)) && (te == Y_VOID || ae == Y_VOID) { return 1 }
+    }
     if at >= 0 && types[at].kind == Y_C { return 1 }      // what only C sees, which C converts
     if at >= 0 && tk == Y_PTR && types[at].kind == Y_PTR && types[at].elem == types[t].elem && ptr_const(t) { return 1 }   // T^ lent as const T^ (#515)
     if at >= 0 && tk == Y_PTR && is_owner(at) && types[t].elem == at && !is_place(a) { return 1 }   // an owner an expression gives, lent (#187, #515)
@@ -4681,6 +4696,8 @@ let choose_among(n:int64, some:const $[int64]^, wraps:bool):int64 {
         nargs += 1
         a = nodes[a].next
     }
+    var nps:$[int64] = $[]                              // each one's count of parameters, a variadic one's before its ... (#694)
+    var any_va = false
     for d in some^ {
         var np = 0
         var p:int64 = nodes[d].a
@@ -4695,11 +4712,36 @@ let choose_among(n:int64, some:const $[int64]^, wraps:bool):int64 {
             p = nodes[p].next
             a = nodes[a].next
         }
+        let va = variadic_fns.contains(d)
+        if ok && p < 0 && a >= 0 && va {                  // its ... takes the rest, as kelvinc's choose_among (#694)
+            while a >= 0 {
+                fits += 0
+                a = nodes[a].next
+            }
+        }
         if !ok || p >= 0 || a >= 0 {                      // no fit, or another count of arguments
             while fits.count as int64 > at { fits.pop() }
             continue
         }
         cands += d
+        nps += np
+        if va { any_va = true }
+    }
+    if any_va {                                          // an exact fit is the one, whatever C could tell, as kelvinc's (#694)
+        var exact:int64 = 0 - 1
+        var exacts = 0
+        for i in 0..<cands.count as int64 {
+            if nps[i] != nargs as int64 { continue }
+            var all = true
+            for k in 0..<nargs as int64 {
+                if fits[i * nargs + k] != 2 { all = false }
+            }
+            if all {
+                exact = cands[i]
+                exacts += 1
+            }
+        }
+        if exacts == 1 { return exact }
     }
     while tied_cands.count > 0 { tied_cands.pop() }      // here, once its arguments are typed: one of them may be a call
     var best = -1                                        // chosen so in turn, pow(c64(0.0), NAN), which left its own (#550)
@@ -4710,7 +4752,8 @@ let choose_among(n:int64, some:const $[int64]^, wraps:bool):int64 {
             if i == j { continue }
             var all = true
             var more = false
-            for k in 0..<nargs as int64 {
+            let upto:int64 = nps[i] < nps[j] ? nps[i] : nps[j]   // the parameters both have, as kelvinc's dominates (#694)
+            for k in 0..<upto {
                 let x = fits[j * nargs + k]
                 let y = fits[i * nargs + k]
                 if x < y { all = false }
@@ -8846,8 +8889,13 @@ let put_generic_tree(cands:const $[int64]^, first:int64, base:int64, from:int64,
         return
     }
     var kinds:$[int64] = $[]
+    var va:$[int64] = $[]                                // where no overload takes the value there, the one whose ... does (#694)
     for d in cands^ {
         let y:int64 = param_at(d, k)
+        if y < 0 {
+            if variadic_fns.contains(d) { va += d }
+            continue
+        }
         var seen = false
         for x in kinds {
             if x == y { seen = true }
@@ -8915,7 +8963,11 @@ let put_generic_tree(cands:const $[int64]^, first:int64, base:int64, from:int64,
         put(", ")
         closes += 1
     }
-    put(none)
+    if va.count == 1 {                                   // as kelvinc's other (#694)
+        put_generic_tree(&va, first, base, k + 1, nargs, none)
+    } else {
+        put(none)
+    }
     for _ in 0..<closes { put(")") }
 }
 
@@ -16349,8 +16401,11 @@ let pick_call_args(n:int64) {
         }
         return
     }
-    if nodes[f].kind != N_ID || overloads_of(nodes[f].t) != 1 { return }
-    var p:int64 = nodes[fn_named(nodes[f].t)].a
+    if nodes[f].kind != N_ID { return }
+    var target:int64 = overloads_of(nodes[f].t) == 1 ? fn_named(nodes[f].t) : 0 - 1
+    if overloads_of(nodes[f].t) > 1 { target = call_target(n) }   // the overload the call chose, as kelvinc's (#694)
+    if target < 0 || failed { return }
+    var p:int64 = nodes[target].a
     while a >= 0 && p >= 0 {
         pick_overload(a, nodes[p].ty)
         a = nodes[a].next

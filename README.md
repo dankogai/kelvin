@@ -837,3 +837,7 @@ So far the changes from C are these, by topic.
   does (#120, #121); a var method of an enum with values, and `.m` at a
   line's start going on with the expression before it where there is
   no self (#694)
+- kc reads overloads of a variadic function, `f__T__va`, and chooses
+  overloads as kelvinc does where it did not: a call C chooses for is of
+  its overloads' one result, text and `any^` fit pointers, an array an
+  array parameter, an overloaded name a function parameter (#695)

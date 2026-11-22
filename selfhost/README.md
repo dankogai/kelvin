@@ -1144,6 +1144,25 @@ kc reads what it is written in, and little more.
   - tests/run's enum_anon_top.k, enum_anon_methods.k, extend_anon.k,
     self_type.k and self_member_lines.k, which kc refused, print what
     kelvinc's print.
+- **Overloads of a variadic function** (#695), as kelvinc's #41 and
+  #453: `total(n:i64, ...)` beside `total(s:const u8^)` is
+  `total__i64__va` in C; it fits a call of as many arguments as its
+  parameters or more, an exact fit of another wins, two are compared on
+  the parameters both have, and C's `_Generic` choice falls back to it
+  where no other takes the value there, where kc said "not yet one of
+  several overloads".
+  - Found on the way and fixed, as kelvinc's fit and value_type:
+    - a call that C chooses for is of the result all it may choose
+      have, or of what only C sees where they differ, so the call
+      around it is chosen by C too, where the first gave its type;
+    - text fits a `u8^` or an `i8^`, a cstr a `const u8^` exactly, and
+      a pointer an `any^` and back, its const kept;
+    - a fixed array fits an array parameter of its elements;
+    - an overloaded function's name fits a parameter of one of its
+      types, `apply(twice, 7)`, and is the overload of the parameter
+      the call chose.
+  - tests/run's overload.k and overload_unseen.k, which kc refused,
+    print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
