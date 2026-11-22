@@ -13303,3 +13303,23 @@ does, const uint8_t *const p and int64_t *const q.
 Details are provisional P685.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 728. kc's error positions, batch 1
+
+**Claude** pushed #680, its battery clean, and checked where kc and
+kelvinc place each error of tests/error: kc gave kelvinc's words for all
+1034, but 293 at another place, 12 at another line, 80 with no column,
+201 at another column, which errors.sh, comparing the words, did not
+see; and asked what should be done.
+
+**User:** match all, in batches (recommended); push each when clean
+(recommended)
+
+**Claude** made the first batch #681, the lines: an error at kc's token
+of a line's end is at the token after it, kc's lexer says a line and a
+column, and x!, alignas, inline, a static let, a cstr key, an Array's
+count and 0..< are each said at kelvinc's token; 278 are left.
+
+Details are provisional P686.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

@@ -3561,7 +3561,7 @@ let member_unknown(n:int64, y:int64) {
         let w:String = kelvin_type_text(y)
         e += &w
         e += ": it is a value already"
-        gen_error(n, e.cstr)
+        tok_error(unwrap_nodes.get(n, nodes[n].t), e.cstr)   // at the '!', as kelvinc's (#681)
         return
     }
     let sd0:int64 = k == Y_STRUCT && !enum_int(y) ? decl_named(types[y].name, D_STRUCT) : 0 - 1

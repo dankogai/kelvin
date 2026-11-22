@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #680 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #681 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -50,8 +50,16 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1019 programs kelvinc refuses in kelvinc's words:
-  the 990 of #652 to #656, and those of #659 to #665 alike.
+- kc says each of the 1034 programs kelvinc refuses in kelvinc's words:
+  the 990 of #652 to #656, and those of #659 to #678 alike.
+- kc places 278 of those errors elsewhere than kelvinc, which
+  selfhost/errors.sh, comparing the words alone, does not see; matched
+  in batches, as the user ordered after #680, the lines first (#681):
+  - 5 at another line, where kc and kelvinc say different errors: the
+    three c_cast_typedef_*, c_type_error and trailing_next_line;
+  - 74 with no column, most of them kc's lexer's;
+  - 199 at another column.
+  - When all match, errors.sh compares the line and column too.
 - 29 places where kc reads not yet what kelvinc reads:
   - a function defined inside a function (#180);
   - an enum with no name whose cases have values (#120), the methods of
@@ -71,7 +79,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P685, the details of #680, until reviewed; the reviews confirmed
+- P685 and P686, the details of #680 and #681, until reviewed; the reviews confirmed
   every row to P684, and a review's own detail row is confirmed by that
   review (#675).
 

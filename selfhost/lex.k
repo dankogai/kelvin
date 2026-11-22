@@ -672,7 +672,10 @@ let file_end_text(f:int64):String {
 }
 
 // where an error at token t is, as kelvinc writes it: file:line:col
-let error_at_text(t:int64):String {
+let error_at_text(t0:int64):String {
+    var t:int64 = t0
+    while t + 1 < toks.count as int64 && toks[t].kind == T_NL { t += 1 }   // kelvinc has no token of a line's end: the one after it (#681)
+    if toks[t].kind == T_EOF && toks[t0].kind == T_NL { return file_end_text(toks[t0].file) }
     let k:tok = toks[t]
     var s:String = fnames[k.file].copy()
     s += ":"
@@ -709,6 +712,29 @@ let in_record_body():bool {
 let lex_error(file:int64, line:int64, what:cstr) {
     let said:String = as_shown(what)
     println(fnames[file], ":", line, ": error: ", said)
+    failed = true
+}
+
+// an error at code i of file, as kelvinc's error_at says one: its line
+// and column, 1 and the bytes of UTF-8 before it on its line (#681)
+let lex_error_at(file:int64, i:int64, what:cstr) {
+    let said:String = as_shown(what)
+    var line:int64 = 1
+    var col:int64 = 1
+    if file >= 0 && file < codes_from.count as int64 {
+        var k:int64 = codes_from[file]
+        while k < i && k < codes_to[file] {
+            let c:uint32 = codes[k]
+            if c == '\n' {
+                line += 1
+                col = 1
+            } else {
+                col += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4
+            }
+            k += 1
+        }
+    }
+    println(fnames[file], ":", line, ":", col, ": error: ", said)
     failed = true
 }
 
@@ -751,7 +777,7 @@ let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
             } else {
                 m += "' in '#inline C' is C's preprocessor, which Kelvin leaves out (#296): import a header with '#import <x.h> as C' outside it, and write a constant as an enum's or a Kelvin let"
             }
-            lex_error(file, line, m.cstr)
+            lex_error_at(file, i, m.cstr)                // at its '#', as kelvinc's (#681)
             return
         }
         if c == '\n' {
@@ -784,7 +810,7 @@ let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
             if depth == 0 { break }
         }
         if c == '?' && code_at(i + 1) == '?' {
-            lex_error(file, line, "'??' in '#inline C' is a trigraph of C, which Kelvin does not have (#220): write what it stands for")
+            lex_error_at(file, i, "'??' in '#inline C' is a trigraph of C, which Kelvin does not have (#220): write what it stands for")
             return
         }
         i += 1
@@ -1039,6 +1065,7 @@ let lex_range(from:int64, to:int64, file:int64) {
     var depth:int64 = 0              // ( and [ open
     var outer:$[int64] = $[]         // the depth each open { was written at: a body inside parentheses has its lines (#326)
     var tpls:$[int64] = $[]          // the count of outer at each open ${ of a template (#445)
+    var tpl_at:$[int64] = $[]        // where each open ${ is, for an error there (#681)
     var conds:$[int64] = $[]         // the lines of the #if open (#643)
     while i < to && !failed {
         let c:uint32 = codes[i]
@@ -1148,6 +1175,7 @@ let lex_range(from:int64, to:int64, file:int64) {
             if c == '}' {
                 depth = outer.pop()
                 tpls.pop()
+                tpl_at.pop()
             }
             if c == '$' {
                 add_tok(T_PUNCT, i, 1, line, file)
@@ -1161,6 +1189,7 @@ let lex_range(from:int64, to:int64, file:int64) {
             let last:tkind = toks[toks.count as int64 - 1].kind
             if !failed && (last == T_TPL_HEAD || last == T_TPL_MID) {   // a ${, as a ( : no new line ends a statement in it
                 tpls += outer.count as int64
+                tpl_at += i - 2                  // its $, before the { (#681)
                 outer += depth
                 depth = 1
             }
@@ -1347,6 +1376,6 @@ let lex_range(from:int64, to:int64, file:int64) {
         }
     }
     if tpls.count > 0 && !failed {
-        lex_error(file, line, "unterminated ${...} in a template literal: it ends with '}'")
+        lex_error_at(file, tpl_at[tpl_at.count as int64 - 1], "unterminated ${...} in a template literal: it ends with '}'")
     }
 }

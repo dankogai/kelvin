@@ -1485,7 +1485,27 @@ let dollar_mark(e:int64) {
 
 // the Array of elem, $[T] or Array<T> (#451); an element of a count
 // is kelvinc's error
-let array_type(elem:int64):int64 {
+// the ( of a count after the [...] that starts at token t, $[[i64](3)]'s,
+// where kelvinc says an Array has no count; t itself where there is none
+let count_paren(t:int64):int64 {
+    if !tok_is(t, "[") { return t }
+    var depth:int64 = 0
+    var k:int64 = t
+    while k < eof_pos {
+        if tok_is(k, "[") || tok_is(k, "$[") { depth += 1 }
+        if tok_is(k, "]") {
+            depth -= 1
+            if depth == 0 { return tok_is(k + 1, "(") ? k + 1 : t }
+        }
+        k += 1
+    }
+    return t
+}
+
+let array_type(elem:int64):int64 { return array_type_at(elem, pos) }
+
+// array_type, its error at token at (#681)
+let array_type_at(elem:int64, at:int64):int64 {
     if types[elem].kind == Y_FIXED && types[elem].name != 0 - 1 && types[elem].name != 0 - 3 {   // as kelvinc says it (#369)
         var b:int64 = elem
         while types[b].kind == Y_FIXED { b = types[b].elem }
@@ -1493,7 +1513,7 @@ let array_type(elem:int64):int64 {
         let w:String = type_word(b)
         m += &w
         m += "]], and give the elements or a count where it is made"
-        parse_error(m.cstr)
+        parse_error_at(at, m.cstr)                       // at the count's (, as kelvinc's (#681)
         return base_type(Y_VOID)
     }
     return type_of_kind(Y_ARRAY, grown(elem), -1)
@@ -1549,9 +1569,9 @@ let io_required(t:int64) {
 
 // a Dictionary's key is no cstr, as kelvinc says it (#65, #611): it keeps
 // a copy of the text, a String
-let cstr_key(key:int64) {
+let cstr_key(key:int64, at:int64) {
     if key >= 0 && types[key].kind == Y_CSTR && !failed {
-        parse_error("a key of a Dictionary is a String, not a cstr: the Dictionary keeps a copy of the text, and is read with a cstr or a String")
+        parse_error_at(at, "a key of a Dictionary is a String, not a cstr: the Dictionary keeps a copy of the text, and is read with a cstr or a String")
     }
 }
 
@@ -1570,6 +1590,7 @@ let parse_bare_type():int64 {
     if at_word("$[") || at_word("${") {
         let brace:bool = at_word("${")
         advance()
+        let elem_at:int64 = pos                  // where the element's type, or the key's, starts (#681)
         let elem:int64 = parse_type()
         var y:int64 = 0
         if !brace && at_word(":") {              // $[String: i64], as kelvinc says it
@@ -1582,12 +1603,12 @@ let parse_bare_type():int64 {
         }
         if !brace {
             expect("]")
-            y = array_type(elem)
+            y = array_type_at(elem, count_paren(elem_at))
         } else if at_word(":") {                 // ${K: V}, a Dictionary<K, V> (#460)
             advance()
             let value:int64 = parse_type()
             expect("}")
-            cstr_key(elem)                       // (#611)
+            cstr_key(elem, elem_at)              // (#611, #681)
             y = type_of_kind(Y_DICT, value, elem)
             optional_of(value)
         } else {                                 // ${T}, a Set<T> (#460)
@@ -1823,11 +1844,12 @@ let parse_bare_type():int64 {
         y = type_of_kind(Y_SET, elem, -1)
     } else if tok_is(t, "Dictionary") {          // Dictionary<K, V> (#211)
         expect("<")
+        let key_at:int64 = pos
         let key:int64 = parse_type()
         expect(",")
         let value:int64 = parse_type()
         close_angle()
-        cstr_key(key)                                    // (#611)
+        cstr_key(key, key_at)                            // (#611, #681)
         y = type_of_kind(Y_DICT, value, key)
         optional_of(value)                       // V?, which d[k] read whole is (#219)
     } else {
@@ -2211,11 +2233,12 @@ let parse_make():int64 {
         set_ty(n, type_of_kind(Y_SET, elem, -1))
     } else {
         advance()                                // <
+        let key_at:int64 = pos
         let key:int64 = parse_type()
         expect(",")
         let value:int64 = parse_type()
         close_angle()
-        cstr_key(key)                                    // (#611)
+        cstr_key(key, key_at)                            // (#611, #681)
         set_ty(n, type_of_kind(Y_DICT, value, key))
         optional_of(value)                       // V?, which d[k] read whole is (#219)
     }
@@ -2837,12 +2860,12 @@ let parse_steps(first:int64):int64 {
             return n
         }
         if at_word("!") && adjacent(pos - 1, pos) {       // x! (#218): d[k]! the place, x! of an Optional x.some
-            advance()
+            let bang:int64 = advance()
             if nodes[e].kind != N_INDEX {
                 var word = $"some"
                 let n = make_node(N_FIELD, made_token(&word))
                 nodes[n].a = e
-                unwrap_nodes[n] = true                   // x!, as kelvinc names it where x is no Optional (#629)
+                unwrap_nodes[n] = bang                   // x!, as kelvinc names it where x is no Optional (#629), at its '!' (#681)
                 e = n
             }
             continue
@@ -3131,7 +3154,7 @@ let parse_binary(min:int64):int64 {
                     return 0 - 1
                 }
                 if tok_is(t, "..<") {
-                    parse_error("'..<' needs an end, as in '0..<10'; a range without one is 'lo...'")
+                    parse_error_at(t, "'..<' needs an end, as in '0..<10'; a range without one is 'lo...'")   // at the ..<, as kelvinc's (#681)
                     return 0 - 1
                 }
                 nodes[r].flag = 2
@@ -3253,7 +3276,7 @@ let prev_line_ends_call(t:int64):bool {
 // whether the token at pos is an assignment's operator
 var switch_level:int64                       // the switches being read (#629)
 var fn_parsing:int64 = 0 - 1                 // the function whose body is being read, which $(...) calls (#629)
-var unwrap_nodes:Dictionary<int64, bool>     // the x.some that x! makes (#629)
+var unwrap_nodes:Dictionary<int64, int64>    // the x.some that x! makes (#629), and its '!' (#681)
 
 let at_assign():bool {
     return at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") || at_word("??=") || at_word("!!=")
@@ -3526,7 +3549,7 @@ let end_alignas() {
 // an alignas that no variable or member follows (#396), as kelvinc says it
 let refuse_alignas() {
     if align_expr >= 0 || align_type >= 0 {
-        parse_error("'alignas' is for a variable or a member: 'alignas(16) var buf:[u8](64)'")
+        parse_error_at(align_tok, "'alignas' is for a variable or a member: 'alignas(16) var buf:[u8](64)'")   // (#681)
         end_alignas()
     }
 }
@@ -4493,7 +4516,7 @@ let parse_type_attribute(recv:int64, is_let:bool) {
         m += "."
         m += &nm
         m += " = ...', or 'static var' if it changes"
-        parse_error(m.cstr)
+        parse_error_at(t, m.cstr)                        // at its name, as kelvinc's (#681)
         return
     }
     var word:String = number_word(recv) >= 0 ? type_word(number_word(recv)) : tok_text(recv)   // int64 is i64 (#545)
@@ -4863,13 +4886,15 @@ let parse_anon_record():int64 {
 
 // an inline before a declaration (#392), as kelvinc reads it: whether one
 // was written, and its errors where once is not all, or no function follows
+var inline_tok:int64 = 0 - 1   // the word inline of the declaration being read, for an error there (#681)
+
 let parse_inline(seen:bool):bool {
     if !at_word("inline") { return seen }
     if seen {
         parse_error("'inline' is written once")
         return true
     }
-    advance()
+    inline_tok = advance()
     if at_word("inline") {
         parse_error("'inline' is written once")
     } else if !at_word("let") && !at_word("var") && !at_word("static") {
@@ -5745,7 +5770,7 @@ let parse_program() {
                 take_alignas(decls[decls.count - 1])
                 end_alignas()
             } else if decls.count as int64 > first && nodes[decls[decls.count - 1]].kind == D_FN {
-                parse_error("'alignas' is for a variable or a member: a function's alignment is the C compiler's")
+                parse_error_at(align_tok, "'alignas' is for a variable or a member: a function's alignment is the C compiler's")   // at its word, as kelvinc's (#681)
                 end_alignas()
             } else {
                 refuse_alignas()
@@ -5764,7 +5789,7 @@ let parse_program() {
         }
         if inl {
             if decls.count as int64 == first || nodes[decls[decls.count - 1]].kind != D_FN {
-                parse_error("'inline' is for a function, a method or an operator")
+                parse_error_at(inline_tok, "'inline' is for a function, a method or an operator")   // at its word, as kelvinc's (#681)
             } else {
                 inline_fns += decls[decls.count - 1]
             }
