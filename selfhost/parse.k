@@ -874,7 +874,7 @@ let record_name():int64 {
             m += " is "
             m += &name
             m += " in C, the name of this type: rename one of them"
-            parse_error(m.cstr)
+            parse_error_at(t > 0 ? t - 1 : t, m.cstr)    // at its struct, as kelvinc's (#684)
         }
         records_seen[name] = t
         return t
@@ -4900,7 +4900,7 @@ let parse_inline(seen:bool):bool {
     if at_word("inline") {
         parse_error("'inline' is written once")
     } else if !at_word("let") && !at_word("var") && !at_word("static") {
-        parse_error("'inline' is for a function, a method or an operator: 'inline let f(...) { ... }'")
+        parse_error_at(inline_tok, "'inline' is for a function, a method or an operator: 'inline let f(...) { ... }'")   // (#684)
     }
     return true
 }
@@ -5578,7 +5578,7 @@ let parse_program() {
             continue
         }
         if inl && toks[pos + 1].kind == T_ID && tok_is(pos + 1, "main") {
-            parse_error("main is C's main, called once: it is not inline")
+            parse_error_at(inline_tok, "main is C's main, called once: it is not inline")   // at its word, as kelvinc's (#684)
         }
         let first:int64 = decls.count as int64
         if at_word("static_assert") || at_word("_Static_assert") {

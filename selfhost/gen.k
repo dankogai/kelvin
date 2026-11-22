@@ -369,6 +369,19 @@ let callee_error(n:int64, what:cstr) {
     gen_error(n, what)
 }
 
+// the first token of the declaration whose name is token t: of its
+// line, after a ; or a brace, where kelvinc says an error of it (#684)
+let decl_first(t:int64):int64 {
+    var k:int64 = t
+    while k > 0 && toks[k - 1].file == toks[t].file && toks[k - 1].line == toks[t].line && toks[k - 1].kind != T_NL && !tok_is(k - 1, ";") && !tok_is(k - 1, "{") && !tok_is(k - 1, "}") { k -= 1 }
+    return k
+}
+
+// an error of declaration d at its first token, as kelvinc's (#684)
+let decl_error(d:int64, what:cstr) {
+    tok_error(decl_first(nodes[d].t), what)
+}
+
 // ---------- types ----------
 
 let tagged_of(y:int64):int64    // prototypes: an enum with values owns where a case does (#215)
@@ -1270,7 +1283,7 @@ let gen_random(n:int64) {
     let count:int64 = count_args(a)
     if k == Y_BOOL {
         if count != 0 {
-            gen_error(n, "bool.random() takes nothing: it is true or false, each as likely")
+            gen_error(nodes[n].a, "bool.random() takes nothing: it is true or false, each as likely")
             return
         }
         put("((bool)((bool)(kv_random_u64() >> 63)))")
@@ -1336,7 +1349,7 @@ let gen_random(n:int64) {
         m += ", or a range, as in '"
         m += &tn
         m += ".random(1...6)'"
-        gen_error(n, m.cstr)
+        gen_error(nodes[n].a, m.cstr)
         return
     }
     if count == 0 {
@@ -1649,7 +1662,7 @@ let method_chosen(n:int64, f:int64):int64 {
                 e += " here: pass '&"
                 e += tok_text(nodes[b].t)
                 e += "'"
-                gen_error(n, e.cstr)
+                gen_error(b, e.cstr)
                 return best
             }
             b = nodes[b].next
@@ -2526,7 +2539,7 @@ let type_of(n:int64):int64 {
             var m = $"Bytes.fromBase64 of a String takes a borrow: write '&"
             m += nodes[nodes[n].b].kind == N_ID ? tok_text(nodes[nodes[n].b].t) : $"s"
             m += "'"
-            gen_error(n, m.cstr)
+            gen_error(nodes[n].b, m.cstr)
             return 0 - 1
         }
     }
@@ -2540,7 +2553,7 @@ let type_of(n:int64):int64 {
         return 0 - 1
     }
     if k == N_METHOD && nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "IO") && tok_is(nodes[n].t, "popen") && !(nodes[n].b >= 0 && nodes[nodes[n].b].next >= 0 && nodes[nodes[nodes[n].b].next].next < 0) {
-        gen_error(n, "IO.popen takes a command and a mode, as in IO.popen(\"ls -l\", \"r\")")   // as kelvinc says it
+        gen_error(nodes[n].a, "IO.popen takes a command and a mode, as in IO.popen(\"ls -l\", \"r\")")   // as kelvinc says it
         return 0 - 1
     }
     if k == N_BIN && tok_is(nodes[n].t, "??") {          // x ?? d of no Optional, as kelvinc says it
@@ -2559,7 +2572,7 @@ let type_of(n:int64):int64 {
             var m = $"'try' takes a Result or an Optional, and this is "
             let w:String = kelvin_type_text(ry0)
             m += &w
-            gen_error(n, m.cstr)
+            callee_error(nodes[n].a, m.cstr)
             return 0 - 1
         }
         let ry:int64 = type_of(nodes[n].a)
@@ -4291,7 +4304,7 @@ let name_clashes() {
         m += " would both be named "
         m += &cname
         m += " in C: rename one"
-        gen_error(d, m.cstr)
+        decl_error(d, m.cstr)                            // (#684)
         return
     }
     for d in decls {
@@ -5160,6 +5173,8 @@ let gen_big_bit_flip(n:int64, a:int64) {
         return
     }
     let lead = $"'.flip' is a var method, which changes "
+    change_op = nodes[n].t                               // (#684)
+    change_lhs = recv
     if !changes_var(recv, &lead) { return }
     gen_expr(big_bit_call("kv_bi_bit_flip", recv, idx, nodes[n].t))
 }
@@ -6824,7 +6839,7 @@ let os_type(n:int64):int64 {
     let sys = tok_is(nodes[nodes[n].a].t, "SYS")
     let ns:cstr := sys ? "SYS" : "OS"
     if !sys && !os_imported {
-        gen_error(n, "OS is a module: write '#import <OS>' at the top of the file")
+        gen_error(nodes[n].a, "OS is a module: write '#import <OS>' at the top of the file")
         return 0 - 1
     }
     let m:String = os_member(n)
@@ -6892,7 +6907,7 @@ let os_type(n:int64):int64 {
     if g == $"ints" { return result_of(array_type(base_type(Y_I32)), base_type(Y_I32)) }
     if g == $"res_bytes" { return result_of(base_type(Y_BYTES), base_type(Y_I32)) }
     if g == $"temp" && !uses_io {                        // as kelvinc says it
-        gen_error(n, "OS.mkstemp gives an IO, a module: write '#import <IO>' at the top of the file")
+        gen_error(nodes[n].a, "OS.mkstemp gives an IO, a module: write '#import <IO>' at the top of the file")
         return 0 - 1
     }
     return result_of(os_struct(&g), base_type(Y_I32))  // OS.stat and the rest, a struct of their own (#95, #102)
@@ -9204,7 +9219,7 @@ let bytes_method_type(n:int64, y:int64):int64 {
     if tok_is(t, "append") || tok_is(t, "insert") || tok_is(t, "remove") || tok_is(t, "clear") || tok_is(t, "reserve") || tok_is(t, "compact") || tok_is(t, "isEmpty") { return base_type(Y_VOID) }
     if tok_is(t, "escape") { return base_type(Y_STRING) }   // its bytes not printable ASCII as \xHH (#166, #515)
     if tok_is(t, "toBase64") && nodes[n].b >= 0 && !(tok_is(nodes[nodes[n].b].t, "url") || tok_is(nodes[nodes[n].b].t, "nopad")) {   // as kelvinc says it
-        gen_error(n, "'.toBase64' takes the words url and nopad, in either order, or nothing")
+        gen_error(nodes[n].b, "'.toBase64' takes the words url and nopad, in either order, or nothing")
         return -1
     }
     if tok_is(t, "toBase64") {
@@ -9513,6 +9528,8 @@ let exec_text_ok(x:int64, lead:cstr):bool {
 let gen_method_of(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
+    change_op = t                                        // an error of the receiver's change at the method's name, as kelvinc's (#684)
+    change_lhs = a
     if refuse_valueless_args(n) { return }
     if nodes[a].kind != N_TYPE && !names_type(a) && !failed && (c_call_value(a) || (method_of(n) < 0 && type_of(a) < 0)) {
         let found:$[int64] = unseen_methods(t)
@@ -9656,7 +9673,7 @@ let gen_method_of(n:int64) {
     }
     if nodes[a].kind == N_TYPE && tok_is(t, "pipe") {                 // IO.pipe() (#464), as kelvinc writes it: its two ends filled
         if nodes[n].b >= 0 {
-            gen_error(n, "IO.pipe takes nothing, and gives {reader: IO, writer: IO}")
+            gen_error(nodes[n].a, "IO.pipe takes nothing, and gives {reader: IO, writer: IO}")
             return
         }
         put("({ ")
@@ -9796,7 +9813,7 @@ let gen_method_of(n:int64) {
             let w:String = type_text(y)
             m += &w
             m += ", '&other'"
-            gen_error(n, m.cstr)
+            gen_error(other >= 0 ? other : n, m.cstr)
             return
         }
         put_set_name(y)                                   // a Set an expression gives is held as any receiver is (#227)
@@ -9971,13 +9988,13 @@ let gen_method_of(n:int64) {
     } else if tok_is(t, "pretty") && (yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET || yk == Y_STRUCT || yk == Y_FIXED) {   // .pretty(n), as kelvinc says it
         let w:int64 = nodes[n].b
         if w < 0 {
-            gen_error(n, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10; two is '.pretty'")
+            tok_error(nodes[n].t + 2, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10; two is '.pretty'")
         } else if nodes[w].kind == N_STR {
-            gen_error(n, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10, and this is text")
+            gen_error(w, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10, and this is text")
         } else if nodes[w].kind == N_NUM {
             var m = $"'.pretty(n)' indents 0 to 10 spaces a level, as JSON.stringify's space does, and this is "
             m += tok_text(nodes[w].t)
-            gen_error(n, m.cstr)
+            gen_error(w, m.cstr)
         } else {
             gen_error(n, "this method is not known")
         }
@@ -12529,6 +12546,8 @@ let gen_bit_method(n:int64):bool {
     let bit = int_bit_index(a)                          // x.bits[k].flip(): the integer is what changes
     let x:int64 = bit ? nodes[nodes[a].a].a : a
     let lead = $"'.flip' is a var method, which changes "
+    change_op = nodes[n].t                               // at .flip, as kelvinc's (#684)
+    change_lhs = x
     if !changes_var(x, &lead) { return true }
     if !changeable_place(x) {
         gen_error(n, "'.flip' is a var method, which changes the value it is called on, so that value is a variable")
@@ -14583,7 +14602,7 @@ let changes_var(n:int64, lead:const String^):bool {
         m += "'"
         m += &who
         m += "', a let: declare it with var"
-        gen_error(n, m.cstr)
+        tok_error(change_tok(n), m.cstr)                 // (#684)
         return false
     }
     if nodes[d].kind == N_DEREF { return may_change(n) }    // through a const T^, may_change's words
@@ -16412,7 +16431,7 @@ let lazy_fn_of(n:int64, ey:int64, is_map:bool, me:const String^):int64 {
         m += ", and this takes "
         let pw:String = kelvin_type_text(nodes[p].ty)
         m += &pw
-        gen_error(n, m.cstr)
+        gen_error(f, m.cstr)   // at the function, as kelvinc's (#684)
         return 0 - 1
     }
     if !is_map && types[nodes[fn].ty].kind != Y_BOOL && nodes[f].kind == N_ANON && nodes[f].flag != 0 {
@@ -16431,7 +16450,7 @@ let lazy_fn_of(n:int64, ey:int64, is_map:bool, me:const String^):int64 {
             }
             m += ": compare it, as in 'x != 0'"
         }
-        gen_error(n, m.cstr)
+        gen_error(e, m.cstr)   // at what its one expression gives (#684)
         return 0 - 1
     }
     if !is_map && types[nodes[fn].ty].kind != Y_BOOL {
@@ -16439,7 +16458,7 @@ let lazy_fn_of(n:int64, ey:int64, is_map:bool, me:const String^):int64 {
         m += " takes a function that says whether to keep a value, a bool, and this gives "
         let rw:String = kelvin_type_text(nodes[fn].ty)
         m += &rw
-        gen_error(n, m.cstr)
+        gen_error(f, m.cstr)   // (#684)
         return 0 - 1
     }
     return fn
@@ -17902,7 +17921,7 @@ let eager_of(n:int64):int64 {
             m += ", and this takes "
             let pw:String = kelvin_type_text(nodes[key_p].ty)
             m += &pw
-            gen_error(n, m.cstr)
+            gen_error(f, m.cstr)   // (#684)
             return 0 - 1
         }
     }
@@ -17916,7 +17935,7 @@ let eager_of(n:int64):int64 {
         m += ", and this takes "
         let pw:String = kelvin_type_text(nodes[last_p].ty)
         m += &pw
-        gen_error(n, m.cstr)
+        gen_error(f, m.cstr)   // (#684)
         return 0 - 1
     }
     let ry:int64 = nodes[fn].ty
@@ -17942,7 +17961,7 @@ let eager_of(n:int64):int64 {
             let rw:String = kelvin_type_text(ry)
             m += &rw
         }
-        gen_error(n, m.cstr)
+        if nodes[f].kind == N_ANON && nodes[f].flag != 0 { gen_error(nodes[nodes[nodes[f].b].a].a, m.cstr) } else { gen_error(f, m.cstr) }   // at what it gives, or the function, as kelvinc's (#684)
         return 0 - 1
     }
     if kind == 3 && (nodes[nodes[fn].a].ty != acc || ry != acc) {
@@ -17966,7 +17985,7 @@ let eager_of(n:int64):int64 {
         let rw:String = kelvin_type_text(ry)
         m += &rw
         m += with_key ? $", which '.mapWithKey' takes" : $", which '.map' takes"   // as kelvinc's (#332)
-        gen_error(n, m.cstr)
+        gen_error(f, m.cstr)
         return 0 - 1
     }
     if kind == 1 && yk == Y_SET && types[ry].kind != Y_STRING && !is_int_kind(types[ry].kind) {
@@ -17974,7 +17993,7 @@ let eager_of(n:int64):int64 {
         let rw:String = kelvin_type_text(ry)
         m += &rw
         m += ": map its elements, 's.elements.map'"
-        gen_error(n, m.cstr)
+        gen_error(f, m.cstr)
         return 0 - 1
     }
     var out:int64 = ry
@@ -19491,7 +19510,7 @@ let search_of(n:int64):int64 {
                 let rw:String = kelvin_type_text(ry)
                 m += &rw
             }
-            gen_error(f, m.cstr)
+            if nodes[f].kind == N_ANON && nodes[f].flag != 0 { gen_error(nodes[nodes[nodes[f].b].a].a, m.cstr) } else { gen_error(f, m.cstr) }   // at what it gives, as kelvinc's (#684)
             return 0 - 1
         }
     }
@@ -21548,7 +21567,7 @@ let missing_return(d:int64):bool {
         m += "'"
     }
     m += " can reach the end of its body with no value: every path of a function with a result returns one"
-    gen_error(anon_fns.contains(d) ? nodes[d].b : d, m.cstr)   // an anonymous one at its body
+    if anon_fns.contains(d) { gen_error(nodes[d].b, m.cstr) } else { decl_error(d, m.cstr) }   // an anonymous one at its body; a named one at its first word (#684)
     return true
 }
 
@@ -22501,7 +22520,7 @@ let reject_duplicates() {
             let at:String = defined_at(nodes[e].t, nodes[d].t)
             m += &at
             m += ", with these parameter types: a function is defined once, and its overloads differ in their parameter types"
-            gen_error(d, m.cstr)
+            decl_error(d, m.cstr)
             return
         }
         defined[key] = d

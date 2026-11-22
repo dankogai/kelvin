@@ -13357,3 +13357,19 @@ are left, each of a site of its own.
 Details are provisional P688.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 731. kc's error positions, batch 4
+
+**Claude** pushed #683, its battery clean and CI's 9 jobs passed.
+
+**User:** go on
+
+**Claude** made the fourth batch #684: a declaration's error at its first
+word, a var method's change of a let at the method's name, a function
+given to .filter or .map at it or at what it gives, an argument's at
+it, a static call's at its type and try's at what it takes, as kelvinc
+says each. 102 are left.
+
+Details are provisional P689.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
