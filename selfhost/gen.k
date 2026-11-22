@@ -21554,7 +21554,7 @@ let gen_function(d:int64) {
         var m = $"a subscript is of a struct, a union or an enum with values of the program: '"
         m += tok_text(nodes[d].c)
         m += "' has its own indexing"
-        gen_error(d, m.cstr)
+        tok_error(nodes[d].c, m.cstr)                    // at the type's name, as kelvinc's recv (#682)
         return
     }
     if nodes[d].c >= 0 && nodes[d].flag == 2 && subscripts.get(d, 0) == 0 && decl_named(nodes[d].c, D_STRUCT) < 0 {   // as kelvinc's (#320)

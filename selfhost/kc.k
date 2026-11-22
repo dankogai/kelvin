@@ -106,10 +106,11 @@ let source_error(path:String^):String {
     let n = b.count as int64
     if n >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF {
         var bom:String = path^.copy()
-        bom += ":1: error: a Kelvin source is UTF-8 without a BOM: remove its first three bytes, EF BB BF (#295)"
+        bom += ":1:1: error: a Kelvin source is UTF-8 without a BOM: remove its first three bytes, EF BB BF (#295)"
         return bom
     }
     var line:int64 = 1
+    var col:int64 = 1                                    // bytes, as kelvinc counts a column (#682)
     var i:int64 = 0
     while i < n {
         let k = utf8_len(&b, i)
@@ -117,13 +118,20 @@ let source_error(path:String^):String {
             var why:String = path^.copy()
             why += ":"
             why += String(line)
+            why += ":"
+            why += String(col)
             why += ": error: a Kelvin source is valid UTF-8, and byte 0x"
             let h:String = hex_upper(b[i])
             why += &h
             why += " here is not (#295)"
             return why
         }
-        if b[i] == 10 { line += 1 }
+        if b[i] == 10 {
+            line += 1
+            col = 1
+        } else {
+            col += k
+        }
         i += k
     }
     return $""
@@ -187,7 +195,7 @@ let load_imports():bool {
                     var why = $"cannot find "
                     why += tok_text(i)
                     why += " next to the file that imports it"
-                    lex_error(toks[i].file, toks[i].line, why.cstr)
+                    lex_error_tok(i, why.cstr)               // at the #import, as kelvinc's (#682)
                     return false
                 }
             }
@@ -614,7 +622,7 @@ let load_module(mods:String^, t:int64):bool {
         }
     }
     if tok_is(t, "<BigFloat>") {                         // renamed (#590)
-        lex_error(toks[t].file, toks[t].line, "<BigFloat> is <BigNum> now, with CBR, CBF and math's functions of them (#590): write #import <BigNum>")
+        lex_error_tok(t, "<BigFloat> is <BigNum> now, with CBR, CBF and math's functions of them (#590): write #import <BigNum>")
         return false
     }
     var why = $"cannot find "
@@ -630,7 +638,7 @@ let load_module(mods:String^, t:int64):bool {
     why += &name
     if bare { why += ".k" }
     why += ") in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)"
-    lex_error(toks[t].file, toks[t].line, why.cstr)
+    lex_error_tok(t, why.cstr)                           // (#682)
     return false
 }
 
@@ -912,7 +920,7 @@ let made_tok(kind:tkind, s:cstr, line:int64, file:int64):tok {
         codes += s[j] as uint32
         j += 1
     }
-    let k:tok = {kind, at, codes.count as int64 - at, line, file}
+    let k:tok = {kind, at, codes.count as int64 - at, line, file, at}
     return k
 }
 
@@ -926,7 +934,7 @@ let number_tok(v:int64, line:int64, file:int64):tok {
         left = left / 10
     }
     while digits.count > 0 { codes += digits.pop() }
-    let k:tok = {T_NUM, at, codes.count as int64 - at, line, file}
+    let k:tok = {T_NUM, at, codes.count as int64 - at, line, file, at}
     return k
 }
 
@@ -994,7 +1002,7 @@ let kelvin_names():bool {
         place += out.count as int64
         var k:tok = toks[t]
         if k.kind == T_ID && k.len >= 8 && tok_starts(t, "_kv_own_") {
-            lex_error(k.file, k.line, "names starting with _kv_ are kelvinc's own, in the C it writes: rename it")
+            lex_error_tok(t, "names starting with _kv_ are kelvinc's own, in the C it writes: rename it")
             return false
         }
         if k.kind != T_ID || !tok_is(t, "Kelvin") {
@@ -1022,7 +1030,7 @@ let kelvin_names():bool {
         let member = t > 0 && toks[t - 1].kind == T_PUNCT && tok_is(t - 1, ".")
         let dotted = t + 2 < n && toks[t + 1].kind == T_PUNCT && tok_is(t + 1, ".") && toks[t + 2].kind == T_ID
         if member || !dotted {
-            lex_error(k.file, k.line, "'Kelvin' is the prelude's name (#600), as in 'Kelvin.log(x)', the prelude's log whatever the program calls its own: a name of the program's own is another, as 'kelvin'")
+            lex_error_tok(t, "'Kelvin' is the prelude's name (#600), as in 'Kelvin.log(x)', the prelude's log whatever the program calls its own: a name of the program's own is another, as 'kelvin'")
             return false
         }
         let x:int64 = t + 2
@@ -1041,7 +1049,7 @@ let kelvin_names():bool {
             why += "' names nothing: '"
             why += tok_text(x)
             why += "' is a word of the language, and not a name of the prelude's (#600)"
-            lex_error(name.file, name.line, why.cstr)
+            lex_error_tok(x, why.cstr)                   // at the name after Kelvin., as kelvinc's (#682)
             return false
         } else if text_among(x, &fns) && (call || !text_among(x, &types)) {
             if !nothing_named(x) { retext(&name, "Kelvin.") }   // the prelude's function, gen.k's to choose
@@ -1051,7 +1059,7 @@ let kelvin_names():bool {
             var w:int64 = 0
             while !same_text(prelude_words[w], x) { w += 1 }
             if word_value[w] < 0 {
-                lex_error(name.file, name.line, "this word of an enum of the prelude's has a number kc does not see: not yet (#600)")
+                lex_error_tok(x, "this word of an enum of the prelude's has a number kc does not see: not yet (#600)")
                 return false
             }
             place += out.count as int64
@@ -1072,7 +1080,7 @@ let kelvin_names():bool {
             why += "' names nothing: the prelude has no '"
             why += tok_text(x)
             why += "' at its top level (#600); Kelvin.name is a function or a type that a program has with no import, as 'Kelvin.sqrt' and 'Kelvin.BigInt'"
-            lex_error(name.file, name.line, why.cstr)
+            lex_error_tok(x, why.cstr)                   // at the name after Kelvin., as kelvinc's (#682)
             return false
         }
         place += out.count as int64
@@ -1151,7 +1159,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     if !load_prelude(&mods) { return 1 }          // BigInt, RegExp (#515), and each #import <M> (#516)
     if !load_overlays(&mods) { return 1 }         // A+B, where A and B are both read (#551)
     if !kelvin_names() { return 1 }               // Kelvin.name, and the files' own types of the prelude's names (#600)
-    let end:tok = {T_EOF, codes.count as int64, 0, 0, 0}
+    let end:tok = {T_EOF, codes.count as int64, 0, 0, 0, codes.count as int64}
     toks += end
     eof_pos = toks.count as int64 - 1
     if failed { return 1 }

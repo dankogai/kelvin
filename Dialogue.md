@@ -13323,3 +13323,20 @@ count and 0..< are each said at kelvinc's token; 278 are left.
 Details are provisional P686.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 729. kc's error positions, batch 2
+
+**Claude** pushed #681, its battery clean and CI's 9 jobs passed, and
+went on to the second batch, as ordered after #680.
+
+**User:** go on
+
+**Claude** made it #682: kc's lexer says the column of the token it
+reads, or of where it reads, as kelvinc says each; a token keeps where
+it is in its file, so a template's and a 123n's have a column; and
+kc.k's errors of imports, Kelvin. names and a source's bytes say one
+too. All 74 have kelvinc's line and column; 204 are left.
+
+Details are provisional P687.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

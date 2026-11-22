@@ -25,6 +25,7 @@ struct tok {
     len: int64
     line: int64
     file: int64
+    src: int64      // where it is in its file: at, or a template's and a 123n's place, their text being kc's (#682)
 }
 
 var codes:$[uint32]       // every file's text
@@ -158,7 +159,7 @@ let hex4(c:uint32):String {
 }
 
 let add_tok(kind:tkind, at:int64, len:int64, line:int64, file:int64) {
-    let t:tok = {kind, at, len, line, file}
+    let t:tok = {kind, at, len, line, file, at}
     toks += t
 }
 
@@ -216,6 +217,7 @@ let big_literal(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64):bo
         lex_error(file, line, m.cstr)
         return true
     }
+    let first:int64 = toks.count as int64
     add_made(T_ID, "BigInt", line, file)
     big_lits += toks.count as int64 - 1
     add_made(T_PUNCT, "(", line, file)
@@ -227,6 +229,7 @@ let big_literal(s:int64, e:int64, ts:int64, te:int64, line:int64, file:int64):bo
     add_made(T_PUNCT, ",", line, file)
     add_made(T_NUM, base == 16 ? "16" : base == 8 ? "8" : base == 2 ? "2" : "10", line, file)
     add_made(T_PUNCT, ")", line, file)
+    for q in first..<toks.count as int64 { toks[q].src = ts }   // each at the literal, as kelvinc's error there (#682)
     return true
 }
 
@@ -534,7 +537,14 @@ let lex_regexp(i:int64, to:int64, line:int64, file:int64):int64 {
     if wrong != nowhere {
         var m = $"a $/.../ literal that is not a regular expression: "
         m += wrong
-        lex_error(file, line, m.cstr)
+        var wi:int64 = s                                 // where's bytes into the pattern, as kelvinc's column (#682)
+        var wb:int64 = 0
+        while wi < e && wb < where as int64 {
+            let c:uint32 = codes[wi]
+            wb += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4
+            wi += 1
+        }
+        lex_error_at(file, wi, m.cstr)
         return k
     }
     add_made(T_ID, "RegExp", line, file)
@@ -629,10 +639,11 @@ let tok_col(t:int64):int64 {
     let k:tok = toks[t]
     if k.file < 0 || k.file >= codes_from.count as int64 { return 0 }
     let lo:int64 = codes_from[k.file]
-    if k.at < lo || k.at >= codes_to[k.file] { return 0 }
-    var i:int64 = k.at
+    let src:int64 = k.src                                // (#682)
+    if src < lo || src >= codes_to[k.file] { return 0 }
+    var i:int64 = src
     while i > lo && codes[i - 1] != '\n' { i -= 1 }
-    var at:int64 = k.at
+    var at:int64 = src
     if k.kind == T_IMPORT {                              // #import's column is its #, as kelvinc's
         var h:int64 = k.at
         while h > i && codes[h] != '#' { h -= 1 }
@@ -709,9 +720,35 @@ let in_record_body():bool {
     return false
 }
 
+var lex_start:int64 = 0 - 1   // where the token being read starts, kelvinc's pos of a lexer's error (#682)
+
+// an error of the lexer at line of file: at the token being read, as
+// kelvinc's error_at(pos, ...) says it, where that token is on the line
 let lex_error(file:int64, line:int64, what:cstr) {
+    if lex_start >= 0 && file >= 0 && file < codes_from.count as int64 && lex_start >= codes_from[file] && lex_start < codes_to[file] && line_of(file, lex_start) == line {
+        lex_error_at(file, lex_start, what)               // (#682)
+        return
+    }
     let said:String = as_shown(what)
     println(fnames[file], ":", line, ": error: ", said)
+    failed = true
+}
+
+// the line of code i of file (#682)
+let line_of(file:int64, i:int64):int64 {
+    var line:int64 = 1
+    for k in codes_from[file]..<i {
+        if codes[k] == '\n' { line += 1 }
+    }
+    return line
+}
+
+// an error at code i of file, as kelvinc's error_at says one: its line
+// and column, 1 and the bytes of UTF-8 before it on its line (#681)
+let lex_error_tok(t:int64, what:cstr) {
+    let said:String = as_shown(what)
+    let at:String = error_at_text(t)                     // file:line:col, as kelvinc's error_at (#682)
+    println(at, ": error: ", said)
     failed = true
 }
 
@@ -745,13 +782,13 @@ let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
     var i:int64 = i0
     while i < to && (codes[i] == ' ' || codes[i] == '\t') { i += 1 }
     if !(i < to && codes[i] == 'C' && !(is_alpha(code_at(i + 1)) || is_digit(code_at(i + 1)))) {
-        lex_error(file, line, "expected 'C' after '#inline': #inline C { ... }")
+        lex_error_at(file, i, "expected 'C' after '#inline': #inline C { ... }")   // where it reads, as kelvinc's here (#682)
         return
     }
     i += 1
     while i < to && (codes[i] == ' ' || codes[i] == '\t') { i += 1 }
     if !(i < to && codes[i] == '{') {
-        lex_error(file, line, "expected '{' after '#inline C', on the same line")
+        lex_error_at(file, i, "expected '{' after '#inline C', on the same line")
         return
     }
     i += 1
@@ -818,7 +855,7 @@ let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
     i += 1
     while i < to && (codes[i] == ' ' || codes[i] == '\t' || codes[i] == '\r') { i += 1 }
     if i < to && codes[i] != '\n' && !(codes[i] == '/' && code_at(i + 1) == '/') {
-        lex_error(file, line, "unexpected text after the '}' of '#inline C'")
+        lex_error_at(file, i, "unexpected text after the '}' of '#inline C'")
     }
 }
 
@@ -893,18 +930,19 @@ let cond_factor():bool {
         cond_at += 1
         let v = cond_or()
         cond_blanks()
-        if !(cond_at < cond_end && codes[cond_at] == ')') { lex_error(cond_file, cond_line, "expected ')' in the condition of '#if'") }
+        if !(cond_at < cond_end && codes[cond_at] == ')') { lex_error_at(cond_file, cond_at, "expected ')' in the condition of '#if'") }
         cond_at += 1
         return v
     }
+    let os_at:int64 = cond_at                            // kelvinc's at, of these errors (#682)
     if !(code_at(cond_at) == 'o' && code_at(cond_at + 1) == 's' && !is_alpha(code_at(cond_at + 2))) {
-        lex_error(cond_file, cond_line, "a condition of '#if' is os(name), as in '#if os(macOS)', with !, && and || (#643)")
+        lex_error_at(cond_file, os_at, "a condition of '#if' is os(name), as in '#if os(macOS)', with !, && and || (#643)")
         return false
     }
     cond_at += 2
     cond_blanks()
     if !(cond_at < cond_end && codes[cond_at] == '(') {
-        lex_error(cond_file, cond_line, "expected '(' after 'os', as in 'os(Linux)'")
+        lex_error_at(cond_file, cond_at, "expected '(' after 'os', as in 'os(Linux)'")
         return false
     }
     cond_at += 1
@@ -921,11 +959,11 @@ let cond_factor():bool {
         var m = $"os("
         m += &name
         m += "): an os is macOS, Linux, FreeBSD or Windows (#643)"
-        lex_error(cond_file, cond_line, m.cstr)
+        lex_error_at(cond_file, os_at, m.cstr)
         return false
     }
     cond_blanks()
-    if !(cond_at < cond_end && codes[cond_at] == ')') { lex_error(cond_file, cond_line, "expected ')' after the name of the os") }
+    if !(cond_at < cond_end && codes[cond_at] == ')') { lex_error_at(cond_file, cond_at, "expected ')' after the name of the os") }
     cond_at += 1
     var host = $""
     host += SYS.platform
@@ -1069,6 +1107,7 @@ let lex_range(from:int64, to:int64, file:int64) {
     var conds:$[int64] = $[]         // the lines of the #if open (#643)
     while i < to && !failed {
         let c:uint32 = codes[i]
+        lex_start = i                                    // (#682)
         if c == '\n' {
             if depth == 0 && toks.count > 0 && toks[toks.count as int64 - 1].kind != T_NL {
                 add_tok(T_NL, i, 1, line, file)
@@ -1183,6 +1222,10 @@ let lex_range(from:int64, to:int64, file:int64) {
             }
             let s:int64 = i + 1
             i = lex_template(s, to, file, line, head, c == '$')
+            if !failed {                         // its place in the file: its ` or the } of a ${...}, $` of a $`...` (#682)
+                let tl:int64 = toks.count as int64 - 1
+                toks[tl].src = toks[tl].kind == T_DSTR ? s - 2 : s - 1
+            }
             for k in s..<i {
                 if codes[k] == '\n' { line += 1 }
             }
@@ -1314,7 +1357,8 @@ let lex_range(from:int64, to:int64, file:int64) {
                     var name = $""
                     for j in a..<b { name += codes[j] }
                     var m = $""
-                    if r + 2 <= i && codes[r] == 'a' && codes[r + 1] == 's' && (r + 2 == i || !(is_alpha(codes[r + 2]) || is_digit(codes[r + 2]))) {
+                    let as_c = r + 2 <= i && codes[r] == 'a' && codes[r + 1] == 's' && (r + 2 == i || !(is_alpha(codes[r + 2]) || is_digit(codes[r + 2])))
+                    if as_c {
                         m = $"a Kelvin file is imported as it is: write '#import "
                         m += &name
                         m += "' without 'as C'"
@@ -1323,7 +1367,7 @@ let lex_range(from:int64, to:int64, file:int64) {
                         m += &name
                         m += "'"
                     }
-                    lex_error(file, line, m.cstr)
+                    if as_c { lex_error(file, line, m.cstr) } else { lex_error_at(file, r, m.cstr) }   // the rest where it reads, as kelvinc's here (#682)
                 }
                 if !kelvin && !failed {                  // a C header's line is its name and 'as C', as kelvinc says it (#612)
                     var q:int64 = r
@@ -1342,11 +1386,11 @@ let lex_range(from:int64, to:int64, file:int64) {
                         if codes[j] == '?' && codes[j + 1] == '?' { trigraph = true }
                     }
                     if !has_as {
-                        lex_error(file, line, "expected 'as C' after the header name")
+                        lex_error_at(file, r, "expected 'as C' after the header name")   // where it reads, as kelvinc's here (#682)
                     } else if !has_c {
-                        lex_error(file, line, "only 'as C' is supported")
+                        lex_error_at(file, q, "only 'as C' is supported")
                     } else if q < i && !(codes[q] == '/' && code_at(q + 1) == '/') {
-                        lex_error(file, line, "unexpected text after '#import ... as C'")
+                        lex_error_at(file, q, "unexpected text after '#import ... as C'")
                     } else if trigraph {
                         lex_error(file, line, "a header name with '??' is a trigraph of C, which Kelvin does not have (#220)")
                     }
