@@ -727,8 +727,14 @@ let literal_type(t:int64):bool {
 // whether ([T](N))[ or ([T])[ starts here, an array's compound literal
 // (#419), as kelvinc tells it from (p)[i]: parentheses that open with [,
 // and a [ right after them
+let value_type_end():int64    // a prototype: (xs.type)[a, b] is one too (#696)
+
 let array_literal_ahead():bool {
-    if !at_word("(") || !tok_is(pos + 1, "[") { return false }
+    if !at_word("(") { return false }
+    if !tok_is(pos + 1, "[") {                           // (xs.type)[7, 8, 9], of a variable's type, as kelvinc's (#696)
+        let e:int64 = value_type_end()
+        return e >= 0 && tok_is(e + 1, "[") && (local_named(pos + 1) || written_type(pos + 1) != 0 - 2)
+    }
     var depth = 0
     var k:int64 = pos
     while k < toks.count as int64 {
@@ -763,8 +769,34 @@ let literal_ahead():bool {
     if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
     if at_word("(") && (number_word(pos + 1) >= 0 || tok_is(pos + 1, "bool")) && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") { return true }   // (int64){1}, a number's, as kelvinc's (#524)
     if at_word("(") && tagged_word(pos + 1) && tok_is(pos + 3, ")") && tok_is(pos + 4, "{") { return true }   // (struct T){...} (#453)
+    if at_word("(") && tok_is(pos + 1, "typeof") && tok_is(pos + 2, "(") {   // (typeof(p)){...}, as kelvinc's (#696)
+        var k:int64 = pos + 2
+        var depth:int64 = 0
+        while toks[k].kind != T_EOF {
+            if tok_is(k, "(") { depth += 1 }
+            if tok_is(k, ")") {
+                depth -= 1
+                if depth == 0 { return tok_is(k + 1, ")") && tok_is(k + 2, "{") }
+            }
+            k += 1
+        }
+        return false
+    }
+    if at_word("(") && tok_is(pos + 1, "const") {        // (const errno.type){6}, as kelvinc's (#696)
+        var k:int64 = pos
+        var depth:int64 = 0
+        while toks[k].kind != T_EOF {
+            if tok_is(k, "(") { depth += 1 }
+            if tok_is(k, ")") {
+                depth -= 1
+                if depth == 0 { return tok_is(k + 1, "{") }
+            }
+            k += 1
+        }
+        return false
+    }
     let e:int64 = value_type_end()
-    return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || dollar_named(pos + 1) || written_type(pos + 1) != 0 - 2)
+    return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || dollar_named(pos + 1) || written_type(pos + 1) != 0 - 2 || c_headers)   // a C header's name's too (#696)
 }
 
 // whether sizeof's ( opens a value's type, (x.type) or (p.x.type^)
@@ -809,6 +841,7 @@ let sizeof_type_at(t:int64):bool {
         return !tok_is(t + 1, "(")                       // String(x), a converter's value
     }
     if tok_is(t, "typeof") { return tok_is(t + 1, "(") }
+    if tok_is(t, "any") { return tok_is(t + 1, "^") }    // sizeof(any^), C's void * (#696)
     if tok_is(t, "Optional") || tok_is(t, "Result") || tok_is(t, "Iterator") || tok_is(t, "Range") || tok_is(t, "Task") || tok_is(t, "Set") || tok_is(t, "Dictionary") || tok_is(t, "Array") {
         return tok_is(t + 1, "<")
     }
@@ -1164,12 +1197,17 @@ let value_type(t:int64):int64 {
         parse_error(e.cstr)
         return base_type(Y_VOID)
     }
-    if dollar_named(t) || (y < 0 && (local_named(t) || anon_param(t))) { return late_type(t) }   // $0.type, v.type of { v in ... } (#424)
+    if dollar_named(t) || (y < 0 && (local_named(t) || anon_param(t))) || y == 0 - 1 { return late_type(t) }
+    if y >= 0 && (types[y].kind == Y_TYPEOF || types[y].kind == Y_C || (types[y].kind == Y_STRUCT && types[y].elem == 0 - 1 && records_seen.get(tok_text(types[y].name), -1) < 0)) && tok_is(pos, ".") && tok_is(pos + 1, "type") { return late_type(t) }   // a.type of a.type's own __typeof__(a), a parameter's a pointer in C, as kelvinc's (#696)   // $0.type, v.type of { v in ... } (#424); a global's whose type is inferred, which gen tells (#696)
     if y < 0 {
         parse_error("kc reads x.type of a local or a parameter; not yet of a global whose type is inferred")
         return base_type(Y_VOID)
     }
     while !failed {
+        if at_word(".") && tok_is(pos + 1, "type") && types[y].kind == Y_FIXED && types[y].name <= 0 - 10 {   // an array of a count no number gives: __typeof__ of it, which keeps its count as it was, as kelvinc's (#696)
+            pos = t + 1
+            return late_type(t)
+        }
         if at_word(".") && tok_is(pos + 1, "type") {
             if types[y].kind == Y_VOID && !tok_is(pos + 2, "^") {   // as kelvinc says it (#612)
                 var e = $"'"
@@ -1186,6 +1224,10 @@ let value_type(t:int64):int64 {
             advance()
             let m:int64 = advance()
             if types[y].kind == Y_PTR { y = types[y].elem }
+            if (types[y].kind == Y_STRUCT && records_seen.get(tok_text(types[y].name), -1) < 0) || types[y].kind == Y_C {   // a member of what only C sees: __typeof__ of it, as kelvinc's (#696)
+                pos = t + 1
+                return late_type(t)
+            }
             let f:int64 = types[y].kind == Y_STRUCT ? member_ty(y, m) : 0 - 1
             if f < 0 {
                 var e = $"'"
@@ -1265,6 +1307,13 @@ let late(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_TYPEOF { return true }
     if k == Y_DICT && late(types[y].name) { return true }
+    if k == Y_FN {                                       // a parameter's too, (struct cpt, s.x.type) (#696)
+        var p:int64 = types[y].name
+        while p >= 0 {
+            if late(types[p].elem) { return true }
+            p = types[p].name
+        }
+    }
     return k != Y_STRUCT && late(types[y].elem)
 }
 
@@ -1772,13 +1821,17 @@ let parse_bare_type():int64 {
         }
         advance()
         let v:int64 = pos
-        if toks[v].kind == T_ID && tok_is(v + 1, ")") && (local_named(v) || written_type(v) != 0 - 2) {
+        let named = toks[v].kind == T_ID && (local_named(v) || written_type(v) != 0 - 2)
+        if named && tok_is(v + 1, ")") && written_type(v) >= 0 {
             y = written_type(v)
             advance()
-            if y < 0 {
-                parse_error("kc reads typeof(x) of a variable whose type is written, and typeof(T); not yet of an expression")
-                y = base_type(Y_VOID)
-            }
+        } else if named || toks[v].kind == T_NUM || at_word("(") || at_word("-") || at_word("!") || at_word("&") {   // of an expression, or of a variable whose type is inferred: as gen tells it, else __typeof__ of it, as kelvinc's (#696)
+            let saved = brace_ends
+            brace_ends = false
+            let e:int64 = parse_expr()
+            brace_ends = saved
+            late_seen = true
+            y = type_of_kind(Y_TYPEOF, -1, e)
         } else {
             y = parse_type()
         }
@@ -1858,6 +1911,9 @@ let parse_bare_type():int64 {
         while pos < path_end { advance() }
         let name:String = tok_text(nt)
         let c_tag:int64 = nt == t && records_seen.get(name, -1) < 0 ? c_tags.get(name, -1) : 0 - 1   // timespec of struct timespec; (#453)
+        if nt == t && records_seen.get(name, -1) < 0 && c_tag < 0 && local_own_of.get(name, -1) < 0 && tok_is(pos, ".") && tok_is(pos + 1, "type") && c_headers {
+            return type_suffixes(late_type(t))           // errno.type, of what only C sees: __typeof__(errno), as kelvinc's (#696)
+        }
         if tok_is(pos, ".") && toks[pos + 1].kind == T_ID && !tok_is(pos + 1, "type") && records_seen.get(name, -1) >= 0 {
             var m:String = kelvin_name(nt)
             m += " has no type '"
@@ -2044,7 +2100,7 @@ let parse_anon():int64 {
     let saved_ends = brace_ends
     brace_ends = false
     skip_newlines()
-    if at_word("(") && (tok_is(pos + 1, ")") || tok_is(pos + 1, "var") || (toks[pos + 1].kind == T_ID && tok_is(pos + 2, ":"))) {   // not { ($0 as T) ... } (#424)
+    if at_word("(") && (tok_is(pos + 1, ")") || tok_is(pos + 1, "var") || (toks[pos + 1].kind == T_ID && !dollar_named(pos + 1) && tok_is(pos + 2, ":"))) {   // not { ($0 as T) ... } (#424), nor { ($0:$0.type) * 3 } (#696)
         advance()
         var last = -1
         var k:int64 = 0

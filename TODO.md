@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #695 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #696 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -70,20 +70,21 @@ known, not what is planned.
 - kc reads overloads of a variadic function, `f__T__va`, chosen as
   kelvinc chooses, C's choice falling back to the one whose `...` takes
   the value (#695).
+- kc reads `typeof` of an expression and `x.type` where `x`'s type is
+  inferred or only C sees, written `__typeof__(x)` as kelvinc writes it,
+  and `(T){...}` of such a type (#696).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - a function defined inside a function (#180);
   - a plain enum with no name in a block, and one with values inside a
     type;
   - a parameter's array of arrays whose inner count C computes;
-  - a fixed array in another type, `(T){...}` and an array's compound
-    literal of other types;
+  - a fixed array in another type, and `(T){...}` and an array's
+    compound literal of the types left, an Optional's and the like;
   - a value's text in a global's initializer;
-  - `typeof` of an expression, and `x.type` where `x`'s type is
-    inferred;
   - an atomic pointer, a pointer walked up to a 0, and the number of a
     prelude enum's word.
-- kc's output that differs from kelvinc's, found while #692 and #693
+- kc's output that differs from kelvinc's, found while #692 to #696
   were made, of programs it builds:
   - `a < b ? a > 0 : b > 9` printed, a bool, is `1` (tests/run's
     conditions.k), where kelvinc's is `true`;
@@ -92,12 +93,14 @@ known, not what is planned.
   - a struct in a template, `${w}`, is its printer's text cut at
     KV_TEMPLATE_STR, 256 bytes, where kelvinc's is its `.cstr`, to the
     struct's own longest text (template_bounds.k, 315 bytes), the same
-    root as the one before.
+    root as the one before;
+  - `typeof(k)` of a let is `const i64` by `.typename` (typeof.k),
+    where kc's is `i64`, as kc's types have no const of a number.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P697 to P700, the details of #692 to #695, until reviewed; the reviews confirmed
+- P697 to P701, the details of #692 to #696, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

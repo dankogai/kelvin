@@ -1163,6 +1163,31 @@ kc reads what it is written in, and little more.
       the call chose.
   - tests/run's overload.k and overload_unseen.k, which kc refused,
     print what kelvinc's print.
+- **`x.type` and `typeof` of what kelvinc does not see** (#696), as
+  kelvinc's #34 and #398: a Y_TYPEOF that gen tells, and where what it
+  tells is only C's, `__typeof__(x)` in C:
+  - `x.type` of a global whose type is inferred, where kc said "not
+    yet"; of a C header's name, `errno.type`; of a member of a C type,
+    `s.x.type`; of a variable whose written type is C's, `a.type`, its
+    own `__typeof__(a)`, a parameter's a pointer; of an array of a count
+    no number gives, which keeps its count as it was; and a function's,
+    whose parameter is of such a type, `__typeof__(&g)`, its function
+    type no typedef;
+  - `typeof(e)` of an expression, or of a variable whose type is
+    inferred, where kc said "not yet of an expression";
+  - `(typeof(p)){...}`, `(const errno.type){6}`, `(errno.type){7}` and
+    `(xs.type)[7, 8, 9]` as compound literals, and `(T){...}` of a type
+    only C sees, where kc said "not yet of another type".
+  - Found on the way and fixed, as kelvinc's: `:=` of a C type's
+    variable, a call through a variable of a type only C sees, a range
+    whose loop variable is of one, its counter `__typeof__((void)0,
+    (x))`; `{ ($0:$0.type) * 3 }` a value, no parameters; `sizeof(any^)`
+    a type's, `sizeof(f.type)` a pointer's; a member counted by a
+    global or an enumerator; `struct cpt` and `((i64):i64)^` spelled so.
+  - tests/run's type_property.k, type_property_edge.k and
+    sizeof_c_pointer.k, which kc refused, print what kelvinc's print;
+    typeof.k is built, `const i64` of a let's `typeof` the one
+    difference left, listed in TODO.md.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

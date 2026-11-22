@@ -13554,3 +13554,16 @@ kelvinc's print.
 Details are provisional P700.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 743. kc reads x.type and typeof of C's
+
+**Claude** wrote #695, its battery run and pushed when clean, and
+went on with the fifth batch.
+
+**Claude** made it #696: `x.type` and `typeof` of what kelvinc does
+not see, C's `__typeof__`, with what type_property_edge.k needed found
+on the way and fixed, and one difference of typeof.k listed.
+
+Details are provisional P701.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

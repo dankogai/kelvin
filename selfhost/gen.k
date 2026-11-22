@@ -507,7 +507,14 @@ let put_ctype(y:int64) {
         return
     }
     switch types[y].kind {                                       // every kind of type (#210)
-    case Y_VOID, Y_C, Y_TYPEOF, Y_PARAM: put("void")
+    case Y_TYPEOF:                                      // x.type of what only C sees, as kelvinc writes it (#696)
+        if types[y].elem == 1 { put("const ") }
+        put("__typeof__(")
+        let tn:int64 = types[y].name
+        if nodes[tn].kind == N_ID && var_type(nodes[tn].t) < 0 && fn_named(nodes[tn].t) >= 0 { put("&") }   // a function's, its pointer's (#696)
+        gen_expr(tn)
+        put(")")
+    case Y_VOID, Y_C, Y_PARAM: put("void")
     case Y_FN:                                                   // _kv_fnN, a typedef of the pointer write_type writes (#428)
         put("_kv_fn")
         put_int(y)
@@ -620,6 +627,8 @@ let declare_each(t:int64, y:int64, how:int64) {
 let range_type_wrong(n:int64):bool {
     let w:int64 = nodes[n].ty
     if w < 0 || is_int_kind(types[w].kind) { return false }
+    let wk:ykind = types[w].kind
+    if wk == Y_C || wk == Y_TYPEOF || (wk == Y_STRUCT && struct_of(w) < 0 && tagged_of(w) < 0 && !enum_int(w)) { return false }   // what only C sees, which C counts, as kelvinc (#696)
     var m = $"a range is of integers, not "
     let t:String = kelvin_type_text(w)
     m += &t
@@ -8744,7 +8753,8 @@ let gen_call(n:int64) {
         return
     }
     if failed { return }
-    if nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 {   // a variable of no function type, as kelvinc's (#620)
+    let vk:ykind = nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 ? types[var_type(nodes[f].t)].kind : Y_VOID
+    if nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 && vk != Y_C && vk != Y_TYPEOF {   // a variable of no function type, as kelvinc's (#620); of what only C sees, C's to call (#696)
         let w:String = kelvin_type_text(var_type(nodes[f].t))
         var m = $"'"
         m += tok_text(nodes[f].t)
@@ -10915,7 +10925,9 @@ let global_named(t:int64):bool {
 let member_fixed_ok(f:int64, y:int64, what:cstr):bool {
     var g:int64 = y
     while types[g].kind == Y_FIXED {
-        if types[g].name <= 0 - 10 && !global_named(0 - 10 - types[g].name) {   // [i64](n) of a local, as kelvinc says it
+        let cn:int64 = types[g].name <= 0 - 10 ? 0 - 10 - types[g].name : 0 - 1   // its count's node, its name's token (#696)
+        let ct:int64 = cn >= 0 && nodes[cn].kind == N_ID ? nodes[cn].t : 0 - 1
+        if cn >= 0 && !(ct >= 0 && (global_named(ct) || enum_of(ct) >= 0)) {   // [i64](n) of a local, as kelvinc says it; not of a global or an enumerator (#696)
             var m = $"a type defined inside a function is written before it in C, where its locals are not known: '"
             m += tok_text(nodes[f].t)
             m += "' of "
@@ -10925,7 +10937,7 @@ let member_fixed_ok(f:int64, y:int64, what:cstr):bool {
             gen_error(f, m.cstr)
             return false
         }
-        if types[g].name < 0 {
+        if types[g].name < 0 && types[g].name > 0 - 10 {   // a count a global or an enumerator gives goes on (#696)
             var m = type_text(g)
             m += " as "
             m += what
@@ -13122,7 +13134,7 @@ let gen_typename(n:int64) {
     }
     let y:int64 = type_of(a)
     if failed { return }
-    if y < 0 || types[y].kind == Y_C || nodes[a].kind == N_NUM || nodes[a].kind == N_CHAR || nodes[a].kind == N_STR {
+    if y < 0 || types[y].kind == Y_C || types[y].kind == Y_TYPEOF || nodes[a].kind == N_NUM || nodes[a].kind == N_CHAR || nodes[a].kind == N_STR {   // a C x.type's as C's (#696)
         put("kv_typename((")
         gen_expr(a)
         put("))")
@@ -13165,7 +13177,11 @@ let gen_sizeof(n:int64):bool {
         }
         if type_member(f) {
             put("((int64_t)sizeof(")
-            if stars == 0 {
+            let fa:int64 = nodes[f].a
+            if stars == 0 && nodes[fa].kind == N_ID && var_type(nodes[fa].t) < 0 && fn_named(nodes[fa].t) >= 0 {   // a function's type is its pointer's, as kelvinc's (#696)
+                put("&")
+                gen_expr(fa)
+            } else if stars == 0 {
                 gen_expr(nodes[f].a)
             } else {
                 put("__typeof__(")
@@ -13722,6 +13738,17 @@ let gen_expr_of(n:int64) {
         put("){")
         gen_expr(nodes[n].b)
         put("})")
+    } else if k == N_INIT && nodes[n].ty >= 0 && (types[nodes[n].ty].kind == Y_TYPEOF || types[nodes[n].ty].kind == Y_C || (types[nodes[n].ty].kind == Y_STRUCT && struct_of(nodes[n].ty) < 0 && tagged_of(nodes[n].ty) < 0 && !enum_int(nodes[n].ty))) {
+        put("((")                                        // (errno.type){7}, (const errno.type){6}, of what only C sees, as kelvinc writes it (#696)
+        put_ctype(nodes[n].ty)
+        put("){")
+        var x:int64 = nodes[n].b
+        while x >= 0 {
+            if x != nodes[n].b { put(", ") }
+            gen_expr(x)
+            x = nodes[x].next
+        }
+        put("})")
     } else if k == N_INIT && nodes[n].ty >= 0 {
         gen_error(n, "kc reads (T){...} of a struct or a number; not yet of another type")
     } else if k == N_DESIG {                             // .name = v where kc sees no struct (#418)
@@ -13957,7 +13984,10 @@ let type_text(y:int64):String {
     case Y_PTR:
         var s = ptr_const(y) ? $"const " : $""           // (#272)
         let e = type_text(types[y].elem)
+        let grouped = types[y].elem >= 0 && types[types[y].elem].kind == Y_FN   // ((i64):i64)^, as kelvinc spells it (#696)
+        if grouped { s += "(" }
         s += &e
+        if grouped { s += ")" }
         s += "^"
         if ptr_restrict(y) { s += " restrict" }          // (#393)
         return s
@@ -14026,6 +14056,12 @@ let type_text(y:int64):String {
         }
         let spelled:String = os_spellings[tok_text(types[y].name)] ?? $""
         if spelled.count > 0 { return spelled }          // OS.stat's {dev: i64, ...}, as kelvinc spells it (#463)
+        if d < 0 && struct_of(y) < 0 && (types[y].elem == 0 - 2 || types[y].elem == 0 - 3) && !c_tags.has(tok_text(types[y].name)) {   // struct cpt, a C header's written with its word, as kelvinc spells it (#696)
+            var s = types[y].elem == 0 - 2 ? $"struct " : $"union "
+            let w:String = tok_text(types[y].name)
+            s += &w
+            return s
+        }
         return kelvin_name(types[y].name)                 // point.kind, of one nested (#389)
     default: return $"a type only C sees"
     }
@@ -14036,7 +14072,8 @@ let type_text(y:int64):String {
 // assigned, and what it is
 let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     let k:ykind = y >= 0 ? types[y].kind : Y_C
-    if k == Y_C || k == Y_ARRAY || k == Y_DICT { return true }   // what only C sees; an Array and a Dictionary, as kelvinc
+    if k == Y_C || k == Y_TYPEOF || k == Y_ARRAY || k == Y_DICT { return true }   // what only C sees, a C x.type's too (#696); an Array and a Dictionary, as kelvinc
+    if k == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return true }   // a C header's type, jmp_buf, as kelvinc (#696)
     let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_FN || (k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4))   // a function's, a pointer in C (#428); a parameter's array (#524)
     if reference == colon { return true }
     var ty_text = type_text(y)                           // as kelvinc spells it: a parameter's array its pointer, struct node^
@@ -14724,8 +14761,17 @@ let gen_var(n:int64) {
     put_ctype(y)
     put(" ")
     put_tok(nodes[n].t)
-    put(" = ")
-    if nodes[n].a < 0 {
+    if nodes[n].a < 0 && types[y].kind == Y_TYPEOF {      // what only C sees, an array maybe: zeroed whole (#696)
+        put("; memset(&")
+        put_tok(nodes[n].t)
+        put(", 0, sizeof ")
+        put_tok(nodes[n].t)
+        put(")")
+    } else {
+        put(" = ")
+    }
+    if nodes[n].a < 0 && types[y].kind == Y_TYPEOF {
+    } else if nodes[n].a < 0 {
         put_zero_of(y)                                   // {} of an empty record (#498)
     } else {
         gen_written(nodes[n].a, y)                       // (#217); ${:} (#348)
@@ -21173,6 +21219,16 @@ let told(y:int64):int64 {
     if k == Y_TYPEOF {
         let v:int64 = type_of(types[y].name)
         if v >= 0 && types[y].elem == 1 && types[v].kind == Y_FIXED { return const_fixed(v) }   // const xs.type (#425)
+        if v >= 0 && (types[v].kind == Y_C || types[v].kind == Y_TYPEOF || (types[v].kind == Y_STRUCT && struct_of(v) < 0 && tagged_of(v) < 0 && !enum_int(v))) { return y }
+        if v >= 0 && types[v].kind == Y_FIXED && types[v].name <= 0 - 10 { return y }   // of a count no number gives, which keeps it (#696)   // what only C sees, __typeof__(x), as kelvinc's, of x itself, a parameter's a pointer in C (#696)
+        if v >= 0 && types[v].kind == Y_FN {             // a function's whose parameter is of what only C sees: __typeof__(&f), as kelvinc writes it (#696)
+            var p:int64 = types[v].name
+            while p >= 0 {
+                let pe:int64 = types[p].elem
+                if pe >= 0 && (types[pe].kind == Y_TYPEOF || types[pe].kind == Y_C) { return y }
+                p = types[p].name
+            }
+        }
         return v < 0 ? base_type(Y_VOID) : v
     }
     let name:int64 = k == Y_DICT ? told(types[y].name) : types[y].name
@@ -21364,7 +21420,11 @@ let gen_stmt_of(n:int64, depth:int64) {
         if range_bound_wrong(nodes[n].a) || range_bound_wrong(nodes[n].b) { return }   // (#611)
         serial += 1
         put("for (")
-        if nodes[n].ty >= 0 {                            // for i:u8 in a..<b, the type written (#523)
+        if nodes[n].ty >= 0 && types[nodes[n].ty].kind == Y_TYPEOF {   // for i:limit.type in ..., its qualifiers left, as kelvinc writes it (#696)
+            put("__typeof__((void)0, (")
+            gen_expr(types[nodes[n].ty].name)
+            put(")) ")
+        } else if nodes[n].ty >= 0 {                     // for i:u8 in a..<b, the type written (#523)
             put_ctype(nodes[n].ty)
             put(" ")
         } else {

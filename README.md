@@ -841,3 +841,6 @@ So far the changes from C are these, by topic.
   overloads as kelvinc does where it did not: a call C chooses for is of
   its overloads' one result, text and `any^` fit pointers, an array an
   array parameter, an overloaded name a function parameter (#695)
+- kc reads `x.type` and `typeof` of what kelvinc does not see, C's
+  `__typeof__`, an inferred global's, an expression's and a C name's,
+  and compound literals of them, as kelvinc does (#696)
