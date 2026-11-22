@@ -153,6 +153,7 @@ Each document says so in its "Where it lives" section. In short:
 |----------|--------|
 | [gotcha.md](gotcha.md) | what Kelvin is not, for one from Swift, JavaScript or Python: no closures, no generics or protocols of a program's own, no classes, no exceptions, no garbage collector, and what to write instead (#619) |
 | [grammar.md](grammar.md) | declarations, type inference, quoting text (`"..."`, `` `...` ``, `"""..."""`, `$"..."`), expressions, lines and `;`, assignment as a statement, C habits kelvinc catches |
+| [literals.md](literals.md) | each literal beside its counterpart: `[0, 1]` and `$[0, 1]`, `"ab"` and `$"ab"`, `1_000` and `i64("1_000")`; when it is read, where it lives, what type it is (#677) |
 | [operators.md](operators.md) | every operator, C's precedence, what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges |
 | [integers.md](integers.md) | `i8`…`u128`, their literals, conversions of any number, numbers from text |
 | [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text |

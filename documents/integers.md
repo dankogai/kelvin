@@ -65,6 +65,9 @@ declaration, or on the value as an annotation (`10:u64`):
 | `unsigned long v = 10UL;` | `var v:u64 = 10` |
 | `long long n = 10LL;` | `var n = 10` (or `var n:i64 = 10`) |
 
+A literal beside the text a converter reads, `1_000` and `i64("1_000")`,
+is in [literals.md](literals.md).
+
 Everything else about literals is C's:
 
 - hex `0xff`, octal `017`, binary `0b101`, character constants `'a'`,

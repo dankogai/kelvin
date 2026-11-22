@@ -186,7 +186,8 @@ A fixed array lives where it is declared and never grows. `Array<T>`,
 or `$[T]` for short, is a growable array on the heap (#57), an owner:
 freed when its block ends, moved by `return` and by passing, copied
 only by `.copy()`, borrowed as a pointer. The rules are in
-[ownership.md](ownership.md); this is the summary.
+[ownership.md](ownership.md); this is the summary, and
+[literals.md](literals.md) puts `[0, 1]` and `$[0, 1]` side by side.
 
 <!-- fragment -->
 ```swift

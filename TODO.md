@@ -29,15 +29,20 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #676 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #677 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
 
-- None known: a member of arithmetic, `(n + 1).foo`, is kelvinc's error
-  (#669).
+- An integer literal too large for any of C's types gives C's error,
+  `integer literal is too large to be represented in any integer type`,
+  where kelvinc's should say so: `let x = 99999999999999999999`, and
+  `BigInt(123456789012345678901234567890)`, which is written
+  `123456789012345678901234567890n`; found while literals.md was written
+  (#677).
+- A member of arithmetic, `(n + 1).foo`, is kelvinc's error (#669).
 - The sweep's three that C only warned of are kelvinc's errors (#661 to
   #663), and so is a constant shift past its width (#665).
 
@@ -66,7 +71,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P681, the details of #676, until reviewed; the reviews confirmed
+- P681 and P682, the details of #676 and #677, until reviewed; the reviews confirmed
   every row to P680, and a review's own detail row is confirmed by that
   review (#675).
 

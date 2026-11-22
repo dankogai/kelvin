@@ -18,6 +18,9 @@ the design decisions, numbered `#N` throughout, are in
 - [grammar.md](grammar.md): names, Unicode's and emoji too (#385),
   declarations, type inference, the ways to quote text, expressions,
   lines and `;`, assignment as a statement, the C habits kelvinc catches.
+- [literals.md](literals.md): each literal beside its counterpart, `[0, 1]`
+  and `$[0, 1]`, `"ab"` and `$"ab"`, `1_000` and `i64("1_000")`: when it
+  is read, where it lives, and what type it is (#677).
 - [operators.md](operators.md): every operator with C's precedence,
   and what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges; `**`,
   Python's power (#380).

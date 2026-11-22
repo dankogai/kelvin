@@ -13216,3 +13216,30 @@ far, P681 provisional, and safe primes under open design.
 Details are provisional P681.
 
 There are 1557 tests, and all pass with clang and with gcc 15.
+
+### 724. literals.md
+
+**Claude** committed #676, its battery clean.
+
+**User:** push #676 when its battery is clean
+
+**User:** go on. It would be nice if we have `documents/literals.md`,
+describing the difference between `[0,1]` vs `$[0,1]`, `1_000` vs
+`i64("1_000")`, etc.
+
+**Claude** asked three things: what it holds, where it goes, and the
+push.
+
+**User:** the pairs and a literal's type (recommended); under
+Starting, after grammar.md (recommended); push when clean
+(recommended)
+
+**Claude** pushed #676, and made literals.md #677: each literal beside
+its counterpart, by when it is read, where it lives and what type it
+is, each claim run with kelvinc. Running them found a fault, listed in
+TODO.md: an integer literal too large for any of C's types gives C's
+error.
+
+Details are provisional P682.
+
+There are 1557 tests, and all pass with clang and with gcc 15.

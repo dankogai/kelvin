@@ -227,6 +227,9 @@ A `_` among a number's digits is left out, after a digit or another `_`,
 as Swift has it (#671): `1_000_000`, `0x7fff_ffff`, `1_000.000_1`,
 `1_000n`; see [integers.md](integers.md#literals).
 
+[literals.md](literals.md) puts each literal beside its counterpart:
+`"ab"` and `$"ab"`, `[0, 1]` and `$[0, 1]`, `1_000` and `i64("1_000")`.
+
 - **`"..."`** is C's string literal (#52).
   - It has no prefix: C's `L"..."`, `u8"..."`, `u"..."` and `U"..."`,
     and `L'x'` and the rest of a character, are errors (#295); its text
