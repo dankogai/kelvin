@@ -13154,3 +13154,23 @@ amend it, and no row before P678 is provisional.
 Details are provisional P678.
 
 There are 1557 tests, and all pass with clang and with gcc 15.
+
+### 721. The review, batch 14
+
+**Claude** pushed #673, its battery clean, and CI passed.
+
+**User:** then review P678
+
+**Claude** put the one detail row to the user as a file, the details
+of #673: not amended since, not marked in a document; this review's
+own row stays provisional, as each review's has.
+
+**User:** confirm, as amended later (recommended); push when clean
+(recommended)
+
+**Claude** made it #674: the row is marked confirmed, as later numbers
+amend it, and no row before P679 is provisional.
+
+Details are provisional P679.
+
+There are 1557 tests, and all pass with clang and with gcc 15.
