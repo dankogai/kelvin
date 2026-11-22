@@ -822,3 +822,5 @@ So far the changes from C are these, by topic.
 - kc writes a top-level let of a pointer as kelvinc does, a const
   pointer, `int64_t *const q`, where it wrote `const int64_t * q`, which
   C refused `q^ = 5` of, and `const const uint8_t *` of a cstr (#680)
+- `(size_t)(n + 1)`, `(int32_t)*p` and `(size_t)-1` are kelvinc's error,
+  C casts are not Kelvin, where C said expected expression (#689)

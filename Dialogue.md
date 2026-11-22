@@ -13435,3 +13435,22 @@ comma no rule of the others gives.
 Details are provisional P693.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 736. The five different errors, each to the better
+
+**Claude** pushed #688, its battery clean and CI's 9 jobs passed, and
+asked how the five programs where kc and kelvinc said different errors
+should be matched, and whether errors.sh should then compare line and
+column, anon_list_c_arg excepted.
+
+**User:** each to the better one (recommended); compare, this one
+excepted (recommended)
+
+**Claude** made it #689: kelvinc refuses (size_t)(n + 1) and its kin as kc
+did, a C cast; kc refuses a number given to struct nope as kelvinc did;
+and kc says a trailing function's error before a $0 in its block, in
+kelvinc's order. One position is left, anon_list_c_arg's.
+
+Details are provisional P694.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

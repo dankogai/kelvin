@@ -5475,6 +5475,13 @@ static Expr *parse_primary(void) {
             ((is_p(n, "++") || is_p(n, "--")) &&
              (peek2()->kind == TK_IDENT || peek2()->kind == TK_NUMBER || peek2()->kind == TK_CHAR))))
             error_at(t->pos, CAST_HINT);
+        /* (size_t)(n + 1), (int32_t)*p, (size_t)-1: a name of C's typedefs,
+           ending in _t, before an operand that a value would not take, as
+           kc says it (#689) */
+        if (!line_starts_statement() && e->kind == E_IDENT && strlen(e->text) > 2 &&
+            !strcmp(e->text + strlen(e->text) - 2, "_t") && n->pos.line == t->pos.line &&
+            (is_p(n, "(") || is_p(n, "*") || is_p(n, "&") || is_p(n, "-") || is_p(n, "~")))
+            error_at(t->pos, CAST_HINT);
         return e;
     }
     if (is_kw(t, "cstr") && is_p(peek2(), "("))

@@ -2693,6 +2693,11 @@ let type_of(n:int64):int64 {
     if k == N_DSTR { return base_type(Y_STRING) }
     if k == N_TPL { return base_type(nodes[n].flag == 1 ? Y_STRING : Y_CSTR) }   // `a${x}b`, $`a${x}b` a String (#445)
     if k == N_BOOL { return base_type(Y_BOOL) }
+    if k == N_NULL && held_dollars.has(n) {             // $0 outside an anonymous function, held by the parser (#689)
+        let said:String = held_dollars[n] ?? $""
+        tok_error(nodes[n].t, said.cstr)
+        return 0 - 1
+    }
     if k == N_NULL { return base_type(Y_C) }
     if k == N_SELF {                                     // (#213); a number's, a String's or a Bytes's own (#550)
         if !self_known(n) { return 0 - 1 }               // where there is one (#602)
@@ -3360,10 +3365,11 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     if want < 0 { return true }
     let wk:ykind = types[want].kind
     if wk == Y_C || wk == Y_FN || wk == Y_TYPEOF || wk == Y_VOID || wk == Y_PARAM { return true }
-    if wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0) { return true }   // C's, a plain enum, an enum with values
     let k:nkind = nodes[v].kind
     let number_lit = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM)
     let text_lit = k == N_STR
+    let c_tag:bool = wk == Y_STRUCT && (types[want].elem == 0 - 2 || types[want].elem == 0 - 3)   // struct nope, union u written: no number nor text, as kelvinc says it (#689)
+    if wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0) && !(c_tag && (number_lit || text_lit)) { return true }   // C's, a plain enum, an enum with values
     var y:int64 = 0 - 1
     if !number_lit && !text_lit {
         if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL { return true }
@@ -3398,7 +3404,12 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     }
     if ok { return true }
     var m = lead^.copy()
-    let w:String = kelvin_type_text(want)
+    var w:String = kelvin_type_text(want)
+    if c_tag {                                           // struct nope, as written (#689)
+        var tw = types[want].elem == 0 - 2 ? $"struct " : $"union "
+        tw += &w
+        w = tw.copy()
+    }
     m += " "
     m += article_of(&w)
     m += " "
@@ -13317,6 +13328,9 @@ let gen_expr_of(n:int64) {
         if y >= 0 { gen_fn_value(n, y) }
     } else if k == N_ID && var_type(t) < 0 && !c_headers {
         gen_error(n, "this name is not known")
+    } else if k == N_NULL && held_dollars.has(n) {      // (#689)
+        let said:String = held_dollars[n] ?? $""
+        tok_error(nodes[n].t, said.cstr)
     } else if k == N_NULL {
         put("NULL")
     } else if k == N_SELF {

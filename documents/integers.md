@@ -215,10 +215,10 @@ looser than prefix operators, and it chains left to right:
   `malloc((n as size_t) * sizeof(i32))`.
 - C casts to typedef names are caught as well.
   - `(size_t)n` and `(FILE *)p` get the Kelvin hint.
-  - `(size_t)-1`, `(size_t)(n + 1)` and `(int32_t)*p` look like
-    arithmetic or a call to Kelvin, so they reach the C compiler, which
-    rejects them with "expected expression" at your line. They never
-    compile as a cast.
+  - `(size_t)-1`, `(size_t)(n + 1)` and `(int32_t)*p` get it too (#689):
+    a name ending in `_t` in parentheses, before `(`, `*`, `&`, `-` or
+    `~` on its line, is a C cast, where they reached the C compiler,
+    which said "expected expression".
 
 ### Shifts by their width
 

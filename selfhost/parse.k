@@ -2731,6 +2731,9 @@ let parse_primary():int64 {
                     m += "; in the head of if, while or for, a '{' after a call starts the body, so pass the function inside the parentheses"
                 } else if in_braces(block_after_call, t) {
                     m += "; a trailing function starts on the line of the call's ')': on the next line, '{' starts a block"
+                    let held:int64 = make_node(N_NULL, t)    // said where it is written, after the call above is checked: a call that
+                    held_dollars[held] = m.copy()            // lacks a function says so at the '{' first, as kelvinc's (#689)
+                    return held
                 }
                 parse_error_at(t, m.cstr)
                 return make_node(N_NULL, t)
@@ -3278,6 +3281,7 @@ let prev_line_ends_call(t:int64):bool {
 // whether the token at pos is an assignment's operator
 var switch_level:int64                       // the switches being read (#629)
 var fn_parsing:int64 = 0 - 1                 // the function whose body is being read, which $(...) calls (#629)
+var held_dollars:Dictionary<int64, String>   // $0 in a block after a call, and its error, which gen says (#689)
 var unwrap_nodes:Dictionary<int64, int64>    // the x.some that x! makes (#629), and its '!' (#681)
 
 let at_assign():bool {
