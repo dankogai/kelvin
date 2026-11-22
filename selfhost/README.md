@@ -1123,6 +1123,27 @@ kc reads what it is written in, and little more.
   - tests/run/empty_struct_count.k, which kc refused, prints what
     kelvinc's prints; template_bounds.k is built, and its `${w}` of a
     struct is the one difference left, listed in TODO.md.
+- **An enum with no name and values, and the methods of a type with no
+  tag** (#694), as kelvinc's #120 and #121:
+  - `enum { red; rgb: {r: u8, g: u8, b: u8} }` at the top level is the
+    type of its spelling, `_kv_anonN`, one with `enum{...}` written
+    where a type goes, by anon_record_type; parse_enum makes no
+    declaration of its own, and its cases are words of the program:
+    `red` and `rgb(v)`, where no variable or function is named so, are
+    `_kv_anonN.red` and `_kv_anonN.rgb(v)` from the first time gen sees
+    them, resolve_anon_word.
+  - `let enum{...}.m()`, `let {x: f64, y: f64}.m()` and `extend
+    enum{...} { }` are of that type, its methods named
+    `_kv_anon1__m` in C, as kelvinc's; kelvinc's errors of what extend
+    of one holds stay.
+  - A var method or attribute of an enum with values, named or not, is
+    read, where kc said it was a built-in type's.
+  - A line that starts with `.m` goes on with the expression before it
+    where there is no self, as kelvinc's #35, `let q = b` then
+    `.total()`.
+  - tests/run's enum_anon_top.k, enum_anon_methods.k, extend_anon.k,
+    self_type.k and self_member_lines.k, which kc refused, print what
+    kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

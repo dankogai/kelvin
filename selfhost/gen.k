@@ -2583,7 +2583,30 @@ let divides_by_zero(a:int64, b:int64):bool {
     return y >= 0 && is_int_kind(types[y].kind)
 }
 
+// red, rgb(v): a case of a top-level enum with values and no tag, a word
+// of the program where no variable or function is named so, as kelvinc's
+// #120: T.red and T.rgb(v) of its type, _kv_anonN, from here on (#694)
+let resolve_anon_word(n:int64) {
+    let k:nkind = nodes[n].kind
+    if k != N_ID && k != N_CALL { return }
+    let w:int64 = k == N_ID ? n : nodes[n].a
+    if w < 0 || nodes[w].kind != N_ID { return }
+    let t:int64 = nodes[w].t
+    let d:int64 = anon_case_enum(t)
+    if d < 0 || nodes[d].kind != D_ENUM || nodes[d].flag != 1 || !anon_decls.has(tok_text(nodes[d].t)) { return }
+    if var_type(t) >= 0 || fn_named(t) >= 0 { return }
+    if k == N_ID {
+        nodes[n].kind = N_FIELD
+        nodes[n].a = make_node(N_ID, nodes[d].t)
+    } else {
+        nodes[n].kind = N_METHOD
+        nodes[n].t = t
+        nodes[w].t = nodes[d].t
+    }
+}
+
 let type_of(n:int64):int64 {
+    resolve_anon_word(n)                                 // red, rgb(v) (#694)
     if nodes[n].kind == N_CALL && word_misused(n, false) { return 0 - 1 }   // int(x), cstr(p) (#612); a bare i32 where it is written
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
     resolve_bigbits(n)                                   // b.bits[k] of a BigInt, BigInt([b, ...]) (#531)
@@ -13214,6 +13237,7 @@ let gen_expr_of(n:int64)    // a prototype: gen_expr writes n by it
 // n, and the owners its call moved out dead after it, as kelvinc marks
 // them where the call's arguments end (#441)
 let gen_expr(n:int64) {
+    resolve_anon_word(n)                                 // (#694)
     resolve_op(n)
     resolve_bigbits(n)
     resolve_attr(n)
@@ -21859,7 +21883,7 @@ let gen_function(d:int64) {
         tok_error(nodes[d].c, m.cstr)                    // at the type's name, as kelvinc's recv (#682)
         return
     }
-    if nodes[d].c >= 0 && nodes[d].flag == 2 && subscripts.get(d, 0) == 0 && decl_named(nodes[d].c, D_STRUCT) < 0 {   // as kelvinc's (#320)
+    if nodes[d].c >= 0 && nodes[d].flag == 2 && subscripts.get(d, 0) == 0 && decl_named(nodes[d].c, D_STRUCT) < 0 && tagged_of(type_of_kind(Y_STRUCT, -1, nodes[d].c)) < 0 {   // as kelvinc's (#320); an enum with values's too (#694)
         gen_error(d, "a var method changes the caller's var, which a built-in type's method cannot: declare it on a struct or a union of the program")
         return
     }

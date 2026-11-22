@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #693 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #694 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -64,12 +64,14 @@ known, not what is planned.
 - kc shows a fixed array in a template and by `.pretty`, and a let
   parameter's by its count as declared, a parameter's `[T]` by its
   address, as kelvinc's (#693).
+- kc reads a top-level enum with no name whose cases have values, its
+  spelling's type, its cases words of the program (#120), and the
+  methods of a type with no tag (#121), as kelvinc's (#694).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - a function defined inside a function (#180);
-  - an enum with no name whose cases have values (#120), the methods of
-    a type with no tag (#121), and a plain enum with no name in a
-    block;
+  - a plain enum with no name in a block, and one with values inside a
+    type;
   - a parameter's array of arrays whose inner count C computes;
   - a fixed array in another type, `(T){...}` and an array's compound
     literal of other types;
@@ -92,7 +94,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 and P698, the details of #692 and #693, until reviewed; the reviews confirmed
+- P697 to P699, the details of #692 to #694, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

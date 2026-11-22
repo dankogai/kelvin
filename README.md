@@ -832,3 +832,8 @@ So far the changes from C are these, by topic.
   kelvinc does, and a let parameter's to its declared count, where it
   said not yet; `for` over an array of empty structs walks its count,
   and an empty struct prints `{}` (#693)
+- kc reads a top-level enum with no name and values, its cases words
+  of the program, and the methods of a type with no tag, as kelvinc
+  does (#120, #121); a var method of an enum with values, and `.m` at a
+  line's start going on with the expression before it where there is
+  no self (#694)

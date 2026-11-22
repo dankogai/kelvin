@@ -13526,3 +13526,17 @@ found on the way and fixed, and one found and listed.
 Details are provisional P698.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 741. kc reads #120 and #121
+
+**Claude** wrote #693, its battery run and pushed when clean, and
+went on with the third batch.
+
+**Claude** made it #694: a top-level enum with no name and values,
+its cases words of the program, and the methods of a type with no
+tag, as kelvinc reads them, with two faults found on the way and
+fixed.
+
+Details are provisional P699.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
