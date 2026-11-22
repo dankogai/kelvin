@@ -614,7 +614,7 @@ let range_type_wrong(n:int64):bool {
     var m = $"a range is of integers, not "
     let t:String = kelvin_type_text(w)
     m += &t
-    gen_error(n, m.cstr)
+    tok_error(loop_type_tok(n), m.cstr)                  // (#686)
     return true
 }
 
@@ -633,8 +633,13 @@ let each_type_wrong(n:int64, ey:int64, what:cstr, iterator:bool):bool {
     if iterator { m += ", what its next() gives" }
     m += ", not "
     m += &got
-    gen_error(n, m.cstr)
+    tok_error(loop_type_tok(n), m.cstr)                  // at the type written, as kelvinc's (#686)
     return true
+}
+
+// the type written of loop n, for x:T in ..., or its variable (#686)
+let loop_type_tok(n:int64):int64 {
+    return tok_is(nodes[n].t + 1, ":") ? nodes[n].t + 2 : nodes[n].t
 }
 
 // the locals an owner moves out of in what is being written, dead when
@@ -869,6 +874,12 @@ let enum_constant_changed(n:int64):bool
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
 var change_op:int64 = 0 - 1     // the operator of the assignment being written, and its place, where kelvinc
 var change_lhs:int64 = 0 - 1    // says an error of the place's change (#683)
+var change_rhs:int64 = 0 - 1    // and the value it gives, of an error of that value (#686)
+
+// where an error of value v is said: an assignment's at its operator (#686)
+let value_tok(v:int64):int64 {
+    return v == change_rhs && change_op >= 0 ? change_op : nodes[v].t
+}
 
 // where an error of the change of place n is said: an assignment's at its operator (#683)
 let change_tok(n:int64):int64 {
@@ -3387,7 +3398,7 @@ let record_differs(v:int64, want:int64):bool {
     if anon_decls.has(tok_text(types[y].name)) || anon_decls.has(tok_text(types[want].name)) {
         m += ", and two structs with no tag are one type only when their members are written alike"
     }
-    gen_error(v, m.cstr)
+    tok_error(value_tok(v), m.cstr)                      // (#686)
     return true
 }
 
@@ -4299,7 +4310,7 @@ let name_clashes() {
             e += "() would have the same C name, "
             e += &name
             e += ", as another method"
-            gen_error(d, e.cstr)
+            tok_error(nodes[d].c, e.cstr)                // at its type, as kelvinc's (#686)
             return
         }
     }
@@ -15463,7 +15474,7 @@ let owner_name(v:int64):bool {
 // kelvinc's words of an owner copied by '=', of v, its name or a part (#365, #440)
 let owner_assign_error(v:int64) {
     if nodes[v].kind != N_ID {
-        gen_error(v, "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
+        tok_error(value_tok(v), "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
         return
     }
     var m = $"an owner is not copied by '=' (#54): copy its bytes with '"
@@ -15471,7 +15482,7 @@ let owner_assign_error(v:int64) {
     m += "'.copy(), or borrow it with ':= &"
     m += tok_text(nodes[v].t)
     m += "'"
-    gen_error(v, m.cstr)
+    tok_error(value_tok(v), m.cstr)                      // (#686)
 }
 
 // whether a, returned where the result is a bool, is one (#239, #240), or
@@ -19223,7 +19234,7 @@ let entry_fits(v:int64, dy:int64):bool {
     m += &ew
     m += ", and this is "
     m += &bad
-    gen_error(v, m.cstr)
+    tok_error(value_tok(v), m.cstr)                      // at the assignment's operator, as kelvinc's (#686)
     return false
 }
 
@@ -20027,7 +20038,7 @@ let gen_each(n:int64, depth:int64) {
         m += "^, not "
         let got:String = kelvin_type_text(nodes[n].ty)
         m += &got
-        gen_error(n, m.cstr)
+        tok_error(loop_type_tok(n), m.cstr)              // (#686)
         return
     }
     if types[y].kind == Y_RANGE {                      // a Range's values (#373), its kind read at run time, as kelvinc's
@@ -20162,7 +20173,7 @@ let gen_each(n:int64, depth:int64) {
     if nodes[n].b >= 0 && types[y].kind != Y_DICT {    // as kelvinc says it (#269)
         var s = $"two loop variables walk a Dictionary's entries, 'for k, v in d', and this is "
         s += nodes[nodes[n].a].kind == N_STR ? $"not one" : kelvin_type_text(y)    // "hi", which only C sees, as kelvinc says it
-        gen_error(n, s.cstr)
+        tok_error(tok_is(nodes[n].t - 1, "for") ? nodes[n].t - 1 : nodes[n].t, s.cstr)   // at its for, as kelvinc's (#686)
         return
     }
     serial += 1
@@ -20944,7 +20955,7 @@ let gen_stmt_of(n:int64, depth:int64) {
             var m = $"'"                                 // as kelvinc says it (#493, #612)
             m += tok_text(nodes[n].t)
             m += "' is a global given its value at its first use (#493), which a local of the name would hide in C: name this one otherwise"
-            gen_error(n, m.cstr)
+            tok_error(decl_ops.get(n, nodes[n].t), m.cstr)   // at its =, as kelvinc's (#686)
             return
         }
         gen_var(n)
@@ -20952,6 +20963,7 @@ let gen_stmt_of(n:int64, depth:int64) {
     case S_ASSIGN:
         change_op = nodes[n].t                           // an error of its place's change at its operator, as kelvinc's (#683)
         change_lhs = nodes[n].a
+        change_rhs = nodes[n].b                          // and of its value (#686)
         if compound_assign_call(n) || failed { return }  // z += w of z's own +=, in place (#518)
         if compound_by_operator(n) || failed { return }  // z += w, z = z + w of a struct's operator (#42)
         if tok_is(nodes[n].t, "=") && declaration_shaped(nodes[n].a) { put("if (1) ") }   // (#402)
@@ -21402,7 +21414,7 @@ let implicit_return(d:int64) {
             let what:String = kelvin_type_text(ry)
             m += &what
             m += ": assign, then 'return' a value"
-            gen_error(first, m.cstr)
+            gen_error(nodes[first].a >= 0 ? nodes[first].a : first, m.cstr)   // at what it assigns, as kelvinc's (#686)
             return
         }
         if nodes[first].kind == S_EXPR {
@@ -22636,8 +22648,8 @@ let reject_duplicates() {
             m += ", and this is "
             m += &word_whats[later]
             m += ": a name at the top level names one thing, so name this one otherwise"
-            let n:int64 = make_node(N_ID, word_toks[later])
-            gen_error(n, m.cstr)
+            let gl:bool = word_whats[later] == "a global"  // a global's at its name; a function's or a type's at its first word, as kelvinc's (#686)
+            tok_error(gl ? word_toks[later] : decl_first(word_toks[later]), m.cstr)
             return
         }
     }

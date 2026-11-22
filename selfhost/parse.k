@@ -3673,7 +3673,7 @@ let parse_statement():int64 {
         reject_kv_name(pos)
         if failed { return make_node(S_BLOCK, t) }
         if tok_is(pos + 2, "var") || tok_is(pos + 2, "let") {   // again: var n = 0, as kelvinc says it
-            parse_error("a declaration cannot be the body of a statement or follow a label")
+            parse_error_at(pos + 2, "a declaration cannot be the body of a statement or follow a label")   // at its var, as kelvinc's (#686)
             return make_node(S_BLOCK, t)
         }
     }
@@ -3681,7 +3681,7 @@ let parse_statement():int64 {
         var m = $"a function defined inside a function is written 'let "
         m += tok_text(pos + 1)
         m += "(...)', in a function's body"
-        parse_error(m.cstr)
+        parse_error_at(pos + 1, m.cstr)                  // at its name, as kelvinc's (#686)
         return make_node(S_BLOCK, t)
     }
     if at_kind(T_ID) && tok_is(pos + 1, "^") && toks[pos + 2].kind == T_ID && (tok_is(pos + 3, ";") || toks[pos + 3].kind == T_NL) && toks[pos + 2].line == toks[pos].line {   // point^ p; as kelvinc says it
@@ -3765,7 +3765,7 @@ let parse_statement():int64 {
             let k:String = kelvin_name(type_path(pos + 1))
             m += &k
             m += " at the top level, or write a function that takes it"
-            parse_error(m.cstr)
+            parse_error_at(pos + 1, m.cstr)              // at the type's name, as kelvinc's (#686)
             return make_node(S_BLOCK, t)
         }
     }
@@ -4424,7 +4424,7 @@ let parse_subscript(recv:int64, is_var:bool, inl:bool) {
     if inl { inline_fns += g }
     parse_params(g)
     if nodes[g].a < 0 {
-        parse_error("a subscript takes at least one index, as in 'let [](i:i64):R { ... }'")
+        parse_error_at(at, "a subscript takes at least one index, as in 'let [](i:i64):R { ... }'")   // at its [, as kelvinc's (#686)
         return
     }
     if !at_word(":") {
@@ -5027,7 +5027,7 @@ let extend_spelled() {
             if tok_is(q + 3, "(") {
                 parse_error_at(q, "a function of a type is called by the type's name, and a type with no tag has none")
             } else {
-                parse_error_at(q, "a type attribute is read by the type's name, as T.x, and a type with no tag has none")
+                parse_error_at(q + 2, "a type attribute is read by the type's name, as T.x, and a type with no tag has none")   // at its name (#686)
             }
             return
         }
@@ -5091,7 +5091,7 @@ let parse_extend() {
         }
         if at_word("[") && tok_is(pos + 1, "]") {        // let [](i:I):R { } (#136)
             if is_static == 1 {
-                parse_error("a subscript has self, so it is not static: write 'let [](i:I):R { ... }'")
+                parse_error_at(pos - 2, "a subscript has self, so it is not static: write 'let [](i:I):R { ... }'")   // at its static, as kelvinc's (#686)
                 return
             }
             parse_subscript(recv, is_static == 2, inl)
@@ -5117,7 +5117,7 @@ let parse_extend() {
                 m += "):"
                 m += &w
                 m += " { ... }'"
-                parse_error(m.cstr)
+                parse_error_at(pos - 1, m.cstr)          // at its let, as kelvinc's (#686)
                 return
             }
             let at:int64 = pos
@@ -5627,7 +5627,7 @@ let parse_program() {
             var m = $"a function is a let: write 'let "
             m += tok_text(pos)
             m += "(...)', or, for a variable holding a function, 'var f:(T):R := g'"
-            parse_error(m.cstr)
+            parse_error_at(pos - 1, m.cstr)              // at its var, as kelvinc's (#686)
         } else if at_word("let") && toks[pos + 1].kind == T_PUNCT && !tok_is(pos + 1, "(") && !overloadable_tok(pos + 1) && !compound_tok(pos + 1) && tok_is(pos + 2, "(") {
             advance()
             var m = $"'"

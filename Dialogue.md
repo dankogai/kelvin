@@ -13389,3 +13389,18 @@ kelvinc says each. 67 are left.
 Details are provisional P690.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 733. kc's error positions, batch 6
+
+**Claude** pushed #685, its battery clean and CI's 9 jobs passed.
+
+**User:** go on
+
+**Claude** made the sixth batch #686: a loop variable's type at the type
+written, an assignment's owner, struct and entry values at its
+operator, a plain one's at the value, and declarations at the word or
+name kelvinc says each at. 44 are left.
+
+Details are provisional P691.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
