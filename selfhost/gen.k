@@ -238,6 +238,17 @@ let tok_error(t:int64, what:cstr) {
     failed = true
 }
 
+// an error shift columns into token t, as kelvinc says one at the { of
+// a ${ or the [ of a $[ (#685)
+let tok_error_shift(t:int64, shift:int64, what:cstr) {
+    if !failed {
+        let said:String = as_shown(what)
+        let at:String = error_at_shift(t, shift)
+        println(at, ": error: ", said)
+    }
+    failed = true
+}
+
 // v in hex, upper case
 let hex_upper(v:int64):String {
     var s = $""
@@ -861,7 +872,15 @@ var change_lhs:int64 = 0 - 1    // says an error of the place's change (#683)
 
 // where an error of the change of place n is said: an assignment's at its operator (#683)
 let change_tok(n:int64):int64 {
-    return n == change_lhs && change_op >= 0 ? change_op : nodes[n].t
+    if change_op < 0 || change_lhs < 0 { return nodes[n].t }
+    var e:int64 = change_lhs                             // the place, or what holds it: p of p.x, b of b.bits[1] (#685)
+    while e >= 0 {
+        if e == n { return change_op }
+        let k:nkind = nodes[e].kind
+        if k != N_FIELD && k != N_INDEX && k != N_DEREF && k != N_METHOD { break }
+        e = nodes[e].a
+    }
+    return nodes[n].t
 }
 let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
 let owner_part(v:int64):bool    // a prototype: let, = and return refuse what it says (#365)
@@ -4742,7 +4761,7 @@ let call_target(n:int64):int64 {
             var m = $"kelvinc cannot see this anonymous function's parameters, so '"
             m += t < eof_pos ? tok_text(t) : $"$0"
             m += "' has no type: write them, as in '{ (a:i32, b:i32):bool in ... }'"
-            gen_error(a, m.cstr)
+            if t < eof_pos { tok_error(t, m.cstr) } else { gen_error(a, m.cstr) }   // at its $0, as kelvinc's (#685)
             targets[n] = first
             return first
         }
@@ -9554,7 +9573,7 @@ let gen_method_of(n:int64) {
         m += "."
         m += tok_text(t)
         m += "', with no parentheses"
-        gen_error(n, m.cstr)
+        tok_error(nodes[n].t + 1, m.cstr)                // at its (, as kelvinc's (#685)
         return
     }
     if f >= 0 && attributes.get(f, 0) != 0 && !attr_reads.has(n) {   // as kelvinc says it (#131)
@@ -10571,12 +10590,13 @@ let empty_fits(v:int64, y:int64):bool {
 // $[], ${:} or ${} where no type of its kind is written, as kelvinc says
 // it (#348)
 let empty_error(v:int64) {
+    let sh:int64 = toks[nodes[v].t].len == 2 ? 1 : 0     // at its [ or {, as kelvinc's (#685)
     if tok_is(nodes[v].t, "$[") || tok_is(nodes[v].t, "[") {
-        gen_error(v, "Array([]) has no element type: write Array<T>()")
+        tok_error_shift(nodes[v].t, sh, "Array([]) has no element type: write Array<T>()")
     } else if nodes[v].flag == 1 {
-        gen_error(v, "${} has no element type here: write Set<T>(), or give the variable a type, as in 'var s:${String} = ${}'")
+        tok_error_shift(nodes[v].t, sh, "${} has no element type here: write Set<T>(), or give the variable a type, as in 'var s:${String} = ${}'")
     } else {
-        gen_error(v, "${:} has no key and value types here: write Dictionary<K, V>(), or give the variable a type, as in 'var d:${String: i64} = ${:}'")
+        tok_error_shift(nodes[v].t, sh, "${:} has no key and value types here: write Dictionary<K, V>(), or give the variable a type, as in 'var d:${String: i64} = ${:}'")
     }
 }
 
@@ -10657,7 +10677,7 @@ let gen_written(v:int64, y:int64) {
     if !empty_fits(v, y) {
         let k:ykind = y >= 0 ? types[y].kind : Y_VOID
         if k == Y_SET && !tok_is(nodes[v].t, "$[") {        // as kelvinc says it
-            gen_error(v, "an empty Set is written ${}; ${:} is an empty Dictionary")
+            tok_error_shift(nodes[v].t, toks[nodes[v].t].len == 2 ? 2 : 0, "an empty Set is written ${}; ${:} is an empty Dictionary")   // at its :, as kelvinc's (#685)
         } else if k == Y_DICT && nodes[v].flag == 1 {
             gen_error(v, "an empty Dictionary is written ${:}")
         } else {
@@ -11920,7 +11940,14 @@ let one_index(n:int64):bool {
             var m = $"a subscript takes one index, and this gives "
             m += String(c)
             m += ": C's comma is no list of indices; a slice is [lo..<hi]"
-            gen_error(n, m.cstr)
+            var k:int64 = nodes[n].t + 1                 // at the first comma, as kelvinc's (#685)
+            var depth:int64 = 0
+            while k < eof_pos && !(depth == 0 && tok_is(k, ",")) {
+                if tok_is(k, "(") || tok_is(k, "[") || tok_is(k, "{") { depth += 1 }
+                if tok_is(k, ")") || tok_is(k, "]") || tok_is(k, "}") { depth -= 1 }
+                k += 1
+            }
+            tok_error(k < eof_pos ? k : nodes[n].t, m.cstr)
             return false
         }
     }
@@ -12835,7 +12862,7 @@ let gen_sizeof(n:int64):bool {
         let w:String = kelvin_type_text(y)
         m += &w
         m += ")"
-        gen_error(n, m.cstr)
+        tok_error(nodes[n].t + 1, m.cstr)                // at the type, as kelvinc's (#685)
         return true
     }
     if y < 0 && nodes[n].flag == 2 {                     // sizeof(x.type) (#421): x's size, of x.type^ a pointer's
@@ -16171,8 +16198,16 @@ let anon_arg_refused(n:int64):bool {
     }
     var m = $"kelvinc cannot see this anonymous function's parameters, so '$0' has no type: write them, as in '{ (a:i32, b:i32):bool in ... }'"
     m += &note
-    gen_error(n, m.cstr)
+    tok_error(first_dollar(n), m.cstr)                   // at its $0, as kelvinc's (#685)
     return true
+}
+
+// the first $0, $1 ... of anonymous function n, or its {: where kelvinc
+// says an error of its parameters (#685)
+let first_dollar(n:int64):int64 {
+    var t:int64 = nodes[n].t + 1
+    while t < eof_pos && !(toks[t].kind == T_ID && codes[toks[t].at] == '$') { t += 1 }
+    return t < eof_pos ? t : nodes[n].t
 }
 
 // the function type of the anonymous function n as a value (#428): its
@@ -16189,7 +16224,7 @@ let anon_type(n:int64):int64 {
     }
     if nodes[n].flag != 0 && anon_arg_refused(n) { return 0 - 1 }   // an argument of a call, as kelvinc says it
     if nodes[n].flag != 0 {
-        gen_error(n, "'$0' is a parameter of an anonymous function, and this is not in one; there, '{' starts an initializer list, so an anonymous function writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+        tok_error(first_dollar(n), "'$0' is a parameter of an anonymous function, and this is not in one; there, '{' starts an initializer list, so an anonymous function writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
         return 0 - 1
     }
     var ps:$[int64] = $[]

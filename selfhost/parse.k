@@ -855,7 +855,7 @@ let record_name():int64 {
                 var m = $"'"
                 m += tok_text(t)
                 m += "' is defined in this block already"
-                parse_error(m.cstr)
+                parse_error_at(t, m.cstr)                // at its name, as kelvinc's (#685)
             }
             i -= 1
         }
@@ -886,7 +886,7 @@ let record_name():int64 {
         let o:String = kelvin_name(nest_outer)
         m += &o
         m += " already"
-        parse_error(m.cstr)
+        parse_error_at(t, m.cstr)                        // at its name, as kelvinc's (#685)
     }
     var name:String = tok_text(nest_outer)
     name += "__"
@@ -902,7 +902,7 @@ let record_name():int64 {
         m += " is "
         m += &name
         m += " in C, the name of a type declared already: rename one of them"
-        parse_error(m.cstr)
+        parse_error_at(t, m.cstr)                        // (#685)
     }
     nested_of[name] = u
     outer_of[name] = nest_outer
@@ -1766,7 +1766,7 @@ let parse_bare_type():int64 {
         y = base_type(Y_IO)
     } else if tok_is(t, "typeof") {             // typeof(T), typeof(x) (#398), C23's
         if !at_word("(") {
-            parse_error("typeof takes a value or a type in parentheses, as C23's: typeof(x)")
+            parse_error_at(t, "typeof takes a value or a type in parentheses, as C23's: typeof(x)")   // at its word, as kelvinc's (#685)
             return base_type(Y_VOID)
         }
         advance()
@@ -1862,14 +1862,14 @@ let parse_bare_type():int64 {
             m += " has no type '"
             m += tok_text(pos + 1)
             m += "' defined in it"
-            parse_error(m.cstr)
+            parse_error_at(pos + 1, m.cstr)              // at the name it lacks (#685)
         } else if nt == t && records_seen.get(name, -1) < 0 {
             for e in ended_types {                       // (#391)
                 if same_text(local_own_of.get(tok_text(e), -1), t) {
                     var m = $"'"
                     m += &name
                     m += "' is defined in a block that has ended: a type defined inside a function is known to the end of its block"
-                    parse_error(m.cstr)
+                    parse_error_at(t, m.cstr)            // (#685)
                     break
                 }
             }
@@ -1884,7 +1884,7 @@ let parse_bare_type():int64 {
                     let k:String = kelvin_name(nested_of.get(c, -1))
                     m += &k
                     m += " outside it"
-                    parse_error(m.cstr)
+                    parse_error_at(t, m.cstr)            // (#685)
                     break
                 }
             }
@@ -1906,7 +1906,7 @@ let parse_bare_type():int64 {
         m += "', not '"
         m += &w
         m += ".type'"
-        parse_error(m.cstr)
+        parse_error_at(pos - 1, m.cstr)                  // at the type's name, as kelvinc's (#685)
         return base_type(Y_VOID)
     }
     return type_suffixes(y)
@@ -2473,11 +2473,11 @@ let parse_primary():int64 {
         advance()
         let n:int64 = make_node(N_ALIGN, t)
         if tok_is(t, "_Alignof") {
-            parse_error("'_Alignof' is C11's spelling: Kelvin writes alignof(T), and a value's is x.align")
+            parse_error_at(t, "'_Alignof' is C11's spelling: Kelvin writes alignof(T), and a value's is x.align")
             return n
         }
         if !at_word("(") {
-            parse_error("alignof takes a type, as C's does: alignof(T); a value's alignment is x.align")
+            parse_error_at(t, "alignof takes a type, as C's does: alignof(T); a value's alignment is x.align")
             return n
         }
         advance()
@@ -2645,8 +2645,10 @@ let parse_primary():int64 {
                 nodes[last].next = e
             }
             last = e
-            if at_word(":") {                        // $["a": 1], as kelvinc says it
-                parse_error("a Dictionary's entries are written in braces: ${k: v, ...}, and ${:} for none")
+            if at_word(":") {                        // $["a": 1], as kelvinc says it, at its [ (#685)
+                if !failed { println(error_at_shift(nodes[n].t, toks[nodes[n].t].len == 2 ? 1 : 0), ": error: a Dictionary's entries are written in braces: ${k: v, ...}, and ${:} for none") }
+                failed = true
+                pos = eof_pos
                 return n
             }
             if !at_word(",") { break }
@@ -3205,7 +3207,7 @@ let c_cast_ahead(t:int64):bool {
     if toks[i].kind != T_ID { return false }
     let word:int64 = i
     if tok_is(i, "long") && tok_is(i + 1, "double") && tok_is(i + 2, ")") {   // (long double)d
-        parse_error_at(i, "'long' is not a Kelvin type, use f64 (long double has no Kelvin type yet)")
+        parse_error_at(t, "'long' is not a Kelvin type, use f64 (long double has no Kelvin type yet)")
         return true
     }
     i += 1
@@ -3229,7 +3231,7 @@ let c_cast_ahead(t:int64):bool {
             return true
         }
         if star {
-            parse_error_at(i - 1, "pointer types are written with a postfix '^', as in '(i32^){0}'")
+            parse_error_at(t, "pointer types are written with a postfix '^', as in '(i32^){0}'")   // at its (, as kelvinc's (#685)
             return true
         }
         return false
@@ -3526,7 +3528,7 @@ let parse_alignas() {
             if c >= '0' && c <= '9' { v = v * 10 + (c - '0') as int64 }
         }
         if nodes[align_expr].kind == N_NUM && (v == 0 || (v & (v - 1)) != 0) {
-            parse_error("an alignment is a power of two, as C's: 1, 2, 4, 8, 16, ...")
+            parse_error_at(t, "an alignment is a power of two, as C's: 1, 2, 4, 8, 16, ...")   // at the number (#685)
         }
     } else {
         align_type = parse_type()
@@ -3562,7 +3564,7 @@ let parse_assert(kind:nkind):int64 {
     let n:int64 = make_node(kind, advance())
     nodes[n].b = 0 - 1
     if tok_is(nodes[n].t, "_Static_assert") {
-        parse_error("'_Static_assert' is C11's spelling: Kelvin writes static_assert(cond, \"message\"), its message optional")
+        parse_error_at(nodes[n].t, "'_Static_assert' is C11's spelling: Kelvin writes static_assert(cond, \"message\"), its message optional")
         return n
     }
     expect("(")

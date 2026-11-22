@@ -682,6 +682,17 @@ let file_end_text(f:int64):String {
     return s
 }
 
+// where an error at token t is, shift columns into it: the { of a ${,
+// which kc reads as one token and kelvinc as two (#685)
+let error_at_shift(t:int64, shift:int64):String {
+    var s:String = fnames[toks[t].file].copy()
+    s += ":"
+    s += String(toks[t].line)
+    s += ":"
+    s += String(tok_col(t) + shift)
+    return s
+}
+
 // where an error at token t is, as kelvinc writes it: file:line:col
 let error_at_text(t0:int64):String {
     var t:int64 = t0

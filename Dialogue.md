@@ -13373,3 +13373,19 @@ says each. 102 are left.
 Details are provisional P689.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 732. kc's error positions, batch 5
+
+**Claude** pushed #684, its battery clean and CI's 9 jobs passed.
+
+**User:** go on
+
+**Claude** made the fifth batch #685: a change of what a place holds at
+the assignment's operator, keywords at their word or operand, a
+subscript's comma, $0 at the $0, $[] and ${} at their bracket, which kc
+reads with the $ as one token, and a type's errors at its name, as
+kelvinc says each. 67 are left.
+
+Details are provisional P690.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
