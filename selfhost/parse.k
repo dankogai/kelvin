@@ -1821,7 +1821,7 @@ let parse_bare_type():int64 {
             let w:String = type_word(value)
             m += &w
             m += "; convert its bounds, as in 'i64(n)'"
-            parse_error(m.cstr)
+            parse_error_at(t, m.cstr)                    // at Range, as kelvinc's (#687)
         }
         y = type_of_kind(Y_RANGE, value, -1)
     } else if tok_is(t, "Task") {                // Task<R>, Task of none (#313)
@@ -2054,7 +2054,7 @@ let parse_anon():int64 {
             let is_var = at_word("var")                  // { (var s:T):R in ... } may change s, its own (#470)
             if is_var { advance() }
             if at_kind(T_ID) && tok_is(pos + 1, ":") && tok_is(pos + 2, "lent") {   // as kelvinc says it
-                parse_error_at(pos + 2, "'lent' is for a function's or a method's parameter: an anonymous function is lent the elements .map and .sort give it (#244), and owns what else it takes")
+                parse_error_at(pos, "'lent' is for a function's or a method's parameter: an anonymous function is lent the elements .map and .sort give it (#244), and owns what else it takes")
                 return n
             }
             let p:int64 = parse_typed(is_var ? 0 : 1)
@@ -2797,7 +2797,7 @@ let parse_primary():int64 {
             m += String(takes)
             m += takes == 1 ? " argument, and this gives " : " arguments, and this gives "
             m += String(given)
-            parse_error_at(t, m.cstr)
+            parse_error_at(tok_is(t + 1, "(") ? t + 1 : t, m.cstr)   // at its (, as kelvinc's (#687)
         }
         return call
     }
@@ -3822,7 +3822,9 @@ let parse_statement():int64 {
             let two = tok_is(q, ".") && tok_is(q + 1, ".") && toks[q].at + 1 == toks[q + 1].at
             let num_dot = toks[q].kind == T_NUM && codes[toks[q].at + toks[q].len - 1] == '.' && tok_is(q + 1, ".")
             if (two && !tok_is(q + 2, "<") && !tok_is(q + 2, ".")) || num_dot {
-                parse_error("expected '..<' or '...' in a range, as in '0..<n' or '1...n'")
+                if !failed { println(error_at_shift(q, num_dot ? toks[q].len - 1 : 0), ": error: expected '..<' or '...' in a range, as in '0..<n' or '1...n'") }   // at its first ., as kelvinc's (#687)
+                failed = true
+                pos = eof_pos
                 return make_node(S_BREAK, v)
             }
             q += 1
@@ -4769,7 +4771,7 @@ let parse_enum():int64 {
         var m:int64 = nodes[n].a
         while m >= 0 {
             if nodes[m].a >= 0 {
-                parse_error_at(nodes[m].t, "a case of an enum with values is known by its name, not by a number")
+                parse_error_at(tok_is(nodes[m].t + 1, "=") ? nodes[m].t + 1 : nodes[m].t, "a case of an enum with values is known by its name, not by a number")   // at its =, as kelvinc's (#687)
                 return n
             }
             m = nodes[m].next

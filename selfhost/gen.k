@@ -1328,7 +1328,7 @@ let gen_random(n:int64) {
             m += ".random takes nothing, a limit, or a start and a limit, as in '"
             m += &tn
             m += ".random(1.0, 2.0)'"
-            gen_error(n, m.cstr)
+            gen_error(nodes[n].a, m.cstr)                // at the type, as kelvinc's (#687)
             return
         }
         var v:int64 = a
@@ -1712,6 +1712,22 @@ var attr_settled:Dictionary<int64, bool>   // the x.y and v[i] asked once whethe
 let type_text(y:int64):String    // a prototype: index_fits names the types
 
 // the count of the arguments from a on
+// where kelvinc says an error of member access x: its ., x.b's (#687)
+let member_dot(x:int64):int64 {
+    return nodes[x].kind == N_FIELD && tok_is(nodes[x].t - 1, ".") ? nodes[x].t - 1 : nodes[x].t
+}
+
+// argument k of the list from first, counted from 0, or first (#687)
+let nth_arg(first:int64, k:int64):int64 {
+    var a:int64 = first
+    var i:int64 = 0
+    while a >= 0 && i < k {
+        a = nodes[a].next
+        i += 1
+    }
+    return a >= 0 ? a : first
+}
+
 let count_args(first:int64):int64 {
     var n:int64 = 0
     var a:int64 = first
@@ -3440,7 +3456,7 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
         let what = into_words("", nodes[d].c >= 0 && nodes[d].flag != 1 ? "." : "", nodes[d].t)
         m += &what
         m += " only as a whole variable: pass a borrow, '&...', or a copy"
-        gen_error(a, m.cstr)
+        tok_error(member_dot(a), m.cstr)                 // at its ., as kelvinc's (#687)
         return false
     }
     if d >= 0 && !is_operator(d) && method_names_of.get(d, nodes[d].t) < eof_pos && nodes[p].t < eof_pos {
@@ -3714,7 +3730,7 @@ let member_unknown(n:int64, y:int64) {
         e += "': literals have no suffixes in Kelvin, and '"
         e += tok_text(t)
         e += "' is not a method"
-        gen_error(n, e.cstr)
+        gen_error(nodes[n].a, e.cstr)                    // at the literal, as kelvinc's (#687)
         return
     }
     if is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_FIXED || k == Y_PTR || enum_int(y) {
@@ -5322,7 +5338,7 @@ let compound_by_operator(n:int64):bool {
         m += " y' is 'x = x "
         m += &word
         m += " y', which evaluates x twice, so x may not hold a call"
-        gen_error(n, m.cstr)
+        gen_error(lhs, m.cstr)                           // at x, as kelvinc's (#687)
         return true
     }
     let bin:int64 = make_node(N_BIN, op_tok)
@@ -7786,7 +7802,8 @@ let gen_join(n:int64) {
         m += "' takes the text between the elements, or none: '."
         m += tok_text(t)
         m += "(\", \")'"
-        gen_error(nodes[sep].next, m.cstr)
+        let extra:int64 = nodes[nodes[sep].next].t       // at the comma before it, as kelvinc's (#687)
+        tok_error(tok_is(extra - 1, ",") ? extra - 1 : extra, m.cstr)
         return
     }
     var sy:int64 = 0 - 1
@@ -8231,7 +8248,7 @@ let gen_converter(n:int64) {
         m += "(v) or "
         m += &name
         m += "(text, base)"
-        callee_error(n, m.cstr)
+        if base >= 0 && nodes[base].next >= 0 && tok_is(nodes[nodes[base].next].t - 1, ",") { tok_error(nodes[nodes[base].next].t - 1, m.cstr) } else { callee_error(n, m.cstr) }   // at the comma before the third, as kelvinc's (#687)
         return
     }
     if is_int_kind(k) && bools_value(v) {                // u8(bools), of a [bool] (#530)
@@ -8439,7 +8456,7 @@ let gen_call(n:int64) {
         m += " takes up to 16 values, and this has "
         m += String(count_args(args))
         m += ": write two calls"
-        gen_error(n, m.cstr)
+        gen_error(nth_arg(args, 16), m.cstr)             // at its 17th, as kelvinc's (#687)
         return
     }
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
@@ -9962,7 +9979,7 @@ let gen_method_of(n:int64) {
             m += "' takes up to 16 values, and this has "
             m += String(count_args(args))
             m += ": write two calls"
-            gen_error(n, m.cstr)
+            gen_error(nth_arg(args, 16), m.cstr)         // (#687)
             return
         }
         var shown:int64 = args
@@ -10468,7 +10485,7 @@ let gen_make_inferred(n:int64) {
         let y:int64 = is_case_word(e) ? 0 - 1 : type_of(e)
         while e >= 0 {
             if is_case_word(e) || type_of(e) != y || y < 0 {
-                gen_error(n, "the elements have no one type kelvinc sees here: write Array<T>([...])")
+                gen_error(nodes[n].b >= 0 ? nodes[n].b : n, "the elements have no one type kelvinc sees here: write Array<T>([...])")   // at the list (#687)
                 return
             }
             e = nodes[e].next
@@ -14162,7 +14179,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
         m += " elements, and this gives "
         let g:String = String(count)
         m += &g
-        gen_error(v, m.cstr)
+        gen_error(nth_arg(nodes[v].b, types[y].name), m.cstr)   // at the first past its count, as kelvinc's (#687)
         return false
     }
     return true
@@ -15121,7 +15138,7 @@ let gen_assign(n:int64) {
             m += " is a value, and no place to set: '"
             m += tok_text(t)
             m += "' sets a variable, a member, an element or 'p^'"
-            callee_error(lhs, m.cstr)
+            if nodes[lhs].kind == N_FIELD && nodes[nodes[lhs].a].kind == N_CALL { tok_error(member_dot(lhs), m.cstr) } else { callee_error(lhs, m.cstr) }   // a member of what a call gives at its . (#687)
             return
         }
     }
@@ -15561,7 +15578,7 @@ let gen_return(n:int64) {
         return
     }
     if text >= 0 && nodes[text].a >= 0 && nodes[nodes[text].a].kind == N_TPL {   // `...`.cstr, a template's, as kelvinc says it
-        gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
+        gen_error(nodes[text].a, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
         return
     }
     if text >= 0 {                                       // a number's text (#447)
@@ -17232,7 +17249,7 @@ let gen_power_literals(a:int64, b:int64) {
         var m = $"'**' of two literals is an i64, as a literal is, and this is past its "
         m += neg ? "least" : "largest"
         m += ": raise a floating-point number, as in '2.0 ** 64', or convert, as in 'u64(2) ** 63'"
-        gen_error(a, m.cstr)
+        if tok_is(nodes[a].t + 1, "**") { tok_error(nodes[a].t + 1, m.cstr) } else { gen_error(a, m.cstr) }   // at the **, as kelvinc's (#687)
         return
     }
     if neg { put("(-") }
@@ -18540,6 +18557,8 @@ let gen_eager(n:int64) {
         var lead = $"'."                                 // as kelvinc says it: '.map' walks an iterator by its var next()
         lead += tok_text(nodes[r.node].t)
         lead += "' walks an iterator by its var next(), which changes "
+        change_op = nodes[r.node].t                      // at the method's name, as kelvinc's (#687)
+        change_lhs = r.src
         if !changes_var(r.src, &lead) { return }
     }
     put("({ ")
@@ -19127,7 +19146,7 @@ let gen_fill(t:int64, a:int64, b:int64, in_place:bool) {
         m += in_place || !keep ? "' takes Dictionaries, and this is " : "' takes an Optional, a Result or Dictionaries, and this is "
         let w:String = dy >= 0 ? kelvin_type_text(dy) : $"not one"
         m += &w
-        gen_error(a, m.cstr)
+        tok_error(t, m.cstr)                             // at the operator, as kelvinc's (#687)
         return
     }
     if by != dy {
@@ -20028,7 +20047,7 @@ let gen_each(n:int64, depth:int64) {
         return
     }
     if types[y].kind == Y_FIXED && each_in_temporary(nodes[n].a) {   // (#30, #612)
-        gen_error(nodes[n].a, "for over an array in a value that a call or '?:' returns: C discards the value before the loop runs, so copy it into a let first, as in 'let v = make(); for x in v.xs'")
+        tok_error(member_dot(nodes[n].a), "for over an array in a value that a call or '?:' returns: C discards the value before the loop runs, so copy it into a let first, as in 'let v = make(); for x in v.xs'")
         return
     }
     if list_walked(y) && nodes[n].ty >= 0 && types[nodes[n].ty].kind != Y_PTR {   // (#523, #612)
@@ -20535,7 +20554,7 @@ let gen_iflet(n:int64, depth:int64) {
         w += ")' takes an enum with values, a Result or an Optional, and this is "
         let yw:String = y >= 0 ? kelvin_type_text(y) : $"not one"
         w += &yw
-        gen_error(n, w.cstr)
+        gen_error(e, w.cstr)                             // at what it takes, as kelvinc's (#687)
         return
     }
     let m = bare ? value_case(y) : case_named(d, nodes[n].t) ?? 0 - 1
@@ -22446,7 +22465,7 @@ let gen_assert(n:int64) {
         var m = $"a static_assert is judged as C compiles, before the program runs, and '"
         m += tok_text(v)
         m += "' is a variable, which C does not count as a constant"
-        gen_error(n, m.cstr)
+        gen_error(nodes[n].a, m.cstr)                    // at the condition, as kelvinc's (#687)
         return
     }
     put("_Static_assert(")

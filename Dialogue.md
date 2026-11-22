@@ -13404,3 +13404,18 @@ name kelvinc says each at. 44 are left.
 Details are provisional P691.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 734. kc's error positions, batch 7
+
+**Claude** pushed #686, its battery clean and CI's 9 jobs passed.
+
+**User:** go on
+
+**Claude** made the seventh batch #687: print's 17th value, a literal's
+first element past its count, operators, a member's ., commas before an
+extra value, and the parser's $(...), Range, an enum case's number,
+lent and 0..n, each where kelvinc says it. 19 are left.
+
+Details are provisional P692.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
