@@ -2378,9 +2378,162 @@ let word_misused(n:int64, written:bool):bool {
     return true
 }
 
+// ---------- x.map(f), x.flatMap(f), r.mapErr(g) of a variant (#80, #81, #712) ----------
+
+var variant_fns:Dictionary<int64, int64>   // each one's function by its node: a declaration, or -2 of a function value
+
+// whether n is x.map(f), x.flatMap(f) or r.mapErr(g) of an Optional or a
+// Result, one function given (#712)
+let variant_mapped(n:int64):bool {
+    if nodes[n].kind != N_METHOD { return false }
+    let t:int64 = nodes[n].t
+    if !(tok_is(t, "map") || tok_is(t, "flatMap") || tok_is(t, "mapErr")) { return false }
+    let a:int64 = nodes[n].a
+    if a < 0 || names_type(a) || nodes[n].b < 0 || nodes[nodes[n].b].next >= 0 { return false }
+    let y:int64 = type_of(a)
+    return y >= 0 && is_variant(y)
+}
+
+// the case of y that x.map(f) maps: an Optional's some, a Result's ok,
+// or its err of r.mapErr(g) (#712)
+let variant_case_of(y:int64, to_err:bool):int64 {
+    let d:int64 = tagged_of(y)
+    if some_type(y) >= 0 || to_err { return nodes[nodes[d].a].next }
+    return nodes[d].a
+}
+
+// its function: one made of { ... } of the case's value, one named, or
+// -2 of a function value; -1 where none is (#712)
+let variant_fn_of(n:int64):int64 {
+    if variant_fns.has(n) { return variant_fns.get(n, 0 - 1) }
+    let y:int64 = type_of(nodes[n].a)
+    let m:int64 = variant_case_of(y, tok_is(nodes[n].t, "mapErr"))
+    let f:int64 = nodes[n].b
+    var fn:int64 = 0 - 1
+    if nodes[f].kind == N_ANON {
+        var ps:$[int64] = $[]
+        ps += nodes[m].ty
+        var me = $"'."
+        me += tok_text(nodes[n].t)
+        me += "'"
+        fn = anon_function_of(f, &ps, 0 - 1, &me)
+    } else if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 && fn_named(nodes[f].t) >= 0 {
+        fn = fn_named(nodes[f].t)
+    } else {
+        let fy:int64 = type_of(f)
+        if fy >= 0 && types[fy].kind == Y_FN { fn = 0 - 2 }
+    }
+    variant_fns[n] = fn
+    return fn
+}
+
+// what x.map(f) gives (#712): of f's result U, a U? of an Optional's, a
+// Result<U, E> of a Result's map, a Result<T, U> of its mapErr; U itself
+// of flatMap
+let variant_map_type(n:int64):int64 {
+    let fn:int64 = variant_fn_of(n)
+    if failed || fn == 0 - 1 { return 0 - 1 }
+    var u:int64 = 0 - 1
+    if fn >= 0 {
+        u = nodes[fn].ty
+    } else {
+        let fy:int64 = type_of(nodes[n].b)
+        u = fy >= 0 ? types[fy].elem : 0 - 1
+    }
+    if u < 0 || types[u].kind == Y_VOID { return 0 - 1 }
+    let t:int64 = nodes[n].t
+    if tok_is(t, "flatMap") { return u }
+    let y:int64 = type_of(nodes[n].a)
+    if some_type(y) >= 0 { return optional_of(u) }
+    let d:int64 = tagged_of(y)
+    let okt:int64 = nodes[nodes[d].a].ty
+    let errt:int64 = nodes[nodes[nodes[d].a].next].ty
+    return tok_is(t, "mapErr") ? result_of(okt, u) : result_of(u, errt)
+}
+
+// x.map(f) and its kin, as kelvinc writes them (#80, #81): x in a
+// temporary, f of the case's value in the new one's same case, or f's own
+// value of flatMap, the other case carried over; what an owner holds
+// taken out, so that the temporary's cleanup frees nothing of it
+let gen_variant_map(n:int64) {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    let ny:int64 = variant_map_type(n)
+    let fn:int64 = variant_fn_of(n)
+    if failed || ny < 0 { return }
+    let flat = tok_is(nodes[n].t, "flatMap")
+    let d:int64 = tagged_of(y)
+    let m:int64 = variant_case_of(y, tok_is(nodes[n].t, "mapErr"))
+    let o:int64 = m == nodes[d].a ? nodes[m].next : nodes[d].a
+    serial += 1
+    let s = serial
+    var tv = $"_kv_vt"
+    tv += String(s)
+    put("({ ")
+    if is_owner(y) {
+        put("__attribute__((cleanup(")
+        put_free(y)
+        put("))) ")
+    }
+    put_ctype(y)
+    put(" ")
+    put(tv.cstr)
+    put(" = ")
+    gen_expr(a)
+    put("; ")
+    put(tv.cstr)
+    put(".tag == ")
+    put_int(case_tag(d, m))
+    put(" ? ")
+    if !flat {
+        put("_kv_")
+        put_tok(types[ny].name)
+        put("_make_")
+        put_tok(nodes[m].t)
+        put("(")
+    }
+    if fn >= 0 {
+        put_fn_name(fn)
+    } else {
+        put("(")
+        gen_expr(nodes[n].b)
+        put(")")
+    }
+    put("(")
+    put_variant_at(y, tv.cstr)
+    put_tok(nodes[m].t)
+    put(")")
+    if !flat { put(")") }
+    put(" : ")
+    put("_kv_")
+    put_tok(types[ny].name)
+    put("_make_")
+    put_tok(nodes[o].t)
+    put("(")
+    if nodes[o].ty >= 0 {
+        put_variant_at(y, tv.cstr)
+        put_tok(nodes[o].t)
+    }
+    put("); })")
+}
+
+// the value the temporary tv of y holds, before a case's name: taken out
+// of an owner, so that its cleanup frees nothing of it (#712)
+let put_variant_at(y:int64, tv:cstr) {
+    if is_owner(y) {
+        put_owner_prefix(y)
+        put("_take(&")
+        put(tv)
+        put(").u.")
+    } else {
+        put(tv)
+        put(".u.")
+    }
+}
+
 // x.map(f), x.flatMap(f), r.mapErr(g) of an Optional or a Result: kelvinc's
-// errors of what does not fit, said as its #80 and #81 say them; kc does
-// not make these, so one that fits is refused after
+// errors of what does not fit, said as its #80 and #81 say them; one that
+// fits kc makes since #712
 let variant_method_wrong(n:int64):bool {
     let t:int64 = nodes[n].t
     let to_err = tok_is(t, "mapErr")
@@ -2647,6 +2800,7 @@ let type_of(n:int64):int64 {
     if k == N_CHAIN { return chain_type(n) }
     if k == N_METHOD && with_key_misused(n) { return 0 - 1 }   // xs.mapWithKey, as kelvinc says it
     if k == N_METHOD && variant_method_wrong(n) { return 0 - 1 }   // x.map(f) of an Optional or a Result, kelvinc's errors of it
+    if k == N_METHOD && variant_mapped(n) { return variant_map_type(n) }   // and its type where it fits (#712)
     if k == N_METHOD && nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "Bytes") && tok_is(nodes[n].t, "fromBase64") && nodes[n].b >= 0 && nodes[nodes[n].b].kind != N_ADDR {
         let sy:int64 = type_of(nodes[n].b)
         if sy >= 0 && types[sy].kind == Y_STRING {       // Bytes.fromBase64(s) of a String, as kelvinc says it
@@ -14060,6 +14214,8 @@ let gen_expr_of(n:int64) {
         gen_choice(n)
     } else if k == N_FIELD {
         gen_field(n)
+    } else if k == N_METHOD && variant_mapped(n) {
+        gen_variant_map(n)                           // x.map(f) of an Optional or a Result (#712)
     } else if k == N_METHOD {
         gen_method(n)
     } else if k == N_INDEX && is_slice(n) {

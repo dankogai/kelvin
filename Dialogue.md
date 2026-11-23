@@ -13784,3 +13784,16 @@ more tests print what kelvinc's print.
 Details are provisional P716.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 759. kc makes a variant's map
+
+**Claude** wrote #711, its battery run and pushed when clean, and
+went on with the third batch.
+
+**Claude** made it #712: an Optional's and a Result's `.map`,
+`.flatMap` and `.mapErr`, as kelvinc writes them, so that three more
+tests print what kelvinc's print.
+
+Details are provisional P717.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

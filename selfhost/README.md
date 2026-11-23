@@ -1311,6 +1311,18 @@ kc reads what it is written in, and little more.
   where kc took it as the Optional's own.
   - tests/run's optional_basics.k, optional_args.k, ternary_none.k and
     coalesce_owner.k, which kc refused, print what kelvinc's print.
+- **An Optional's and a Result's `.map`, `.flatMap` and `.mapErr`**
+  (#712), as kelvinc's #80 and #81, which kc said kelvinc's errors of
+  and refused where they fit: the function, made of `{ ... }` of the
+  case's value by anon_function_of, named, or a function value, gives
+  U, and x.map(f) is a U?, or a Result<U, E>, r.mapErr(g) a Result<T,
+  U>, x.flatMap(f) U itself; written as kelvinc writes it, x in a
+  temporary, f of the case's value made into the new one's same case,
+  the other case carried over, what an owner holds taken out so that
+  the temporary's cleanup frees nothing of it.
+  - tests/run's variant_map.k, variant_flat_map.k and
+    anon_optional_result.k, which kc refused, print what kelvinc's
+    print, and run clean under ASan and UBSan.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

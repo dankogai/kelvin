@@ -871,3 +871,5 @@ So far the changes from C are these, by topic.
   String an expression gives that a search borrows (#710)
 - kc reads `Optional<T>()` and `Optional<T>(v)`, and moves an owner into
   a `T?` parameter as some of it, as kelvinc does (#711)
+- kc makes an Optional's and a Result's `.map`, `.flatMap` and
+  `.mapErr` as kelvinc does (#712)
