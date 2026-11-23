@@ -3100,6 +3100,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
+        if tok_is(t, "capacity") && yk == Y_ARRAY { return base_type(Y_I64) }        // its room, an i64, as kelvinc's (#716)
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_FIXED { return base_type(Y_I64) }   // (#354)
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_PTR && types[types[y].elem].kind == Y_FIXED { return base_type(Y_I64) }   // gen_field's error (#362)
         if yk == Y_ARRAY && (tok_is(t, "join") || tok_is(t, "joined")) {   // as kelvinc says it (#461)
@@ -9772,7 +9773,7 @@ let gen_member(n:int64) {
         put("((int64_t)({ const kv_string _kv_gs = (")
         gen_expr(a)
         put("); kv_string_graphemes(&_kv_gs); }))")
-    } else if (tok_is(t, "count") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET)) || (yk == Y_BYTES && tok_is(t, "capacity")) {
+    } else if (tok_is(t, "count") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET)) || ((yk == Y_BYTES || yk == Y_ARRAY) && tok_is(t, "capacity")) {
         put("((int64_t)(")
         gen_expr(a)
         put(tok_is(t, "count") ? ").count)" : ").cap)")     // a Bytes's room (#439)
@@ -9931,6 +9932,17 @@ let owner_copy_error(v:int64, what:cstr) {
 // its index, what: an element's value, a borrow's copy, or what an
 // expression gives, moved in; a place that owns would be copied, which
 // is kelvinc's error, and so is a value of another type
+// what v appended to the Array of type y is, as kelvinc's
+// array_append_kind (#716): 1 a borrow of an Array of the same type, its
+// elements; 2 such an Array an expression gives, appended and freed; 0 an
+// element
+let array_append_kind(y:int64, v:int64):int64 {
+    if v < 0 { return 0 }
+    if nodes[v].kind == N_ADDR && type_of(nodes[v].a) == y { return 1 }
+    if nodes[v].kind != N_COND && !is_place(v) && type_of(v) == y { return 2 }
+    return 0
+}
+
 let gen_array_add(y:int64, v:int64, what:cstr) {
     let ey:int64 = types[y].elem
     let vy:int64 = type_of(v)
@@ -9942,7 +9954,14 @@ let gen_array_add(y:int64, v:int64, what:cstr) {
         put(")")
         return
     }
-    if vy >= 0 && vy != ey && (is_owner(vy) || is_owner(ey)) {
+    if nodes[v].kind == N_ADDR && type_of(nodes[v].a) == ey {   // a borrow of a plain element, what it points to, as kelvinc's (#716)
+        put("(*")
+        gen_expr(v)
+        put(")")
+        return
+    }
+    let text_lit = nodes[v].kind == N_STR && types[ey].kind == Y_STRING   // text a String of it, as kelvinc's (#716)
+    if vy >= 0 && vy != ey && (is_owner(vy) || is_owner(ey)) && !text_lit {
         var m = $"an element of "                        // in kelvinc's words: Array<T>, and a number's literal a number
         let w:String = kelvin_type_text(y)
         m += &w
@@ -10000,12 +10019,18 @@ let gen_array_method(n:int64, a:int64, y:int64) {
     let b:int64 = nodes[n].b
     if !takes_args(n) { return }
     if !may_change(a) { return }                        // (#271)
+    let ak:int64 = tok_is(t, "append") && b >= 0 && nodes[b].next < 0 ? array_append_kind(y, b) : 0
     put_array_name(y)
     put("_")
     put_tok(t)
+    if ak == 1 { put("_ref") }                          // an Array's elements, as kelvinc's (#716)
+    if ak == 2 { put("_owned") }
     put("(")
     gen_place(a)
-    if tok_is(t, "append") {
+    if ak > 0 {
+        put(", ")
+        gen_expr(b)
+    } else if tok_is(t, "append") {
         put(", ")
         gen_array_add(y, b, "append")
     } else if tok_is(t, "insert") {
@@ -16415,11 +16440,16 @@ let gen_assign(n:int64) {
             put(";\n")
         }
     } else if yk == Y_ARRAY && tok_is(t, "+=") {
+        let ak:int64 = array_append_kind(y, nodes[n].b)
         put_array_name(y)
-        put("_append(")
+        put(ak == 1 ? "_append_ref(" : ak == 2 ? "_append_owned(" : "_append(")   // an Array's elements, as kelvinc's (#716)
         gen_place(lhs)
         put(", ")
-        gen_array_add(y, nodes[n].b, "+=")              // a borrow copied, a place that owns kelvinc's error (#438)
+        if ak > 0 {
+            gen_expr(nodes[n].b)
+        } else {
+            gen_array_add(y, nodes[n].b, "+=")          // a borrow copied, a place that owns kelvinc's error (#438)
+        }
         put(");\n")
     } else if yk == Y_TASK && tok_is(t, "=") {           // the old one awaited and freed, as kelvinc's (#313)
         if is_place(nodes[n].b) {

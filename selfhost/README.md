@@ -1364,6 +1364,17 @@ kc reads what it is written in, and little more.
   - tests/run's semicolons.k, dollar_shortcuts.k, statements.k,
     conditions_edge.k, templates.k and template_storage.k, and
     examples/lambda.k, which kc refused, print what kelvinc's print.
+- **Appends to an Array** (#716), as kelvinc's:
+  - `xs += &ys` and `xs.append(&ys)` of an Array of the same type append
+    its elements, `_append_ref`; such an Array an expression gives is
+    appended and freed, `_append_owned`, as kelvinc's array_append_kind;
+  - `ps += &p` of a plain element appends what it points to, `(*(&p))`,
+    as kelvinc's element_copy;
+  - `ws.append("lit")`, text where a String element goes, is a String of
+    it, `KV_STRING_LIT`;
+  - `xs.capacity`, an i64, the Array's room, `.cap`;
+  - tests/run's array_elem_values.k, array_heap.k, array_owners.k and
+    append_borrow.k, which kc refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

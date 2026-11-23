@@ -13836,3 +13836,20 @@ so that seven more programs print what kelvinc's print.
 Details are provisional P720.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 763. Appends to an Array
+
+**Claude** wrote #715, its battery run and pushed when clean, and
+went on with the eighth batch.
+
+**Claude** found that its push script had left each commit's number
+off since #634, `(#)` where `(#634)` and on should be, the rows of
+Design.md having them; it gave the script the number, and left the
+pushed commits as they are, a fix of them being a force push.
+
+**Claude** made it #716: appends to an Array as kelvinc makes them,
+so that four more programs print what kelvinc's print.
+
+Details are provisional P721.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

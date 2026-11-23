@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #715 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #716 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -120,6 +120,9 @@ known, not what is planned.
   `[[2] = 9]`, `(T){` in a condition as kelvinc tells it, a comma in a
   condition, a method's prototype and `var a = 1, b = 2` of globals, as
   kelvinc's (#715).
+- kc appends to an Array `&ys`'s elements, an Array an expression gives,
+  what `&p` points to and text as a String, and reads `xs.capacity`, as
+  kelvinc's (#716).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -130,15 +133,14 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 455 of the 506 programs
+- kc builds and prints what kelvinc's prints of 459 of the 506 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #715; 30 of the rest need C headers, #inline C or a JS module. Those
+  #716; 30 of the rest need C headers, #inline C or a JS module. Those
   that stop on errors of kc's own, which the user ordered taught in
-  batches after #709, by kind, 21 left:
+  batches after #709, by kind, 17 left:
   - owners in function values: anon_owner_result, method_overload;
   - anonymous functions: anonymous_lines, a list of structs of them;
-  - Arrays: array_elem_values, array_heap, array_literals,
-    array_nested_counts, array_owners, append_borrow, infer_seen,
+  - Arrays: array_literals, array_nested_counts, infer_seen,
     hidden_names;
   - the rest: async_await, enum_json,
     function_type_containers, import_boundary, print_pretty,
@@ -148,7 +150,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P715 to P720, the details of #710 to #715, until reviewed; the reviews confirmed
+- P715 to P721, the details of #710 to #716, until reviewed; the reviews confirmed
   every row to P714, and a review's own detail row is confirmed by that
   review (#675).
 

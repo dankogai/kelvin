@@ -881,3 +881,5 @@ So far the changes from C are these, by topic.
 - kc reads an operator at a line's end, labels and goto, element
   designators, a comma in a condition, a method's prototype and several
   globals in one declaration, as kelvinc does (#715)
+- kc appends an Array's elements, what a borrow points to and text as
+  a String to an Array, and reads its capacity, as kelvinc does (#716)
