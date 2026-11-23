@@ -869,3 +869,5 @@ So far the changes from C are these, by topic.
 - kc keeps a let's const in `typeof(k)`, as kelvinc does (#708)
 - kc reads `x as T ? a : b` as a choice, where it read `T?`, and holds a
   String an expression gives that a search borrows (#710)
+- kc reads `Optional<T>()` and `Optional<T>(v)`, and moves an owner into
+  a `T?` parameter as some of it, as kelvinc does (#711)

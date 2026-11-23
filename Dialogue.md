@@ -13771,3 +13771,16 @@ in TODO.md by kind.
 Details are provisional P715.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 758. kc reads Optional<T>(...)
+
+**Claude** wrote #710, its battery run and pushed when clean, and
+went on with the second batch.
+
+**Claude** made it #711: `Optional<T>()` and `Optional<T>(v)`, and the
+none and the owners around them, as kelvinc reads them, so that four
+more tests print what kelvinc's print.
+
+Details are provisional P716.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

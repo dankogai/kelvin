@@ -1301,6 +1301,16 @@ kc reads what it is written in, and little more.
     msgpack_unpack.k, sion_parse.k, sion_stringify.k,
     sion_subscript.k, temporaries.k and unicode_graphemes.k, which kc
     did not build, print what kelvinc's print.
+- **`Optional<T>()` and `Optional<T>(v)`** (#711), as kelvinc's #222:
+  the typed none and some(v), as `Optional<T>.none` and
+  `Optional<T>.some(v)` are, where kc said "expected '.'"; a choice of
+  one and none is of its type; a typed word fits that type alone among
+  overloads; none in a choice of owners, or given where an owner goes,
+  is no place; and an owner variable moved into a `T?` parameter is
+  some of it, `_kv__kv_opt_String_make_some(kv_string_take(&s))`,
+  where kc took it as the Optional's own.
+  - tests/run's optional_basics.k, optional_args.k, ternary_none.k and
+    coalesce_owner.k, which kc refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

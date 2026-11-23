@@ -2694,8 +2694,9 @@ let type_of(n:int64):int64 {
         return ry >= 0 ? wrap_type(ry) : 0 - 1
     }
     if k == N_COND {                                  // c ? a : b: a's type, or b's where a is a word, as none (#232)
-        if is_case_word(nodes[n].b) { return type_of(nodes[n].c) }
-        return type_of(nodes[n].b)
+        let cb:int64 = nodes[n].b
+        if is_case_word(cb) && nodes[cb].ty < 0 { return type_of(nodes[n].c) }   // a word of its type written, Optional<T>(v), gives it (#711)
+        return type_of(cb)
     }
     let t:int64 = nodes[n].t
     if k == N_NUM && float_tok(t) { return base_type(Y_F64) }      // (#262)
@@ -3521,6 +3522,11 @@ let kelvinc_type_text(y:int64):String {
 }
 
 // the argument a of the parameter p of d; false where it is an error
+// the type of a variable a names, or -1 (#711)
+let var_type_or(a:int64):int64 {
+    return nodes[a].kind == N_ID ? var_type(nodes[a].t) : 0 - 1
+}
+
 let gen_arg_to(a:int64, p:int64, d:int64):bool {
     if lent_param(d, p) && is_owner(type_of(a)) {       // an operand its caller keeps, read where it is (#501)
         gen_expr(a)
@@ -3533,16 +3539,24 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
         put("))")
         return true
     }
-    if is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
+    let wraps = some_type(nodes[p].ty) >= 0 && some_type(nodes[p].ty) == var_type_or(a)   // a T moved into a T?, some of it, as kelvinc's (#711)
+    if is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 && (type_of(a) == nodes[p].ty || wraps) {
         let what = into_words("", nodes[d].c >= 0 && nodes[d].flag != 1 ? "." : "", nodes[d].t)
         if !move_out(a, &what) { return false }          // dead after the call, as kelvinc's (#441)
-        put_owner_prefix(nodes[p].ty)
+        if wraps {
+            put("_kv_")
+            put_tok(types[nodes[p].ty].name)
+            put("_make_some(")
+            put_owner_prefix(type_of(a))
+        } else {
+            put_owner_prefix(nodes[p].ty)
+        }
         put("_take(&")
         put_tok(nodes[a].t)
-        put(")")
+        put(wraps ? "))" : ")")
         return true
     }
-    if is_owner(nodes[p].ty) && is_place(a) {
+    if is_owner(nodes[p].ty) && is_place(a) && !is_case_word(a) {   // none is no place (#711)
         var m = $"an owner moves into "                  // as kelvinc says it (#471)
         let what = into_words("", nodes[d].c >= 0 && nodes[d].flag != 1 ? "." : "", nodes[d].t)
         m += &what
@@ -4640,6 +4654,7 @@ let arg_fit(a:int64, t:int64, wraps:bool):int64 {
     if t < 0 { return 0 }
     let k:nkind = nodes[a].kind
     let tk:ykind = types[t].kind
+    if (k == N_ID || k == N_CALL) && nodes[a].ty >= 0 && is_case_word(a) { return nodes[a].ty == t ? 2 : 0 }   // Optional<T>(), its type written: that type alone (#711)
     if is_word_value(a) {                                // none, ok(v), err(e): of the type that takes them
         let d = tagged_of(t)
         if d < 0 { return c_name(a) ? 1 : 0 }            // a C header's name, INFINITY, which C converts (#550)
@@ -12724,8 +12739,10 @@ let gen_element(n:int64) {
 // has it (#232): two places, or two values expressions give; one of each
 // would free one and not the other
 let owner_choice(n:int64):bool {
-    if !is_owner(type_of(n)) || is_place(nodes[n].b) == is_place(nodes[n].c) { return true }
-    let place:int64 = is_place(nodes[n].b) ? nodes[n].b : nodes[n].c
+    let pb = is_place(nodes[n].b) && !is_case_word(nodes[n].b)   // none is no place, a word (#711)
+    let pc = is_place(nodes[n].c) && !is_case_word(nodes[n].c)
+    if !is_owner(type_of(n)) || pb == pc || is_case_word(nodes[n].b) || is_case_word(nodes[n].c) { return true }
+    let place:int64 = pb ? nodes[n].b : nodes[n].c
     var m = $"this ?: chooses between "                  // the place named, as kelvinc names it
     if nodes[place].kind == N_ID {
         m += "'"

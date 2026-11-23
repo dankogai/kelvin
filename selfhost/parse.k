@@ -2582,6 +2582,28 @@ let parse_primary():int64 {
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
     if k == T_ID && (tok_is(t, "Result") || tok_is(t, "Optional")) && tok_is(t + 1, "<") {   // Result<T, E>.err(e), Optional<T>.none, as kelvinc's #75 (#449)
         let y:int64 = parse_type()
+        if tok_is(t, "Optional") && at_word("(") {       // Optional<T>(), its none, and Optional<T>(v), some(v), as kelvinc's #222 (#711)
+            let open:int64 = advance()
+            if at_word(")") {
+                advance()
+                var w = $"none"
+                let e:int64 = make_node(N_ID, made_token(&w))
+                toks[nodes[e].t].line = toks[open].line
+                toks[nodes[e].t].file = toks[open].file
+                set_ty(e, y)
+                return e
+            }
+            var w = $"some"
+            let sw:int64 = made_token(&w)
+            toks[sw].line = toks[open].line
+            toks[sw].file = toks[open].file
+            let c:int64 = make_node(N_CALL, open)
+            nodes[c].a = make_node(N_ID, sw)
+            set_b(c, parse_expr())
+            expect(")")
+            set_ty(c, y)
+            return c
+        }
         expect(".")
         let w:int64 = advance()
         var n:int64 = make_node(N_ID, w)                 // the case's word, of its own type

@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #710 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #711 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -106,6 +106,9 @@ known, not what is planned.
 - kc reads `x as T ? a : b` as a choice, as kelvinc's, where it read
   `T?`, and holds `&$"b"` given to a search, so that SION.k and the
   tests that import it build (#710).
+- kc reads `Optional<T>()` and `Optional<T>(v)`, a typed none and
+  some(v), and moves an owner into a `T?` parameter as some of it, as
+  kelvinc's (#711).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -116,13 +119,14 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 430 of the 506 programs
-  of tests/run and examples, quine.k as run.sh compares it, as of #710;
-  34 of the rest need C headers, #inline C or a JS module. The 42 that
-  stop on errors of kc's own, which the user ordered taught in batches
-  after #709, by kind:
-  - `T?`'s words and Optional calls, `expected '.', found '('`:
-    anon_optional_result, optional_args, optional_basics, ternary_none;
+- kc builds and prints what kelvinc's prints of 434 of the 506 programs
+  of tests/run and examples, the quines as run.sh compares them, as of
+  #711; 34 of the rest need C headers, #inline C or a JS module. Those
+  that stop on errors of kc's own, which the user ordered taught in
+  batches after #709, by kind, 38 left:
+  - an Optional's and a Result's `.map`, `.flatMap` and `.mapErr`,
+    which kc does not make: anon_optional_result, variant_map,
+    variant_flat_map;
   - owners in function values: anon_owner_result, method_overload;
   - forms of statements: anonymous_lines, conditions_edge, semicolons,
     statements, dollar_shortcuts, examples/lambda;
@@ -133,15 +137,15 @@ known, not what is planned.
     hidden_names;
   - a case that falls through: switch_cases, duff_fallthrough,
     examples/bfc and bfi;
-  - the rest: async_await, coalesce_owner, enum_json,
+  - the rest: async_await, enum_json,
     function_type_containers, import_boundary, print_pretty,
     print_pretty_width, properties_lifetime, restrict_pointers,
-    self_call, variant_flat_map, variant_map, void_result.
+    self_call, void_result.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P715, the details of #710, until reviewed; the reviews confirmed
+- P715 and P716, the details of #710 and #711, until reviewed; the reviews confirmed
   every row to P714, and a review's own detail row is confirmed by that
   review (#675).
 
