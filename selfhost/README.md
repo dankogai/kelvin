@@ -1392,6 +1392,25 @@ kc reads what it is written in, and little more.
     inferred an i64;
   - tests/run's array_literals.k, array_nested_counts.k and
     infer_seen.k, which kc refused, print what kelvinc's print.
+- **`.pretty(n)`, `cstr restrict`, `$(...)` of a static function, an
+  anonymous function's `:()`** (#718), as kelvinc's:
+  - `v.pretty(n)`, n a literal of 0 to 10 or an integer
+    `kv_out_width` clamps, a new String, in println and anywhere a
+    value goes, as a template's was already, pretty_width_ok and
+    gen_pretty_string; another value in kelvinc's words, text, its type
+    or not one, and a second argument kelvinc's parser's error at its
+    comma;
+  - `cstr restrict`, a cstr type of name 2, `const uint8_t *restrict`,
+    its typename `cstr restrict`; type_of_kind tells cstr types by
+    their name;
+  - `$(...)` in a `static let` of a type, a call of `T.f(...)`, where
+    only a method with a self is kelvinc's error;
+  - `{ (n:i64):() in ... }`, no result, as `(i64):()` written, the
+    type kelvinc spells `(i64)`;
+  - tests/run's print_pretty_width.k, restrict_pointers.k and
+    void_result.k, which kc refused, print what kelvinc's print;
+    self_call.k goes on to `$(...)` in an anonymous function, of the
+    group of anonymous functions.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

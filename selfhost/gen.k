@@ -542,7 +542,7 @@ let put_ctype(y:int64) {
     case Y_F64: put("double")
     case Y_F32: put("float")
     case Y_BOOL: put("bool")
-    case Y_CSTR: put("const uint8_t *")
+    case Y_CSTR: put(types[y].name == 2 ? "const uint8_t *restrict" : "const uint8_t *")   // cstr restrict (#718)
     case Y_STRING: put("kv_string")
     case Y_BYTES: put("kv_bytes")                                // (#439)
     case Y_IO: put("kv_io")
@@ -2797,6 +2797,7 @@ let type_of(n:int64):int64 {
         return 0 - 1
     }
     if k == N_COMMA { return 0 - 1 }                     // what only C sees, as kelvinc has a comma's value (#652)
+    if k == N_METHOD && pretty_value(n) { return base_type(Y_STRING) }   // v.pretty(n), a new String (#718)
     if k == N_FIELD && comma_cstr(n) { return base_type(Y_CSTR) }
     if k == N_CHAIN { return chain_type(n) }
     if k == N_METHOD && with_key_misused(n) { return 0 - 1 }   // xs.mapWithKey, as kelvinc says it
@@ -4257,7 +4258,7 @@ let mangled(y:int64):String {
     case Y_F64: return $"f64"
     case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
-    case Y_CSTR: return $"cstr"
+    case Y_CSTR: return types[y].name == 2 ? $"cstr restrict" : $"cstr"
     case Y_STRING: return $"String"
     case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
@@ -6616,12 +6617,12 @@ let gen_print_args_to(first:int64, sink:cstr) {
             gen_error(a, m.cstr)
             return
         }
-        let pr:int64 = nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "pretty") ? type_of(nodes[a].a) : 0 - 1
+        let pr:int64 = (nodes[a].kind == N_FIELD || pretty_width_ok(a)) && tok_is(nodes[a].t, "pretty") ? type_of(nodes[a].a) : 0 - 1
         if pr >= 0 && pretty_value(a) && fixed_shown(pr) && fixed_ok(pr, nodes[a].a) {   // a fixed array's, indented (#693)
             var target = $".fp = "
             target += sink
             put("({ ")
-            put_fixed_top(nodes[a].a, pr, target.cstr, 0 - 1, "0")
+            put_fixed_top(nodes[a].a, pr, target.cstr, nodes[a].kind == N_METHOD ? nodes[a].b : 0 - 1, "0")
             put("(const uint8_t *)\"\"; })")
         } else if pr >= 0 && pretty_value(a) && !fixed_shown(pr) && need_show(pr, a) {   // v.pretty where print shows it, written in place (#336, #337); of any printed value (#452)
             put("({ __auto_type _kv_sv = (")
@@ -6630,7 +6631,9 @@ let gen_print_args_to(first:int64, sink:cstr) {
             put_show_name(pr)
             put("(&(kv_out){.fp = ")
             put(sink)
-            put(", .width = 2}, &_kv_sv, 0); (const uint8_t *)\"\"; })")
+            put(", .width = ")
+            put_pretty_width(a)                         // v.pretty(n)'s n (#718)
+            put("}, &_kv_sv, 0); (const uint8_t *)\"\"; })")
         } else if !is_case_word(a) && shown_by_type(y) && need_show(y, a) {
             put("({ __auto_type _kv_sv = (")
             gen_expr(a)
@@ -6812,8 +6815,58 @@ let gen_try(n:int64, value:bool) {
 // whether n is v.pretty of what print shows by a printer, its text
 // indented, as kelvinc's #124: a Set, a Dictionary, an Array, a Range,
 // a struct with no member of that name, an enum with values with no case
+// whether n is v.pretty(w) of one argument w kelvinc takes: a literal of
+// 0 to 10, or an integer it clamps (#127, #718)
+let pretty_width_ok(n:int64):bool {
+    if nodes[n].kind != N_METHOD || !tok_is(nodes[n].t, "pretty") { return false }
+    let w:int64 = nodes[n].b
+    if w < 0 || nodes[w].next >= 0 || nodes[w].kind == N_STR { return false }
+    if nodes[w].kind == N_NUM {
+        if float_tok(nodes[w].t) { return false }
+        let v:int64 = tok_count(nodes[w].t)
+        return v >= 0 && v <= 10
+    }
+    let wy:int64 = type_of(w)
+    return wy >= 0 && is_int_kind(types[wy].kind)
+}
+
+// the spaces a level of v.pretty, 2, or v.pretty(w)'s w: a literal as it
+// is, a value clamped by kv_out_width, as kelvinc's pretty_width (#718)
+let put_pretty_width(n:int64) {
+    if nodes[n].kind != N_METHOD {
+        put("2")
+    } else if nodes[nodes[n].b].kind == N_NUM {
+        gen_expr(nodes[n].b)
+    } else {
+        put("kv_out_width(")
+        gen_expr(nodes[n].b)
+        put(")")
+    }
+}
+
+// v.pretty and v.pretty(w), n, of a of type y: its text indented, a new
+// String; a fixed array's by put_fixed_top (#693), the width w's (#718)
+let gen_pretty_string(n:int64, a:int64, y:int64) {
+    let wn:int64 = nodes[n].kind == N_METHOD ? nodes[n].b : 0 - 1
+    if fixed_shown(y) {
+        if !fixed_ok(y, a) { return }
+        put("({ kv_string _kv_ps = kv_string_new(); ")
+        put_fixed_top(a, y, ".s = &_kv_ps", wn, "0")
+        put("_kv_ps; })")
+        return
+    }
+    if !need_show(y, n) { return }
+    put("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (")
+    gen_expr(a)
+    put("); ")
+    put_show_name(y)
+    put("(&(kv_out){.s = &_kv_ps, .width = ")
+    put_pretty_width(n)
+    put("}, &_kv_sv, 0); _kv_ps; })")
+}
+
 let pretty_value(n:int64):bool {
-    if nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "pretty") || tagged_named(nodes[n].a) >= 0 { return false }
+    if (nodes[n].kind != N_FIELD && !pretty_width_ok(n)) || !tok_is(nodes[n].t, "pretty") || tagged_named(nodes[n].a) >= 0 { return false }
     let y:int64 = type_of(nodes[n].a)
     if fixed_shown(y) { return shown_count_of(y, nodes[n].a) >= 0 }   // a fixed array's, as kelvinc's #481; a parameter's [T] a pointer (#693)
     if y < 0 || !shown_by_type(y) { return false }
@@ -9780,18 +9833,8 @@ let gen_member(n:int64) {
         put(tok_is(t, "count") ? ").count)" : ").cap)")     // a Bytes's room (#439)
     } else if yk == Y_SET && tok_is(t, "elements") {     // s.elements (#278): an Array of copies, in the order added
         gen_slots_array(a, y, types[y].elem, false)
-    } else if pretty_value(n) && fixed_shown(y) {        // a fixed array's, indented, a new String (#693)
-        if !fixed_ok(y, a) { return }
-        put("({ kv_string _kv_ps = kv_string_new(); ")
-        put_fixed_top(a, y, ".s = &_kv_ps", 0 - 1, "0")
-        put("_kv_ps; })")
     } else if pretty_value(n) {                         // v.pretty (#336, #337), as kelvinc's #124: its text indented, a new String; of any printed value (#452)
-        if !need_show(y, n) { return }
-        put("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (")
-        gen_expr(a)
-        put("); ")
-        put_show_name(y)
-        put("(&(kv_out){.s = &_kv_ps, .width = 2}, &_kv_sv, 0); _kv_ps; })")
+        gen_pretty_string(n, a, y)
     } else if yk == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values")) {   // d.keys, d.values (#285)
         gen_slots_array(a, y, tok_is(t, "keys") ? types[y].name : types[y].elem, tok_is(t, "values"))
     } else if yk == Y_IO && tok_is(t, "string") {        // f.string, a Result: err where its UTF-8 breaks (#406)
@@ -10916,18 +10959,40 @@ let gen_method_of(n:int64) {
         m += tok_text(t)
         m += "': see documents/io.md for write, print, println, flush, close, read(n), seek(n), rewind, kill, glob, chmod, chown, truncate, remove, rename, utime, touch and join, and its properties; it is not copied"
         gen_error(n, m.cstr)
+    } else if pretty_value(n) {                         // v.pretty(n) (#718)
+        gen_pretty_string(n, a, y)
     } else if tok_is(t, "pretty") && (yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET || yk == Y_STRUCT || yk == Y_FIXED) {   // .pretty(n), as kelvinc says it
         let w:int64 = nodes[n].b
         if w < 0 {
             tok_error(nodes[n].t + 2, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10; two is '.pretty'")
         } else if nodes[w].kind == N_STR {
             gen_error(w, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10, and this is text")
-        } else if nodes[w].kind == N_NUM {
+        } else if nodes[w].next >= 0 {                   // a second, at its comma, as kelvinc's parser says it (#718)
+            var c:int64 = nodes[w].t
+            var depth:int64 = 0
+            while c < eof_pos && !(depth == 0 && tok_is(c, ",")) {
+                if tok_is(c, "(") || tok_is(c, "[") || tok_is(c, "{") { depth += 1 }
+                if tok_is(c, ")") || tok_is(c, "]") || tok_is(c, "}") { depth -= 1 }
+                c += 1
+            }
+            tok_error(c, "expected ')', found ','")
+        } else if nodes[w].kind == N_NUM && !float_tok(nodes[w].t) {
             var m = $"'.pretty(n)' indents 0 to 10 spaces a level, as JSON.stringify's space does, and this is "
             m += tok_text(nodes[w].t)
             gen_error(w, m.cstr)
-        } else {
-            gen_error(n, "this method is not known")
+        } else {                                         // what is no integer, in kelvinc's words (#718)
+            let wy:int64 = nodes[w].kind == N_NUM || nodes[w].kind == N_BOOL ? 0 - 1 : type_of(w)
+            if failed { return }
+            var m = $"'.pretty(n)' takes the spaces a level, an integer from 0 to 10, and this is "
+            if wy >= 0 && types[wy].kind == Y_CSTR {
+                m += "text"
+            } else if wy >= 0 {
+                let ww:String = kelvin_type_text(wy)
+                m += &ww
+            } else {
+                m += "not one"
+            }
+            gen_error(w, m.cstr)
         }
     } else if number_word(t) >= 0 && nodes[n].b >= 0 {   // s.i64(16), as kelvinc says it
         let w:String = short_number(t)
@@ -14689,7 +14754,7 @@ let type_text(y:int64):String {
     case Y_F64: return $"f64"
     case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
-    case Y_CSTR: return $"cstr"
+    case Y_CSTR: return types[y].name == 2 ? $"cstr restrict" : $"cstr"
     case Y_STRING: return $"String"
     case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"

@@ -13869,3 +13869,17 @@ listed in TODO.md.
 Details are provisional P722.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 765. Four readings of kelvinc's
+
+**Claude** wrote #717, its battery run and pushed when clean, and
+went on with the tenth batch.
+
+**Claude** made it #718: .pretty(n), cstr restrict, $(...) in a
+function of a type and an anonymous function's :(), so that three more
+programs print what kelvinc's print; self_call, which goes on to
+$(...) in an anonymous function, went to that group.
+
+Details are provisional P723.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

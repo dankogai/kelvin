@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #717 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #718 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -126,6 +126,8 @@ known, not what is planned.
 - kc reads `let s:[u8] = "hi"`, `[[T]]` of rows, `let ap := arr` of an
   array and infers C's `size_t` from sizeof, `.size`, `.align` and a
   count, as kelvinc's (#717).
+- kc reads `v.pretty(n)`, `cstr restrict`, `$(...)` in a function of a
+  type and an anonymous function's `:()`, as kelvinc's (#718).
 - Found while #717 was made, not changed:
   - kc writes a let's local array without C's `const`, `int32_t a[2]`,
     where kelvinc writes `const int32_t a[2]`; kc's own checks keep it
@@ -143,23 +145,22 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 462 of the 506 programs
+- kc builds and prints what kelvinc's prints of 465 of the 506 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #717; 30 of the rest need C headers, #inline C or a JS module. Those
+  #718; 30 of the rest need C headers, #inline C or a JS module. Those
   that stop on errors of kc's own, which the user ordered taught in
-  batches after #709, by kind, 14 left:
+  batches after #709, by kind, 11 left:
   - owners in function values: anon_owner_result, method_overload;
   - anonymous functions: anonymous_lines, a list of structs of them;
-    hidden_names, one in a top-level struct's count;
-  - the rest: async_await, enum_json,
-    function_type_containers, import_boundary, print_pretty,
-    print_pretty_width, properties_lifetime, restrict_pointers,
-    self_call, void_result.
+    hidden_names, one in a top-level struct's count; self_call, `$(...)`
+    in one;
+  - the rest: async_await, enum_json, function_type_containers,
+    import_boundary, print_pretty, properties_lifetime.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P715 to P722, the details of #710 to #717, until reviewed; the reviews confirmed
+- P715 to P723, the details of #710 to #718, until reviewed; the reviews confirmed
   every row to P714, and a review's own detail row is confirmed by that
   review (#675).
 

@@ -885,3 +885,5 @@ So far the changes from C are these, by topic.
   a String to an Array, and reads its capacity, as kelvinc does (#716)
 - kc reads text in a `[u8]`, `[[T]]` of rows and `:=` of an array, and
   infers C's `size_t` of sizes and counts, as kelvinc does (#717)
+- kc reads `v.pretty(n)`, `cstr restrict`, `$(...)` in a function of a
+  type and an anonymous function's `:()`, as kelvinc does (#718)

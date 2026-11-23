@@ -233,7 +233,7 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
         if y.kind == kind && y.elem == elem && y.konst == 0 {
             if kind == Y_STRUCT {
                 if same_text(y.name, name) { return i }
-            } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED || kind == Y_TYPEOF || kind == Y_FN || kind == Y_PARAM {
+            } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED || kind == Y_TYPEOF || kind == Y_FN || kind == Y_PARAM || kind == Y_CSTR {
                 if y.name == name { return i }   // a pointer's name 1 where what it points to is const (#272); a fixed array's count (#354)
             } else {
                 return i
@@ -1057,7 +1057,7 @@ let type_word(y:int64):String {
     case Y_F64: return $"f64"
     case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
-    case Y_CSTR: return $"cstr"
+    case Y_CSTR: return types[y].name == 2 ? $"cstr restrict" : $"cstr"
     case Y_STRING: return $"String"
     case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
@@ -1703,6 +1703,10 @@ let type_suffixes(y0:int64):int64 {
             }
         }
     }
+    if types[y].kind == Y_CSTR && at_word("restrict") {   // cstr restrict, a pointer in C, as kelvinc's (#718)
+        advance()
+        y = type_of_kind(Y_CSTR, -1, 2)
+    }
     refuse_restrict()
     return y
 }
@@ -2283,7 +2287,12 @@ let parse_anon():int64 {
         expect(")")
         if at_word(":") {
             advance()
-            set_ty(n, parse_type())
+            if at_word("(") && tok_is(pos + 1, ")") && !tok_is(pos + 2, ":") {   // :(), no result, as a function type's (#141, #718)
+                advance()
+                advance()
+            } else {
+                set_ty(n, parse_type())
+            }
         }
         anon_head -= 1
         anon_head_from = saved_from
@@ -2590,6 +2599,8 @@ let take_trailing(n:int64) {
 
 // e.t(a...) from its '(': a method call, a function trailing it the last
 // argument; of e, or of self where .t(a) is written (#444)
+var static_parsing = false                       // a function of a type, static let, is parsed (#718)
+
 let parse_method_call(e:int64, t:int64):int64 {
     advance()
     let n:int64 = make_node(N_METHOD, t)
@@ -3024,7 +3035,7 @@ let parse_primary():int64 {
         return make_node(N_NUM, t)
     }
     if k == T_PUNCT && tok_is(t, "$") && tok_is(pos + 1, "(") && adjacent(pos, pos + 1) && fn_parsing >= 0 {   // $(...), the function being written (#181), as kelvinc reads it
-        if self_name >= 0 {
+        if self_name >= 0 && !static_parsing {
             var m = $"'$(...)' calls the function around it, and this is a method of "
             m += tok_text(self_name)
             m += ": write 'self."
@@ -3034,10 +3045,15 @@ let parse_primary():int64 {
             return make_node(N_NUM, t)
         }
         advance()
-        let ct:int64 = advance()
-        let call:int64 = make_node(N_CALL, ct)
-        nodes[call].a = make_node(N_ID, nodes[fn_parsing].t)
-        set_b(call, parse_args())                        // its ) too
+        var call:int64 = 0 - 1
+        if self_name >= 0 {                              // a function of the type, T.f(...), as kelvinc's (#718)
+            call = parse_method_call(make_node(N_ID, self_name), nodes[fn_parsing].t)
+        } else {
+            let ct:int64 = advance()
+            call = make_node(N_CALL, ct)
+            nodes[call].a = make_node(N_ID, nodes[fn_parsing].t)
+            set_b(call, parse_args())                    // its ) too
+        }
         var given:int64 = 0
         var a:int64 = nodes[call].b
         while a >= 0 {
@@ -5588,7 +5604,9 @@ let parse_extend() {
         }
         if is_static == 1 && builtin_static(recv, false) { return }   // (#611)
         if is_static == 1 && static_clash(recv, pos, static_named(recv, pos), false) { return }   // (#595)
+        static_parsing = is_static == 1                  // $(...) of it a call of it (#718)
         let n:int64 = parse_function()
+        static_parsing = false
         nodes[n].c = recv
         nodes[n].flag = is_static
         if inl { inline_fns += n }
