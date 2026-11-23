@@ -867,3 +867,5 @@ So far the changes from C are these, by topic.
 - kc writes a record's `.cstr` and its text in a template as kelvinc
   does, an Array member `[...]`, to its own longest (#707)
 - kc keeps a let's const in `typeof(k)`, as kelvinc does (#708)
+- kc reads `x as T ? a : b` as a choice, where it read `T?`, and holds a
+  String an expression gives that a search borrows (#710)

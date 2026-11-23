@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #709 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #710 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -103,6 +103,9 @@ known, not what is planned.
   longest, for `.cstr` and a template, an Array member `[...]` (#707).
 - kc keeps a let's const in `typeof(k)`, `const i64`, as kelvinc's
   (#708).
+- kc reads `x as T ? a : b` as a choice, as kelvinc's, where it read
+  `T?`, and holds `&$"b"` given to a search, so that SION.k and the
+  tests that import it build (#710).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -113,16 +116,34 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 419 of the 504 programs
-  of tests/run and examples; 36 of the rest need C headers, #inline C
-  or a JS module, and 49 stop on errors of kc's own, not listed one by
-  one.
+- kc builds and prints what kelvinc's prints of 430 of the 506 programs
+  of tests/run and examples, quine.k as run.sh compares it, as of #710;
+  34 of the rest need C headers, #inline C or a JS module. The 42 that
+  stop on errors of kc's own, which the user ordered taught in batches
+  after #709, by kind:
+  - `T?`'s words and Optional calls, `expected '.', found '('`:
+    anon_optional_result, optional_args, optional_basics, ternary_none;
+  - owners in function values: anon_owner_result, method_overload;
+  - forms of statements: anonymous_lines, conditions_edge, semicolons,
+    statements, dollar_shortcuts, examples/lambda;
+  - a Bytes: base64 and string_escape_edges (`.toBase64()`), slices and
+    slice_range (a Bytes's slice), bytes_concat;
+  - Arrays: array_elem_values, array_heap, array_literals,
+    array_nested_counts, array_owners, append_borrow, infer_seen,
+    hidden_names;
+  - a case that falls through: switch_cases, duff_fallthrough,
+    examples/bfc and bfi;
+  - the rest: async_await, coalesce_owner, enum_json,
+    function_type_containers, import_boundary, print_pretty,
+    print_pretty_width, properties_lifetime, restrict_pointers,
+    self_call, variant_flat_map, variant_map, void_result.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P714, and a review's own
-  detail row is confirmed by that review (#675).
+- P715, the details of #710, until reviewed; the reviews confirmed
+  every row to P714, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

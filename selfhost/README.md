@@ -1290,6 +1290,17 @@ kc reads what it is written in, and little more.
   as [const T](N) is, which put_ctype writes `const int64_t` and
   type_text names `const i64`; tests/run/typeof.k prints what kelvinc's
   prints.
+- **`x as T ? a : b` a choice, and `&$"b"` held** (#710): the type of
+  `x as T` or `x:T` takes no `?` of its own, as kelvinc's TYPE_AS, so
+  that `i < .array.count as i64 ? .array[i].copy() : Self.nil`, of
+  modules/SION.k, is a choice, where kc read `i64?`, by type_depth and
+  cast_depth; and a borrow a search takes of a String an expression
+  gives, `$"abc".has(&$"b")`, is held and freed after, as kelvinc's,
+  where C refused the address of a call.
+  - tests/run's hex_exponent_sign.k, json_eq.k, msgpack_pack.k,
+    msgpack_unpack.k, sion_parse.k, sion_stringify.k,
+    sion_subscript.k, temporaries.k and unicode_graphemes.k, which kc
+    did not build, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -13754,3 +13754,20 @@ row, confirmed by #709.
 Details are P714, confirmed by #709 itself.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 757. A cast's ? a choice's; a borrow held
+
+**Claude** wrote #709, its battery run and pushed when clean, and
+asked which of what is left, and whether to push.
+
+**User:** kc's 49 unlisted failures (recommended); push each when
+clean (recommended)
+
+**Claude** found six of them stopping in modules/SION.k, at a cast
+before a ?, and made the first batch #710: the cast's ? a choice's, as
+kelvinc reads it, and a borrowed String held, with the 42 left listed
+in TODO.md by kind.
+
+Details are provisional P715.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

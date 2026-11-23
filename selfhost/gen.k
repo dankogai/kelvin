@@ -6936,6 +6936,9 @@ let gen_string_method(n:int64, a:int64, y:int64) {
     }
     if tok_is(t, "append") && x >= 0 && bytes_ref_appended(x) { return }   // (#611)
     if search {
+        let xa:int64 = x >= 0 && nodes[x].kind == N_ADDR ? nodes[x].a : 0 - 1
+        let hx = xa >= 0 && needs_hold(xa) && held.get(xa, 0 - 1) < 0   // &$"b", a String an expression gives, held and freed after, as kelvinc's (#710)
+        if hx { hold_open(xa) }
         put("KV_STRING_TEXT_OR_REF(")
         put_tok(t)
         put(", ")
@@ -6943,6 +6946,7 @@ let gen_string_method(n:int64, a:int64, y:int64) {
         put(", ")
         gen_expr(x)
         put(")")
+        if hx { hold_close(xa) }
     } else if tok_is(t, "append") {
         put("KV_STRING_APPEND(")
         gen_place(a)

@@ -1450,9 +1450,14 @@ let c_order_error(from:int64) {
 }
 
 // a type, and C's T[N] after it, kelvinc's error (#652)
+var type_depth:int64 = 0      // the types being read, one inside another (#710)
+var cast_depth:int64 = 0 - 1  // the depth of a type of x as T or x:T, whose own ? is no Optional's (#710)
+
 let parse_type():int64 {
     let from:int64 = pos
+    type_depth += 1
     let y:int64 = parse_type_core()
+    type_depth -= 1
     if at_word("[") && !failed {
         if tok_is(from, "(") && types[y].kind == Y_FN {
             parse_error("an array of functions is written [T](N), as any array: [(i64):i64](4) (#403)")
@@ -1624,7 +1629,8 @@ let anon_record_type(first:int64, is_union:bool, is_enum:bool, open:int64):int64
 // the suffixes after a type: T^, T?, T?? (#217, #229), T^ restrict (#393)
 let type_suffixes(y0:int64):int64 {
     var y:int64 = y0
-    while at_word("^") || at_word("?") || at_word("??") {
+    let cast_type = type_depth == cast_depth             // x as T ? a : b: the ? a choice's, as kelvinc's TYPE_AS (#710)
+    while at_word("^") || ((at_word("?") || at_word("??")) && !cast_type) {
         if at_word("??") {                       // T??, which lexes as ?? (#229)
             y = optional_of(optional_of(y))
             advance()
@@ -3214,7 +3220,10 @@ let parse_cast():int64 {
         let t:int64 = advance()
         let n:int64 = make_node(N_CAST, t)
         nodes[n].a = e
+        let saved_cast:int64 = cast_depth
+        cast_depth = type_depth + 1
         set_ty(n, parse_type())
+        cast_depth = saved_cast
         e = n
         if tok_is(t, "as") && at_word("*") && (tok_is(pos + 1, ";") || tok_is(pos + 1, ":") || tok_is(pos + 1, ")") || tok_is(pos + 1, ",") || tok_is(pos + 1, "]") || toks[pos + 1].kind == T_NL || toks[pos + 1].kind == T_EOF) {
             parse_error("pointer types are written with a postfix '^', as in 'i32^'")   // x as T*, as kelvinc says it
