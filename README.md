@@ -875,3 +875,6 @@ So far the changes from C are these, by topic.
   `.mapErr` as kelvinc does (#712)
 - kc makes a Bytes's Base64, `b.toBase64()` and `Bytes.fromBase64(s)`,
   its slice and `b + c`, as kelvinc does (#713)
+- kc takes an empty last case, a let pointer parameter's element set,
+  `IO.strerror`, and `(T){...}` of an enum with values, as kelvinc does
+  (#714)

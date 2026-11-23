@@ -13810,3 +13810,16 @@ kelvinc's print.
 Details are provisional P718.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 761. A switch's last case and its kin
+
+**Claude** wrote #713, its battery run and pushed when clean, and
+went on with the sixth batch.
+
+**Claude** made it #714: an empty last case, a pointer parameter's
+element, IO.strerror and an enum's compound literal, as kelvinc reads
+them, so that six more programs print what kelvinc's print.
+
+Details are provisional P719.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

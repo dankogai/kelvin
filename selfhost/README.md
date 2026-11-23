@@ -1336,6 +1336,18 @@ kc reads what it is written in, and little more.
   - tests/run's base64.k, string_escape_edges.k, slices.k,
     slice_range.k and bytes_concat.k, which kc refused, print what
     kelvinc's print, and run clean under ASan and UBSan.
+- **A switch's empty last case, a pointer's element, IO.strerror, an
+  enum's compound literal** (#714), as kelvinc's: a case with no body
+  is kelvinc's error only where another case follows it, so `default:`
+  may end a switch empty; `p[i] = v` through a let parameter `p:u8^`
+  changes what p points to, not p, C's to judge of a const one, as
+  kelvinc leaves it, where kc said p is a let; `IO.strerror(code)`, a
+  String of kv_os_strerror, as OS.strerror; and `(shape){.rect = {2.0,
+  3.0}}`, an enum with values' compound literal, its braces written as
+  a value of the type, where kc read (shape) then a block.
+  - tests/run's switch_cases.k, duff_fallthrough.k and io_isatty.k,
+    and examples/bfc.k, bfi.k and results.k, which kc refused, print
+    what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

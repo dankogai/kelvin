@@ -758,7 +758,7 @@ let literal_type(t:int64):bool {
     if tok_is(t, "Self") { return self_name >= 0 }
     let u:int64 = scoped_type(t)
     for d in nodes {
-        if d.kind == D_STRUCT && same_text(d.t, u) { return true }
+        if (d.kind == D_STRUCT || (d.kind == D_ENUM && d.flag == 1)) && same_text(d.t, u) { return true }   // an enum with values' too, (shape){.rect = ...} (#714)
     }
     return far_record(t, false)                          // one of a file imported (#550)
 }
@@ -3679,7 +3679,7 @@ let parse_switch_body():int64 {
             while nodes[lasts].next >= 0 { lasts = nodes[lasts].next }   // (#458)
             skip_newlines()
         }
-        if lasts < 0 { parse_error("a case ends at the next case, and the one before this has no body: write 'case a, b:' to share a body, or 'break' to do nothing") }   // as kelvinc says it
+        if lasts < 0 && !at_word("}") { parse_error("a case ends at the next case, and the one before this has no body: write 'case a, b:' to share a body, or 'break' to do nothing") }   // as kelvinc says it, of one another case follows: the last may be empty, default: (#714)
         if last < 0 {
             nodes[n].b = c
         } else {

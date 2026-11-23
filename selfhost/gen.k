@@ -3193,6 +3193,7 @@ let type_of(n:int64):int64 {
             let g = $"pipe"
             return os_struct(&g)
         }
+        if nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "IO") && tok_is(t, "strerror") { return base_type(Y_STRING) }   // IO.strerror(code), OS.strerror's, as kelvinc's #103 (#714)
         if nodes[nodes[n].a].kind == N_TYPE { return base_type(Y_IO) }       // IO.exec(args, mode)
         let f:int64 = method_of(n)
         if f >= 0 { return nodes[f].ty }                                     // (#213)
@@ -10549,6 +10550,16 @@ let gen_method_of(n:int64) {
         put("))")
         return
     }
+    if nodes[a].kind == N_TYPE && tok_is(nodes[a].t, "IO") && tok_is(t, "strerror") {   // IO.strerror(code), as OS.strerror, as kelvinc writes it (#103, #714)
+        if nodes[n].b < 0 || nodes[nodes[n].b].next >= 0 {
+            gen_error(n, "IO.strerror takes an err, an integer, as in IO.strerror(r.err)")
+            return
+        }
+        put("kv_os_strerror(")
+        gen_expr(nodes[n].b)
+        put(")")
+        return
+    }
     if nodes[a].kind == N_TYPE && tok_is(t, "pipe") {                 // IO.pipe() (#464), as kelvinc writes it: its two ends filled
         if nodes[n].b >= 0 {
             gen_error(nodes[n].a, "IO.pipe takes nothing, and gives {reader: IO, writer: IO}")
@@ -14396,6 +14407,11 @@ let gen_expr_of(n:int64) {
         put("){")
         gen_expr(nodes[n].b)
         put("})")
+    } else if k == N_INIT && nodes[n].ty >= 0 && tagged_of(nodes[n].ty) >= 0 {   // (shape){.rect = {2.0, 3.0}}: its braces as a value of the type, as kelvinc's (#714)
+        let ty:int64 = nodes[n].ty
+        nodes[n].ty = 0 - 1
+        gen_value(n, ty)
+        nodes[n].ty = ty
     } else if k == N_INIT && nodes[n].ty >= 0 && (types[nodes[n].ty].kind == Y_TYPEOF || types[nodes[n].ty].kind == Y_C || (types[nodes[n].ty].kind == Y_STRUCT && struct_of(nodes[n].ty) < 0 && tagged_of(nodes[n].ty) < 0 && !enum_int(nodes[n].ty))) {
         put("((")                                        // (errno.type){7}, (const errno.type){6}, of what only C sees, as kelvinc writes it (#696)
         put_ctype(nodes[n].ty)
@@ -15531,6 +15547,7 @@ let may_change(n:int64):bool {
         if nodes[e].kind == N_INDEX {
             let ay:int64 = type_of(nodes[e].a)
             if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].name == 0 - 2 { return true }
+            if ay >= 0 && types[ay].kind == Y_PTR { return true }   // p[i] of a pointer: what it points to, not the pointer, C's to judge of a const one, as kelvinc leaves it (#714)
             if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].konst == 1 {   // (#425)
                 var m = $"this changes an element of a "
                 let w:String = type_text(ay)

@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #713 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #714 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -113,6 +113,9 @@ known, not what is planned.
   `.mapErr`, as kelvinc's #80 and #81 (#712).
 - kc makes a Bytes's `.toBase64()`, `Bytes.fromBase64(text)`, its slice
   `b[lo..<hi]` and `b + c`, as kelvinc's (#713).
+- kc takes an empty last case, `default:`, `p[i] = v` through a let
+  pointer parameter, `IO.strerror(code)` and `(shape){.rect = ...}` of
+  an enum with values, as kelvinc's (#714).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -123,19 +126,17 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 442 of the 506 programs
+- kc builds and prints what kelvinc's prints of 448 of the 506 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #713; 34 of the rest need C headers, #inline C or a JS module. Those
+  #714; 32 of the rest need C headers, #inline C or a JS module. Those
   that stop on errors of kc's own, which the user ordered taught in
-  batches after #709, by kind, 30 left:
+  batches after #709, by kind, 26 left:
   - owners in function values: anon_owner_result, method_overload;
   - forms of statements: anonymous_lines, conditions_edge, semicolons,
     statements, dollar_shortcuts, examples/lambda;
   - Arrays: array_elem_values, array_heap, array_literals,
     array_nested_counts, array_owners, append_borrow, infer_seen,
     hidden_names;
-  - a case that falls through: switch_cases, duff_fallthrough,
-    examples/bfc and bfi;
   - the rest: async_await, enum_json,
     function_type_containers, import_boundary, print_pretty,
     print_pretty_width, properties_lifetime, restrict_pointers,
@@ -144,7 +145,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P715 to P718, the details of #710 to #713, until reviewed; the reviews confirmed
+- P715 to P719, the details of #710 to #714, until reviewed; the reviews confirmed
   every row to P714, and a review's own detail row is confirmed by that
   review (#675).
 
