@@ -13647,3 +13647,15 @@ kelvinc's words at its place, with two tests of tests/error.
 Details are provisional P707.
 
 There are 1567 tests, and all pass with clang and with gcc 15.
+
+### 750. kc reads rows of a computed count
+
+**Claude** wrote #702, its battery run and pushed when clean, and
+went on with the thirteenth batch.
+
+**Claude** made it #703: a parameter's array of arrays whose inner
+count C computes, as kelvinc writes it, with a test of it.
+
+Details are provisional P708.
+
+There are 1568 tests, and all pass with clang and with gcc 15.

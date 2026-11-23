@@ -566,7 +566,7 @@ let put_ctype(y:int64) {
         if ptr_restrict(y) { put("restrict") }          // T^ restrict (#393)
     case Y_ARGV: put("char **")
     case Y_FIXED:                                                // a fixed array is declared by put_fixed_decl (#354)
-        if types[y].name >= 0 {                                  // __typeof__(int64_t[4]), which a pointer to one takes (#362)
+        if types[y].name >= 0 || types[y].name <= 0 - 10 {      // __typeof__(int64_t[4]), which a pointer to one takes (#362); of a count C computes, int64_t[n] (#703)
             put("__typeof__(")
             put_fixed_base(y)
             put_fixed_counts(y)
@@ -22137,13 +22137,10 @@ let gen_function(d:int64) {
                 if types[q].name < 0 && types[q].name > 0 - 10 { computed = false }
                 q = types[q].elem
             }
-            if computed {                                // which kc builds not yet: said once all is read, after kelvinc's errors
-                if vla_pending < 0 { vla_pending = p }
-                close_scope()
+            if !computed {
+                gen_error(p, "a parameter's array of arrays counts the inner ones, as C must: [[T](N)]")
                 return
-            }
-            gen_error(p, "a parameter's array of arrays counts the inner ones, as C must: [[T](N)]")
-            return
+            }                                            // each inner count C computes, of the parameters before it, as kelvinc writes it (#703)
         }
         let owners = inner >= 0 && is_owner(inner) && !fixed_inside(inner)   // a String, an Array, a struct that owns: lent, its caller's (#365)
         if as_param && !fixed_elem_ok(pe) && !owners {
@@ -23117,7 +23114,6 @@ let reject_duplicates() {
     }
 }
 
-var vla_pending:int64 = 0 - 1   // a parameter's array of arrays whose inner count C computes, kc's not yet (#656)
 
 // whether a value of type y holds the declaration target by value: itself,
 // an element of a fixed array, a member of a struct or a union, a case of
@@ -23472,7 +23468,4 @@ let gen_program() {
     put_async_bodies()
     for i in 0..<shown.count as int64 { gen_show(shown[i]) }
     for i in 0..<compared.count as int64 { gen_eq(compared[i]) }
-    if !failed && vla_pending >= 0 {                     // (#656)
-        gen_error(vla_pending, "kc reads a parameter's array of arrays whose inner count C computes not yet (#366): count it with a constant, or take a pointer")
-    }
 }

@@ -856,3 +856,5 @@ So far the changes from C are these, by topic.
 - kc reads `T^ atomic`, an atomic pointer, as kelvinc does (#701)
 - An enum, a struct or a union with no name in a block or inside a type
   is kc's error in kelvinc's words, where it said not yet (#702)
+- kc reads a parameter's array of arrays whose inner count C computes,
+  as kelvinc does (#703)

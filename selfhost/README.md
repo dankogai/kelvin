@@ -1248,6 +1248,12 @@ kc reads what it is written in, and little more.
   in a block", "not yet inside a type", "expected ';' or a new line" or
   that a member says its type; tests/error's block_type_no_tag.k and
   member_type_no_tag.k say so.
+- **A parameter's array of arrays whose inner count C computes**
+  (#703), as kelvinc's #366: `m:[[i64](n)](2)` is a pointer to rows of
+  n, `__typeof__(int64_t[n]) * m`, put_ctype of a fixed array of a
+  count C computes writing it as one of a number, where kc said "not
+  yet" (vla_pending, gone); tests/run/param_rows_computed.k, new, says
+  so.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
