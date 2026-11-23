@@ -883,3 +883,5 @@ So far the changes from C are these, by topic.
   globals in one declaration, as kelvinc does (#715)
 - kc appends an Array's elements, what a borrow points to and text as
   a String to an Array, and reads its capacity, as kelvinc does (#716)
+- kc reads text in a `[u8]`, `[[T]]` of rows and `:=` of an array, and
+  infers C's `size_t` of sizes and counts, as kelvinc does (#717)

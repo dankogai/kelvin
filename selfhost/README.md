@@ -1375,6 +1375,23 @@ kc reads what it is written in, and little more.
   - `xs.capacity`, an i64, the Array's room, `.cap`;
   - tests/run's array_elem_values.k, array_heap.k, array_owners.k and
     append_borrow.k, which kc refused, print what kelvinc's print.
+- **Arrays of literals, `:=` of an array, sizes** (#717), as kelvinc's:
+  - `let s:[u8] = "hi"`, C's array of text, `const uint8_t s[] = "hi"`,
+    its count C's, its typename `[u8]`, `s.count` C's sizeof; text for
+    a `[T](N)` of any T, C's to judge;
+  - `[[T]]` and `[[T]](N)` of rows, and `([[T]])[...]`, every count from
+    the first row, counted as `counted` counts a compound literal's;
+    their rows' counts checked as written, first, as kelvinc's;
+  - `let ap := arr` of a fixed array, a pointer to its first element,
+    `i32^`, `const i32^` of a let's or a `[const T]`'s; of an array of
+    arrays a pointer to its first row, `[i32](2)^`, whose `ap[i]` stays
+    kc's error of #362;
+  - a variable inferred from `sizeof`, `x.size`, `x.align`, or the
+    count of a String, a Bytes, an Array, a Dictionary, a Set, a cstr or
+    a fixed array is C's `size_t`, as kelvinc's arg_type, where kc
+    inferred an i64;
+  - tests/run's array_literals.k, array_nested_counts.k and
+    infer_seen.k, which kc refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

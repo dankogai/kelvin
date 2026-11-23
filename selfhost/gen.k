@@ -3523,6 +3523,7 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
     let pe:int64 = types[py].elem
     let ae:int64 = ay >= 0 && types[ay].kind == Y_PTR ? types[ay].elem : 0 - 1
     let alike = ae >= 0 && types[ae].kind == Y_FIXED && types[ae].elem == types[pe].elem && (types[ae].name == types[pe].name || types[ae].name == 0 - 1 || types[pe].name == 0 - 1)   // a count of none takes any, as C has it (#363)
+        || (ay >= 0 && types[ay].kind == Y_FIXED && plain_fixed(types[ay].elem) == plain_fixed(pe))   // an array of arrays, a pointer to its first, as C's (#717)
     if !alike {
         var m = who^.copy()
         m += " is "
@@ -9743,7 +9744,7 @@ let gen_member(n:int64) {
         gen_number_text(n, y)
         return
     }
-    if yk == Y_FIXED && types[y].name == 0 - 1 && (tok_is(t, "count") || tok_is(t, "size")) {   // q^.count of a [T]^, where kelvinc's C fails (#363)
+    if yk == Y_FIXED && types[y].name == 0 - 1 && nodes[a].kind != N_ID && (tok_is(t, "count") || tok_is(t, "size")) {   // q^.count of a [T]^, where kelvinc's C fails (#363); a [u8] of text C counts (#717)
         var m = type_text(y)
         m += " has no count, which C does not keep: pass it beside it"
         gen_error(n, m.cstr)
@@ -14530,6 +14531,30 @@ let anon_type_text(an:int64):String {
     return s
 }
 
+// C's size_t, a type only C knows, of its word made once (#717)
+var size_t_y:int64 = 0 - 1
+let size_t_type():int64 {
+    if size_t_y < 0 {
+        var w = $"size_t"
+        size_t_y = type_of_kind(Y_STRUCT, 0 - 1, made_token(&w))
+    }
+    return size_t_y
+}
+
+// whether v is a size kelvinc infers as C's size_t, as its arg_type: sizeof,
+// x.size, x.align, and the count of a String, a Bytes, an Array, a
+// Dictionary, a Set, a cstr or a fixed array (#717)
+let size_t_value(v:int64):bool {
+    let k:nkind = nodes[v].kind
+    if k == N_SIZEOF || value_align(v) || pointer_property(v) == 1 { return true }
+    if k != N_FIELD || !(tok_is(nodes[v].t, "count") || tok_is(nodes[v].t, "size")) || tagged_named(nodes[v].a) >= 0 { return false }
+    let y:int64 = type_of(nodes[v].a)
+    if y < 0 { return false }
+    let yk:ykind = types[y].kind
+    if tok_is(nodes[v].t, "size") { return yk == Y_FIXED }
+    return yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET || yk == Y_CSTR || yk == Y_FIXED
+}
+
 let inferred(n:int64):int64 {
     let v:int64 = nodes[n].a
     if v < 0 {
@@ -14553,6 +14578,12 @@ let inferred(n:int64):int64 {
             }
             p = nodes[p].next
         }
+    }
+    if size_t_value(v) { return size_t_type() }        // as kelvinc infers it (#717)
+    let fy:int64 = nodes[n].c == 1 && is_place(v) ? type_of(v) : 0 - 1
+    if fy >= 0 && types[fy].kind == Y_FIXED {            // let ap := arr, a pointer to its first element, to const of a let's, as kelvinc's (#717)
+        let ro = types[fy].konst == 1 || (nodes[v].kind == N_ID && how_declared(nodes[v].t) != 0)
+        return type_of_kind(Y_PTR, types[fy].elem, ro ? 1 : 0)
     }
     if k == N_STR {
         if nodes[n].c != 1 { cstr_ref_error(n) }
@@ -15042,7 +15073,7 @@ let put_fixed_counts(y:int64) {
         if types[f].name <= 0 - 10 {                    // a count C computes (#366)
             gen_expr(0 - 10 - types[f].name)
         } else {
-            put_int(types[f].name)
+            if types[f].name != 0 - 1 { put_int(types[f].name) }   // [] of text's, C's count (#717)
         }
         put("]")
         f = types[f].elem
@@ -15150,6 +15181,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
     var count = 0
     var x = nodes[v].b
     var row0:int64 = 0 - 1                               // the first row's count, where the type writes none (#49, #612)
+    let we:int64 = nodes[v].ty >= 0 && types[nodes[v].ty].kind == Y_FIXED ? types[nodes[v].ty].elem : e   // ([[T]])[...] as written, its rows checked first, as kelvinc's (#717)
     while x >= 0 {
         count += 1
         if nodes[x].kind == N_ADESIG {                   // [i] = v: its place and value C's to check, as kelvinc leaves them (#715)
@@ -15157,7 +15189,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
             continue
         }
         if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
-            if types[e].name == 0 - 1 {
+            if types[e].name == 0 - 1 || (types[we].kind == Y_FIXED && types[we].name == 0 - 1) {
                 let rc:int64 = count_args(nodes[x].b)
                 if row0 < 0 { row0 = rc }
                 if rc != row0 {
@@ -15363,13 +15395,27 @@ let gen_fixed_var(n:int64) {
             return
         }
         if nodes[v].b >= 0 && !fixed_list_fits(v, y) { return }
+        let first:int64 = nodes[v].b
+        let rows:int64 = first >= 0 && nodes[first].kind == N_LIST && nodes[first].flag == 0 ? counted(types[y].elem, first) : types[y].elem   // a row's count its first row's, as kelvinc's (#717)
         if types[y].name < 0 && types[y].name > 0 - 10 {   // [T] of its elements; [T](LIMIT + 1) keeps its count (#451)
             let konst = types[y].konst == 1
-            y = type_of_kind(Y_FIXED, types[y].elem, type_of(v) >= 0 ? types[type_of(v)].name : 0)
+            y = type_of_kind(Y_FIXED, rows, type_of(v) >= 0 ? types[type_of(v)].name : 0)
             if konst { y = const_fixed(y) }              // (#425)
+        } else if rows != types[y].elem {                // [[T]](3) of rows, theirs too (#717)
+            let konst = types[y].konst == 1
+            y = type_of_kind(Y_FIXED, rows, types[y].name)
+            if konst { y = const_fixed(y) }
         }
     } else if v >= 0 && nodes[v].kind == N_INIT {        // {1, 2, 3}, as kelvinc says it
         gen_error(v, "an array is initialized with '[...]', not '{...}' (#48)")
+        return
+    } else if v >= 0 && nodes[v].kind == N_STR {        // [u8] = "hi", C's array of text, its count C's, as kelvinc's (#717)
+        set_ty(n, y)
+        put_alignas(n)
+        put_fixed_decl(y, nodes[n].t)
+        put(" = ")
+        gen_expr(v)
+        put(";\n")
         return
     } else if v >= 0 {                                   // a copy, as C has none
         gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")

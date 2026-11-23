@@ -13853,3 +13853,19 @@ so that four more programs print what kelvinc's print.
 Details are provisional P721.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 764. Arrays of literals
+
+**Claude** wrote #716, its battery run and pushed when clean, the
+first commit since #634 to end in its number, and went on with the
+ninth batch.
+
+**Claude** made it #717: arrays of literals, := of an array and C's
+size_t as kelvinc infers it, so that three more programs print what
+kelvinc's print; hidden_names, an anonymous function in a struct's
+count, went to that group, and two differences found on the way are
+listed in TODO.md.
+
+Details are provisional P722.
+
+There are 1572 tests, and all pass with clang and with gcc 15.
