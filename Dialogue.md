@@ -13732,3 +13732,25 @@ so that typeof.k prints what kelvinc's prints, the last of the four.
 Details are provisional P713.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 756. The review, batch 18
+
+**Claude** wrote #708, its battery run and pushed when clean, and
+said what is left.
+
+**User:** then review P697 to P713
+
+**Claude** checked each row against its commit and found them so, but
+P700 to P713 in descending order, and asked how they should be
+confirmed, and whether to push when clean.
+
+**User:** reorder, confirm all (recommended); push when clean
+(recommended)
+
+**Claude** made it #709: P700 to P713 put in order, P697 to P713
+marked confirmed, as later numbers amend them, and P714, #709's own
+row, confirmed by #709.
+
+Details are P714, confirmed by #709 itself.
+
+There are 1572 tests, and all pass with clang and with gcc 15.
