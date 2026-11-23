@@ -13671,3 +13671,19 @@ Optionals' elements, as kelvinc takes them, with a test of it.
 Details are provisional P709.
 
 There are 1569 tests, and all pass with clang and with gcc 15.
+
+### 752. Keys and fixed elements where written
+
+**Claude** wrote #704, its battery run and pushed when clean.
+
+**User:** go on
+
+**Claude** found a fixed array in another type to be kelvinc's error
+too, and kc building Set<f64> and its kin, and made it #705: a key, a
+Set's element and a fixed element checked where the type is written,
+as kelvinc does, with three tests of tests/error; and listed (T?){},
+which kelvinc builds as some(0).
+
+Details are provisional P710.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

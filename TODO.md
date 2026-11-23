@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #704 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #705 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -50,8 +50,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1036 programs kelvinc refuses in kelvinc's words:
-  the 990 of #652 to #656, and those of #659 to #678 and #702 alike.
+- kc says each of the 1039 programs kelvinc refuses in kelvinc's words:
+  the 990 of #652 to #656, and those of #659 to #678, #702 and #705
+  alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -92,10 +93,16 @@ known, not what is planned.
   `m:[[i64](n)](2)`, as kelvinc's (#703).
 - kc takes none and a value some(v) is made of among a fixed array of
   Optionals' elements, `([i64?](2))[none, 1]`, as kelvinc's (#704).
+- A Dictionary's key, a Set's element and a fixed array where an
+  element goes are checked where the type is written, kelvinc's errors
+  at its place, where kc built `Set<f64>` and said the rest at the
+  variable, with three tests of tests/error (#705).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
-  - a fixed array in another type, and `(T){...}` and an array's
-    compound literal of the types left, an Optional's and the like;
+  - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
+    tag 0 is `some`, and kc refuses: kelvinc's to settle first, as it
+    is no meaning to copy; a fixed array in another type is kelvinc's
+    error too, said alike since #705;
   - the number of a prelude enum's word that only C gives, which no
     enum of the prelude has, so no program reaches it.
 - kc's output that differs from kelvinc's, found while #692 to #696
@@ -114,7 +121,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 to P709, the details of #692 to #704, until reviewed; the reviews confirmed
+- P697 to P710, the details of #692 to #705, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

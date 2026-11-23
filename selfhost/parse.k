@@ -1647,7 +1647,26 @@ let io_required(t:int64) {
 let cstr_key(key:int64, at:int64) {
     if key >= 0 && types[key].kind == Y_CSTR && !failed {
         parse_error_at(at, "a key of a Dictionary is a String, not a cstr: the Dictionary keeps a copy of the text, and is read with a cstr or a String")
+        return
     }
+    if key < 0 || failed { return }                      // an integer of 8 to 64 bits or a String, and no other, a Set's element too, as kelvinc's check_dict_key (#705)
+    let k:ykind = types[key].kind
+    if k == Y_STRING || ((is_int_kind(k) && k != Y_I128 && k != Y_U128) && types[key].konst == 0) { return }
+    var m = $"a key of a Dictionary is an integer or a String, not "
+    let w:String = kelvin_type_text(key)
+    m += &w
+    parse_error_at(at, m.cstr)
+}
+
+// a fixed array where an Array's element or a Dictionary's value goes,
+// kelvinc's error at token at, the type's start (#705)
+let fixed_element(elem:int64, at:int64) {
+    if elem < 0 || failed || types[elem].kind != Y_FIXED { return }
+    var m = $"an Array of "
+    let w:String = kelvin_type_text(elem)
+    m += &w
+    m += " is not here yet: an element is a value C returns"
+    parse_error_at(at, m.cstr)
 }
 
 let parse_bare_type():int64 {
@@ -1681,13 +1700,16 @@ let parse_bare_type():int64 {
             y = array_type_at(elem, count_paren(elem_at))
         } else if at_word(":") {                 // ${K: V}, a Dictionary<K, V> (#460)
             advance()
+            let value_at:int64 = pos
             let value:int64 = parse_type()
             expect("}")
             cstr_key(elem, elem_at)              // (#611, #681)
+            fixed_element(value, value_at)       // (#705)
             y = type_of_kind(Y_DICT, value, elem)
             optional_of(value)
         } else {                                 // ${T}, a Set<T> (#460)
             expect("}")
+            cstr_key(elem, elem_at)              // its element a key, as kelvinc's (#705)
             y = type_of_kind(Y_SET, elem, -1)
         }
         if failed { return y }
@@ -1913,22 +1935,29 @@ let parse_bare_type():int64 {
         y = type_of_kind(Y_TASK, value, -1)
     } else if tok_is(t, "Array") && at_word("<") {     // Array<T>, $[T] as it is spelled out (#451)
         advance()
+        let elem_at:int64 = pos
         let elem:int64 = parse_type()
         close_angle()
+        fixed_element(elem, elem_at)                     // as kelvinc says it (#705)
+        if failed { return y }
         y = array_type(elem)
     } else if tok_is(t, "Set") {                 // Set<T> (#274)
         expect("<")
+        let elem_at:int64 = pos
         let elem:int64 = parse_type()
         close_angle()
+        cstr_key(elem, elem_at)                          // its element a key, as kelvinc's (#705)
         y = type_of_kind(Y_SET, elem, -1)
     } else if tok_is(t, "Dictionary") {          // Dictionary<K, V> (#211)
         expect("<")
         let key_at:int64 = pos
         let key:int64 = parse_type()
         expect(",")
+        let value_at:int64 = pos
         let value:int64 = parse_type()
         close_angle()
         cstr_key(key, key_at)                            // (#611, #681)
+        fixed_element(value, value_at)                   // (#705)
         y = type_of_kind(Y_DICT, value, key)
         optional_of(value)                       // V?, which d[k] read whole is (#219)
     } else {
@@ -2305,22 +2334,28 @@ let parse_make():int64 {
         // Array([a, b]), ty -1: T is the elements' (#352)
     } else if tok_is(nodes[n].t, "Array") {
         advance()                                // <
+        let elem_at:int64 = pos
         let elem:int64 = parse_type()
         close_angle()
+        fixed_element(elem, elem_at)                     // (#705)
         set_ty(n, type_of_kind(Y_ARRAY, elem, -1))
     } else if tok_is(nodes[n].t, "Set") {        // Set<T>() (#460)
         advance()                                // <
+        let elem_at:int64 = pos
         let elem:int64 = parse_type()
         close_angle()
+        cstr_key(elem, elem_at)                          // (#705)
         set_ty(n, type_of_kind(Y_SET, elem, -1))
     } else {
         advance()                                // <
         let key_at:int64 = pos
         let key:int64 = parse_type()
         expect(",")
+        let value_at:int64 = pos
         let value:int64 = parse_type()
         close_angle()
         cstr_key(key, key_at)                            // (#611, #681)
+        fixed_element(value, value_at)                   // (#705)
         set_ty(n, type_of_kind(Y_DICT, value, key))
         optional_of(value)                       // V?, which d[k] read whole is (#219)
     }

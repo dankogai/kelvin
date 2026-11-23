@@ -860,3 +860,6 @@ So far the changes from C are these, by topic.
   as kelvinc does (#703)
 - kc takes none and a value among a fixed array of Optionals' elements,
   as kelvinc does (#704)
+- A Dictionary's key and a Set's element are an integer or a String,
+  and a fixed array is no Array's element, in kelvinc's words where the
+  type is written, where kc built `Set<f64>` (#705)

@@ -1258,6 +1258,15 @@ kc reads what it is written in, and little more.
   kelvinc's: `([i64?](2))[none, 1]` and `var ys:[i64?](3) = [5, none,
   7]`, none and a value some(v) is made of, which fixed_list_fits took
   for no element of an i64?; tests/run/fixed_optional_elements.k, new.
+- **A key, a Set's element and a fixed element where the type is
+  written** (#705), as kelvinc's check_dict_key and its Array of a
+  fixed array: cstr_key takes an integer of 8 to 64 bits or a String
+  alone, of `Dictionary<K, V>`, `${K: V}`, `Set<T>`, `${T}` and their
+  makers, and fixed_element refuses a fixed array as an Array's element
+  or a Dictionary's value, `Array<[i64](2)>`, at the type's start,
+  where kc built `Set<f64>`, `Set<bool>` and `Dictionary<f64, i64>`
+  and said the rest at the variable; tests/error's set_key_float.k,
+  array_of_fixed.k and dict_value_fixed.k, new.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
