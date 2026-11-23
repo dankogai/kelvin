@@ -1432,6 +1432,20 @@ kc reads what it is written in, and little more.
     parameter of a count C computes written `T *`;
   - tests/run's anonymous_lines.k, hidden_names.k and self_call.k,
     which kc refused, print what kelvinc's print.
+- **Function types in containers, imports by another path, a case's
+  literal** (#720), as kelvinc's:
+  - `((i64):i64)^`, the parentheses grouping one function type that no
+    result follows, fn_typed of kelvinc's parse_fn_type; `[op](2)`, a
+    fixed array of functions; `[((i64):i64)^](2)`, zeros of a type that
+    begins with `(`;
+  - `#import "lib/../lib/late.k"`, a file read already by its real path,
+    read_already, where the quoted imports compared the path as written;
+    a header `"x.h"` that an imported file imports written by its real
+    directory's path, as kelvinc's, put_header;
+  - `var m:json = {.s = v}` where a variable `s` hides the case's word,
+    written `json.s(v)`;
+  - tests/run's function_type_containers.k, import_boundary.k and
+    enum_json.k, which kc refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -890,3 +890,6 @@ So far the changes from C are these, by topic.
 - kc reads anonymous functions in a list, in a top-level struct's count
   and calling themselves, and a `?:` across lines, as kelvinc does
   (#719)
+- kc reads `((i64):i64)^`, arrays of functions, a file imported again
+  by another path and a header next to an imported file, as kelvinc
+  does (#720)

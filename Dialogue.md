@@ -13896,3 +13896,17 @@ more programs print what kelvinc's print.
 Details are provisional P724.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 767. Function types in containers, imports
+
+**Claude** wrote #719, its battery run and pushed when clean, and
+went on with the twelfth batch.
+
+**Claude** made it #720: function types in containers, a file imported
+by another path, a header next to an imported file and a case's literal
+where a variable hides its word, so that three more programs print what
+kelvinc's print.
+
+Details are provisional P725.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

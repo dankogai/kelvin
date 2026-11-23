@@ -1683,6 +1683,14 @@ let array_type_at(elem:int64, at:int64):int64 {
 let parse_anon_record():int64    // a prototype: {x:f64, y:f64} where a type goes (#476)
 let anon_record_type(first:int64, is_union:bool, is_enum:bool, open:int64):int64    // and its type's declaration (#694)
 
+// whether y is a function type, or a pointer or an array of one, as
+// kelvinc's fn_typed (#403, #720)
+let fn_typed(y:int64):bool {
+    if y < 0 { return false }
+    let k = types[y].kind
+    return k == Y_FN || ((k == Y_PTR || k == Y_FIXED) && fn_typed(types[y].elem))
+}
+
 // the suffixes after a type: T^, T?, T?? (#217, #229), T^ restrict (#393)
 let type_suffixes(y0:int64):int64 {
     var y:int64 = y0
@@ -1880,6 +1888,9 @@ let parse_bare_type():int64 {
             advance()
         }
         expect(")")
+        if at_word("^") && ps.count == 1 && fn_typed(ps[0]) {   // ((i64):i64)^, the parentheses grouping the type, as kelvinc's (#720)
+            return type_suffixes(ps[0])
+        }
         if at_word("^") {                                // (i64)^, as kelvinc says it
             parse_error("a pointer to a function type groups the type in parentheses: ((i64):i64)^ (#403)")
             return base_type(Y_VOID)
@@ -2753,7 +2764,7 @@ let parse_primary():int64 {
         advance()
         let n:int64 = make_node(N_LIST, t)
         let word = toks[pos].kind == T_ID                // [T](n) of a type's name: a list is no function (#366)
-        if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") || word && tok_is(pos + 1, "?") && tok_is(pos + 2, "]") && tok_is(pos + 3, "(") || at_word("[") && bracket_type_ahead() {   // [T](n), n zero elements; [[T](n)](2) (#367); [i32?](2), of Optionals (#699)
+        if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") || word && tok_is(pos + 1, "?") && tok_is(pos + 2, "]") && tok_is(pos + 3, "(") || (at_word("[") || at_word("(")) && bracket_type_ahead() {   // [T](n), n zero elements; [[T](n)](2) (#367); [i32?](2), of Optionals (#699); [((i64):i64)^](2), of a function type (#720)
             set_ty(n, parse_type())
             expect("]")
             expect("(")

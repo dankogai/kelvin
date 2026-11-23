@@ -174,6 +174,8 @@ let loads(path:String^):bool {
     return true
 }
 
+let read_already(path:String^):bool    // a prototype: load_imports asks it (#720)
+
 // the files that #import "x.k" names, next to the file that names it,
 // each read once, after all of the main file
 let load_imports():bool {
@@ -185,10 +187,7 @@ let load_imports():bool {
             for j in 1..<toks[i].len - 1 {
                 path += codes[at + j]
             }
-            var seen = false
-            for k in 0..<fnames.count as int64 {
-                if fnames[k] == path { seen = true }
-            }
+            let seen = read_already(&path)               // lib/../lib/late.k too, one file by its real path, as kelvinc's (#720)
             if !seen && import_line(i) {                 // a file, and no directory, as kelvinc says it (#40, #611)
                 var probe:IO = IO(path.cstr, "r")
                 if probe.error != 0 || !probe.isfile {

@@ -12282,7 +12282,13 @@ let init_as_case(n:int64, y:int64) {
         }
         return
     }
-    if nodes[x].kind == N_DESIG && case_named(d, nodes[x].t).is(some) {
+    if nodes[x].kind == N_DESIG && case_named(d, nodes[x].t).is(some) && var_type(nodes[x].t) >= 0 && types[y].name >= 0 {   // T.c(v) where a variable c hides the case's word, as kelvinc's (#720)
+        nodes[n].kind = N_METHOD
+        nodes[n].a = make_node(N_ID, types[y].name)
+        nodes[n].t = nodes[x].t
+        nodes[n].b = nodes[x].a
+        nodes[n].ty = y
+    } else if nodes[x].kind == N_DESIG && case_named(d, nodes[x].t).is(some) {
         let f:int64 = make_node(N_ID, nodes[x].t)
         nodes[n].kind = N_CALL
         nodes[n].a = f
@@ -15096,7 +15102,7 @@ let fixed_elem_ok(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
     if is_owner(y) || fixed_inside(y) { return false }
-    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT || k == Y_PTR
+    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT || k == Y_PTR || k == Y_FN   // functions too, as kelvinc's (#403, #720)
 }
 
 // a fixed array's C declarator: its element type, name, and [N] for each
@@ -18707,6 +18713,44 @@ let gen_range_member(n:int64) {
 
 // each Range<T>'s struct, T's lo and hi and its kind, where the program
 // makes a Range (#373): of each integer kc has, guarded as kelvinc's
+let real_of(path:String^):String    // prototypes: kc.k's, a path's real one and whether a file is there (#720)
+let exists(path:String^):bool
+
+// the header the #import token t names: "x.h" of an imported file the one
+// next to it, its directory's real path and the name as written, as
+// kelvinc's (#40, #720); else as it is written
+let put_header(t:int64) {
+    let at:int64 = toks[t].at
+    let n:int64 = toks[t].len
+    if toks[t].file > 0 && codes[at] == '"' && n > 2 && codes[at + 1] != '/' {
+        var cut:int64 = 0 - 1
+        var i:int64 = 0
+        for c in fnames[toks[t].file].codepoints {
+            if c == '/' { cut = i }
+            i += 1
+        }
+        var dir = $"."
+        if cut >= 0 {
+            dir = $""
+            var j:int64 = 0
+            for c in fnames[toks[t].file].codepoints {
+                if j < cut { dir += c }
+                j += 1
+            }
+        }
+        var path:String = real_of(&dir)
+        path += "/"
+        for j in 1..<n - 1 { path += codes[at + j] }
+        if exists(&path) && !path.has(&$"\"") && !path.has(&$"\n") {
+            put("\"")
+            out += &path
+            put("\"")
+            return
+        }
+    }
+    put_tok(t)
+}
+
 let put_range_types() {
     var used = range_values > 0
     for i in 0..<types.count as int64 {
@@ -24004,7 +24048,7 @@ let gen_program() {
         if nodes[d].kind == D_IMPORT && tok_is(nodes[d].t, "<OS>") { put("#include <kOS.h>\n") }   // (#463)
         if nodes[d].kind == D_IMPORT && nodes[d].flag == 2 {     // #import <x.h> as C (#207)
             put("#include ")
-            put_tok(nodes[d].t)
+            put_header(nodes[d].t)
             put("\n")
         }
     }

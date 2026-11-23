@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #719 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #720 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -132,6 +132,9 @@ known, not what is planned.
   anonymous function, a `?:` across lines and `f as (i64) : g`, a call
   in a top-level struct's count and an anonymous function's array
   parameters, as kelvinc's (#719).
+- kc reads `((i64):i64)^`, arrays of functions, a file imported again
+  by another path, a header next to an imported file and `{.s = v}`
+  where a variable `s` hides the case, as kelvinc's (#720).
 - Found while #717 was made, not changed:
   - kc writes a let's local array without C's `const`, `int32_t a[2]`,
     where kelvinc writes `const int32_t a[2]`; kc's own checks keep it
@@ -149,19 +152,18 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 468 of the 506 programs
+- kc builds and prints what kelvinc's prints of 471 of the 506 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #719; 30 of the rest need C headers, #inline C or a JS module. Those
+  #720; 30 of the rest need C headers, #inline C or a JS module. Those
   that stop on errors of kc's own, which the user ordered taught in
-  batches after #709, by kind, 8 left:
+  batches after #709, by kind, 5 left:
   - owners in function values: anon_owner_result, method_overload;
-  - the rest: async_await, enum_json, function_type_containers,
-    import_boundary, print_pretty, properties_lifetime.
+  - the rest: async_await, print_pretty, properties_lifetime.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P715 to P724, the details of #710 to #719, until reviewed; the reviews confirmed
+- P715 to P725, the details of #710 to #720, until reviewed; the reviews confirmed
   every row to P714, and a review's own detail row is confirmed by that
   review (#675).
 
