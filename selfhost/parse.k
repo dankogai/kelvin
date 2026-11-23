@@ -1155,6 +1155,7 @@ let result_of(t:int64, e:int64):int64 {
 let parse_expr():int64    // a prototype: the parsers call each other, a type's count too (#366)
 let parse_type():int64    // a prototype: a type's parts are types
 let parse_bare_type():int64
+let fn_result_ahead():bool    // a prototype: a function type's : of its result, or ?:'s (#719)
 
 // whether pointer type y points to a const T, const T^ (#272): its name 1,
 // or 3 where it is restrict too (#393)
@@ -1884,7 +1885,7 @@ let parse_bare_type():int64 {
             return base_type(Y_VOID)
         }
         var r:int64 = 0 - 1
-        if at_word(":") {
+        if at_word(":") && fn_result_ahead() {          // c ? f as (i64) : g, the : the ?:'s, as kelvinc's (#719)
             advance()
             if at_word("(") && tok_is(pos + 1, ")") && !tok_is(pos + 2, ":") {   // :(), no result (#141)
                 advance()
@@ -2195,10 +2196,11 @@ let anon_ahead():bool {
     if names_in_ahead(i) { return true }                // { v in ... }, { acc, v in ... } (#330)
     var depth:int64 = 0
     var inner:int64 = 0                                  // in ( ) and [ ]
+    var deep_dollar = false                              // a $0 in a brace within, {{ $0 + 1 }, { $0 }} a list of them (#719)
     while toks[i].kind != T_EOF {
         if tok_is(i, "{") || tok_is(i, "${") { depth += 1 }
         if tok_is(i, "}") {
-            if depth == 0 { return false }
+            if depth == 0 { return deep_dollar }
             depth -= 1
         }
         if tok_is(i, "(") || tok_is(i, "[") || tok_is(i, "$[") { inner += 1 }
@@ -2215,8 +2217,9 @@ let anon_ahead():bool {
             }
         }
         if depth == 0 && inner == 0 && tok_is(i, ",") { return false }   // {a, { $0 }}, a list that holds one (#428)
-        if toks[i].kind == T_ID && codes[toks[i].at] == '$' { return true }
-        if tok_is(i, "$[") && toks[i + 1].kind == T_NUM && tok_is(i + 2, "]") { return true }   // $[0], as $0 (#612)
+        let dollar = (toks[i].kind == T_ID && codes[toks[i].at] == '$') || (tok_is(i, "$[") && toks[i + 1].kind == T_NUM && tok_is(i + 2, "]"))   // $[0], as $0 (#612)
+        if dollar && depth == 0 { return true }
+        if dollar { deep_dollar = true }
         i += 1
     }
     return false
@@ -2326,6 +2329,8 @@ let parse_anon():int64 {
     }
     let b:int64 = make_node(S_BLOCK, nodes[n].t)
     var last = -1
+    let outer_fn:int64 = fn_parsing
+    fn_parsing = n                                       // what $(...) in it calls (#719)
     anon_depth += 1
     skip_newlines()
     while !at_word("}") && !failed {
@@ -2340,6 +2345,7 @@ let parse_anon():int64 {
     }
     expect("}")
     anon_depth -= 1
+    fn_parsing = outer_fn
     if nodes[n].flag == 2 {                              // its names, out of sight (#424)
         var p:int64 = nodes[n].a
         while p >= 0 {
@@ -2600,6 +2606,8 @@ let take_trailing(n:int64) {
 // e.t(a...) from its '(': a method call, a function trailing it the last
 // argument; of e, or of self where .t(a) is written (#444)
 var static_parsing = false                       // a function of a type, static let, is parsed (#718)
+var self_call_ids:$[int64]                       // $(...) in an anonymous function: the N_ID it calls, named by gen (#719)
+var self_call_anons:$[int64]                     // and the anonymous function
 
 let parse_method_call(e:int64, t:int64):int64 {
     advance()
@@ -3035,7 +3043,8 @@ let parse_primary():int64 {
         return make_node(N_NUM, t)
     }
     if k == T_PUNCT && tok_is(t, "$") && tok_is(pos + 1, "(") && adjacent(pos, pos + 1) && fn_parsing >= 0 {   // $(...), the function being written (#181), as kelvinc reads it
-        if self_name >= 0 && !static_parsing {
+        let in_anon = nodes[fn_parsing].kind == N_ANON  // an anonymous function's own, as kelvinc's (#719)
+        if self_name >= 0 && !static_parsing && !in_anon {
             var m = $"'$(...)' calls the function around it, and this is a method of "
             m += tok_text(self_name)
             m += ": write 'self."
@@ -3046,12 +3055,20 @@ let parse_primary():int64 {
         }
         advance()
         var call:int64 = 0 - 1
-        if self_name >= 0 {                              // a function of the type, T.f(...), as kelvinc's (#718)
+        if in_anon {                                     // its name gen gives it, self_call_ids's (#719)
+            let ct:int64 = advance()
+            call = make_node(N_CALL, ct)
+            nodes[call].a = make_node(N_ID, nodes[fn_parsing].t)
+            self_call_ids += nodes[call].a
+            self_call_anons += fn_parsing
+            set_b(call, parse_args())
+        } else if self_name >= 0 {                       // a function of the type, T.f(...), as kelvinc's (#718)
             call = parse_method_call(make_node(N_ID, self_name), nodes[fn_parsing].t)
         } else {
             let ct:int64 = advance()
             call = make_node(N_CALL, ct)
-            nodes[call].a = make_node(N_ID, nodes[fn_parsing].t)
+            let lf:int64 = local_fn_named(nodes[fn_parsing].t)   // a function inside a function, by its hidden name, as a call of it (#697, #719)
+            nodes[call].a = make_node(N_ID, lf >= 0 ? lf : nodes[fn_parsing].t)
             set_b(call, parse_args())                    // its ) too
         }
         var given:int64 = 0
@@ -3061,6 +3078,7 @@ let parse_primary():int64 {
             a = nodes[a].next
         }
         var takes:int64 = 0
+        if in_anon && nodes[fn_parsing].flag != 0 { return call }   // $0's, as the context types them: gen's to check
         var p:int64 = nodes[fn_parsing].a
         while p >= 0 {
             takes += 1
@@ -3469,16 +3487,37 @@ let parse_binary(min:int64):int64 {
 // ? right after a value and before . or [ is a chain's (#221)
 let parse_expr():int64 {
     let e:int64 = parse_binary(1)
-    if failed || !at_word("?") { return e }
+    if failed { return e }
+    lines_before("?")
+    if !at_word("?") { return e }
     let n:int64 = make_node(N_COND, advance())
     nodes[n].a = e
+    lines_after()
     let saved = name_annotation
     name_annotation = false                      // c ? a : b's : (#265)
     set_b(n, parse_expr())
     name_annotation = saved
+    lines_before(":")
     expect(":")
+    lines_after()
     set_c(n, parse_expr())
     return n
+}
+
+// the line ends before a ?: 's ? or : that begins the next line, w, and
+// after one at a line's end, which kelvinc, which has no lines there,
+// reads past, in the file of the token before (#719)
+let lines_before(w:cstr) {
+    if pos < 1 || toks[pos].kind != T_NL { return }
+    var q:int64 = pos
+    while toks[q].kind == T_NL { q += 1 }
+    if toks[q].file == toks[pos - 1].file && tok_is(q, w) { skip_newlines() }
+}
+
+let lines_after() {
+    var q:int64 = pos
+    while toks[q].kind == T_NL { q += 1 }
+    if toks[q].file == toks[pos - 1].file && toks[q].kind != T_EOF { skip_newlines() }
 }
 
 // (T)x, (T *)p, (void)x, (int){1}: C's cast or compound literal of a
@@ -4293,6 +4332,20 @@ let group_end(i:int64):int64 {
 }
 
 // whether token t is const or volatile
+// whether the : at the cursor after a function type's parameters begins
+// its result, as kelvinc's parse_fn_type: where a name may be a type, or a
+// built-in type's word follows that no ( makes a converter's call, a
+// qualifier, struct, union or enum, or :() (#719)
+let fn_result_ahead():bool {
+    if name_annotation { return true }
+    let n:int64 = pos + 1
+    let converter = number_word(n) >= 0 || tok_is(n, "bool")
+    let base = converter || tok_is(n, "any") || tok_is(n, "cstr") || tok_is(n, "Bytes") || tok_is(n, "String") || tok_is(n, "Array") || tok_is(n, "Dictionary") || tok_is(n, "Set") || tok_is(n, "Optional") || tok_is(n, "Result") || tok_is(n, "IO") || tok_is(n, "Task") || tok_is(n, "Iterator") || tok_is(n, "Range")
+    if base && !(converter && tok_is(n + 1, "(")) { return true }
+    if qualifier_tok(n) || tok_is(n, "struct") || tok_is(n, "union") || tok_is(n, "enum") { return true }
+    return tok_is(n, "(") && tok_is(n + 1, ")") && !tok_is(n + 2, ":")
+}
+
 let qualifier_tok(t:int64):bool {
     return tok_is(t, "const") || tok_is(t, "volatile")
 }

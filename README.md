@@ -887,3 +887,6 @@ So far the changes from C are these, by topic.
   infers C's `size_t` of sizes and counts, as kelvinc does (#717)
 - kc reads `v.pretty(n)`, `cstr restrict`, `$(...)` in a function of a
   type and an anonymous function's `:()`, as kelvinc does (#718)
+- kc reads anonymous functions in a list, in a top-level struct's count
+  and calling themselves, and a `?:` across lines, as kelvinc does
+  (#719)

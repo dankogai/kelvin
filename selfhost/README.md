@@ -1411,6 +1411,27 @@ kc reads what it is written in, and little more.
     void_result.k, which kc refused, print what kelvinc's print;
     self_call.k goes on to `$(...)` in an anonymous function, of the
     group of anonymous functions.
+- **Anonymous functions** (#719), as kelvinc's:
+  - `{{ $0 + 1 }, { $0 - 1 }}`, a list of initializers that hold
+    functions: anon_ahead takes a `$0` in a brace within for the outer
+    one only where no comma at its level comes first;
+  - `$(...)` in an anonymous function calls it, its N_ID named by
+    anon_function_of when it makes its D_FN, self_call_ids; in a
+    function inside a function, by its hidden name, local_fn_named;
+  - `c ? f as (i64) : g`, the `:` the ?:'s where no type's word follows
+    and a name may not be a type, fn_result_ahead of kelvinc's
+    parse_fn_type; and a `?` or `:` that begins a line, or ends one,
+    goes on, lines_before and lines_after;
+  - a top-level struct's member counted by any expression, a local
+    struct's still kelvinc's error; `sizeof` of a call in it written
+    of the call's type, which no prototype need come before, where
+    kelvinc writes its functions before the struct;
+  - a global's or an enumerator's count reaches an anonymous function's
+    `$0`; its parameters of `[T](N)`, written or the context's,
+    pointers as a function's are, anon_fixed_params; a function type's
+    parameter of a count C computes written `T *`;
+  - tests/run's anonymous_lines.k, hidden_names.k and self_call.k,
+    which kc refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

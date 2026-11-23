@@ -2138,6 +2138,7 @@ let named_fn_type(n:int64):int64    // and a function's name, a value of its typ
 let pick_overload(v:int64, y:int64)    // and of an overloaded name, the one of the type wanted (#537)
 let pick_call_args(n:int64)
 let anon_type(n:int64):int64    // and an anonymous function's, as a value
+let anon_fixed_params(an:int64)    // and its array parameters', pointers (#719)
 let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
 let text_unseen(y:int64):bool         // and of what only C sees (#612)
 let shown_cstr(n:int64):bool          // and v.cstr's of what print shows (#450)
@@ -11670,12 +11671,12 @@ let global_named(t:int64):bool {
 
 // whether the fixed array y may be member f of a struct: counted, of
 // numbers, bools, text or structs that own nothing, as a local's (#356)
-let member_fixed_ok(f:int64, y:int64, what:cstr):bool {
+let member_fixed_ok(f:int64, y:int64, what:cstr, local:bool):bool {
     var g:int64 = y
     while types[g].kind == Y_FIXED {
         let cn:int64 = types[g].name <= 0 - 10 ? 0 - 10 - types[g].name : 0 - 1   // its count's node, its name's token (#696)
         let ct:int64 = cn >= 0 && nodes[cn].kind == N_ID ? nodes[cn].t : 0 - 1
-        if cn >= 0 && !(ct >= 0 && (global_named(ct) || enum_of(ct) >= 0)) {   // [i64](n) of a local, as kelvinc says it; not of a global or an enumerator (#696)
+        if cn >= 0 && local && !(ct >= 0 && (global_named(ct) || enum_of(ct) >= 0)) {   // a top-level one's any, C's, as kelvinc writes it (#719)   // [i64](n) of a local, as kelvinc says it; not of a global or an enumerator (#696)
             var m = $"a type defined inside a function is written before it in C, where its locals are not known: '"
             m += tok_text(nodes[f].t)
             m += "' of "
@@ -13910,6 +13911,8 @@ let gen_typename(n:int64) {
 // alignof's is; a struct's name a variable's where one hides it, a
 // function's a pointer's size, and a name kc does not know C's, size_t;
 // whether n is one
+var record_counts = false                // a struct's member's counts are written, before any function (#719)
+
 let gen_sizeof(n:int64):bool {
     if nodes[n].kind != N_SIZEOF { return false }
     let y:int64 = nodes[n].ty
@@ -13961,6 +13964,8 @@ let gen_sizeof(n:int64):bool {
         put_tok(nodes[a].t)
     } else if nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 {
         put_tok(nodes[a].t)
+    } else if record_counts && has_call(a) && type_of(a) >= 0 && types[type_of(a)].kind != Y_C && types[type_of(a)].kind != Y_TYPEOF {
+        put_ctype(type_of(a))                            // a call outside a function, in a struct's count: its type, which sizeof reads and no prototype need come before (#719)
     } else {
         gen_expr(a)
     }
@@ -14565,8 +14570,8 @@ let computed_count_in(y:int64, an:int64):bool {
     if y < 0 { return false }
     let k = types[y].kind
     if k == Y_FIXED && types[y].name <= 0 - 10 {
-        if an < 0 { return true }
         let c:int64 = 0 - 10 - types[y].name
+        if an < 0 { return !(nodes[c].kind == N_ID && (global_named(nodes[c].t) || enum_of(nodes[c].t) >= 0)) }   // a global's or an enumerator's in any scope, as kelvinc carries it (#719)
         var p:int64 = nodes[an].a
         while p >= 0 {
             if nodes[c].kind == N_ID && same_text(nodes[c].t, nodes[p].t) { return true }
@@ -17076,6 +17081,7 @@ let anon_name_error(n:int64):bool {
 }
 
 let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):int64 {
+    anon_fixed_params(an)                                // (#719)
     let lend:int64 = lending
     lending = 0 - 1
     var name = $"_kv_"
@@ -17106,6 +17112,9 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
         return 0 - 1
     }
     let d:int64 = make_node(D_FN, made_token(&name))
+    for i in 0..<self_call_ids.count as int64 {      // $(...) in it, a call of it by its name (#719)
+        if self_call_anons[i] == an { nodes[self_call_ids[i]].t = nodes[d].t }
+    }
     anon_outer[d] = current                          // where it is written (#602)
     if lend >= 0 { lent_from[d] = lend }
     for i in 0..<locals.count as int64 {             // what is in scope here is none of its own (#612)
@@ -17180,6 +17189,7 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
         nodes[d].ty = told(type_of(nodes[st].a))     // $0.type told (#424)
         close_scope()
     }
+    anon_fixed_params(d)                             // $0 of [T](N), a pointer too (#719)
     decls += d
     anon_fns += d
     return d
@@ -17414,6 +17424,7 @@ let anon_type(n:int64):int64 {
         tok_error(first_dollar(n), "'$0' is a parameter of an anonymous function, and this is not in one; there, '{' starts an initializer list, so an anonymous function writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
         return 0 - 1
     }
+    anon_fixed_params(n)                                 // (#719)
     var ps:$[int64] = $[]
     var p:int64 = nodes[n].a
     while p >= 0 {
@@ -23546,7 +23557,14 @@ let write_type(y:int64) {
         p = types[y].name
         if p < 0 { put("void") }
         while p >= 0 {
-            put_ctype(types[p].elem)
+            let pe:int64 = types[p].elem
+            if pe >= 0 && types[pe].kind == Y_FIXED && types[pe].name <= 0 - 10 {   // [T](n), a count C computes, its pointer, as C takes it and kelvinc writes it, no name of it before its declaration (#719)
+                if types[pe].konst == 1 { put("const ") }
+                put_ctype(types[pe].elem)
+                put(" *")
+            } else {
+                put_ctype(pe)
+            }
             p = types[p].name
             if p >= 0 { put(", ") }
         }
@@ -23569,7 +23587,9 @@ let write_type(y:int64) {
                 put("    ")
                 put_alignas(f)                           // (#396)
                 if types[nodes[f].ty].kind == Y_FIXED {
+                    record_counts = true                 // a call in its count, sizeof's type (#719)
                     put_fixed_decl(nodes[f].ty, nodes[f].t)   // int64_t xs[3] (#356)
+                    record_counts = false
                 } else {
                     put_ctype(nodes[f].ty)
                     put(" ")
@@ -23615,6 +23635,21 @@ let fixed_params() {
                 p = nodes[p].next
             }
         }
+    }
+}
+
+// an anonymous function's written parameters of [T] or [T](N), pointers
+// as a function's are, by fixed_params's rule, once (#719)
+let anon_fixed_params(an:int64) {
+    if nodes[an].flag != 0 && nodes[an].kind == N_ANON { return }
+    var p:int64 = nodes[an].a
+    while p >= 0 {
+        let y:int64 = nodes[p].ty
+        if y >= 0 && types[y].kind == Y_FIXED && !param_arrays.has(p) {
+            param_arrays[p] = y
+            set_ty(p, type_of_kind(Y_FIXED, types[y].elem, types[y].name == 0 - 3 || types[y].konst == 1 ? 0 - 4 : 0 - 2))
+        }
+        p = nodes[p].next
     }
 }
 
@@ -24010,7 +24045,7 @@ let gen_program() {
                 }
                 let user_enum = nodes[d].kind == D_ENUM && !kc_made(nodes[d].t)   // not an Optional's, a Result's (#360)
                 if (nodes[d].kind == D_STRUCT || user_enum) && fy >= 0 && types[fy].kind == Y_FIXED {   // a struct's member (#356), a case's value (#360)
-                    if !member_fixed_ok(f, fy, user_enum ? "a case" : "a member") { return }
+                    if !member_fixed_ok(f, fy, user_enum ? "a case" : "a member", local_own_of.has(tok_text(nodes[d].t))) { return }
                 } else if fixed_inside(fy) {
                     refuse_fixed(f, fy)
                     return

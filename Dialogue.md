@@ -13883,3 +13883,16 @@ $(...) in an anonymous function, went to that group.
 Details are provisional P723.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 766. Anonymous functions
+
+**Claude** wrote #718, its battery run and pushed when clean, and
+went on with the eleventh batch.
+
+**Claude** made it #719: anonymous functions in lists, in a struct's
+count and calling themselves, and a ?: across lines, so that three
+more programs print what kelvinc's print.
+
+Details are provisional P724.
+
+There are 1572 tests, and all pass with clang and with gcc 15.
