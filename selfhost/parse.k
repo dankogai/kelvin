@@ -4322,6 +4322,7 @@ let parse_cfor():int64 {
             return n
         }
         nodes[b].a = parse_statement()
+        nodes[b].flag = 1                                // no braces: its text lives in the for's block, as kelvinc's (#721)
         set_c(n, b)
     }
     return n
@@ -4342,7 +4343,6 @@ let group_end(i:int64):int64 {
     return k
 }
 
-// whether token t is const or volatile
 // whether the : at the cursor after a function type's parameters begins
 // its result, as kelvinc's parse_fn_type: where a name may be a type, or a
 // built-in type's word follows that no ( makes a converter's call, a
@@ -4357,6 +4357,7 @@ let fn_result_ahead():bool {
     return tok_is(n, "(") && tok_is(n + 1, ")") && !tok_is(n + 2, ":")
 }
 
+// whether token t is const or volatile
 let qualifier_tok(t:int64):bool {
     return tok_is(t, "const") || tok_is(t, "volatile")
 }

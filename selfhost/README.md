@@ -1446,6 +1446,21 @@ kc reads what it is written in, and little more.
     written `json.s(v)`;
   - tests/run's function_type_containers.k, import_boundary.k and
     enum_json.k, which kc refused, print what kelvinc's print.
+- **`.pretty` of an enum, `async` of a function value, text in a
+  brace-less for body** (#721), as kelvinc's:
+  - `j.pretty` of an enum with values and no case of the name, its text,
+    gen_pretty_string, where gen_field took it for a case's value, which
+    a temporary held, `_kv_JSON_at_pretty`;
+  - `async twice(21)` of a variable of a function type: the function
+    kept in the environment, `_kv_fn`, with the arguments, values, the
+    thread calling it, async_fns, gen_async_value;
+  - `t := b.hex` as a brace-less C for body, the text's storage declared
+    before the for, in the block that holds it, as kelvinc's, where its
+    text lives: the body an S_BLOCK of flag 1, gen_stmt_kept, and
+    text_outlived judging by the block storage_up names; a braced body's
+    text still kc's error of #447;
+  - tests/run's print_pretty.k, async_await.k and properties_lifetime.k,
+    which kc refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

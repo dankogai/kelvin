@@ -2167,6 +2167,8 @@ let number_text_refused(n:int64, k:ykind):bool
 let fn_named(t:int64):int64    // and the function a name names
 let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
 let gen_fn_call(n:int64, fy:int64)    // and a call through a function value
+let async_value_type(c:int64):int64    // and async's of one (#721)
+let fn_owner_refused(y:int64, n:int64):bool    // and a function value's owners, which async asks of one (#721)
 let member_fn_type(n:int64):int64    // and s.f(x) of a member f of a function type
 let converter_of(n:int64):int64    // and T(v), a converter's type (#429)
 let is_number_kind(k:ykind):bool    // and .utf32 of a number (#478)
@@ -3337,7 +3339,7 @@ let type_of(n:int64):int64 {
     }
     if k == N_ASYNC {                                  // a Task of the call's result (#313)
         let c:int64 = nodes[n].a
-        if nodes[c].kind == N_CALL && nodes[nodes[c].a].kind == N_ID && decl_named(nodes[nodes[c].a].t, D_FN) < 0 {
+        if nodes[c].kind == N_CALL && nodes[nodes[c].a].kind == N_ID && decl_named(nodes[nodes[c].a].t, D_FN) < 0 && async_value_type(c) < 0 {   // a function value's too (#721)
             gen_error(c, "'async' takes a call of a Kelvin function or a function value, whose types kelvinc sees, as in 'async f(x)'")
             return -1
         }
@@ -7588,6 +7590,7 @@ let gen_os(n:int64) {
 // ---------- a number's text (#447) ----------
 
 var block_store:$[String]   // the storage the statement being written makes, a template's or a number's text, declared before it (#445, #447)
+var storage_up:int64 = 0    // the scopes between the statement written and the block its storage goes in: 2 in a brace-less for body (#721)
 var anon_fns:$[int64]                     // the functions kc makes of { ... }, written after the others
 
 // whether n is v.cstr of what print shows by its printer, an enum with
@@ -8756,8 +8759,9 @@ let text_outlived(n:int64):bool {
     let x:int64 = nodes[lhs].kind == N_ID ? text_in_buffer(nodes[n].b) : 0 - 1
     if x < 0 { return false }
     let i = local_at(nodes[lhs].t)
-    let here:int64 = marks.count > 0 ? marks[marks.count - 1] : 0
-    if i >= here || (i >= 0 && marks.count == 2 && i >= marks[0]) { return false }
+    let level:int64 = marks.count as int64 - 1 - storage_up   // the block its storage is declared in (#721)
+    let here:int64 = level >= 0 ? marks[level] : 0
+    if i >= here || (i >= 0 && level == 1 && i >= marks[0]) { return false }
     var m = buffer_text_words(x)
     m += " lives until this block ends, and '"
     let name:String = tok_text(nodes[lhs].t)
@@ -9762,6 +9766,10 @@ let gen_member(n:int64) {
             put_free(y)
             put("(&_kv_t); _kv_c; })")
         }
+        return
+    }
+    if tagged_of(y) >= 0 && pretty_value(n) {           // v.pretty of an enum with values and no case of the name, its text (#721)
+        gen_pretty_string(n, a, y)
         return
     }
     if tagged_of(y) >= 0 && !lent && is_owner(y) {      // of a call's enum that owns, which would go unfreed (#360)
@@ -13201,6 +13209,92 @@ let gen_index(n:int64) {
 // ---------- async f(x) and await (#313), as kelvinc's #312 ----------
 
 var asyncs:$[int64]                  // each async f(x), in order: its environment and its thread's function
+var async_fns:$[int64]               // and the function type of a function value it calls, or -1 (#721)
+
+// the function type of the variable call c calls through, or -1 (#721)
+let async_value_type(c:int64):int64 {
+    if nodes[c].kind != N_CALL { return 0 - 1 }
+    let f:int64 = nodes[c].a
+    if nodes[f].kind != N_ID || decl_named(nodes[f].t, D_FN) >= 0 { return 0 - 1 }
+    let y:int64 = var_type(nodes[f].t)
+    return y >= 0 && types[y].kind == Y_FN ? y : 0 - 1
+}
+
+// async f(x) of a variable f of a function type, as kelvinc's: the
+// function itself kept in the environment with the arguments, values,
+// a function value taking no owner (#721)
+let gen_async_value(n:int64, c:int64, fy:int64) {
+    if fn_owner_refused(fy, c) { return }
+    var count:int64 = 0
+    var want:int64 = 0
+    var a:int64 = nodes[c].b
+    while a >= 0 {
+        count += 1
+        a = nodes[a].next
+    }
+    var p:int64 = types[fy].name
+    while p >= 0 {
+        want += 1
+        p = types[p].name
+    }
+    if count != want {                                   // as gen_fn_call says it
+        var m = $"this function, of type "
+        let w:String = kelvin_type_text(fy)
+        m += &w
+        m += ", takes "
+        m += String(want)
+        m += want == 1 ? " argument" : " arguments"
+        m += ", and it is given "
+        m += String(count)
+        gen_error(c, m.cstr)
+        return
+    }
+    a = nodes[c].b
+    p = types[fy].name
+    while a >= 0 && p >= 0 {                          // a pointer would share what it points to
+        let k:ykind = types[types[p].elem].kind
+        if k == Y_CSTR {
+            gen_error(a, "'async' would share this text with the call's thread: the parameter is a cstr, where a String would move in")
+            return
+        }
+        if k == Y_PTR || k == Y_ARGV || k == Y_FIXED {
+            var m = $"'async' would share what this points to with the call's thread: the parameter is "
+            let w:String = kelvin_type_text(types[p].elem)
+            m += &w
+            m += ", and the function takes values, copied, and owners, moved"
+            gen_error(a, m.cstr)
+            return
+        }
+        a = nodes[a].next
+        p = types[p].name
+    }
+    asyncs += n
+    async_fns += fy
+    async_names += async_name()
+    let i:int64 = asyncs.count as int64 - 1
+    put("({ struct ")
+    put_async_name(i)
+    put("_env *_kv_e = kv_task_env(sizeof *_kv_e); _kv_e->_kv_fn = ")
+    put_tok(nodes[nodes[c].a].t)
+    put("; ")
+    a = nodes[c].b
+    p = types[fy].name
+    var k = 0
+    while a >= 0 && p >= 0 {
+        put("_kv_e->_kv_a")
+        put_int(k)
+        put(" = ")
+        gen_value(a, types[p].elem)
+        if failed { return }
+        put("; ")
+        k += 1
+        a = nodes[a].next
+        p = types[p].name
+    }
+    put("kv_task_start(")
+    put_async_name(i)
+    put("_run, _kv_e, NULL); })")
+}
 var async_names:$[String]            // and its name, _kv_f_fn, _kv_f_fn1, ..., an anonymous function's
 var async_used:Dictionary<String, int64>
 
@@ -13242,6 +13336,11 @@ let gen_async(n:int64) {
     if f >= 0 && nodes[f].kind == N_ID && !tok_is(nodes[f].t, "println") && !tok_is(nodes[f].t, "print") && var_type(nodes[f].t) < 0 {
         d = call_target(c)
     }
+    if d < 0 && async_value_type(c) >= 0 {            // through a function value (#721)
+        if refuse_valueless_args(c) { return }
+        gen_async_value(n, c, async_value_type(c))
+        return
+    }
     if d < 0 {
         gen_error(c, "'async' takes a call of a Kelvin function or a function value, whose types kelvinc sees, as in 'async f(x)'")
         return
@@ -13267,6 +13366,7 @@ let gen_async(n:int64) {
         p = nodes[p].next
     }
     asyncs += n
+    async_fns += 0 - 1
     async_names += async_name()
     let i:int64 = asyncs.count as int64 - 1
     put("({ struct ")
@@ -13325,6 +13425,36 @@ let gen_await(n:int64) {
 // function and drop, declared before the functions
 let put_async_heads() {
     for i in 0..<asyncs.count as int64 {
+        let fy:int64 = async_fns[i]
+        if fy >= 0 {                                     // through a function value (#721)
+            let fr:int64 = types[fy].elem
+            put("struct ")
+            put_async_name(i)
+            put("_env {")
+            if fr >= 0 && types[fr].kind != Y_VOID {
+                put(" ")
+                put_ctype(fr)
+                put(" _kv_value;")
+            }
+            put(" ")
+            put_ctype(fy)
+            put(" _kv_fn;")
+            var q:int64 = types[fy].name
+            var qk = 0
+            while q >= 0 {
+                put(" ")
+                put_ctype(types[q].elem)
+                put(" _kv_a")
+                put_int(qk)
+                put(";")
+                qk += 1
+                q = types[q].name
+            }
+            put(" };\nstatic void *")
+            put_async_name(i)
+            put("_run(void *_kv_p);\n")
+            continue
+        }
         let d = call_target(nodes[asyncs[i]].a)
         let r:int64 = nodes[d].ty
         put("struct ")
@@ -13365,6 +13495,28 @@ let put_async_heads() {
 // the drop frees the value of a Task never awaited
 let put_async_bodies() {
     for i in 0..<asyncs.count as int64 {
+        let fy:int64 = async_fns[i]
+        if fy >= 0 {                                     // through a function value (#721)
+            let fr:int64 = types[fy].elem
+            put("static void *")
+            put_async_name(i)
+            put("_run(void *_kv_p)\n{\n    struct ")
+            put_async_name(i)
+            put("_env *_kv_e = _kv_p;\n    ")
+            if fr >= 0 && types[fr].kind != Y_VOID { put("_kv_e->_kv_value = ") }
+            put("_kv_e->_kv_fn(")
+            var q:int64 = types[fy].name
+            var qk = 0
+            while q >= 0 {
+                if qk > 0 { put(", ") }
+                put("_kv_e->_kv_a")
+                put_int(qk)
+                qk += 1
+                q = types[q].name
+            }
+            put(");\n    return NULL;\n}\n\n")
+            continue
+        }
         let d = call_target(nodes[asyncs[i]].a)
         let r:int64 = nodes[d].ty
         put("static void *")
@@ -22183,6 +22335,7 @@ let tell_stmt(n:int64) {
 }
 
 let gen_stmt_of(n:int64, depth:int64)    // a prototype: gen_stmt writes n by it
+let gen_stmt_kept(n:int64, depth:int64)    // and n, its storage the statement around it's (#721)
 let drops_value(e:int64, calls:bool):bool    // and asks it of a statement at a body's end (#594)
 
 // the statements at the end of a path through a body with a result,
@@ -22196,12 +22349,18 @@ var end_stmts:Dictionary<int64, int64>
 let gen_stmt(n:int64, depth:int64) {
     let at:int64 = out.count as int64
     let made:int64 = block_store.count as int64
+    gen_stmt_kept(n, depth)
+    if block_store.count as int64 > made && !failed { place_storage(at, made, depth) }   // (#445, #447)
+}
+
+// the statement n, the storage it makes left to the statement around it:
+// a brace-less for body's, whose text lives in the for's block (#721)
+let gen_stmt_kept(n:int64, depth:int64) {
     let mark:int64 = moved_ids.count as int64
     gen_stmt_of(n, depth)
     moves_done()
     if !failed { moves_named_once(n, mark) }        // (#500)
     while moved_ids.count as int64 > mark { moved_ids.pop() }
-    if block_store.count as int64 > made && !failed { place_storage(at, made, depth) }   // (#445, #447)
 }
 
 let gen_stmt_of(n:int64, depth:int64) {
@@ -22425,13 +22584,16 @@ let gen_block(n:int64, depth:int64) {
     put("{\n")
     var began:$[bool] = moved_now()                      // (#605)
     open_scope()
+    let saved_up:int64 = storage_up
+    storage_up = nodes[n].flag == 1 ? 2 : 0              // a brace-less for body's storage, the for's block's, past its scope and the for's (#721)
     var s:int64 = nodes[n].a
     var last:int64 = 0 - 1
     while s >= 0 && !failed {
-        gen_stmt(s, depth + 1)
+        if nodes[n].flag == 1 { gen_stmt_kept(s, depth + 1) } else { gen_stmt(s, depth + 1) }
         last = s
         s = nodes[s].next
     }
+    storage_up = saved_up
     close_scope()
     if last >= 0 && nodes[last].kind == S_RETURN { moved_back(&began) }   // left by its return: what it moved is not moved after it
     indent(depth)

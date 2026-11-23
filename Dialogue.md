@@ -13910,3 +13910,19 @@ kelvinc's print.
 Details are provisional P725.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 768. An enum's pretty, async of a function value, text in a for
+
+**Claude** wrote #720, its battery run and pushed when clean; while
+the battery ran it applied the next batch's fix to selfhost/gen.k by
+mistake, saw it at the battery's second step, took the edit out as it
+was, stopped the battery before any push, and ran it again from the
+start.
+
+**Claude** made it #721: an enum's .pretty, async of a function value
+and a number's text in a brace-less for body, so that three more
+programs print what kelvinc's print.
+
+Details are provisional P726.
+
+There are 1572 tests, and all pass with clang and with gcc 15.
