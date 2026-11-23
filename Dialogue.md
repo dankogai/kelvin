@@ -13940,3 +13940,27 @@ or a JS module.
 Details are provisional P727.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 770. The review, batch 19
+
+**Claude** wrote #722, its battery run and pushed when clean, the
+macOS job of its CI run again where no runner had taken it, and asked
+what next, the 49 failures all taught.
+
+**User:** review P715 to P727 (recommended); push when clean
+(recommended)
+
+**Claude** checked each row against its commit and found three faults:
+the closing sentence twice in every detail row from P697 to P727 but
+P714, P715's count against TODO.md's, and P723 naming parse.k for what
+gen.k writes; and asked how the review should treat them.
+
+**User:** amend 3, confirm all (recommended)
+
+**Claude** made it #723: the three amended, P715 to P727 marked
+confirmed, as later numbers amend them, and P728, #723's own row,
+confirmed by #723.
+
+Details are P728, confirmed by #723 itself.
+
+There are 1572 tests, and all pass with clang and with gcc 15.
