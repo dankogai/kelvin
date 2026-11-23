@@ -17738,9 +17738,54 @@ let gen_fn_value(n:int64, y:int64) {
 
 // f(a, b) through the function value f of type fy (#428): each argument
 // of its parameter's type, as a call by name passes it
+// the owners a call through a function value of type fy is given where
+// it does not take them by value, held for the call, as hold_args (#722)
+let hold_fn_args(first:int64, fy:int64):$[int64] {
+    var opened:$[int64] = $[]
+    var a:int64 = first
+    var p:int64 = types[fy].name
+    while a >= 0 {
+        let by_value = p >= 0 && is_owner(types[p].elem)   // which the function frees
+        if !by_value && needs_hold(a) {
+            hold_open(a)
+            opened += a
+        } else if !by_value && nodes[a].kind == N_ADDR && needs_hold(nodes[a].a) {
+            hold_open(nodes[a].a)
+            opened += nodes[a].a
+        }
+        a = nodes[a].next
+        if p >= 0 { p = types[p].name }
+    }
+    return opened
+}
+
+// the argument a of the call n through a function value, of parameter
+// type py: an owner variable moved in, dead after the call, as
+// gen_arg_to moves one into a function by its name (#441, #722)
+let gen_fn_arg(n:int64, a:int64, py:int64):bool {
+    let f:int64 = nodes[n].a
+    let what:String = nodes[n].kind == N_METHOD ? into_words("", ".", nodes[n].t) : nodes[f].kind == N_ID ? into_words("", "", nodes[f].t) : $"the function"
+    if is_owner(py) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 && type_of(a) == py {
+        if !move_out(a, &what) { return false }
+        put_owner_prefix(py)
+        put("_take(&")
+        put_tok(nodes[a].t)
+        put(")")
+        return true
+    }
+    if is_owner(py) && is_place(a) && !is_case_word(a) {
+        var m = $"an owner moves into "                  // as gen_arg_to says it (#471)
+        m += &what
+        m += " only as a whole variable: pass a borrow, '&...', or a copy"
+        tok_error(member_dot(a), m.cstr)
+        return false
+    }
+    gen_value(a, py)
+    return true
+}
+
 let gen_fn_call(n:int64, fy:int64) {
     let f:int64 = nodes[n].a
-    if fn_owner_refused(fy, n) { return }
     var count:int64 = 0
     var want:int64 = 0
     var a:int64 = nodes[n].b
@@ -17765,7 +17810,7 @@ let gen_fn_call(n:int64, fy:int64) {
         gen_error(n, m.cstr)
         return
     }
-    var opened = hold_args(nodes[n].b, 0 - 1)
+    var opened = hold_fn_args(nodes[n].b, fy)          // an owner by value the function's, not held (#722)
     if nodes[n].kind == N_METHOD {                      // s.f(x), the member f of s
         put("(")
         gen_expr(f)
@@ -17784,7 +17829,7 @@ let gen_fn_call(n:int64, fy:int64) {
     p = types[fy].name
     while a >= 0 {
         if a != nodes[n].b { put(", ") }
-        gen_value(a, types[p].elem)
+        if !gen_fn_arg(n, a, types[p].elem) { return }   // an owner moved in, as into a function by its name (#722)
         a = nodes[a].next
         p = types[p].name
     }

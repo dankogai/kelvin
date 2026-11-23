@@ -896,3 +896,5 @@ So far the changes from C are these, by topic.
 - kc reads `.pretty` of an enum with values, `async` of a function
   value and a number's text in a brace-less for body, as kelvinc does
   (#721)
+- kc takes and gives owners through function values, as kelvinc does
+  (#722)

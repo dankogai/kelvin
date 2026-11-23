@@ -13926,3 +13926,17 @@ programs print what kelvinc's print.
 Details are provisional P726.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 769. Owners through function values
+
+**Claude** wrote #721, its battery run and pushed when clean, and
+went on with the last batch.
+
+**Claude** made it #722: owners through function values, so that the
+last two of the 49 unlisted failures print what kelvinc's print; the
+30 programs kc does not build are those that need C headers, #inline C
+or a JS module.
+
+Details are provisional P727.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

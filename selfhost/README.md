@@ -1461,6 +1461,20 @@ kc reads what it is written in, and little more.
     text still kc's error of #447;
   - tests/run's print_pretty.k, async_await.k and properties_lifetime.k,
     which kc refused, print what kelvinc's print.
+- **Owners through function values** (#722), as kelvinc's: a call
+  through a function value takes and gives owners, where kc said its
+  function values took and gave none yet:
+  - an owner variable given by value moves in, dead after the call, as
+    into a function by its name, gen_fn_arg; a member of one is
+    kelvinc's error of an owner moved only as a whole variable;
+  - what the function takes by value is not held for the call, the
+    function freeing it, hold_fn_args; a borrow's owner an expression
+    gives is held, as hold_args holds it;
+  - the owner it gives is the caller's, held or kept as a named
+    function's result is;
+  - tests/run's anon_owner_result.k and method_overload.k, which kc
+    refused, print what kelvinc's print: the last of the unlisted
+    failures the user ordered taught after #709.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
