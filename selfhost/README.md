@@ -1285,6 +1285,11 @@ kc reads what it is written in, and little more.
     elements, cut at KV_TEMPLATE_STR; print is the printer's still.
   - tests/run's print_values.k and template_bounds.k print what
     kelvinc's print.
+- **`typeof(k)` of a let keeps its const** (#708), as C23's typeof and
+  kelvinc's #398: const_number, a number's or a bool's type of konst 1,
+  as [const T](N) is, which put_ctype writes `const int64_t` and
+  type_text names `const i64`; tests/run/typeof.k prints what kelvinc's
+  prints.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

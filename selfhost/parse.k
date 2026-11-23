@@ -259,6 +259,31 @@ let const_fixed(y:int64):int64 {
     return types.count as int64 - 1
 }
 
+// const T of the number or bool y, konst 1, as [const T](N) is: what
+// typeof(x) of a let gives, its const kept, as C23's typeof keeps it and
+// kelvinc's (#398, #708)
+let const_number(y:int64):int64 {
+    if types[y].konst == 1 { return y }
+    for i in 0..<types.count as int64 {
+        if types[i].konst == 1 && types[i].kind == types[y].kind && types[i].elem == types[y].elem && types[i].name == types[y].name { return i }
+    }
+    let c:ty = {types[y].kind, types[y].elem, types[y].name, 1}
+    types += c
+    return types.count as int64 - 1
+}
+
+// whether the variable that token t names is a let, its latest
+// declaration's (#708)
+let written_let(t:int64):bool {
+    var i:int64 = nodes.count as int64 - 1
+    while i >= 0 {
+        let k = nodes[i].kind
+        if (k == S_VAR || k == D_GLOBAL) && same_text(nodes[i].t, t) { return nodes[i].flag == 1 }
+        i -= 1
+    }
+    return false
+}
+
 // the fixed array y without const elements, [T](N) of [const T](N) (#425)
 let plain_fixed(y:int64):int64 {
     if y < 0 || types[y].konst == 0 { return y }
@@ -1871,6 +1896,8 @@ let parse_bare_type():int64 {
         let named = toks[v].kind == T_ID && (local_named(v) || written_type(v) != 0 - 2)
         if named && tok_is(v + 1, ")") && written_type(v) >= 0 {
             y = written_type(v)
+            let yk:ykind = types[y].kind
+            if written_let(v) && (is_int_kind(yk) || yk == Y_F64 || yk == Y_F32 || yk == Y_BOOL) && types[y].konst == 0 { y = const_number(y) }   // a let's const kept, as kelvinc's (#708)
             advance()
         } else if named || toks[v].kind == T_NUM || at_word("(") || at_word("-") || at_word("!") || at_word("&") {   // of an expression, or of a variable whose type is inferred: as gen tells it, else __typeof__ of it, as kelvinc's (#696)
             let saved = brace_ends

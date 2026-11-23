@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #707 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #708 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -101,6 +101,8 @@ known, not what is planned.
   where C's ?: of them gave an int, 1 (#706).
 - kc writes a record's text as kelvinc's, `_kv_T_cstr` to its own
   longest, for `.cstr` and a template, an Array member `[...]` (#707).
+- kc keeps a let's const in `typeof(k)`, `const i64`, as kelvinc's
+  (#708).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -109,16 +111,17 @@ known, not what is planned.
     error too, said alike since #705;
   - the number of a prelude enum's word that only C gives, which no
     enum of the prelude has, so no program reaches it.
-- kc's output that differs from kelvinc's, found while #692 to #696
-  were made, of programs it builds, the user's order after #705 to
-  make each as kelvinc's:
-  - `typeof(k)` of a let is `const i64` by `.typename` (typeof.k),
-    where kc's is `i64`, as kc's types have no const of a number.
+- kc's output that differed from kelvinc's, found while #692 to #696
+  were made, is kelvinc's, the user's order after #705 (#706 to #708).
+- kc builds and prints what kelvinc's prints of 419 of the 504 programs
+  of tests/run and examples; 36 of the rest need C headers, #inline C
+  or a JS module, and 49 stop on errors of kc's own, not listed one by
+  one.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P697 to P712, the details of #692 to #707, until reviewed; the reviews confirmed
+- P697 to P713, the details of #692 to #708, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

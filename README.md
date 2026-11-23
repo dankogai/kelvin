@@ -866,3 +866,4 @@ So far the changes from C are these, by topic.
 - kc prints a choice of bools as a bool, where it printed 1 (#706)
 - kc writes a record's `.cstr` and its text in a template as kelvinc
   does, an Array member `[...]`, to its own longest (#707)
+- kc keeps a let's const in `typeof(k)`, as kelvinc does (#708)

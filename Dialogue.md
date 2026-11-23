@@ -13718,3 +13718,17 @@ template_bounds.k print what kelvinc's print.
 Details are provisional P712.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 755. typeof keeps a let's const
+
+**Claude** wrote #707, its battery run and pushed when clean, and
+went on with the last difference.
+
+**User:** go on
+
+**Claude** made it #708: typeof of a let keeps its const, as kelvinc's,
+so that typeof.k prints what kelvinc's prints, the last of the four.
+
+Details are provisional P713.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

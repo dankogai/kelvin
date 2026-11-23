@@ -512,6 +512,11 @@ let put_ctype(y:int64) {
         put_ctype(base_type(types[y].kind))
         return
     }
+    if types[y].konst == 1 && types[y].kind != Y_FIXED {        // const T of typeof(x) of a let (#708)
+        put("const ")
+        put_ctype(base_type(types[y].kind))
+        return
+    }
     switch types[y].kind {                                       // every kind of type (#210)
     case Y_TYPEOF:                                      // x.type of what only C sees, as kelvinc writes it (#696)
         if types[y].elem == 1 { put("const ") }
@@ -14350,6 +14355,12 @@ let inferred(n:int64):int64 {
 // a type as Kelvin spells it, for a message (#233): i64, cstr, i64^,
 // $[String], i64?, Result<i64, String>
 let type_text(y:int64):String {
+    if types[y].konst == 1 && types[y].kind != Y_FIXED {       // const i64, of typeof(x) of a let, as kelvinc names it (#708)
+        var s = $"const "
+        let w:String = type_text(base_type(types[y].kind))
+        s += &w
+        return s
+    }
     switch types[y].kind {
     case Y_VOID: return $"any"                               // any^ (#470)
     case Y_I64: return $"i64"
