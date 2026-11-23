@@ -846,3 +846,5 @@ So far the changes from C are these, by topic.
   and compound literals of them, as kelvinc does (#696)
 - kc reads a function defined inside a function, `_kv_outer_name` in
   C, its block's, as kelvinc does (#180, #697)
+- kc walks a pointer up to a 0, and what only C sees so, as kelvinc
+  does, and takes nowhere among a `[cstr]`'s elements (#698)

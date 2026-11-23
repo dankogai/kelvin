@@ -1198,6 +1198,17 @@ kc reads what it is written in, and little more.
   among decls. kelvinc's error of a local of the function around it
   stays; where kc said "not yet", tests/run/nested_function.k prints
   what kelvinc's prints.
+- **A pointer walked up to a 0** (#698), as kelvinc's #30 and #610:
+  `for v in p` of a pointer that is no list, and of what only C sees,
+  `for _ in getenv("X")`, reads it once and walks it while it is not
+  nowhere and what it points to is not 0, each `const
+  __typeof__(*_kv_pN)`, where kc said "not yet up to a 0 or nowhere"
+  and "does not walk what only C sees".
+  - Found on the way and fixed: nowhere among a `[cstr]`'s elements,
+    `["a", nowhere]`, as kelvinc takes it, where kc said it was of a
+    type only C sees.
+  - tests/run/for_each.k, which kc refused, prints what kelvinc's
+    prints.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

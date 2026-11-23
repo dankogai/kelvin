@@ -14454,6 +14454,8 @@ let fixed_list_fits(v:int64, y:int64):bool {
             return false
         } else if types[e].kind == Y_PTR && !is_case_word(x) {
             // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557)
+        } else if types[e].kind == Y_CSTR && nodes[x].kind == N_NULL {
+            // nowhere, a cstr's no text, as kelvinc takes it (#698)
         } else {
             let bad:String = value_mismatch_text(x, e)
             if bad.count > 0 && nodes[x].kind == N_STR && types[e].kind == Y_FIXED && types[e].name < 0 {   // ["ab", "cd"] of [[u8]], as kelvinc says it
@@ -20794,12 +20796,31 @@ let gen_each(n:int64, depth:int64) {
         }
         gen_error(nodes[n].a, m.cstr)
         return
-    } else if types[y].kind == Y_PTR {
-        gen_error(nodes[n].a, "kc walks a pointer only as a list, a struct's along its next: not yet up to a 0 or nowhere")
-        return
-    } else if types[y].kind == Y_C || (types[y].kind == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y)) {
-        gen_error(nodes[n].a, "kc does not walk what only C sees, a C header's type: not yet")   // kelvinc walks it as a pointer, up to a 0 (#610)
-        return
+    } else if types[y].kind == Y_PTR || types[y].kind == Y_C || (types[y].kind == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y)) {
+        // a pointer, or what only C sees, a C header's type, walked up to a 0 or from nowhere none, as kelvinc's #30 and #610 (#698)
+        put("for (__auto_type _kv_p")
+        put_int(serial)
+        put(" = (")
+        gen_expr(src)
+        put("); _kv_p")
+        put_int(serial)
+        put(" != 0 && *_kv_p")
+        put_int(serial)
+        put(" != 0; _kv_p")
+        put_int(serial)
+        put("++)\n")
+        indent(depth + 1)
+        put("{\n")
+        indent(depth + 2)
+        put("const __typeof__(*_kv_p")
+        put_int(serial)
+        put(") ")
+        put_tok(nodes[n].t)
+        put(" = *_kv_p")
+        put_int(serial)
+        put(";\n")
+        open_scope()
+        declare_each(nodes[n].t, types[y].kind == Y_PTR ? types[y].elem : base_type(Y_C), 3)
     } else if types[y].kind != Y_ARRAY && types[y].kind != Y_BYTES {   // a number, a struct: as kelvinc says it (#610)
         var m = $"for x in s walks a pointer, a list or an array, and this is "
         let w:String = kelvin_type_text(y)

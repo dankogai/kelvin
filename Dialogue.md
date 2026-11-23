@@ -13580,3 +13580,16 @@ kelvinc's prints.
 Details are provisional P702.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 745. kc walks pointers up to a 0
+
+**Claude** wrote #697, its battery run and pushed when clean, and
+went on with the seventh batch.
+
+**Claude** made it #698: a pointer walked up to a 0, and what only C
+sees walked so, as kelvinc does, with nowhere among a `[cstr]`'s
+elements found on the way and fixed.
+
+Details are provisional P703.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
