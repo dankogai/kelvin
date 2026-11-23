@@ -7788,11 +7788,27 @@ let fixed_ok(y:int64, v:int64):bool {
 // at the level after, each on a line of its own where level is not -1
 let put_fixed_top(w:int64, y:int64, target:cstr, wn:int64, level:cstr) {
     let cy:int64 = shown_count_of(y, w)
-    put("{ const struct { __typeof__(")
+    put("{ const struct { const __typeof__((")         // its elements by a pointer, self->a, which an array of a count C computes takes too (#699)
     gen_expr(w)
-    put(") a; } *self = (const void *)&(")
+    put(")[0]) *a; } _kv_fs = { (")
     gen_expr(w)
-    put("); kv_out *o = &(kv_out){")
+    put(") }, *self = &_kv_fs; size_t _kv_fc = ")       // its count, read before o names the output, as a variable o may be the array (#699)
+    if cy != y && types[cy].name >= 0 {                  // a parameter's, as declared
+        put("((size_t)")
+        put_int(types[cy].name)
+        put(")")
+    } else if cy != y || types[y].name <= 0 - 10 {      // a parameter's as declared; of a count C computes, it (#699)
+        put("((size_t)(")
+        gen_expr(0 - 10 - types[cy].name)
+        put("))")
+    } else if !put_zero_count(y) {
+        put("sizeof (")
+        gen_expr(w)
+        put(") / sizeof (")
+        gen_expr(w)
+        put(")[0]")
+    }
+    put("; kv_out *o = &(kv_out){")
     put(target)
     put(", .width = ")
     if wn < 0 {
@@ -7808,19 +7824,7 @@ let put_fixed_top(w:int64, y:int64, target:cstr, wn:int64, level:cstr) {
     put(level)
     put(") < 0 ? -1 : (")
     put(level)
-    put(") + 1; (void)_kv_nl;\n    kv_out_put(o, \"[\");\n    for (size_t _kv_t = 0; _kv_t < ")
-    if cy != y && types[cy].name >= 0 {                  // a parameter's, as declared
-        put("((size_t)")
-        put_int(types[cy].name)
-        put(")")
-    } else if cy != y {
-        put("((size_t)(")
-        gen_expr(0 - 10 - types[cy].name)
-        put("))")
-    } else if !put_zero_count(y) {
-        put("sizeof self->a / sizeof self->a[0]")
-    }
-    put("; _kv_t++)\n    {\n    kv_out_sep(o, ")
+    put(") + 1; (void)_kv_nl;\n    kv_out_put(o, \"[\");\n    for (size_t _kv_t = 0; _kv_t < _kv_fc; _kv_t++)\n    {\n    kv_out_sep(o, ")
     put(level)
     put(", _kv_t == 0);\n    ")
     show_value(types[y].elem, "a[_kv_t]", 0 - 1, "_kv_nl")

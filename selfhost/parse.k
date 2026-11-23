@@ -2565,7 +2565,7 @@ let parse_primary():int64 {
         advance()
         let n:int64 = make_node(N_LIST, t)
         let word = toks[pos].kind == T_ID                // [T](n) of a type's name: a list is no function (#366)
-        if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") || at_word("[") && bracket_type_ahead() {   // [T](n), n zero elements; [[T](n)](2) (#367)
+        if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") || word && tok_is(pos + 1, "?") && tok_is(pos + 2, "]") && tok_is(pos + 3, "(") || at_word("[") && bracket_type_ahead() {   // [T](n), n zero elements; [[T](n)](2) (#367); [i32?](2), of Optionals (#699)
             set_ty(n, parse_type())
             expect("]")
             expect("(")

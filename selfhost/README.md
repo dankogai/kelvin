@@ -1209,6 +1209,15 @@ kc reads what it is written in, and little more.
     type only C sees.
   - tests/run/for_each.k, which kc refused, prints what kelvinc's
     prints.
+- **`[T?](n)` and an array of a count C computes printed** (#699):
+  `[i32?](2)` is two Optionals, none each, where kc read `i32 ? ...`, a
+  choice; and a fixed array shown whole, by print, a template or
+  `.pretty`, reaches its elements through a pointer, `self->a`, its
+  count read first, `_kv_fc`, so that `[f64](n)` prints to its count,
+  where C refused a struct of a variable's length, and an array named
+  `o` is counted, not #693's output of that name.
+  - tests/run/print_fixed.k, which kc refused, prints what kelvinc's
+    prints.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

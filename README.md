@@ -848,3 +848,5 @@ So far the changes from C are these, by topic.
   C, its block's, as kelvinc does (#180, #697)
 - kc walks a pointer up to a 0, and what only C sees so, as kelvinc
   does, and takes nowhere among a `[cstr]`'s elements (#698)
+- kc reads `[T?](n)`, a fixed array of Optionals, and prints a fixed
+  array of a count C computes, as kelvinc does (#699)

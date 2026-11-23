@@ -13593,3 +13593,16 @@ elements found on the way and fixed.
 Details are provisional P703.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 746. kc reads [T?](n) and prints VLAs
+
+**Claude** wrote #698, its battery run and pushed when clean, and
+went on with the eighth batch.
+
+**Claude** made it #699: `[i32?](2)`, a fixed array of Optionals, and
+a fixed array of a count C computes printed, with #693's printer
+mended, so that print_fixed.k prints what kelvinc's prints.
+
+Details are provisional P704.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

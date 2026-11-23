@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #698 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #699 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -78,6 +78,8 @@ known, not what is planned.
 - kc walks a pointer up to a 0, from nowhere none, and what only C sees
   so, as kelvinc's #30 and #610, and takes nowhere among a `[cstr]`'s
   elements (#698).
+- kc reads `[T?](n)`, a fixed array of Optionals, and prints a fixed
+  array of a count C computes, `[f64](n)`, as kelvinc's (#699).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - a plain enum with no name in a block, and one with values inside a
@@ -103,7 +105,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 to P703, the details of #692 to #698, until reviewed; the reviews confirmed
+- P697 to P704, the details of #692 to #699, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 
