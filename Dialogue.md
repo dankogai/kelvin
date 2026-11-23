@@ -13703,3 +13703,18 @@ so that conditions.k prints what kelvinc's prints.
 Details are provisional P711.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 754. A record's text, as kelvinc writes it
+
+**Claude** wrote #706, its battery run and pushed when clean, and
+went on with the second difference.
+
+**User:** go on
+
+**Claude** made it #707: a record's text, `.cstr` and in a template,
+written as kelvinc writes it, so that print_values.k and
+template_bounds.k print what kelvinc's print.
+
+Details are provisional P712.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

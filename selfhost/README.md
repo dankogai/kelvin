@@ -1271,6 +1271,20 @@ kc reads what it is written in, and little more.
   `((bool)(... ? ... : ...))`, as kelvinc casts it, where C's ?: of two
   bools, an int, printed `1`; tests/run/conditions.k prints what
   kelvinc's prints.
+- **A record's text, `.cstr`, as kelvinc writes it** (#707), its
+  emit_derived_cstr: a struct, a union or an enum with values of no
+  text of its own, each member of a text kelvinc's text_writer writes,
+  has `enum { _kv_T_cstr_size = ... }`, its longest text by text_bound,
+  and `_kv_T_cstr(self, buf)`, written after the printers' prototypes,
+  what it holds first: `{x: 1, xs: [1, 2, 3], tags: [...], name:
+  "n"}`, an Array, a Dictionary or a Set member cut to `[...]` or
+  `{...}`, `<union bits>`, `shape.at({x: 3, y: 4.0})`.
+  - `v.cstr` of one is `_kv_T_cstr(v, _kv_textN)` in its block's
+    storage, and `${v}` in a template its text to `_kv_T_cstr_size -
+    1`, in `$`...`` whole, where kc wrote the printer's text, the
+    elements, cut at KV_TEMPLATE_STR; print is the printer's still.
+  - tests/run's print_values.k and template_bounds.k print what
+    kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

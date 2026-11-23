@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #706 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #707 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -99,6 +99,8 @@ known, not what is planned.
   variable, with three tests of tests/error (#705).
 - kc prints a choice of bools, `a < b ? a > 0 : b > 9`, as a bool,
   where C's ?: of them gave an int, 1 (#706).
+- kc writes a record's text as kelvinc's, `_kv_T_cstr` to its own
+  longest, for `.cstr` and a template, an Array member `[...]` (#707).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -110,19 +112,13 @@ known, not what is planned.
 - kc's output that differs from kelvinc's, found while #692 to #696
   were made, of programs it builds, the user's order after #705 to
   make each as kelvinc's:
-  - `.cstr` of a struct with an Array member shows its elements
-    (print_values.k), where kelvinc's shows `[...]`;
-  - a struct in a template, `${w}`, is its printer's text cut at
-    KV_TEMPLATE_STR, 256 bytes, where kelvinc's is its `.cstr`, to the
-    struct's own longest text (template_bounds.k, 315 bytes), the same
-    root as the one before;
   - `typeof(k)` of a let is `const i64` by `.typename` (typeof.k),
     where kc's is `i64`, as kc's types have no const of a number.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P697 to P711, the details of #692 to #706, until reviewed; the reviews confirmed
+- P697 to P712, the details of #692 to #707, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

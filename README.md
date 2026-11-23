@@ -864,3 +864,5 @@ So far the changes from C are these, by topic.
   and a fixed array is no Array's element, in kelvinc's words where the
   type is written, where kc built `Set<f64>` (#705)
 - kc prints a choice of bools as a bool, where it printed 1 (#706)
+- kc writes a record's `.cstr` and its text in a template as kelvinc
+  does, an Array member `[...]`, to its own longest (#707)

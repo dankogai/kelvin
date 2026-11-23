@@ -7374,12 +7374,318 @@ let shown_cstr(n:int64):bool {
     return true
 }
 
+// ---------- a record's derived text, _kv_T_cstr (#707) ----------
+
+var cstr_types:$[int64]                  // the records whose _kv_T_cstr is written, what each holds first (#707)
+var cstr_seen:Dictionary<int64, int64>
+
+// whether y, a member's type, has a text kelvinc's text_writer writes:
+// a number, a bool, text, a String, a Bytes, an Array, a Dictionary, a
+// Set, an IO, a function, a pointer, a plain enum, a C header's type, a
+// fixed array of them, or a record of them (#707)
+let text_member_ok(y:int64):bool {
+    if y < 0 { return false }
+    let k:ykind = types[y].kind
+    if k == Y_FIXED { return text_member_ok(types[y].elem) }
+    if is_number_kind(k) || k == Y_CSTR || k == Y_STRING || k == Y_BYTES || k == Y_ARRAY || k == Y_DICT || k == Y_SET || k == Y_IO || k == Y_FN || k == Y_PTR || k == Y_C { return true }
+    if k == Y_STRUCT { return enum_int(y) || (struct_of(y) < 0 && tagged_of(y) < 0) || cstr_record(y) }
+    return false
+}
+
+// whether y is a record kc writes a derived text of, as kelvinc's
+// emit_derived_cstr: a struct, a union or an enum with values, of no
+// text of its own, each member's of a text kc writes (#707)
+let cstr_record(y:int64):bool {
+    if y < 0 || types[y].kind != Y_STRUCT || enum_int(y) { return false }
+    let d:int64 = tagged_of(y)
+    let s:int64 = struct_of(y)
+    if d < 0 && s < 0 { return false }
+    if string_text_fn(y) >= 0 { return false }
+    if cstr_seen.has(y) { return true }                  // of one that holds itself through a pointer
+    cstr_seen[y] = 0 - 1
+    var ok = true
+    var m:int64 = d >= 0 ? nodes[d].a : nodes[s].a
+    let a_union = d < 0 && nodes[s].flag == 1
+    while m >= 0 && !a_union {
+        if nodes[m].ty >= 0 && !text_member_ok(nodes[m].ty) { ok = false }
+        m = nodes[m].next
+    }
+    cstr_seen.remove(y)
+    return ok
+}
+
+// its _kv_T_cstr written, what it holds first (#707)
+let need_cstr(y:int64) {
+    if cstr_seen.get(y, 0) == 1 { return }
+    cstr_seen[y] = 1
+    let d:int64 = tagged_of(y)
+    var m:int64 = d >= 0 ? nodes[d].a : nodes[struct_of(y)].a
+    while m >= 0 {
+        var v:int64 = nodes[m].ty
+        while v >= 0 && types[v].kind == Y_FIXED { v = types[v].elem }
+        if v >= 0 && v != y && cstr_record(v) { need_cstr(v) }
+        m = nodes[m].next
+    }
+    cstr_types += y
+}
+
+let put_cstr_name(y:int64) {
+    put("_kv_")
+    put_tok(types[y].name)
+    put("_cstr")
+}
+
+// a fixed array's count, a number or one C computes (#707)
+let put_text_count(y:int64) {
+    if types[y].name >= 0 {
+        put_int(types[y].name)
+    } else {
+        put("(size_t)(")
+        gen_expr(0 - 10 - types[y].name)
+        put(")")
+    }
+}
+
+// the longest text of a number or a bool of kind k, as kelvinc's text_bound, or "" (#707)
+let scalar_bound(k:ykind):cstr {
+    return k == Y_I8 ? "4" : k == Y_U8 ? "3" : k == Y_I16 ? "6" : k == Y_U16 ? "5" : k == Y_I32 ? "11" : k == Y_U32 ? "10" : k == Y_I64 || k == Y_U64 ? "20" : k == Y_I128 ? "40" : k == Y_U128 ? "39" : k == Y_F32 ? "15" : k == Y_F64 ? "24" : k == Y_BOOL ? "5" : ""
+}
+
+// the longest text of a value of y, a C constant, as kelvinc's text_bound (#707)
+let put_text_bound(y:int64) {
+    let k:ykind = types[y].kind
+    let e:int64 = k == Y_PTR ? types[y].elem : 0 - 1
+    let ek:ykind = e >= 0 ? types[e].kind : Y_VOID
+    if k == Y_FN || (k == Y_PTR && ek != Y_U8 && ek != Y_I8 && ek != Y_C) {
+        put("(sizeof(void *) * 2 + 2)")
+    } else if k == Y_PTR || k == Y_CSTR {
+        put("KV_CSTR_STR")
+    } else if k == Y_FIXED && types[y].name < 0 && types[y].name > 0 - 10 {
+        put("5")                                         // [...]
+    } else if k == Y_FIXED {
+        put("(")
+        put_text_count(y)
+        put(" * (")
+        put_text_bound(types[y].elem)
+        put(" + 2) + 2)")
+    } else if scalar_bound(k)[0] != 0 {
+        put(scalar_bound(k))
+    } else if cstr_record(y) {
+        put("(")
+        put_cstr_name(y)
+        put("_size - 1)")
+    } else {
+        put("(KV_CSTR_SCALAR - 1)")
+    }
+}
+
+// the statements that write the text of lv, of type y, at _kv_p, as
+// kelvinc's write_text and text_writer (#707)
+let put_text_write(y:int64, lv:cstr, depth:int64) {
+    let k:ykind = types[y].kind
+    if k == Y_FIXED && types[y].name < 0 && types[y].name > 0 - 10 {
+        put("    _kv_p = kv_cstr_put(_kv_p, \"[...]\");\n")
+        return
+    }
+    if k == Y_FIXED {
+        put("    _kv_p = kv_cstr_put(_kv_p, \"[\");\n    for (size_t _kv_i")
+        put_int(depth)
+        put(" = 0; _kv_i")
+        put_int(depth)
+        put(" < ")
+        put_text_count(y)
+        put("; _kv_i")
+        put_int(depth)
+        put("++)\n    {\n    if (_kv_i")
+        put_int(depth)
+        put(")\n        _kv_p = kv_cstr_put(_kv_p, \", \");\n")
+        var inner = String(lv)
+        inner += "[_kv_i"
+        let ds:String = String(depth)
+        inner += &ds
+        inner += "]"
+        put_text_write(types[y].elem, inner.cstr, depth + 1)
+        put("    }\n    _kv_p = kv_cstr_put(_kv_p, \"]\");\n")
+        return
+    }
+    let e:int64 = k == Y_PTR ? types[y].elem : 0 - 1
+    let ek:ykind = e >= 0 ? types[e].kind : Y_VOID
+    put("    _kv_p = ")
+    if k == Y_BYTES {
+        put("kv_cstr_quoted_bytes(")
+        put(lv)
+        put(", _kv_p)")
+    } else if k == Y_STRING {
+        put("kv_cstr_quoted_string(")
+        put(lv)
+        put(", _kv_p)")
+    } else if k == Y_ARRAY {
+        put("kv_cstr_put(_kv_p, \"[...]\")")
+    } else if k == Y_DICT || k == Y_SET {
+        put("kv_cstr_put(_kv_p, \"{...}\")")
+    } else if k == Y_IO {
+        put("kv_cstr_put(_kv_p, \"<IO>\")")
+    } else if k == Y_FN {
+        put("kv_cstr_put_address(_kv_p, (const void *)(uintptr_t)")
+        put(lv)
+        put(")")
+    } else if k == Y_CSTR || (k == Y_PTR && (ek == Y_U8 || ek == Y_I8)) {
+        put("kv_cstr_quoted_str((const char *)")
+        put(lv)
+        put(", _kv_p)")
+    } else if k == Y_PTR {
+        put(ek == Y_C ? "kv_cstr_put_pointer(_kv_p, " : "kv_cstr_put_address(_kv_p, ")
+        put(lv)
+        put(")")
+    } else if is_number_kind(k) {
+        put("kv_cstr_end(")
+        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_I128 ? "kv_cstr_i128" : k == Y_U128 ? "kv_cstr_u128" : is_unsigned_kind(k) ? "kv_cstr_u64" : k == Y_F64 ? "kv_cstr_f64" : k == Y_F32 ? "kv_cstr_f32" : "kv_cstr_i64")
+        put("(")
+        put(lv)
+        put(", _kv_p))")
+    } else if cstr_record(y) {
+        put("kv_cstr_end(")
+        put_cstr_name(y)
+        put("(")
+        put(lv)
+        put(", _kv_p))")
+    } else {
+        put("kv_cstr_end(kv_cstr_any(")
+        put(lv)
+        put(", _kv_p))")
+    }
+    put(";\n")
+}
+
+// _kv_T_cstr_size and _kv_T_cstr of the record y, as kelvinc's
+// emit_derived_cstr (#707): {x: 1, y: 2}, <union bits>, num.n(1.5)
+let gen_cstr_fn(y:int64) {
+    let d:int64 = tagged_of(y)
+    let s:int64 = struct_of(y)
+    put("enum { ")
+    put_cstr_name(y)
+    put("_size = ")
+    var qual = $""
+    if d >= 0 {
+        let cn:String = tok_text(types[y].name)
+        if !anon_decls.has(cn) && !cn.starts("_kv_opt_") && !cn.starts("_kv_res_") {   // as the printer qualifies its cases (#529, #692)
+            let w:String = kelvin_name(types[y].name)
+            qual += &w
+            qual += "."
+        }
+        put("1")
+        var m:int64 = nodes[d].a
+        while m >= 0 {
+            put(" + ")
+            put_int(qual.count as int64 + toks[nodes[m].t].len + 2)
+            if nodes[m].ty >= 0 {
+                put(" + ")
+                put_text_bound(nodes[m].ty)
+            }
+            m = nodes[m].next
+        }
+    } else if nodes[s].flag == 1 {
+        let w:String = kelvin_name(types[y].name)
+        put_int(w.count as int64 + 9)
+    } else {
+        var fixed:int64 = 3
+        var m:int64 = nodes[s].a
+        var i = 0
+        while m >= 0 {
+            fixed += (i > 0 ? 2 : 0) + toks[nodes[m].t].len + 2
+            i += 1
+            m = nodes[m].next
+        }
+        put_int(fixed)
+        m = nodes[s].a
+        while m >= 0 {
+            put(" + ")
+            put_text_bound(nodes[m].ty)
+            m = nodes[m].next
+        }
+    }
+    put(" };\n__attribute__((unused)) static inline uint8_t *")
+    put_cstr_name(y)
+    put("(")
+    put_ctype(y)
+    put(" self, uint8_t *_kv_buf)\n{\n")
+    if d >= 0 {
+        put("    uint8_t *_kv_p = _kv_buf;\n    switch (self.tag)\n    {\n")
+        var m:int64 = nodes[d].a
+        while m >= 0 {
+            put("    case ")
+            put_int(case_tag(d, m))
+            put(":\n    _kv_p = kv_cstr_put(_kv_p, \"")
+            put(qual.cstr)
+            put_tok(nodes[m].t)
+            put(nodes[m].ty >= 0 ? "(\");\n" : "\");\n")
+            if nodes[m].ty >= 0 {
+                var lv = $"self.u."
+                lv += tok_text(nodes[m].t)
+                put_text_write(nodes[m].ty, lv.cstr, 0)
+                put("    _kv_p = kv_cstr_put(_kv_p, \")\");\n")
+            }
+            put("    break;\n")
+            m = nodes[m].next
+        }
+        put("    default: kv_cstr_put(_kv_p, \"?\"); break;\n    }\n")
+    } else if nodes[s].flag == 1 {
+        put("    (void)self;\n    kv_cstr_put(_kv_buf, \"<")
+        if !anon_decls.has(tok_text(types[y].name)) { put("union ") }
+        let w:String = kelvin_name(types[y].name)
+        put(w.cstr)
+        put(">\");\n")
+    } else {
+        put("    uint8_t *_kv_p = _kv_buf;\n    _kv_p = kv_cstr_put(_kv_p, \"{\");\n")
+        var m:int64 = nodes[s].a
+        var i = 0
+        while m >= 0 {
+            put("    _kv_p = kv_cstr_put(_kv_p, \"")
+            if i > 0 { put(", ") }
+            put_tok(nodes[m].t)
+            put(": \");\n")
+            var lv = $"self."
+            lv += tok_text(nodes[m].t)
+            put_text_write(nodes[m].ty, lv.cstr, 0)
+            i += 1
+            m = nodes[m].next
+        }
+        put("    kv_cstr_put(_kv_p, \"}\");\n")
+    }
+    put("    return _kv_buf;\n}\n\n")
+}
+
+// _kv_T_cstr((a), _kv_textN) of the record a, its text in its block's
+// storage, as kelvinc's .cstr of a struct it sees (#707)
+let put_record_cstr(a:int64, y:int64) {
+    need_cstr(y)
+    serial += 1
+    let s = serial
+    put_cstr_name(y)
+    put("((")
+    gen_expr(a)
+    put("), _kv_text")
+    put_int(s)
+    put(")")
+    var d = $"uint8_t _kv_text"
+    d += String(s)
+    d += "["
+    d += "_kv_"
+    d += tok_text(types[y].name)
+    d += "_cstr_size]"
+    block_store += &d
+}
+
 // v.cstr, as `${v}` writes it: by its printer into a String, then into
 // storage the statement declares before it; cut past KV_TEMPLATE_STR,
 // where kelvinc sizes it by the type (#450)
 let gen_shown_cstr(n:int64, a:int64, y:int64) {
     if current >= 0 && nodes[current].kind == D_GLOBAL && !first_use.has(tok_text(nodes[current].t)) {   // in a first-use global's getter, a function's (#700)
         gen_error(n, "kc makes a value's text in a function: not yet in a global's initializer")
+        return
+    }
+    if cstr_record(y) {                                  // a record's derived text, as kelvinc's (#707)
+        put_record_cstr(a, y)
         return
     }
     if !need_show(y, n) { return }
@@ -7943,7 +8249,25 @@ let gen_text_template(n:int64) {
             }
         } else {
             let y = type_of(tpl_shown(x))
-            if y >= 0 && (tpl_pretty(x) || shown_by_type(y) || fixed_whole(tpl_shown(x))) {   // ${xs} (#125): by its printer, cut as a string is; a fixed array's [a, b] (#693)
+            if y >= 0 && !tpl_pretty(x) && cstr_record(y) {   // ${w} of a record: its .cstr, to its own longest, as kelvinc's (#707)
+                serial += 1
+                let v = serial
+                put("__auto_type _kv_value")
+                put_int(v)
+                put(" = ")
+                put_record_cstr(x, y)
+                put("; KV_TEMPLATE_VALUE(")
+                put(b.cstr)
+                put(", (_kv_")
+                put_tok(types[y].name)
+                put("_cstr_size - 1), _kv_value")
+                put_int(v)
+                put("); ")
+                bounds += " + (_kv_"
+                let yn:String = tok_text(types[y].name)
+                bounds += &yn
+                bounds += "_cstr_size - 1)"
+            } else if y >= 0 && (tpl_pretty(x) || shown_by_type(y) || fixed_whole(tpl_shown(x))) {   // ${xs} (#125): by its printer, cut as a string is; a fixed array's [a, b] (#693)
                 serial += 1
                 var v = $"_kv_value"
                 v += String(serial)
@@ -8019,7 +8343,11 @@ let gen_string_template(n:int64) {
         } else {
             let y = type_of(tpl_shown(x))
             let k:ykind = y >= 0 ? types[y].kind : Y_C
-            if y >= 0 && (tpl_pretty(x) || shown_by_type(y) || fixed_whole(tpl_shown(x))) {   // ${xs} (#125): its text, whole; a fixed array's [a, b] (#693)
+            if y >= 0 && !tpl_pretty(x) && cstr_record(y) {   // ${w} of a record: its .cstr, as kelvinc's (#707)
+                put("kv_string_append_text(&_kv_s, ")
+                put_record_cstr(x, y)
+                put("); ")
+            } else if y >= 0 && (tpl_pretty(x) || shown_by_type(y) || fixed_whole(tpl_shown(x))) {   // ${xs} (#125): its text, whole; a fixed array's [a, b] (#693)
                 tpl_show(x, "_kv_s")
             } else if k == Y_STRING {                    // a String's by reference
                 put("kv_string_append_ref(&_kv_s, &(")
@@ -23441,6 +23769,11 @@ let gen_program() {
         put("static void ")
         put_show_name(shown[i])
         put("(kv_out *, const void *, int);\n")
+    }
+    var ci:int64 = 0
+    while ci < cstr_types.count as int64 {              // the records' derived texts .cstr and templates need (#707)
+        gen_cstr_fn(cstr_types[ci])
+        ci += 1
     }
     for i in 0..<compared.count as int64 {              // and the == of Arrays and Dictionaries (#288)
         if tagged_of(compared[i]) >= 0 {                // an enum with values': an Optional's (#343), a Result's (#344), any (#345)
