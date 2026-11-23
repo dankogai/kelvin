@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #699 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #700 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -80,6 +80,9 @@ known, not what is planned.
   elements (#698).
 - kc reads `[T?](n)`, a fixed array of Optionals, and prints a fixed
   array of a count C computes, `[f64](n)`, as kelvinc's (#699).
+- kc gives a global C cannot initialize its value at its first use, once,
+  by `pthread_once`, as kelvinc's #493, so a value's text is made in a
+  global's initializer too (#700).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - a plain enum with no name in a block, and one with values inside a
@@ -87,7 +90,6 @@ known, not what is planned.
   - a parameter's array of arrays whose inner count C computes;
   - a fixed array in another type, and `(T){...}` and an array's
     compound literal of the types left, an Optional's and the like;
-  - a value's text in a global's initializer;
   - an atomic pointer, and the number of a prelude enum's word.
 - kc's output that differs from kelvinc's, found while #692 to #696
   were made, of programs it builds:
@@ -105,7 +107,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 to P704, the details of #692 to #699, until reviewed; the reviews confirmed
+- P697 to P705, the details of #692 to #700, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

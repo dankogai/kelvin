@@ -14,6 +14,7 @@ var locals:$[sym]          // the variables in scope, the innermost last
 var marks:$[int64]         // where each block's variables begin
 var serial:int64           // for the names kc makes
 var current:int64          // the function being written
+var first_use:Dictionary<String, int64>   // the globals C cannot initialize, by name: their declarations (#493, #700)
 var param_arrays:Dictionary<int64, int64>    // a parameter's [T](N) as declared, its count with it, by the parameter (#524)
 var uses_io:bool           // #import <IO>, whose kOS.h has kv_sys_init
 var uses_sys:bool          // SYS.name read, or #import <OS>: main gives kv_sys_init its arguments, as kelvinc's (#302, #463)
@@ -7372,7 +7373,7 @@ let shown_cstr(n:int64):bool {
 // storage the statement declares before it; cut past KV_TEMPLATE_STR,
 // where kelvinc sizes it by the type (#450)
 let gen_shown_cstr(n:int64, a:int64, y:int64) {
-    if current >= 0 && nodes[current].kind == D_GLOBAL {
+    if current >= 0 && nodes[current].kind == D_GLOBAL && !first_use.has(tok_text(nodes[current].t)) {   // in a first-use global's getter, a function's (#700)
         gen_error(n, "kc makes a value's text in a function: not yet in a global's initializer")
         return
     }
@@ -7454,7 +7455,7 @@ let gen_comma_cstr(n:int64) {
 // type into a buffer the statement declares before it, KV_CSTR_SCALAR
 // long; a bool as one, where C's < gives an int (#462)
 let gen_scalar_cstr(n:int64) {
-    if current >= 0 && nodes[current].kind == D_GLOBAL {
+    if current >= 0 && nodes[current].kind == D_GLOBAL && !first_use.has(tok_text(nodes[current].t)) {   // in a first-use global's getter, a function's (#700)
         gen_error(n, "kc makes a value's text in a function: not yet in a global's initializer")
         return
     }
@@ -7618,7 +7619,7 @@ let number_text_refused(n:int64, k:ykind):bool {
 // writer of x's type, into a buffer the statement declares before it,
 // which lives until the block ends; x.hex of a pointer its address
 let gen_number_text(n:int64, y:int64) {
-    if current >= 0 && nodes[current].kind == D_GLOBAL {
+    if current >= 0 && nodes[current].kind == D_GLOBAL && !first_use.has(tok_text(nodes[current].t)) {   // in a first-use global's getter, a function's (#700)
         gen_error(n, "kc makes a number's text in a function: not yet in a global's initializer")
         return
     }
@@ -10916,6 +10917,78 @@ let thread_owner_error(n:int64, y:int64) {
     gen_error(n, m.cstr)
 }
 
+// ---------- globals given their value at first use (#493, #700) ----------
+
+
+// whether e is a value C initializes a global with, as kelvinc's
+// const_init (#493): a literal, text, an enumerator, a function, an
+// address, sizeof, and these joined by operators, a cast or a list; a
+// name kc does not know, C's; and $[], ${}, ${:} and $"...", which kc
+// writes as constants. A call, an Array, another global's value and the
+// rest are not
+let const_init(e:int64):bool {
+    if e < 0 { return true }
+    let k:nkind = nodes[e].kind
+    if k == N_NUM || k == N_CHAR || k == N_STR || k == N_BOOL || k == N_NULL || k == N_SIZEOF || k == N_ALIGN || k == N_ANON || k == N_EMPTY || k == N_DSTR { return true }
+    if k == N_ID {
+        let t:int64 = nodes[e].t
+        if enum_of(t) >= 0 || fn_named(t) >= 0 { return true }
+        return decl_named(t, D_GLOBAL) < 0
+    }
+    if k == N_ADDR {
+        let a:int64 = nodes[e].a
+        return nodes[a].kind == N_ID || nodes[a].kind == N_FIELD || nodes[a].kind == N_INDEX
+    }
+    if k == N_UNARY || k == N_CAST { return const_init(nodes[e].a) }
+    if k == N_BIN { return const_init(nodes[e].a) && const_init(nodes[e].b) }
+    if k == N_COND { return const_init(nodes[e].a) && const_init(nodes[e].b) && const_init(nodes[e].c) }
+    if k == N_INIT || k == N_LIST {
+        var x:int64 = nodes[e].b
+        while x >= 0 {
+            if !const_init(x) { return false }
+            x = nodes[x].next
+        }
+        return true
+    }
+    if k == N_DESIG { return const_init(nodes[e].a) }
+    return false
+}
+
+// the getter and its once of the first-use global d, as kelvinc writes
+// them: its value made in a function of its own, moved into its storage
+let gen_first_use(d:int64) {
+    let y:int64 = nodes[d].ty
+    put("static pthread_once_t _kv_once_")
+    put_tok(nodes[d].t)
+    put(" = PTHREAD_ONCE_INIT;\nstatic void _kv_init_")
+    put_tok(nodes[d].t)
+    put("(void)\n{\n")
+    let around:int64 = current
+    current = d
+    open_scope()
+    var name = $"_kv_value"
+    let s:int64 = make_node(S_VAR, made_token(&name))
+    nodes[s].a = nodes[d].a
+    nodes[s].ty = y
+    nodes[s].c = nodes[d].c
+    gen_stmt(s, 1)
+    close_scope()
+    current = around
+    put("    memcpy(&_kv_lazy_")
+    put_tok(nodes[d].t)
+    put(", &_kv_value, sizeof _kv_value);              /* moved */\n    memset(&_kv_value, 0, sizeof _kv_value);\n}\nstatic ")
+    put_ctype(y)
+    put(" *_kv_get_")
+    put_tok(nodes[d].t)
+    put("(void)\n{\n    pthread_once(&_kv_once_")
+    put_tok(nodes[d].t)
+    put(", _kv_init_")
+    put_tok(nodes[d].t)
+    put(");\n    return &_kv_lazy_")
+    put_tok(nodes[d].t)
+    put(";\n}\n\n")
+}
+
 // whether the token t names a global of the program
 let global_named(t:int64):bool {
     for d in decls {
@@ -13590,6 +13663,10 @@ let gen_expr_of(n:int64) {
     } else if k == N_NUM && above_i64(t) {
         put_tok(t)                                       // no signed C type holds it, and C warns, as kelvinc says (#472)
         put("U")
+    } else if k == N_ID && local_at(t) < 0 && first_use.has(tok_text(t)) {
+        put("(*_kv_get_")                                // a first-use global, by its getter, as kelvinc's (#700)
+        put_tok(t)
+        put("())")
     } else if k == N_NUM || k == N_CHAR || k == N_ID {
         put_tok(t)
     } else if k == N_STR {
@@ -23108,6 +23185,12 @@ let gen_program() {
     put("#endif\n")
     put("#ifndef _DARWIN_C_SOURCE\n#define _DARWIN_C_SOURCE\n#endif\n")
     put("#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n#include <kelvin_prelude.h>\n")
+    for d in decls {                                     // pthread_once of a first-use global's getter, as kelvinc includes it (#700)
+        if nodes[d].kind == D_GLOBAL && nodes[d].a >= 0 && !extern_decls.contains(d) && !thread_decls.contains(d) && !const_init(nodes[d].a) {
+            put("#include <pthread.h>\n")
+            break
+        }
+    }
     put_range_types()                                    // (#373)
     for i in 0..<decls.count as int64 {                  // #import <OS> (#463)
         if nodes[decls[i]].kind == D_IMPORT && (tok_is(nodes[decls[i]].t, "<OS>") || tok_is(nodes[decls[i]].t, "<IO>")) { os_imported = true }   // IO imports OS
@@ -23227,6 +23310,29 @@ let gen_program() {
                 thread_owner_error(d, nodes[d].ty)
                 return
             }
+            if nodes[d].a >= 0 && !extern_decls.contains(d) && !thread_decls.contains(d) && !const_init(nodes[d].a) {   // given its value at first use, as kelvinc's #493 (#700)
+                first_use[tok_text(nodes[d].t)] = d
+                put("static ")
+                put_ctype(nodes[d].ty)
+                put(" _kv_lazy_")
+                put_tok(nodes[d].t)
+                put(" = ")
+                put_zero_of(nodes[d].ty)
+                put(";\nstatic ")
+                put_ctype(nodes[d].ty)
+                put(" *_kv_get_")
+                put_tok(nodes[d].t)
+                put("(void);\n")
+                current = around
+                var line:String = out.copy()
+                out = before.copy()
+                for f in fns..<anon_fns.count as int64 {
+                    gen_signature(anon_fns[f])
+                    put(";\n")
+                }
+                out += &line
+                continue
+            }
             if static_decls.contains(d) { put("static ") }   // C's (#459)
             if extern_decls.contains(d) { put("extern ") }
             if thread_decls.contains(d) { put("_Thread_local ") }   // each thread's own (#641)
@@ -23281,6 +23387,7 @@ let gen_program() {
                 put("    ")
                 put_free(nodes[d].ty)
                 put("(&")
+                if first_use.has(tok_text(nodes[d].t)) { put("_kv_lazy_") }   // its storage, zero where never given (#700)
                 put_tok(nodes[d].t)
                 put(");\n")
             }
@@ -23299,6 +23406,10 @@ let gen_program() {
     let made = decls.count as int64                      // the T? a chain makes in a function go before them (#221)
     var head:String = out.copy()
     out = $""
+    for i in 0..<made {                                  // the first-use globals' getters (#700)
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_GLOBAL && first_use.has(tok_text(nodes[d].t)) && !failed { gen_first_use(d) }
+    }
     for i in 0..<made {                                  // the functions
         let d:int64 = decls[i]
         if nodes[d].kind == D_FN && nodes[d].b >= 0 && !failed && !anon_fns.contains(d) { gen_function(d) }   // a global's { ... } with those kc makes (#428)

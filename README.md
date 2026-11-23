@@ -850,3 +850,6 @@ So far the changes from C are these, by topic.
   does, and takes nowhere among a `[cstr]`'s elements (#698)
 - kc reads `[T?](n)`, a fixed array of Optionals, and prints a fixed
   array of a count C computes, as kelvinc does (#699)
+- kc gives a global C cannot initialize its value at its first use, as
+  kelvinc does (#493), and so makes a value's text in a global's
+  initializer (#700)

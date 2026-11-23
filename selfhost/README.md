@@ -1218,6 +1218,24 @@ kc reads what it is written in, and little more.
   `o` is counted, not #693's output of that name.
   - tests/run/print_fixed.k, which kc refused, prints what kelvinc's
     prints.
+- **A global given its value at its first use** (#700), as kelvinc's
+  #493: a global whose initializer is no constant, by kelvinc's
+  const_init, a call, `$["a", "b"]`, `${"x": 1}`, `$/.../`, another
+  global's value, is `static T _kv_lazy_x = {0}` with
+  `static T *_kv_get_x(void)`; the getter, written before the
+  functions, runs `_kv_init_x` once by `pthread_once`, which makes the
+  value as a local `_kv_value` of a function and moves it in, and each
+  use is `(*_kv_get_x())`; `#include <pthread.h>` where one is, and at
+  exit the storage is freed.
+  - `$[]`, `${}`, `${:}` and `$"..."` stay constants, as kc writes
+    them so, where kelvinc gives an owner's every value at first use:
+    the same value either way, and kc's own globals stay plain.
+  - A value's text in a global's initializer, `String(n.dec)`,
+    `String(p.cstr)`, is made in the getter, where kc said "not yet in
+    a global's initializer"; a template stays kelvinc's error.
+  - tests/run's global_first_use.k, converter_clamp.k and
+    operator_lent.k, which kc did not build, print what kelvinc's
+    print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

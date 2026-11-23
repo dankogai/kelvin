@@ -13606,3 +13606,18 @@ mended, so that print_fixed.k prints what kelvinc's prints.
 Details are provisional P704.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 747. kc's first-use globals
+
+**Claude** wrote #699, its battery run and pushed when clean.
+
+**User:** go on
+
+**Claude** made it #700: a global C cannot initialize given its value
+at its first use, as kelvinc's #493, so that a value's text is made in
+a global's initializer, and global_first_use.k, converter_clamp.k and
+operator_lent.k print what kelvinc's print.
+
+Details are provisional P705.
+
+There are 1565 tests, and all pass with clang and with gcc 15.
