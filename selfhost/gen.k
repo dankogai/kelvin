@@ -14264,6 +14264,10 @@ let gen_expr_of(n:int64) {
     } else if k == N_DSTR {
         put("KV_STRING_LIT(")                            // $"...", its every byte, a NUL too (#299)
         put_text(t, 1)
+        for more in 1...nodes[n].flag {                  // $"a" "b", C's adjacent literals (#715)
+            put(" ")
+            put_text(t + more, 0)
+        }
         put(")")
     } else if k == N_TPL {
         gen_template(n)                                  // (#445)
@@ -15028,10 +15032,17 @@ let gen_fixed_list(v:int64, y:int64) {
     var x = nodes[v].b
     while x >= 0 && !failed {
         if x != nodes[v].b { put(", ") }
-        if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
-            gen_fixed_list(x, e)
+        var w:int64 = x
+        if nodes[x].kind == N_ADESIG {                   // [i] = v, C's (#715)
+            put("[")
+            gen_expr(nodes[x].c)
+            put("] = ")
+            w = nodes[x].a
+        }
+        if nodes[w].kind == N_LIST && nodes[w].flag == 0 && types[e].kind == Y_FIXED {
+            gen_fixed_list(w, e)
         } else {
-            gen_value(x, e)
+            gen_value(w, e)
         }
         x = nodes[x].next
     }
@@ -15116,6 +15127,10 @@ let fixed_list_fits(v:int64, y:int64):bool {
     var row0:int64 = 0 - 1                               // the first row's count, where the type writes none (#49, #612)
     while x >= 0 {
         count += 1
+        if nodes[x].kind == N_ADESIG {                   // [i] = v: its place and value C's to check, as kelvinc leaves them (#715)
+            x = nodes[x].next
+            continue
+        }
         if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
             if types[e].name == 0 - 1 {
                 let rc:int64 = count_args(nodes[x].b)
@@ -22085,6 +22100,13 @@ let gen_stmt_of(n:int64, depth:int64) {
         put(")\n")
         indent(depth)
         gen_block(nodes[n].b, depth)
+    case S_LABEL:                                        // again:, C's, as kelvinc writes it (#715)
+        put_tok(nodes[n].t)
+        put(":;\n")
+    case S_GOTO:                                         // goto again (#715)
+        put("goto ")
+        put_tok(nodes[n].t)
+        put(";\n")
     case S_DO:                                           // do { } while c, C's (#459)
         put("do\n")
         indent(depth)

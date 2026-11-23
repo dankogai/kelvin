@@ -878,3 +878,6 @@ So far the changes from C are these, by topic.
 - kc takes an empty last case, a let pointer parameter's element set,
   `IO.strerror`, and `(T){...}` of an enum with values, as kelvinc does
   (#714)
+- kc reads an operator at a line's end, labels and goto, element
+  designators, a comma in a condition, a method's prototype and several
+  globals in one declaration, as kelvinc does (#715)

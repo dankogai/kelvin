@@ -42,6 +42,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_RITER,    // the Iterator<T> of the Range a, which kc makes for its lazy and prefix { ... } (#373)
     N_ALIGN,    // alignof(ty) (#395), C's _Alignof
     N_DESIG,    // .t = a in {...}, C's designator (#418)
+    N_ADESIG,   // [c] = a in [...], C's designator of an element (#715)
     N_SIZEOF,   // sizeof(ty), or sizeof a of a value (#420), C's sizeof; flag 1 of sizeof ty, an error, 2 of sizeof(x.type) (#421)
     N_TRY,      // try a (#449): a's ok (some), or a return of its err (none)
     N_TPL,      // `a${x}b` (#445): b the first of its parts, N_STR, and values in turn; flag 1 of $`...`, a String
@@ -65,6 +66,8 @@ enum nkind {                    // the kinds of nodes (#210)
     S_IFLET,    // if let t(flag) = a { b } else c (#217); if let flag = a, t flag too (#442)
     S_CFOR,     // for (a...; b; flag...) c, C's (#458): a its first init statement, flag its first step, each -1 where none
     S_DO,       // do { b } while a, C's (#459)
+    S_LABEL,    // t: a label, C's (#715)
+    S_GOTO,     // goto t, C's (#715)
     // declarations
     D_FN,       // t(a...):ty { b }, b -1 for a prototype; of a type c, flag 1 static, 2 a var method (#320)
     D_STRUCT,   // t { a... }
@@ -791,7 +794,44 @@ let value_type_end():int64    // a prototype: (x.type){...} is a compound litera
 
 // whether (T){ starts here, its { on the line of the (T) (#418), or
 // (x.type){ of a variable's type (#422)
+let compound_ahead():bool    // a prototype: (T){ at the cursor, written so (#715)
+
+// whether (T){ starts a compound literal here: in a condition only where
+// the expression goes on after its }, as kelvinc's brace_is_compound, so
+// that 'if n > sizeof(int64) {' opens the body (#715)
 let literal_ahead():bool {
+    if !compound_ahead() { return false }
+    if !brace_ends { return true }
+    var k:int64 = pos
+    var depth:int64 = 0
+    while toks[k].kind != T_EOF {                        // past the (T)
+        if tok_is(k, "(") { depth += 1 }
+        if tok_is(k, ")") {
+            depth -= 1
+            if depth == 0 { break }
+        }
+        k += 1
+    }
+    k += 1                                               // its {
+    depth = 0
+    while toks[k].kind != T_EOF {
+        if tok_is(k, "{") || tok_is(k, "${") { depth += 1 }
+        if tok_is(k, "}") {
+            depth -= 1
+            if depth == 0 { break }
+        }
+        k += 1
+    }
+    let nx:int64 = k + 1
+    if tok_is(nx, ".") || tok_is(nx, "[") || tok_is(nx, "^") || tok_is(nx, "?") || tok_is(nx, "as") || tok_is(nx, "..<") || tok_is(nx, "...") { return true }   // a range's too, for i in (i64){1}..<3 {
+    let back:int64 = pos
+    pos = nx
+    let p:int64 = binding_power()                        // a binary operator after it goes on too
+    pos = back
+    return p > 0
+}
+
+let compound_ahead():bool {
     if at_word("(") && (tok_is(pos + 1, "{") || ((tok_is(pos + 1, "struct") || tok_is(pos + 1, "union") || tok_is(pos + 1, "enum")) && tok_is(pos + 2, "{"))) {
         var k:int64 = tok_is(pos + 1, "{") ? pos + 1 : pos + 2   // ({x:f64, y:f64}){...}, of a type with no tag (#476)
         var depth = 0
@@ -1147,6 +1187,22 @@ let const_pointee(y:int64):int64 {
     let e:int64 = types[y].elem
     if types[e].kind == Y_PTR { return type_of_kind(Y_PTR, const_pointee(e), types[y].name) }
     return type_of_kind(Y_PTR, e, ptr_restrict(y) ? 3 : 1)
+}
+
+// whether [i] = v starts here, an element's designator in [...] (#715):
+// the [ closed by a ] that a = follows
+let element_designator_ahead():bool {
+    var depth:int64 = 0
+    var k:int64 = pos
+    while toks[k].kind != T_EOF {
+        if tok_is(k, "[") || tok_is(k, "$[") || tok_is(k, "(") || tok_is(k, "{") || tok_is(k, "${") { depth += 1 }
+        if tok_is(k, "]") || tok_is(k, ")") || tok_is(k, "}") {
+            depth -= 1
+            if depth == 0 { return tok_is(k, "]") && tok_is(k + 1, "=") }
+        }
+        k += 1
+    }
+    return false
 }
 
 // whether the [ before pos, of [[T](n)](2), closes with ]( : a type's
@@ -2174,8 +2230,20 @@ let trailing_ahead():bool {
 let parse_cond():int64 {
     let saved = brace_ends
     brace_ends = true
-    let e:int64 = parse_expr()
+    let e:int64 = parse_comma_expr()                     // if f(), ok { }, C's comma, as kelvinc reads it (#715)
     brace_ends = saved
+    return e
+}
+
+// a, b, C's comma, its value the last's, as kelvinc reads it (#652, #715)
+let parse_comma_expr():int64 {
+    var e:int64 = parse_expr()
+    while at_word(",") && !failed {
+        let c:int64 = make_node(N_COMMA, advance())
+        nodes[c].a = e
+        nodes[c].b = parse_expr()
+        e = c
+    }
     return e
 }
 
@@ -2678,7 +2746,17 @@ let parse_primary():int64 {
         var last = -1
         skip_newlines()
         while !failed && !at_word("]") {
-            let e:int64 = parse_expr()
+            var e:int64 = 0 - 1
+            if at_word("[") && element_designator_ahead() {   // [2] = 9, C's designator of an element, as kelvinc's (#715)
+                let open:int64 = advance()
+                e = make_node(N_ADESIG, open)
+                nodes[e].c = parse_expr()
+                expect("]")
+                expect("=")
+                set_a(e, parse_expr())
+            } else {
+                e = parse_expr()
+            }
             if last < 0 {
                 nodes[n].b = e
             } else {
@@ -2713,7 +2791,12 @@ let parse_primary():int64 {
     }
     if k == T_DSTR {
         advance()
-        return make_node(N_DSTR, t)
+        let n:int64 = make_node(N_DSTR, t)
+        while at_kind(T_STR) || at_kind(T_TPL) {         // $"a" "b", one String of both, as kelvinc's adjacent literals (#459, #715)
+            advance()
+            nodes[n].flag += 1
+        }
+        return n
     }
     if array_literal_ahead() {                           // ([T](N))[a, b], ([T])[a, b], an array's (#419)
         advance()
@@ -3357,6 +3440,9 @@ let parse_binary(min:int64):int64 {
         let t:int64 = advance()
         let n:int64 = make_node(N_BIN, t)
         nodes[n].a = e
+        var q:int64 = pos                                 // an operator at a line's end goes on on the next, as kelvinc has no line there, in its own file (#715)
+        while toks[q].kind == T_NL { q += 1 }
+        if toks[q].file == toks[t].file && toks[q].kind != T_EOF { skip_newlines() }
         set_b(n, parse_binary(p == 8 ? p : p + 1))     // ?? and !! bind right to left, as kelvinc's #251 (#460)
         e = n
     }
@@ -3881,6 +3967,19 @@ let parse_statement():int64 {
             return make_node(S_BLOCK, t)
         }
     }
+    if at_kind(T_ID) && tok_is(pos + 1, ":") && codes[toks[pos].at] != '$' && (toks[pos + 2].kind == T_NL || tok_is(pos + 2, ";") || tok_is(pos + 2, "}")) {   // again:, a label, C's, on its own, as kelvinc's; x:i32 is no label (#715)
+        reject_kv_name(pos)
+        let n:int64 = make_node(S_LABEL, advance())
+        advance()                                        // its :
+        if at_word(";") { advance() }
+        return n
+    }
+    if at_word("goto") && toks[pos + 1].kind == T_ID {   // goto again, C's, as kelvinc's (#715)
+        advance()
+        let n:int64 = make_node(S_GOTO, advance())
+        if at_word(";") { advance() }
+        return n
+    }
     if at_word("var") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "(") && !tok_is(pos + 3, "*") {   // var twice(...) { } in a body, as kelvinc says it; var T (*f)(...) is C's pointer
         var m = $"a function defined inside a function is written 'let "
         m += tok_text(pos + 1)
@@ -4143,7 +4242,7 @@ let parse_cfor():int64 {
         nodes[n].a = parse_simples()
     }
     expect(";")
-    if !at_word(";") { set_b(n, parse_expr()) }
+    if !at_word(";") { set_b(n, parse_comma_expr()) }   // f(), i < 4, C's comma (#715)
     expect(";")
     if !at_word(")") { nodes[n].flag = parse_simples() }
     expect(")")
@@ -5999,6 +6098,7 @@ let parse_program() {
             if is_var { nodes[n].flag = 2 }
             self_name = 0 - 1
             decls += n
+            if nodes[n].b < 0 && at_word(";") { advance() }   // let bag.each(f:(i64));, a method's prototype, as a function's (#453, #715)
         } else if at_word("extend") {
             advance()
             parse_extend()
@@ -6012,12 +6112,17 @@ let parse_program() {
         } else if at_word("let") || at_word("var") {
             let is_let:bool = at_word("let")
             advance()
-            let n:int64 = parse_var(0)
-            nodes[n].kind = D_GLOBAL
-            if is_let { nodes[n].flag = 1 }
-            if thread { thread_decls += n }              // (#641)
-            if is_let && nodes[n].a < 0 && storage != 2 && !failed { let_needs_value(n) }   // but an extern's, C's (#611)
-            decls += n
+            var more = true
+            while more && !failed {                      // var a = 1, b = 2: each a global, as kelvinc's (#715)
+                let n:int64 = parse_var(0)
+                nodes[n].kind = D_GLOBAL
+                if is_let { nodes[n].flag = 1 }
+                if thread { thread_decls += n }          // (#641)
+                if is_let && nodes[n].a < 0 && storage != 2 && !failed { let_needs_value(n) }   // but an extern's, C's (#611)
+                decls += n
+                more = at_word(",") && toks[pos + 1].kind == T_ID
+                if more { advance() }
+            }
             if at_word(";") { advance() }                // var calls = 0; (#451)
         } else if storage == 2 && at_word("lazy") {      // as kelvinc says it
             parse_error("'extern lazy' is a module's header's, which kelvinc --lib writes: a global is given its value at its first use where C cannot initialize it (#493)")

@@ -13823,3 +13823,16 @@ them, so that six more programs print what kelvinc's print.
 Details are provisional P719.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 762. Forms of statements
+
+**Claude** wrote #714, its battery run and pushed when clean, and
+went on with the seventh batch.
+
+**Claude** made it #715: eight forms of statements as kelvinc reads
+them, two narrowed where errors.sh showed they moved kelvinc's errors,
+so that seven more programs print what kelvinc's print.
+
+Details are provisional P720.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #714 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #715 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -116,6 +116,10 @@ known, not what is planned.
 - kc takes an empty last case, `default:`, `p[i] = v` through a let
   pointer parameter, `IO.strerror(code)` and `(shape){.rect = ...}` of
   an enum with values, as kelvinc's (#714).
+- kc reads an operator at a line's end, `$"a" "b"`, labels and goto,
+  `[[2] = 9]`, `(T){` in a condition as kelvinc tells it, a comma in a
+  condition, a method's prototype and `var a = 1, b = 2` of globals, as
+  kelvinc's (#715).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -126,14 +130,13 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 448 of the 506 programs
+- kc builds and prints what kelvinc's prints of 455 of the 506 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #714; 32 of the rest need C headers, #inline C or a JS module. Those
+  #715; 30 of the rest need C headers, #inline C or a JS module. Those
   that stop on errors of kc's own, which the user ordered taught in
-  batches after #709, by kind, 26 left:
+  batches after #709, by kind, 21 left:
   - owners in function values: anon_owner_result, method_overload;
-  - forms of statements: anonymous_lines, conditions_edge, semicolons,
-    statements, dollar_shortcuts, examples/lambda;
+  - anonymous functions: anonymous_lines, a list of structs of them;
   - Arrays: array_elem_values, array_heap, array_literals,
     array_nested_counts, array_owners, append_borrow, infer_seen,
     hidden_names;
@@ -145,7 +148,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P715 to P719, the details of #710 to #714, until reviewed; the reviews confirmed
+- P715 to P720, the details of #710 to #715, until reviewed; the reviews confirmed
   every row to P714, and a review's own detail row is confirmed by that
   review (#675).
 

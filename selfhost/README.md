@@ -1348,6 +1348,22 @@ kc reads what it is written in, and little more.
   - tests/run's switch_cases.k, duff_fallthrough.k and io_isatty.k,
     and examples/bfc.k, bfi.k and results.k, which kc refused, print
     what kelvinc's print.
+- **Forms of statements** (#715), as kelvinc's:
+  - a binary operator at a line's end goes on with the next line, in
+    its own file, `price -` then `count`;
+  - `$"a" "b"`, C's adjacent literals after a String's;
+  - a label, `again:` on its own, S_LABEL, and `goto again`, S_GOTO,
+    C's, where `x:i32` stays kelvinc's error of a bare declaration;
+  - `[[2] = 9, [0] = 1]`, N_ADESIG, C's designators of elements;
+  - `(T){` in a condition a compound literal only where the expression
+    goes on after its }, as kelvinc's brace_is_compound, so that `if n >
+    sizeof(int64) {` opens the body, `(i64){2}..<4` in a for still one;
+  - a comma in an if's or a C for's condition, parse_comma_expr;
+  - `let bag.each(f:(i64));`, a method's prototype, as a function's;
+  - `var a = 1, b = 2` at the top level, each a global.
+  - tests/run's semicolons.k, dollar_shortcuts.k, statements.k,
+    conditions_edge.k, templates.k and template_storage.k, and
+    examples/lambda.k, which kc refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
