@@ -3858,6 +3858,10 @@ let parse_statement():int64 {
         parse_alignas()
         if !at_word("var") && !at_word("let") { refuse_alignas() }
     }
+    if (at_word("struct") || at_word("union") || at_word("enum")) && tok_is(pos + 1, "{") {   // one with no name, which kelvinc has not in a block, as it says it (#702)
+        parse_error("declarations are written 'var name:type', as in 'var x:T'")
+        return make_node(S_BLOCK, t)
+    }
     if (at_word("struct") || at_word("union") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
         let is_struct = !at_word("enum")                 // a type defined in a block (#391): the block's from here
         let is_union = at_word("union")                  // on, written before the function in C; a union too (#453)
@@ -4770,6 +4774,13 @@ let parse_struct():int64 {
     var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
+        if (at_word("struct") || at_word("union") || at_word("enum")) && tok_is(pos + 1, "{") {   // one with no name, which kelvinc has not in a type, as it says it (#702)
+            var m = $"expected a name, found '"
+            m += tok_text(pos)
+            m += "'"
+            parse_error(m.cstr)
+            break
+        }
         if (at_word("struct") || at_word("union") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
             let is_struct = !at_word("enum")             // a type of its own, defined inside (#389): point.kind,
             let is_union = at_word("union")              // written before this one in C; a union too (#453)
@@ -4855,7 +4866,7 @@ let anon_enum_spelling(n:int64):String {
 let parse_enum():int64 {
     let local:bool = local_next || block_depth > 0       // its enumerators the block's (#391)
     if at_word("{") && local {
-        parse_error("kc reads an enum with no name at the top level, C's constants; not yet in a block")
+        parse_error("declarations are written 'var name:type', as in 'var x:T'")   // as kelvinc says it (#702)
         return make_node(D_ENUM, pos)
     }
     let n:int64 = at_word("{") ? make_node(D_ENUM, pos - 1) : make_node(D_ENUM, record_name())   // enum { LIMIT = 100 }: named by its word, C's anonymous enum (#451)
@@ -5986,6 +5997,6 @@ let parse_program() {
         skip_newlines()
     }
     if !failed && anon_tagged.count > 0 {                // read for kelvinc's errors of its words, not yet built (#655)
-        parse_error_at(nodes[anon_tagged[0]].t, "kc reads an enum with no name and cases of values at the top level (#694); not yet inside a type (#120)")
+        parse_error_at(nodes[anon_tagged[0]].t, "expected a name, found 'enum'")   // as kelvinc says it (#702)
     }
 }

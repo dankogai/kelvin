@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #701 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #702 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -50,8 +50,8 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1034 programs kelvinc refuses in kelvinc's words:
-  the 990 of #652 to #656, and those of #659 to #678 alike.
+- kc says each of the 1036 programs kelvinc refuses in kelvinc's words:
+  the 990 of #652 to #656, and those of #659 to #678 and #702 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -85,10 +85,11 @@ known, not what is planned.
   global's initializer too (#700).
 - kc reads `T^ atomic`, the pointer itself C's `_Atomic`, `T *_Atomic`,
   as kelvinc's #642 (#701).
+- An enum, a struct or a union with no name in a block or inside a type
+  is kelvinc's error, which kc says in its words where it said "not
+  yet" or its own, with two tests of tests/error (#702).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
-  - a plain enum with no name in a block, and one with values inside a
-    type;
   - a parameter's array of arrays whose inner count C computes;
   - a fixed array in another type, and `(T){...}` and an array's
     compound literal of the types left, an Optional's and the like;
@@ -110,7 +111,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 to P706, the details of #692 to #701, until reviewed; the reviews confirmed
+- P697 to P707, the details of #692 to #702, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

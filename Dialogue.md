@@ -13634,3 +13634,16 @@ gives.
 Details are provisional P706.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 749. Types with no name in a block or type
+
+**Claude** wrote #701, its battery run and pushed when clean, and
+went on with the twelfth batch.
+
+**Claude** found kelvinc refusing an enum with no name in a block, and
+one inside a type, struct and union alike, and made it #702: kc says
+kelvinc's words at its place, with two tests of tests/error.
+
+Details are provisional P707.
+
+There are 1567 tests, and all pass with clang and with gcc 15.

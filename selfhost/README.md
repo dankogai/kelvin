@@ -1240,6 +1240,14 @@ kc reads what it is written in, and little more.
   := &x` is a pointer type of konst 2, as an atomic number's,
   atomic_pointer, which put_ctype writes `int64_t *_Atomic`, where kc
   said "no atomic pointer yet"; its typename `i64^`, as kelvinc's.
+- **A type with no name in a block or inside a type** (#702) is
+  kelvinc's error, which kc says as it does: `enum { ... }`,
+  `struct { ... }` or `union { ... }` in a block, "declarations are
+  written 'var name:type', as in 'var x:T'", and inside a struct,
+  "expected a name, found 'union'", at the word, where kc said "not yet
+  in a block", "not yet inside a type", "expected ';' or a new line" or
+  that a member says its type; tests/error's block_type_no_tag.k and
+  member_type_no_tag.k say so.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

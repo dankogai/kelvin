@@ -854,3 +854,5 @@ So far the changes from C are these, by topic.
   kelvinc does (#493), and so makes a value's text in a global's
   initializer (#700)
 - kc reads `T^ atomic`, an atomic pointer, as kelvinc does (#701)
+- An enum, a struct or a union with no name in a block or inside a type
+  is kc's error in kelvinc's words, where it said not yet (#702)
