@@ -12405,13 +12405,15 @@ let owner_choice(n:int64):bool {
 // c ? a : b read (#232): two places are read where they are, as a place
 let gen_choice(n:int64) {
     if !owner_choice(n) { return }
-    put("(")
+    let y:int64 = type_of(n)
+    let boolean = y >= 0 && types[y].kind == Y_BOOL
+    put(boolean ? "((bool)(" : "(")                    // a choice of bools is one, as kelvinc casts it: C's ?: of them an int (#706)
     gen_bool(nodes[n].a)                                 // (#611)
     put(" ? ")
     gen_expr(nodes[n].b)
     put(" : ")
     gen_expr(nodes[n].c)
-    put(")")
+    put(boolean ? "))" : ")")
 }
 
 // what return moves out of c ? a : b (#232): a local owner by _take,

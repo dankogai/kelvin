@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #705 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #706 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -97,6 +97,8 @@ known, not what is planned.
   element goes are checked where the type is written, kelvinc's errors
   at its place, where kc built `Set<f64>` and said the rest at the
   variable, with three tests of tests/error (#705).
+- kc prints a choice of bools, `a < b ? a > 0 : b > 9`, as a bool,
+  where C's ?: of them gave an int, 1 (#706).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -106,9 +108,8 @@ known, not what is planned.
   - the number of a prelude enum's word that only C gives, which no
     enum of the prelude has, so no program reaches it.
 - kc's output that differs from kelvinc's, found while #692 to #696
-  were made, of programs it builds:
-  - `a < b ? a > 0 : b > 9` printed, a bool, is `1` (tests/run's
-    conditions.k), where kelvinc's is `true`;
+  were made, of programs it builds, the user's order after #705 to
+  make each as kelvinc's:
   - `.cstr` of a struct with an Array member shows its elements
     (print_values.k), where kelvinc's shows `[...]`;
   - a struct in a template, `${w}`, is its printer's text cut at
@@ -121,7 +122,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 to P710, the details of #692 to #705, until reviewed; the reviews confirmed
+- P697 to P711, the details of #692 to #706, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

@@ -13687,3 +13687,19 @@ which kelvinc builds as some(0).
 Details are provisional P710.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 753. A choice of bools is a bool
+
+**Claude** wrote #705, its battery run and pushed when clean, and
+asked what next of what is left: the 4 output differences, the 49
+unlisted failures, kelvinc's (T?){}, or stop; and whether to push.
+
+**User:** the 4 output differences (recommended); push each when
+clean (recommended)
+
+**Claude** made the first #706: a choice of bools printed as a bool,
+so that conditions.k prints what kelvinc's prints.
+
+Details are provisional P711.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

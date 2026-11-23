@@ -1267,6 +1267,10 @@ kc reads what it is written in, and little more.
   where kc built `Set<f64>`, `Set<bool>` and `Dictionary<f64, i64>`
   and said the rest at the variable; tests/error's set_key_float.k,
   array_of_fixed.k and dict_value_fixed.k, new.
+- **A choice of bools is a bool** (#706): `a < b ? a > 0 : b > 9` is
+  `((bool)(... ? ... : ...))`, as kelvinc casts it, where C's ?: of two
+  bools, an int, printed `1`; tests/run/conditions.k prints what
+  kelvinc's prints.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
