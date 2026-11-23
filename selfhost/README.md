@@ -1254,6 +1254,10 @@ kc reads what it is written in, and little more.
   count C computes writing it as one of a number, where kc said "not
   yet" (vla_pending, gone); tests/run/param_rows_computed.k, new, says
   so.
+- **A fixed array of Optionals given its elements** (#704), as
+  kelvinc's: `([i64?](2))[none, 1]` and `var ys:[i64?](3) = [5, none,
+  7]`, none and a value some(v) is made of, which fixed_list_fits took
+  for no element of an i64?; tests/run/fixed_optional_elements.k, new.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

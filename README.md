@@ -858,3 +858,5 @@ So far the changes from C are these, by topic.
   is kc's error in kelvinc's words, where it said not yet (#702)
 - kc reads a parameter's array of arrays whose inner count C computes,
   as kelvinc does (#703)
+- kc takes none and a value among a fixed array of Optionals' elements,
+  as kelvinc does (#704)

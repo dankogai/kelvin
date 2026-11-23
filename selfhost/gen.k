@@ -14542,6 +14542,8 @@ let fixed_list_fits(v:int64, y:int64):bool {
             // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557)
         } else if types[e].kind == Y_CSTR && nodes[x].kind == N_NULL {
             // nowhere, a cstr's no text, as kelvinc takes it (#698)
+        } else if is_variant(e) && (is_case_word(x) || value_mismatch_text(x, e).count == 0) {
+            // none, or a value some(v) is made of, of an Optional's or a Result's element, as kelvinc takes it (#704)
         } else {
             let bad:String = value_mismatch_text(x, e)
             if bad.count > 0 && nodes[x].kind == N_STR && types[e].kind == Y_FIXED && types[e].name < 0 {   // ["ab", "cd"] of [[u8]], as kelvinc says it

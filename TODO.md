@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #703 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #704 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -90,6 +90,8 @@ known, not what is planned.
   yet" or its own, with two tests of tests/error (#702).
 - kc reads a parameter's array of arrays whose inner count C computes,
   `m:[[i64](n)](2)`, as kelvinc's (#703).
+- kc takes none and a value some(v) is made of among a fixed array of
+  Optionals' elements, `([i64?](2))[none, 1]`, as kelvinc's (#704).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - a fixed array in another type, and `(T){...}` and an array's
@@ -112,7 +114,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P697 to P708, the details of #692 to #703, until reviewed; the reviews confirmed
+- P697 to P709, the details of #692 to #704, until reviewed; the reviews confirmed
   every row to P696, and a review's own detail row is confirmed by that
   review (#675).
 

@@ -13659,3 +13659,15 @@ count C computes, as kelvinc writes it, with a test of it.
 Details are provisional P708.
 
 There are 1568 tests, and all pass with clang and with gcc 15.
+
+### 751. A fixed array of Optionals' elements
+
+**Claude** wrote #703, its battery run and pushed when clean, and
+went on with the fourteenth batch.
+
+**Claude** made it #704: none and a value of a fixed array of
+Optionals' elements, as kelvinc takes them, with a test of it.
+
+Details are provisional P709.
+
+There are 1569 tests, and all pass with clang and with gcc 15.
