@@ -1323,6 +1323,19 @@ kc reads what it is written in, and little more.
   - tests/run's variant_map.k, variant_flat_map.k and
     anon_optional_result.k, which kc refused, print what kelvinc's
     print, and run clean under ASan and UBSan.
+- **A Bytes's Base64, slice and `+`** (#713), as kelvinc's #155 and
+  #188, where kc said "not yet": `b.toBase64(url, nopad)`, a String,
+  `kv_bytes_base64(&b, url, pad)`, the words read before the count of
+  arguments; `Bytes.fromBase64(text)`, a Bytes of a cstr or of a
+  borrowed String's bytes, as `Bytes.unescape` is; `b[lo..<hi]`,
+  `kv_bytes_slice`, as an Array's and a String's slice; and `b + c`,
+  is_bytes_plus, a new Bytes, `({ kv_bytes _kv_cat = ...;
+  KV_BYTES_APPEND(&_kv_cat, ...); _kv_cat; })`, the left one a copy of
+  a variable's, the value an expression gives, or of text, the right
+  borrowed of a variable, else taken.
+  - tests/run's base64.k, string_escape_edges.k, slices.k,
+    slice_range.k and bytes_concat.k, which kc refused, print what
+    kelvinc's print, and run clean under ASan and UBSan.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

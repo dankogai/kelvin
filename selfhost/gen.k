@@ -2155,6 +2155,7 @@ let gen_string_method(n:int64, a:int64, y:int64)
 let owner_copy_error(v:int64, what:cstr)
 let std_io(n:int64):int64             // and IO.stdout's (#452)
 let pretty_value(n:int64):bool        // and v.pretty's (#452)
+let is_bytes_plus(n:int64):bool    // and b + c of a Bytes (#713)
 let fixed_shown(y:int64):bool    // prototypes: a fixed array shown whole (#693)
 let fixed_ok(y:int64, v:int64):bool
 let put_fixed_top(w:int64, y:int64, target:cstr, wn:int64, level:cstr)
@@ -3187,6 +3188,7 @@ let type_of(n:int64):int64 {
     if k == N_METHOD {
         if nodes[nodes[n].a].kind == N_TYPE && method_of(n) >= 0 { return nodes[method_of(n)].ty }   // Bytes.unescape(s, re), a module's (#515)
         if nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "Bytes") && tok_is(t, "unescape") { return base_type(Y_BYTES) }   // Bytes.unescape(text) (#166, #515)
+        if nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "Bytes") && tok_is(t, "fromBase64") { return base_type(Y_BYTES) }   // Bytes.fromBase64(text), as kelvinc's #155 (#713)
         if nodes[nodes[n].a].kind == N_TYPE && tok_is(t, "pipe") {           // IO.pipe(), {reader: IO, writer: IO} straight (#464)
             let g = $"pipe"
             return os_struct(&g)
@@ -3263,10 +3265,7 @@ let type_of(n:int64):int64 {
         }
         let iy:int64 = nodes[n].b >= 0 ? type_of(nodes[n].b) : 0 - 1
         if iy >= 0 && types[iy].kind == Y_RANGE {                    // xs[r], a slice, a new one (#377)
-            if yk == Y_BYTES {                                       // not yet kc's (#439)
-                gen_error(n, "kc reads no slice of a Bytes yet: index its bytes, b[i]")
-                return -1
-            }
+            if yk == Y_BYTES { return y }                            // b[lo..<hi], a new Bytes, as kelvinc's (#713)
             if yk != Y_ARRAY && yk != Y_STRING {
                 var m = $"a slice [lo..<hi] is of an Array, a String or a Bytes, and this is "
                 let w:String = kelvin_type_text(y)
@@ -3312,6 +3311,7 @@ let type_of(n:int64):int64 {
             return wrap_type(ly)
         }
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
+        if is_bytes_plus(n) { return base_type(Y_BYTES) }              // b + c, a new Bytes, as kelvinc's #188 (#713)
         if tok_is(t, "**") { return power_type(nodes[n].a, nodes[n].b) }   // b ** e (#380)
         return arith_type(n)
     }
@@ -10058,13 +10058,7 @@ let bytes_method_type(n:int64, y:int64):int64 {
         gen_error(nodes[n].b, "'.toBase64' takes the words url and nopad, in either order, or nothing")
         return -1
     }
-    if tok_is(t, "toBase64") {
-        var m = $"kc reads no '."
-        m += tok_text(t)
-        m += "()' of a Bytes yet"
-        gen_error(n, m.cstr)
-        return -1
-    }
+    if tok_is(t, "toBase64") { return base_type(Y_STRING) }   // its text in Base64, a new String, as kelvinc's #155 (#713)
     var m = $"a Bytes has no method '"
     m += tok_text(t)
     m += "': append, insert, remove, clear, reserve, escape, compact, copy, string and toBase64, and the properties count, isEmpty, capacity, at, cstr and isUTF8"
@@ -10171,6 +10165,22 @@ let gen_bytes_add(v:int64, what:cstr) {
 let gen_bytes_method(n:int64, a:int64, y:int64) {
     let t:int64 = nodes[n].t
     let b:int64 = nodes[n].b
+    if tok_is(t, "toBase64") {                          // b.toBase64(url, nopad), as kelvinc writes it (#155, #713)
+        if type_of(n) < 0 { return }
+        var url = false
+        var pad = true
+        var x:int64 = b
+        while x >= 0 {
+            if tok_is(nodes[x].t, "url") { url = true }
+            if tok_is(nodes[x].t, "nopad") { pad = false }
+            x = nodes[x].next
+        }
+        put("kv_bytes_base64(")
+        gen_place(a)
+        put(url ? ", true" : ", false")
+        put(pad ? ", true)" : ", false)")
+        return
+    }
     if type_of(n) < 0 || !takes_args(n) { return }     // kelvinc's errors, or kc's
     if tok_is(t, "string") {
         let r:int64 = result_of(base_type(Y_STRING), base_type(Y_I64))
@@ -10215,15 +10225,47 @@ let gen_bytes_method(n:int64, a:int64, y:int64) {
     put(")")
 }
 
+// whether n is b + c of a Bytes, a new Bytes, as kelvinc's #188 (#713):
+// a side a Bytes, the other a Bytes, text or a byte
+let is_bytes_plus(n:int64):bool {
+    if nodes[n].kind != N_BIN || !tok_is(nodes[n].t, "+") { return false }
+    return is_bytes(type_of(nodes[n].a)) || is_bytes(type_of(nodes[n].b))
+}
+
 // the operator n where a side is a Bytes, as kelvinc's #185: == and !=,
 // and < <= > >= by the bytes, of two Bytes, each an expression gives
-// held; b + c not yet kc's, and the rest kelvinc's error
+// held; b + c a new Bytes (#713), and the rest kelvinc's error
 let gen_bytes_bin(n:int64) {
     let t:int64 = nodes[n].t
     let a:int64 = nodes[n].a
     let b:int64 = nodes[n].b
-    if tok_is(t, "+") {
-        gen_error(n, "kc reads no '+' of a Bytes yet: append with .append or +=")
+    if tok_is(t, "+") {                                  // b + c, as kelvinc's #188 (#713): the left one's own, a copy of a variable's, or of text, the right appended
+        let ly:int64 = type_of(a)
+        let ry:int64 = type_of(b)
+        if failed { return }
+        put("({ kv_bytes _kv_cat = ")
+        if is_bytes(ly) && is_place(a) {
+            put("kv_bytes_copy(&(")
+            gen_expr(a)
+            put("))")
+        } else if is_bytes(ly) {
+            put("(")
+            gen_expr(a)
+            put(")")
+        } else {
+            put("kv_bytes_text(")
+            gen_expr(a)
+            put(")")
+        }
+        put("; KV_BYTES_APPEND(&_kv_cat, ")
+        if is_bytes(ry) && is_place(b) {
+            put("&(")
+            gen_expr(b)
+            put(")")
+        } else {
+            gen_expr(b)
+        }
+        put("); _kv_cat; })")
         return
     }
     if !is_comparison(t) {
@@ -10515,6 +10557,22 @@ let gen_method_of(n:int64) {
         put("({ ")
         put_ctype(type_of(n))
         put(" _kv_p = {0}; kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_p; })")
+        return
+    }
+    if nodes[a].kind == N_TYPE && tok_is(nodes[a].t, "Bytes") && tok_is(t, "fromBase64") && nodes[n].b >= 0 && nodes[nodes[n].b].next < 0 {
+        let x:int64 = nodes[n].b                                      // Bytes.fromBase64(text), as kelvinc's #155 (#713): of a cstr, or of a String's bytes
+        let xy:int64 = type_of(x)
+        if xy >= 0 && types[xy].kind == Y_PTR && types[types[xy].elem].kind == Y_STRING {
+            put("({ const kv_string *_kv_s = ")
+            gen_expr(x)
+            put("; kv_bytes_from_base64(kv_bytes_cstr(&_kv_s->b), _kv_s->b.count); })")
+        } else if xy >= 0 && types[xy].kind == Y_CSTR {
+            put("kv_bytes_from_base64_text(")
+            gen_expr(x)
+            put(")")
+        } else {
+            gen_error(x, "Bytes.fromBase64 takes text, a cstr or a borrow of a String, '&s'")
+        }
         return
     }
     if nodes[a].kind == N_TYPE && tok_is(nodes[a].t, "Bytes") && tok_is(t, "unescape") && nodes[n].b >= 0 && nodes[nodes[n].b].next < 0 {
@@ -12994,6 +13052,8 @@ let gen_slice(n:int64) {
     put("); ")
     if types[y].kind == Y_STRING {
         put("kv_string_slice(")
+    } else if types[y].kind == Y_BYTES {
+        put("kv_bytes_slice(")                          // (#713)
     } else {
         put_array_name(y)
         put("_slice(")
@@ -14499,7 +14559,7 @@ let inferred(n:int64):int64 {
             return -1
         }
     }
-    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "!!") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380); d0 !! d1 (#460)
+    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "!!") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) && !is_bytes_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380); d0 !! d1 (#460); b + c a Bytes (#713)
         needs_type(n)                                  // as kelvinc says it
         return -1
     }

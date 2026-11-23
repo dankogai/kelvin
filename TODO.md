@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #712 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #713 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -111,6 +111,8 @@ known, not what is planned.
   kelvinc's (#711).
 - kc makes an Optional's and a Result's `.map`, `.flatMap` and
   `.mapErr`, as kelvinc's #80 and #81 (#712).
+- kc makes a Bytes's `.toBase64()`, `Bytes.fromBase64(text)`, its slice
+  `b[lo..<hi]` and `b + c`, as kelvinc's (#713).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -121,16 +123,14 @@ known, not what is planned.
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
-- kc builds and prints what kelvinc's prints of 437 of the 506 programs
+- kc builds and prints what kelvinc's prints of 442 of the 506 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #712; 34 of the rest need C headers, #inline C or a JS module. Those
+  #713; 34 of the rest need C headers, #inline C or a JS module. Those
   that stop on errors of kc's own, which the user ordered taught in
-  batches after #709, by kind, 35 left:
+  batches after #709, by kind, 30 left:
   - owners in function values: anon_owner_result, method_overload;
   - forms of statements: anonymous_lines, conditions_edge, semicolons,
     statements, dollar_shortcuts, examples/lambda;
-  - a Bytes: base64 and string_escape_edges (`.toBase64()`), slices and
-    slice_range (a Bytes's slice), bytes_concat;
   - Arrays: array_elem_values, array_heap, array_literals,
     array_nested_counts, array_owners, append_borrow, infer_seen,
     hidden_names;
@@ -144,7 +144,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P715 to P717, the details of #710 to #712, until reviewed; the reviews confirmed
+- P715 to P718, the details of #710 to #713, until reviewed; the reviews confirmed
   every row to P714, and a review's own detail row is confirmed by that
   review (#675).
 

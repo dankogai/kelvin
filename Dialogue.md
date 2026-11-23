@@ -13797,3 +13797,16 @@ tests print what kelvinc's print.
 Details are provisional P717.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 760. A Bytes's Base64, slice and +
+
+**Claude** wrote #712, its battery run and pushed when clean, and
+went on with the fifth batch.
+
+**Claude** made it #713: a Bytes's Base64 both ways, its slice and
+`+`, as kelvinc makes them, so that five more tests print what
+kelvinc's print.
+
+Details are provisional P718.
+
+There are 1572 tests, and all pass with clang and with gcc 15.

@@ -873,3 +873,5 @@ So far the changes from C are these, by topic.
   a `T?` parameter as some of it, as kelvinc does (#711)
 - kc makes an Optional's and a Result's `.map`, `.flatMap` and
   `.mapErr` as kelvinc does (#712)
+- kc makes a Bytes's Base64, `b.toBase64()` and `Bytes.fromBase64(s)`,
+  its slice and `b + c`, as kelvinc does (#713)
