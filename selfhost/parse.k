@@ -1495,6 +1495,17 @@ let atomic_base(y:int64, at:int64):int64 {
     return y
 }
 
+// T^ atomic of the pointer y, konst 2 as an atomic number's, the
+// pointer itself C's _Atomic (#701)
+let atomic_pointer(y:int64):int64 {
+    for i in 0..<types.count as int64 {
+        if types[i].konst == 2 && types[i].kind == Y_PTR && types[i].elem == types[y].elem && types[i].name == types[y].name { return i }
+    }
+    let c:ty = {Y_PTR, types[y].elem, types[y].name, 2}
+    types += c
+    return types.count as int64 - 1
+}
+
 // [T] in $[...], an Array in turn, as kelvinc reads $[[i64]] (#369)
 let grown(y:int64):int64 {
     if types[y].kind == Y_ARGV { return type_of_kind(Y_ARRAY, base_type(Y_CSTR), -1) }   // $[[cstr]], as kelvinc's (#616)
@@ -1599,9 +1610,9 @@ let type_suffixes(y0:int64):int64 {
             y = type_of_kind(Y_PTR, y, -1)
             advance()
             y = restrict_of(y)                   // T^ restrict (#393)
-            if at_word("atomic") {               // T^ atomic, kelvinc's, which kc reads not yet (#642)
-                parse_error("kc reads no atomic pointer yet, T^ atomic: an atomic number or bool, 'atomic i64', it reads")
-                return y
+            if at_word("atomic") {               // T^ atomic, the pointer itself atomic, kelvinc's (#642, #701)
+                advance()
+                y = atomic_pointer(y)
             }
         }
     }

@@ -502,6 +502,11 @@ let int_bit_index(n:int64):bool
 let gen_int_bit_set(n:int64)
 
 let put_ctype(y:int64) {
+    if types[y].konst == 2 && types[y].kind == Y_PTR {          // T^ atomic, T *_Atomic, as kelvinc writes it (#701)
+        put_ctype(type_of_kind(Y_PTR, types[y].elem, types[y].name))
+        put("_Atomic")
+        return
+    }
     if types[y].konst == 2 {                                     // atomic T, C's _Atomic (#642)
         put("_Atomic ")
         put_ctype(base_type(types[y].kind))

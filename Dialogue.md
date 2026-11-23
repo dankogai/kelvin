@@ -13621,3 +13621,16 @@ operator_lent.k print what kelvinc's print.
 Details are provisional P705.
 
 There are 1565 tests, and all pass with clang and with gcc 15.
+
+### 748. kc reads an atomic pointer
+
+**Claude** wrote #700, its battery run and pushed when clean, and
+went on with the eleventh batch.
+
+**Claude** made it #701: `T^ atomic`, as kelvinc writes it, and said
+in TODO.md that no enum of the prelude has a word of a number only C
+gives.
+
+Details are provisional P706.
+
+There are 1565 tests, and all pass with clang and with gcc 15.

@@ -1236,6 +1236,10 @@ kc reads what it is written in, and little more.
   - tests/run's global_first_use.k, converter_clamp.k and
     operator_lent.k, which kc did not build, print what kelvinc's
     print.
+- **An atomic pointer** (#701), as kelvinc's #642: `var p:i64^ atomic
+  := &x` is a pointer type of konst 2, as an atomic number's,
+  atomic_pointer, which put_ctype writes `int64_t *_Atomic`, where kc
+  said "no atomic pointer yet"; its typename `i64^`, as kelvinc's.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

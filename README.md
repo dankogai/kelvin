@@ -853,3 +853,4 @@ So far the changes from C are these, by topic.
 - kc gives a global C cannot initialize its value at its first use, as
   kelvinc does (#493), and so makes a value's text in a global's
   initializer (#700)
+- kc reads `T^ atomic`, an atomic pointer, as kelvinc does (#701)
