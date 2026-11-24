@@ -10722,6 +10722,14 @@ let gen_method_of(n:int64) {
         }
         return
     }
+    if nodes[a].kind == N_TYPE && tok_is(nodes[a].t, "IO") && tok_is(t, "popen") {   // IO.popen(command, mode), a process's IO, as kelvinc's #87 (#730); its two arguments type_of asked
+        put("kv_io_popen(")
+        put_exec_text(nodes[n].b)
+        put(", ")
+        put_exec_text(nodes[nodes[n].b].next)
+        put(")")
+        return
+    }
     if nodes[a].kind == N_TYPE && tok_is(t, "exec") {                 // IO.exec(args, mode)
         let args:int64 = nodes[n].b
         if args >= 0 && nodes[args].kind != N_LIST {     // a list, or an Array of text in a variable, as kelvinc says it (#90, #612)
@@ -11779,6 +11787,8 @@ let gen_written(v:int64, y:int64) {
             if fixed_list_fits(v, y) { gen_fixed_list(v, y) }
         } else if nodes[v].kind == N_LIST && type_of(v) == y {
             put("{0}")
+        } else if nodes[v].kind == N_STR && (types[types[y].elem].kind == Y_U8 || types[types[y].elem].kind == Y_I8) {   // text into a member's [u8](N), C's array of it, as kelvinc's (#730)
+            gen_expr(v)
         } else {
             gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
         }
@@ -12927,6 +12937,11 @@ let gen_coalesce(n:int64) {
     put(field)
     put(" : (")
     if types[inner].kind == Y_CSTR { put("(const uint8_t *)") }   // x ?? "text" of a cstr?, which C's ?: would make a void * of (#461), as kelvinc casts it
+    if types[inner].kind == Y_PTR && nodes[b].kind == N_STR {     // and of a u8^?, its pointer's type (#730)
+        put("(")
+        put_ctype(inner)
+        put(")")
+    }
     gen_value(b, inner)
     put(flag ? ")); })" : "); })")
 }
@@ -14110,7 +14125,7 @@ let gen_typename(n:int64) {
         put("))")
         return
     }
-    let raw:String = kelvin_type_text(y)
+    let raw:String = types[y].kind == Y_ARGV ? $"cstr^" : kelvin_type_text(y)   // a parameter's [cstr] is its pointer, as kelvinc names it (#730)
     let w:String = shown_text(raw.cstr, false)           // the files' own c64 is c64 (#600)
     put("\"")
     var after_q = false
@@ -17410,6 +17425,16 @@ let anon_name_error(n:int64):bool {
     return false
 }
 
+// the type of $k where the function type says y: an array whose count C
+// computes, a name of another scope, is the pointer C makes of it, as
+// kelvinc's param_type; a count deeper in is still its error (#730)
+let dollar_type(y:int64):int64 {
+    if y < 0 || types[y].kind != Y_FIXED || types[y].name > 0 - 10 { return y }
+    let c:int64 = 0 - 10 - types[y].name
+    if nodes[c].kind == N_ID && (global_named(nodes[c].t) || enum_of(nodes[c].t) >= 0) { return y }   // a global's or an enumerator's count is the same in any scope
+    return type_of_kind(Y_FIXED, types[y].elem, types[y].konst == 1 ? 0 - 4 : 0 - 2)
+}
+
 let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):int64 {
     anon_fixed_params(an)                                // (#719)
     let lend:int64 = lending
@@ -17421,11 +17446,11 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
     name += String(anon_serial)
     if nodes[an].flag == 1 {                         // a count of another scope in $k's type, as kelvinc says it (#656)
         for k in 0..<ps^.count as int64 {
-            if computed_count_in(ps^[k], 0 - 1) {
+            if computed_count_in(dollar_type(ps^[k]), 0 - 1) {
                 var m = $"the type of $"
                 m += String(k)
                 m += ", "
-                let w:String = kelvin_type_text(ps^[k])
+                let w:String = kelvin_type_text(dollar_type(ps^[k]))
                 m += &w
                 m += ", has an array length or a .type written in another scope, which kelvinc cannot carry into this function: write its parameters, as in '{ (a:T):R in ... }'"
                 gen_error(an, m.cstr)
@@ -17464,7 +17489,7 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
             var dollar = $"$"
             dollar += String(k)
             let p:int64 = make_node(S_VAR, made_token(&dollar))
-            nodes[p].ty = ps^[k]
+            nodes[p].ty = dollar_type(ps^[k])
             nodes[p].flag = 1
             if last < 0 {
                 nodes[d].a = p
@@ -17819,6 +17844,26 @@ var anon_made:Dictionary<int64, int64>    // the function kc made of each anonym
 // the function n, where one of the function type y goes (#428): an
 // anonymous function, made a function of the program, of y's types where
 // it writes none; a function's name, of y's type; any other value of it
+// whether the function types a and b differ only by the counts C
+// computes of their parameters' arrays, [T](n) of one n and of another
+let fn_counts_apart(a:int64, b:int64):bool {
+    if types[a].kind != Y_FN || types[b].kind != Y_FN || types[a].elem != types[b].elem || types[a].konst != types[b].konst { return false }
+    var p:int64 = types[a].name
+    var q:int64 = types[b].name
+    while p >= 0 && q >= 0 {
+        let x:int64 = types[p].elem
+        let y:int64 = types[q].elem
+        let arrays = x >= 0 && y >= 0 && types[x].kind == Y_FIXED && types[y].kind == Y_FIXED && types[x].elem == types[y].elem
+        let xp = arrays && (types[x].name <= 0 - 10 || types[x].name == 0 - 2 || types[x].name == 0 - 4)   // a count C computes, or a parameter's array, its pointer
+        let yp = arrays && (types[y].name <= 0 - 10 || types[y].name == 0 - 2 || types[y].name == 0 - 4)
+        let computed = xp && yp && (types[x].name == 0 - 4 || types[x].konst == 1) == (types[y].name == 0 - 4 || types[y].konst == 1)
+        if x != y && !computed { return false }
+        p = types[p].name
+        q = types[q].name
+    }
+    return p < 0 && q < 0
+}
+
 let gen_fn_value(n:int64, y:int64) {
     let k = nodes[n].kind                                // one of owners too, which a function kc makes owns, as kelvinc's: a call through it is refused (#515)
     if fn_picked.has(n) {                                // of its overloads, the one a function type said (#537)
@@ -17849,6 +17894,10 @@ let gen_fn_value(n:int64, y:int64) {
         m += ", has an array length or a .type written in another scope, which kelvinc cannot carry into this function: write the result"
         gen_error(n, m.cstr)
         return
+    }
+    if given >= 0 && given != y && fn_counts_apart(given, y) { given = y }   // (size_t, [i64](n)):i64 of two declarations: a count C computes is no part of the type, its array a pointer in C, as kelvinc's (#730)
+    if k == N_ANON && nodes[n].flag == 0 && nodes[n].ty < 0 && given >= 0 && given != y && types[given].kind == Y_FN && types[y].kind == Y_FN && types[given].name == types[y].name && types[y].elem >= 0 {
+        given = y                                        // { (a:i64) in a * 2 } where (i64):i64 goes: a written signature with no result takes the context's, as kelvinc's (#730)
     }
     if given != y {
         var m = $""
@@ -20961,10 +21010,12 @@ let value_mismatch_text(v:int64, vy:int64):String {
         }
         return value_mismatch_text(v, inner)
     }
+    if k == N_STR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // text where a u8^ goes, as kelvinc's fit (#694, #730)
     if k == N_STR { return vk == Y_STRING || vk == Y_CSTR ? $"" : $"text" }
     if number { return is_number_kind(vk) ? $"" : $"a number" }
     let y:int64 = type_of(v)
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
+    if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
     if types[y].kind == Y_CSTR { return vk == Y_STRING ? $"" : $"text" }
     return kelvin_type_text(y)
 }
@@ -24490,7 +24541,9 @@ let gen_program() {
                 put_tok(nodes[m].t)
                 if nodes[m].a >= 0 {
                     put(" = ")
+                    record_counts = true                 // a call in its value, sizeof's type, as a member's count (#719, #730)
                     gen_expr(nodes[m].a)
+                    record_counts = false
                 }
                 put(",\n")
                 m = nodes[m].next
@@ -24581,12 +24634,33 @@ let gen_program() {
             if nodes[d].ty < 0 { set_ty(d, inferred(d)) }       // (#214)
             if failed { return }
             write_type(nodes[d].ty)                      // a function type inferred, let f := g (#428)
+            if lazy_externs.contains(d) {                // a module's global, given its value at its first use by its module: read through its getter, as kelvinc's (#493, #730)
+                first_use[tok_text(nodes[d].t)] = d
+                put_ctype(nodes[d].ty)
+                put(" *_kv_get_")
+                put_tok(nodes[d].t)
+                put("(void);\n")
+                continue
+            }
             if types[nodes[d].ty].kind == Y_ARGV && nodes[d].a >= 0 && nodes[nodes[d].a].kind == N_LIST {   // let names:[cstr] = ["a"] (#359)
                 set_ty(d, type_of_kind(Y_FIXED, base_type(Y_CSTR), 0 - 1))
             }
             if types[nodes[d].ty].kind == Y_FIXED {      // a global fixed array, as a local's, const of a let (#359)
                 fixed_const = nodes[d].flag == 1
+                let around_fixed:int64 = current
+                current = d                              // a function among its elements is the global's, named of it and declared before it (#428, #730)
+                let fns_fixed:int64 = anon_fns.count as int64
+                var before_fixed:String = out.copy()
+                out = $""
                 gen_fixed_var(d)
+                current = around_fixed
+                var line_fixed:String = out.copy()
+                out = before_fixed.copy()
+                for f in fns_fixed..<anon_fns.count as int64 {
+                    gen_signature(anon_fns[f])
+                    put(";\n")
+                }
+                out += &line_fixed
                 fixed_const = false
                 if failed { return }
                 continue
@@ -24670,13 +24744,13 @@ let gen_program() {
     put("\n")
     for i in 0..<decls.count as int64 {                  // the globals that own, freed at exit (#215)
         let d:int64 = decls[i]
-        if nodes[d].kind == D_GLOBAL && is_owner(nodes[d].ty) { global_owners = true }
+        if nodes[d].kind == D_GLOBAL && is_owner(nodes[d].ty) && !lazy_externs.contains(d) { global_owners = true }   // a module's is its module's to free
     }
     if global_owners {
         put("static void _kv_free_globals(void)\n{\n")
         for i in 0..<decls.count as int64 {
             let d:int64 = decls[i]
-            if nodes[d].kind == D_GLOBAL && is_owner(nodes[d].ty) {
+            if nodes[d].kind == D_GLOBAL && is_owner(nodes[d].ty) && !lazy_externs.contains(d) {
                 put("    ")
                 put_free(nodes[d].ty)
                 put("(&")
@@ -24701,7 +24775,7 @@ let gen_program() {
     out = $""
     for i in 0..<made {                                  // the first-use globals' getters (#700)
         let d:int64 = decls[i]
-        if nodes[d].kind == D_GLOBAL && first_use.has(tok_text(nodes[d].t)) && !failed { gen_first_use(d) }
+        if nodes[d].kind == D_GLOBAL && first_use.has(tok_text(nodes[d].t)) && !lazy_externs.contains(d) && !failed { gen_first_use(d) }
     }
     for i in 0..<made {                                  // the functions
         let d:int64 = decls[i]

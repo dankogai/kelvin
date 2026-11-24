@@ -205,6 +205,7 @@ var local_next = false         // the struct or enum parse_struct or parse_enum 
 var inline_fns:$[int64]        // the functions written inline (#392), C's static inline
 var static_decls:$[int64]      // the functions, globals and locals written static, C's (#459)
 var extern_decls:$[int64]      // and those written extern, declared for C's
+var lazy_externs:$[int64]      // a module's header's extern lazy var: a global its module gives its value at its first use, read through its getter (#493, #730)
 var thread_decls:$[int64]      // and those written thread_local, each thread's own, C's _Thread_local (#641)
 var variadic_fns:$[int64]      // the functions whose parameters end in ..., C's variadic ones (#453)
 var c_tags:Dictionary<String, int64>   // struct T; and union T;, C's, -2 or -3 by T (#453)
@@ -3149,6 +3150,16 @@ let parse_primary():int64 {
                 }
                 parse_error_at(t, m.cstr)
                 return make_node(N_NULL, t)
+            }
+            if fn_parsing >= 0 && nodes[fn_parsing].kind == N_ANON && nodes[fn_parsing].a >= 0 {   // $k in a function that writes its parameters names the k-th of them, as kelvinc's (#730)
+                var k:int64 = 0
+                for q in 1..<toks[t].len { k = k * 10 + (codes[toks[t].at + q] as int64 - 48) }
+                var p:int64 = nodes[fn_parsing].a
+                while k > 0 && p >= 0 {
+                    p = nodes[p].next
+                    k -= 1
+                }
+                if p >= 0 { return make_node(N_ID, nodes[p].t) }
             }
         }
         if tok_is(t, "Self") && self_name >= 0 && at_word(".") { return make_node(N_ID, self_name) }   // Self.f(), Self.x (#140)
@@ -6404,6 +6415,15 @@ let parse_program() {
                 if more { advance() }
             }
             if at_word(";") { advance() }                // var calls = 0; (#451)
+        } else if storage == 2 && at_word("lazy") && in_kh(pos) && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {   // extern lazy var x:T of a module's header, as kelvinc --lib writes it (#493, #730)
+            advance()
+            let is_let:bool = at_word("let")
+            advance()
+            let n:int64 = parse_var(0)
+            nodes[n].kind = D_GLOBAL
+            if is_let { nodes[n].flag = 1 }
+            lazy_externs += n
+            decls += n
         } else if storage == 2 && at_word("lazy") {      // as kelvinc says it
             parse_error("'extern lazy' is a module's header's, which kelvinc --lib writes: a global is given its value at its first use where C cannot initialize it (#493)")
         } else if at_word("typedef") {                   // as kelvinc says it

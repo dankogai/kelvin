@@ -592,6 +592,8 @@ extend ck611 {
 enum ck_case { none; dot: int64 }
 var ck_tally:int64 = 0
 
+struct sm_bag { n: int64; xs: [int64](3); name: [uint8](8) }   // (#730): written before main, as kelvinc reads a global's value where it is first named
+struct sm_entry { name:[uint8](8); run:(int64):int64 }
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1705,8 +1707,17 @@ on a new line`
     let va_f:(int64, ...):int64 := thrice_va             // a variadic function's type (#729)
     let nw_r := nowhere                                  // nowhere, an any^, and its properties
     println(va_f(2, "x", 4.5), " ", va_f.typename, " ", nw_r.typename, " ", nowhere.isNull, " ", nowhere.addr, " ", va_f.hex.count > 2)
+    var sm_po = IO.popen("printf popen", "r")            // IO.popen, a process's IO (#730)
+    println(sm_po.string ?? $"none")
+    sm_po.close()
+    var sm_m:uint8^? = none                              // text where a u8^? falls back; a written signature's result from its context, and $0 of it
+    println(sm_m ?? "bytes", " ", sm_apply(3) { (a:int64) in a * 2 }, " ", sm_apply(4) { (a:int64):int64 in $0 + a })
+    var sm_g:sm_bag = {1, [7, 8, 9], "hey"}              // a struct's array members, a list and text; a global's array of functions
+    println(sm_g.xs[2], " ", sm_g.name, " ", sm_table[1].run(4), " ", sm_table[0].name, " ", argv.typename)
     return 0
 }
+let sm_table:[sm_entry](2) = [{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}]
+let sm_apply(x:int64, f:(int64):int64):int64 { f(x) }
 
 // what both compilers build beside kc's checks of #612: a body's one
 // expression of two names, which is no declaration of C's; a borrow

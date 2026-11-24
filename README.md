@@ -914,3 +914,6 @@ So far the changes from C are these, by topic.
   compound literals of a C header's types and `nowhere`'s properties,
   as kelvinc does; an array's compound literal goes where a pointer
   goes again, which #724 had refused (#729)
+- kc builds every program of tests/run and examples, each printing
+  what kelvinc's prints: `IO.popen`, a module's `extern lazy` global
+  and the rest of the last eight (#730)

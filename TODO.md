@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #729 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #730 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -46,6 +46,12 @@ known, not what is planned.
   arguments of the println macro, which no parentheses hold; found
   while #729 was made, not changed. `i32(sizeof ...)` and a declaration
   take it.
+- A global whose value needs a struct written after a function that
+  names the global, `let tb:[e](2) = [{"inc", { $0 + 1 }}]` with
+  `struct e` after `main`, is kelvinc's `'$0' is a parameter of an
+  anonymous function, and this is not in one`: the global's value is
+  read where it is first named, before the struct's members; kc builds
+  it. Found while #730 was made, not changed.
 - Else none known: an integer literal past u64's greatest is kelvinc's error,
   and so is one past i64's in a declaration with no type (#678), found
   while literals.md was written (#677).
@@ -165,10 +171,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of 501 of the 509 programs
-  of tests/run and examples, the quines as run.sh compares them, as of
-  #729; the 8 of the rest import C headers or a JS module, and stop
-  on what kc reads otherwise than kelvinc.
+- kc builds and prints what kelvinc's prints of all 509 programs of
+  tests/run and examples, the quines as run.sh compares them, as of
+  #730.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
 - Found while #725 was made, not changed:
@@ -189,6 +194,16 @@ known, not what is planned.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's `this method is not
     known`.
+- Found while #730 was made, not changed:
+  - A number where a struct's array member goes, `{1, [7, 8, 9], 5}`
+    of a `name:[u8](8)`, is left to C by kelvinc, which builds it, and
+    kc's `an array is not copied by '='`.
+  - Text longer than a struct's `[u8](N)` member is C's in both: the
+    member filled, with no NUL.
+  - A function's parameter of a function type whose own parameter's
+    inner array counts by another parameter, `f:([[i64](n)](2)):i64`,
+    is built by kelvinc; kc writes `n` into the type's typedef, C's
+    error.
 - Found while #729 was made, not changed:
   - `v()` of a `v:(i32, ...):i64`, fewer arguments than its
     parameters, is C's error of kelvinc's C, and kc's `this function,
@@ -223,13 +238,14 @@ known, not what is planned.
     - C's types and values (#729): casts_edge, casts_edge2,
       casts_edge3, cstr, text_numbers, text_numbers_more,
       function_types, nowhere, is_null, addr, properties_c;
-    - the 8 left: anonymous_edge, anonymous_values, array_types,
-      coalesce_text, io_kill, io_process, io_signal, local_storage.
+    - the last eight (#730): io_process, io_kill, io_signal,
+      coalesce_text, anonymous_edge, array_types, anonymous_values,
+      local_storage; with them all 30 are built, the order done.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P729 to P734, the details of #724 to #729, until reviewed; the reviews confirmed
+- P729 to P735, the details of #724 to #730, until reviewed; the reviews confirmed
   every row to P728, and a review's own detail row is confirmed by that
   review (#675).
 

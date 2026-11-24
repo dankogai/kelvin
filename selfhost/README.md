@@ -1601,6 +1601,33 @@ kc reads what it is written in, and little more.
     text_numbers.k, text_numbers_more.k, function_types.k, nowhere.k,
     is_null.k, addr.k and properties_c.k, which kc refused, print what
     kelvinc's print; selfhost/sample.k has the forms.
+- **The last eight of the 30 programs** (#730), as kelvinc's: with
+  them kc builds every program of tests/run and examples, and each
+  prints what kelvinc's prints.
+  - `IO.popen(command, mode)`, a process's IO, `kv_io_popen`, where kc
+    knew its type and wrote no call.
+  - Text and a cstr where a `u8^?` falls back, `p ?? "bytes"`, as text
+    goes where a `u8^` goes; the text cast to the pointer's type.
+  - `{ (a:i64) in a * 2 }` where `(i64):i64` goes: a written signature
+    with no result takes the context's; `$k` in a function that writes
+    its parameters names the k-th of them, at the parser.
+  - A struct's member `[u8](N)` takes text, C's array of it, beside a
+    list and `[T](n)`, gen_written.
+  - A global's array of functions: each is the global's, named of it
+    and declared before it; `sizeof` of a call in an enum's value is
+    of the call's type, as in a member's count.
+  - Function types that differ only by the counts C computes of their
+    parameters' arrays are one, fn_counts_apart; `$k` of such an array,
+    its count a name of another scope, is the pointer C makes of it,
+    dollar_type, a global's or an enumerator's count kept.
+  - A parameter's `[cstr]` is named `cstr^` by `.typename`.
+  - `extern lazy var x:T` of a module's header, as kelvinc --lib writes
+    it: the module gives it its value at its first use, and the program
+    reads it through `_kv_get_x()`, lazy_externs; the module frees it.
+  - tests/run's io_process.k, io_kill.k, io_signal.k, coalesce_text.k,
+    anonymous_edge.k, array_types.k, anonymous_values.k and
+    local_storage.k, which kc refused, print what kelvinc's print;
+    selfhost/sample.k has the forms.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

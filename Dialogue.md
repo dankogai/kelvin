@@ -14064,3 +14064,21 @@ and a header's struct's members; eleven programs more, 8 left.
 Details are provisional P734.
 
 There are 1581 tests, and all pass with clang and with gcc 15.
+
+### 777. Every program of tests/run and examples, built by kc
+
+**Claude** wrote #729, its battery run and pushed when clean, its CI
+all green, and went on with the last eight programs, in a copy of the
+repository while the battery of #729 ran, the files carried into the
+tree when it was pushed.
+
+**Claude** made it #730: `IO.popen`, text where a `u8^?` falls back, a
+written signature's result from its context, a struct's array member
+of text, a global's array of functions and a module's `extern lazy`
+global; kc builds all 509 programs of tests/run and examples, each
+printing what kelvinc's prints, and the 30 of the user's order are
+done.
+
+Details are provisional P735.
+
+There are 1581 tests, and all pass with clang and with gcc 15.
