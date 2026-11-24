@@ -14330,3 +14330,22 @@ provisional until reviewed.
 Details are provisional P749.
 
 There are 1610 tests, and all pass with clang and with gcc 15.
+
+### 792. The review, batch 23
+
+**Claude** wrote #744, its battery run and pushed when clean, its CI
+all green once a job that no macOS runner took was run again, the six
+left to C done, and asked what next.
+
+**User:** review P745 to P749 (recommended)
+
+**Claude** read each row against the code, the batteries' summaries
+and the saved runs and found nothing to amend: #741's 24 statements,
+which Claude had said were 25, are 24 by the session's record.
+
+**Claude** made it #745: P745 to P749 marked confirmed, as later
+numbers amend them, and P750, #745's own row, confirmed by #745.
+
+Details are P750, confirmed by #745 itself.
+
+There are 1610 tests, and all pass with clang and with gcc 15.
