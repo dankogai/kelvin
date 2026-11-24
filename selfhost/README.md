@@ -1701,6 +1701,17 @@ kc reads what it is written in, and little more.
     is said at its `(`, as any call's.
   - tests/error's fn_value_arg_count.k, fn_value_arg_count_variadic.k
     and fn_value_arg_count_member.k have them.
+- **A member's value of its kind** (#741), as kelvinc's since the same
+  number, the second of the six: `'y' of point is an i64, and this is
+  text`, member_value_ok, which gen_init asks of a number's, a bool's,
+  a String's, a cstr's and a pointer's member, by typed_value_ok.
+  - An array member, and `var a:[i64](3) = 5`, say `... is a
+    [i64](3), and this is a number`, or text, wrong_for_array, where kc
+    said an array is not copied by '='.
+  - A number where a cstr goes is `'s' is a cstr, and this is a
+    number`, typed_value_ok, which kc took, `var s:cstr := 0`.
+  - tests/error's member_value_text.k, member_array_number.k,
+    array_declared_number.k and cstr_takes_no_number.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

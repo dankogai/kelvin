@@ -788,6 +788,7 @@ static Type *cstr_type(Pos pos);
 static bool is_cstr(Type *t);
 static Expr *drop_cstr(Expr *v, Type *target);
 static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos);
+static void member_value(Expr *v, Type *want, const char *lead, Pos pos);
 static const char *fn_shown(Decl *d);
 static const char *article(const char *w);
 static bool is_bytes(Type *t);
@@ -8196,6 +8197,35 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
     }
 }
 
+/* v where a struct's member of type want goes (#741), in Kelvin's words,
+   as check_typed_value says a declaration's: a number, a bool, text, a
+   String and a pointer by it; an array takes [...], zeros, text where
+   its elements are bytes, or an array of its type, where C went on
+   inside it with a number and refused text; a record and the rest are
+   left as they were */
+static void member_value(Expr *v, Type *want, const char *lead, Pos pos) {
+    Type *w = unqualified(want);
+    Decl *rec;
+    if (want->kind == T_ARRAY) {
+        Type *vt = value_type(v);
+        bool bytes = want->elem && want->elem->kind == T_BASE &&
+                     (!strcmp(want->elem->name, "u8") || !strcmp(want->elem->name, "i8"));
+        bool text = v->kind == E_STRING || is_text_expr(v) || (vt && is_cstr(vt));
+        bool number = number_expr(v) || (vt && vt->kind == T_BASE && (number_kind(vt) || !strcmp(vt->name, "bool")));
+        if ((text && !(bytes && v->kind == E_STRING)) || (number && !text)) {
+            bare_tags = true;
+            char *shown = kelvin_type(want);
+            bare_tags = false;
+            error_at(pos, "%s %s %s, and this is %s", lead, article(shown), shown, text ? "text" : "a number");
+        }
+        return;
+    }
+    if (w->kind == T_BASE && (number_kind(w) || !strcmp(w->name, "bool") || is_string(w) || is_cstr(w)))
+        check_typed_value(v, want, lead, pos);
+    else if (w->kind == T_PTR && !(w->kind == T_BASE && type_class(w, &rec) == 'u'))
+        check_typed_value(v, want, lead, pos);
+}
+
 /* the arguments of a call of d as it takes them: a String of a text
    literal where it takes a String (#223), and where it takes an Optional
    or a Result, none, ok(v), err(e) and a T wrapped as a return's value is
@@ -11008,6 +11038,10 @@ static Expr *parse_initializer_for(Type *t) {
         }
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = string_of_literal(drop_cstr(parse_initializer_for(item), item), item); /* a cstr into a u8^ member (#52) */
+        if (record && item && !braced && !lost && links <= 1) { /* a member's value of its kind, as a parameter's (#741) */
+            const char *mname = d ? d->text : ((Var *)record->members.data[next])->name;
+            member_value(value, item, strfmt("'%s' of %s is", mname, record_spelling(record)), value->pos);
+        }
         value = optional_of(value, item, value->pos); /* a T into a T? member (#72) */
         if (value->kind == E_IDENT && record && is_owner(item) && is_owner(value_type(value))) {
             list_push(&moving_in, value); /* moves in when the literal ends, as a call's arguments do (#503) */
@@ -12604,6 +12638,8 @@ static Var *parse_var(bool with_init, int let) {
         v->init = optional_of(v->init, v->type, v->init->pos); /* a T into a T? (#72) */
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_record_mismatch(v->init, v->type, v->init->pos);
+        if (v->type && v->type->kind == T_ARRAY && v->init->kind != E_INIT) /* var a:[i64](3) = 5, where C said an array takes a list (#741) */
+            member_value(v->init, v->type, strfmt("'%s' is", v->name), v->init->pos);
         check_typed_value(v->init, v->type, strfmt("'%s' is", v->name), v->init->pos); /* (#255) */
         reject_owner_array(v);
         pick_overload(v->init, v->type);

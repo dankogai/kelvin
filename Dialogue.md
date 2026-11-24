@@ -14269,3 +14269,18 @@ one.
 Details are provisional P745.
 
 There are 1596 tests, and all pass with clang and with gcc 15.
+
+### 788. A struct's member takes a value of its kind
+
+**Claude** wrote #740, its battery run and pushed when clean, and
+went on with the second of the six, in a copy of the repository while
+the battery ran.
+
+**Claude** made it #741: a struct's member given the wrong kind of
+value is said as a parameter's, an array member's too, where C went on
+inside it, and `var a:[i64](3) = 5`; kc says them, and a number where
+a cstr goes, which it took.
+
+Details are provisional P746.
+
+There are 1600 tests, and all pass with clang and with gcc 15.

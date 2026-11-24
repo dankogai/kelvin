@@ -3685,7 +3685,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     } else if wk == Y_STRING {
         ok = text || yk == Y_STRING
     } else if wk == Y_CSTR {
-        ok = text || number_lit || yk == Y_PTR || yk == Y_FIXED || yk == Y_ARGV
+        ok = text || yk == Y_PTR || yk == Y_FIXED || yk == Y_ARGV   // no number, 's' is a cstr, and this is a number, as kelvinc says it (#741)
     } else if wk == Y_PTR || wk == Y_FIXED || wk == Y_ARGV {
         if y >= 0 && yk != Y_PTR && yk != Y_CSTR && yk != Y_FIXED && yk != Y_ARGV && yk != Y_FN && !(is_owner(y) && !is_place(v)) {
             ok = false
@@ -11944,11 +11944,58 @@ let gen_init(n:int64, s:int64) {
             owner_assign_error(v)
             return
         }
+        if !member_value_ok(v, f, s) { return }          // a member's value of its kind, as kelvinc's (#741)
         gen_written(v, nodes[f].ty)                      // ${:} of a member (#348)
         a = nodes[a].next
         f = nodes[f].next
     }
     put("}")
+}
+
+// what v is where an array of type y goes and it is none: "a number" or
+// "text", a number, a bool or text that is no bytes' array's literal; ""
+// of the rest, as kelvinc's member_value (#741)
+let wrong_for_array(v:int64, y:int64):cstr {
+    let k:nkind = nodes[v].kind
+    if k == N_LIST || k == N_INIT || k == N_EMPTY { return "" }
+    let bytes = types[types[y].elem].kind == Y_U8 || types[types[y].elem].kind == Y_I8
+    if k == N_STR { return bytes ? "" : "text" }
+    if k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM) { return "a number" }
+    if k != N_ID && k != N_FIELD && k != N_CALL && k != N_CAST && k != N_DSTR { return "" }
+    if k == N_ID && (is_case_word(v) || var_type(nodes[v].t) < 0) { return "" }
+    let vy:int64 = type_of(v)
+    if failed || vy < 0 { return "" }
+    if types[vy].kind == Y_CSTR || types[vy].kind == Y_STRING { return "text" }
+    return is_number_kind(types[vy].kind) || types[vy].kind == Y_BOOL || enum_int(vy) ? "a number" : ""
+}
+
+// whether v goes where the member f of the struct s goes, by its kind,
+// with kelvinc's error, 'y' of pt is an i64, and this is text (#741)
+let member_value_ok(v:int64, f:int64, s:int64):bool {
+    let y:int64 = nodes[f].ty
+    if y < 0 || failed { return !failed }
+    let k:ykind = types[y].kind
+    var lead = $"'"
+    lead += tok_text(nodes[f].t)
+    lead += "' of "
+    let sw:String = kelvin_name(nodes[s].t)
+    lead += &sw
+    lead += " is"
+    if k == Y_FIXED {
+        let wrong:cstr := wrong_for_array(v, y)
+        if wrong[0] == 0 { return true }
+        let w:String = type_text(y)
+        lead += " "
+        lead += article_of(&w)
+        lead += " "
+        lead += &w
+        lead += ", and this is "
+        lead += wrong
+        gen_error(v, lead.cstr)
+        return false
+    }
+    if is_number_kind(k) || k == Y_BOOL || k == Y_STRING || k == Y_CSTR || k == Y_PTR { return typed_value_ok(v, y, &lead) }
+    return true
 }
 
 // whether n is {a, b} of no type of its own, which takes the type it
@@ -15841,7 +15888,7 @@ let gen_fixed_var(n:int64) {
     } else if v >= 0 && nodes[v].kind == N_INIT {        // {1, 2, 3}, as kelvinc says it
         gen_error(v, "an array is initialized with '[...]', not '{...}' (#48)")
         return
-    } else if v >= 0 && nodes[v].kind == N_STR {        // [u8] = "hi", C's array of text, its count C's, as kelvinc's (#717)
+    } else if v >= 0 && nodes[v].kind == N_STR && wrong_for_array(v, y)[0] == 0 {        // [u8] = "hi", C's array of text, its count C's, as kelvinc's (#717); of bytes alone (#741)
         set_ty(n, y)
         put_alignas(n)
         let text_const = fixed_const
@@ -15851,6 +15898,18 @@ let gen_fixed_var(n:int64) {
         put(" = ")
         gen_expr(v)
         put(";\n")
+        return
+    } else if v >= 0 && wrong_for_array(v, y)[0] != 0 {   // var a:[i64](3) = 5, as kelvinc says it (#741)
+        var m = $"'"
+        m += tok_text(nodes[n].t)
+        m += "' is "
+        let w:String = type_text(y)
+        m += article_of(&w)
+        m += " "
+        m += &w
+        m += ", and this is "
+        m += wrong_for_array(v, y)
+        gen_error(v, m.cstr)
         return
     } else if v >= 0 {                                   // a copy, as C has none
         gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")

@@ -938,3 +938,6 @@ So far the changes from C are these, by topic.
 - A call through a function value of the wrong count, `f(1)` of an
   `f:(i64, i64):i64`, is an error in Kelvin's words, where it was C's
   (#740)
+- A struct's member takes a value of its kind: `{1, "two"}` is `'y' of
+  point is an i64, and this is text`, and a number where an array
+  member goes is an error, where they were C's (#741)

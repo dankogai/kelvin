@@ -182,6 +182,12 @@ A struct is initialized with `{...}`, as in C, with C's designators:
     a hint; see [arrays.md](arrays.md).
 - A string fills a byte array member, and a value of the struct's own
   type fills a struct member.
+- A member takes a value of its kind, as a parameter does (#741):
+  `{1, "two"}` of two numbers is `'y' of point is an i64, and this is
+  text`, where it was C's error.
+  - An array member takes `[...]`, its zeros, or text where its
+    elements are bytes: a number there is `'name' of bag is a [u8](8),
+    and this is a number`, where C went on inside the array with it.
 - `return {3, 4}` in a function that returns the struct takes its type
   too (#77), as does a `return {.y = 7}`.
 - Fewer values than members leave the rest zero, as in C.

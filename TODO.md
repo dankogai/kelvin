@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #740 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #741 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,9 +61,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1056 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1060 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736 and #740 alike.
+  #725, #727, #733, #736, #740 and #741 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -173,8 +173,10 @@ known, not what is planned.
     `f:(i64, i64):i64` and `v()` of a variadic one: kc's sentence,
     kelvinc's too, `this function, of type (i64, i64):i64, takes 2
     arguments, and it is given 1`, `or more` of a variadic one (#740);
-  - left: a struct's member given the wrong kind of initializer, as a
-    parameter's, `'y' of pt is an i64, and this is text`; `T^ const`
+  - a struct's member given the wrong kind of initializer, as a
+    parameter's, `'y' of pt is an i64, and this is text`, an array
+    member's and `var a:[i64](3) = 5` too (#741);
+  - left: `T^ const`
     and `cstr const`, read and named, `p := &y` of one `'p' is an i64^
     const, a pointer that does not change`; `ok({})`, the list error;
     `while (i == 0) (i) += 1`, kc's as kelvinc's; and a function type's
@@ -221,6 +223,13 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #741 was made, not changed:
+  - A number given to a `cstr` parameter of a function defined inside
+    a function, `take(5)`, is kelvinc's `'c' of 'take' is a cstr, and
+    this is a number`, and C's error of kc's C; of a top-level function
+    kc says it.
+  - C's brace elision, `{1, 7, 8, 9}` for a number and an array of
+    three, is refused by both since #741, the array's `[...]` asked.
 - Found while #740 was made, not changed:
   - `let t:() := { println("t") }`, an anonymous function of no
     parameter and no result where `()` goes, is kelvinc's, and kc's
@@ -248,8 +257,9 @@ known, not what is planned.
     kc.
 - Found while #730 was made, not changed:
   - A number where a struct's array member goes, `{1, [7, 8, 9], 5}`
-    of a `name:[u8](8)`, is left to C by kelvinc, which builds it, and
-    kc's `an array is not copied by '='`.
+    of a `name:[u8](8)`, was left to C by kelvinc, which built it:
+    `'name' of bag is a [u8](8), and this is a number` in both since
+    #741.
   - Text longer than a struct's `[u8](N)` member is C's in both: the
     member filled, with no NUL.
   - A function's parameter of a function type whose own parameter's
@@ -298,7 +308,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P745, the details of #740, until reviewed; the reviews confirmed
+- P745 and P746, the details of #740 and #741, until reviewed; the reviews confirmed
   every row to P744, and a review's own detail row is confirmed by that
   review (#675).
 
