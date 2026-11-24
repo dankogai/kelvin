@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #736 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #737 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -159,14 +159,19 @@ known, not what is planned.
     its pointer, `i64^`; braces assigned to a member, an element and
     `p^`; `ok({1, 2})`; a method a fixed array has not; a row where a
     number goes;
-  - left: zeros where a pointer goes and `[i64](n)^`; the names of
-    `q[1]` through a `const i64^`, `[cstr const](2)` and `const i64^
-    const^`; and those below that are C's in kelvinc.
+  - zeros where a pointer goes, `var p:i64^ := [i64](3)`, and a
+    pointer to an array of a count C computes, `[i64](n)^` (#737);
+  - left: the names of `q[1]` through a `const i64^`, `[cstr const](2)`
+    and `const i64^ const^`, with a fault of kelvinc's found there: a
+    variable inferred from a read through const is const itself, and
+    is to be the plain type, the user's answer; and those below that
+    are C's in kelvinc.
 - Found while #724 was made:
   - `var o:i64? = [i64](3)` is kelvinc's `case 'some' of i64? holds an
     i64, and this is i64^`, and kc's too since #736.
   - `var p:i64^ := [i64](3)`, zeros where a pointer goes, is kelvinc's
-    zeroed compound literal, `(int64_t [3]){0}`, and kc's error.
+    zeroed compound literal, `(int64_t [3]){0}`, and kc's too since
+    #737.
   - A type name that is not known, `let j:JSON = 1` with no import, is
     C's error of each one's C, `unknown type name 'JSON'` of kelvinc's
     and, where kc's C differs, another of kc's: no error of Kelvin's in
@@ -182,9 +187,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of all 511 programs of
+- kc builds and prints what kelvinc's prints of all 512 programs of
   tests/run and examples, the quines as run.sh compares them, as of
-  #734.
+  #737.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
 - Found while #725 was made, kc's too since #736:
@@ -197,11 +202,18 @@ known, not what is planned.
     kelvinc's C, and kc's `this changes an element of a [const
     i64](3)`: kelvinc's words too since #733.
   - A pointer to an array of a count C computes, `[i64](n)^`, is
-    kelvinc's, and kc's `not yet`.
+    kelvinc's, and kc's too since #737.
   - `q[1].typename` through a `const i64^` is kelvinc's `const i64`,
     and kc's `i64`; a cstr's `s[1]` likewise, `const u8`.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #737 was made, not changed:
+  - Zeros of a count C computes where a pointer goes, `var q:i64^ :=
+    [i64](n)`, are C's error of both, `compound literal cannot be of
+    variable-length array type`.
+  - `let r:[i64](n)^ := &v` of a `v:[f64](n)`, and a let's row given
+    to a `[i64](2)^` that may change it, are kc's errors, in Kelvin's
+    words, where kelvinc's C warns, as #362 has it.
 - Found while #736 was made, not changed:
   - `ok({})` where a `Result<pt, i64>` goes is kelvinc's `case 'ok' of
     Result<pt, i64> holds a pt, and this is ()`, and kc's build.
@@ -265,7 +277,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P741, the details of #736, until reviewed; the reviews confirmed
+- P741 and P742, the details of #736 and #737, until reviewed; the reviews confirmed
   every row to P740, and a review's own detail row is confirmed by that
   review (#675).
 

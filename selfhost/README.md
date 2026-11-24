@@ -1672,6 +1672,17 @@ kc reads what it is written in, and little more.
   - tests/error's array_where_value.k, row_where_value.k,
     braces_member_assigned.k, case_word_braces.k and fixed_no_method.k
     have them.
+- **Zeros where a pointer goes, and `[T](n)^`** (#737), as kelvinc's,
+  the second batch of kc's small differences:
+  - `[T](N)` where a value goes is C's zeroed compound literal,
+    `(int64_t [3]){0}`, its first element's address: `var p:i64^ :=
+    [i64](3)`, an argument, `p := [i64](2)`, and rows, `var r:[i64](2)^
+    := [[i64](2)](3)`, where gen_expr said an array is not a value;
+  - `[T](n)^`, a pointer to an array of a count C computes, is read as
+    one of a count written, `__typeof__(int64_t[n]) *`: fixed_inside
+    no longer refuses it, and fixed_ptr_ok takes two computed counts
+    for alike, C's to judge;
+  - tests/run's array_zeros_pointer.k has them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

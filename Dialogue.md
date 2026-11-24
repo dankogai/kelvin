@@ -14191,3 +14191,23 @@ not known was found C's error in both.
 Details are provisional P741.
 
 There are 1591 tests, and all pass with clang and with gcc 15.
+
+### 784. Zeros where a pointer goes, and [T](n)^, in kc
+
+**Claude** wrote #736, its battery run and pushed when clean, its CI
+all green, and went on with the second batch.
+
+**Claude** made it #737: kc reads `[T](N)` where a pointer goes as
+C's zeroed compound literal, and `[T](n)^`, a pointer to an array of a
+count C computes.
+
+**Claude** found on the way to the third batch a fault of kelvinc's:
+a variable whose type is inferred from a value read through const,
+`var d = s[0]` of a cstr, is const itself, and `d = 66` C's error; and
+asked what should happen.
+
+**User:** infer the plain type (recommended)
+
+Details are provisional P742.
+
+There are 1592 tests, and all pass with clang and with gcc 15.

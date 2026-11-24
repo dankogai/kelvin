@@ -3601,7 +3601,7 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
     let pw:String = type_text(py)
     let pe:int64 = types[py].elem
     let ae:int64 = ay >= 0 && types[ay].kind == Y_PTR ? types[ay].elem : 0 - 1
-    let alike = ae >= 0 && types[ae].kind == Y_FIXED && types[ae].elem == types[pe].elem && (types[ae].name == types[pe].name || types[ae].name == 0 - 1 || types[pe].name == 0 - 1)   // a count of none takes any, as C has it (#363)
+    let alike = ae >= 0 && types[ae].kind == Y_FIXED && types[ae].elem == types[pe].elem && (types[ae].name == types[pe].name || types[ae].name == 0 - 1 || types[pe].name == 0 - 1 || (types[ae].name <= 0 - 10 && types[pe].name <= 0 - 10))   // a count of none takes any, as C has it (#363)
         || (ay >= 0 && types[ay].kind == Y_FIXED && plain_fixed(types[ay].elem) == plain_fixed(pe))   // an array of arrays, a pointer to its first, as C's (#717)
     if !alike {
         var m = who^.copy()
@@ -3615,7 +3615,7 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
         gen_error(a, m.cstr)
         return false
     }
-    if ptr_const(ay) && !ptr_const(py) {
+    if ptr_const(ay) && !ptr_const(py) && nodes[a].kind != N_LIST {   // [[T](N)](n), zeros, are no let's (#737)
         var m = who^.copy()
         m += " is "
         m += article_of(&pw)
@@ -14433,6 +14433,18 @@ let gen_expr_of(n:int64) {
         gen_array_literal(n)
         return
     }
+    if k == N_LIST && nodes[n].flag == 1 && type_of(n) >= 0 && types[type_of(n)].kind == Y_FIXED && !failed {   // [T](n) where a value goes: C's zeroed compound literal, its first element's address, as kelvinc writes it (#737); of a count C computes C's own error
+        let zy:int64 = type_of(n)
+        if !fixed_elem_ok(types[zy].elem) {
+            fixed_refused(n)
+            return
+        }
+        put("(")
+        put_fixed_base(zy)
+        put_fixed_counts(zy)
+        put("){0}")
+        return
+    }
     if k == N_LIST {                                     // as kelvinc says it, kc's for its compound literal (#354)
         gen_error(n, "an array is not a value here: write a compound literal, as in '([i32])[1, 2, 3]' (#48)")
         return
@@ -15241,7 +15253,7 @@ let fixed_inside(y:int64):bool {
     if k == Y_FIXED { return true }
     if k == Y_PTR && types[types[y].elem].kind == Y_FIXED {   // [T](N)^, a pointer to one, counted (#362), or of no count (#363)
         let e:int64 = types[y].elem
-        return types[e].name < 0 - 1 || !fixed_elem_ok(e)
+        return (types[e].name < 0 - 1 && types[e].name > 0 - 10) || !fixed_elem_ok(e)   // of a count C computes too, [T](n)^, as kelvinc's (#737)
     }
     if k == Y_PTR || k == Y_ARRAY || k == Y_SET { return fixed_inside(types[y].elem) }
     if k == Y_DICT { return fixed_inside(types[y].elem) || fixed_inside(types[y].name) }

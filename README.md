@@ -929,3 +929,6 @@ So far the changes from C are these, by topic.
 - kc says five more errors in kelvinc's words: an array where a value
   goes, braces assigned to a member, `ok({1, 2})`, a fixed array's
   method and a row where a number goes (#736)
+- kc reads zeros where a pointer goes, `var p:i64^ := [i64](3)`, and
+  `[T](n)^`, a pointer to an array of a count C computes, as kelvinc
+  does (#737)
