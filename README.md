@@ -900,3 +900,6 @@ So far the changes from C are these, by topic.
   (#722)
 - kc writes a let's local array with C's `const` and says a list where
   no array is declared in kelvinc's words (#724)
+- An Optional's braces with nothing in them, `var x:i64? = {}` and
+  `(i64?){}`, are `none`, as a `T?` declared with no value is, where
+  they were `some(0)`; kc reads `(T?){...}` (#725)

@@ -861,6 +861,26 @@ let compound_ahead():bool {
         }
         return false
     }
+    if at_word("(") && (toks[pos + 1].kind == T_ID || number_word(pos + 1) >= 0 || tok_is(pos + 1, "bool")) {   // (T?){...}, (Optional<T>){...} and (Result<T, E>){...}, as kelvinc's (#725)
+        var k:int64 = pos + 2
+        var variant = false
+        if (tok_is(pos + 1, "Optional") || tok_is(pos + 1, "Result")) && tok_is(k, "<") {
+            var depth:int64 = 1
+            k += 1
+            while toks[k].kind != T_EOF && depth > 0 {
+                if tok_is(k, "<") { depth += 1 }
+                if tok_is(k, ">") { depth -= 1 }
+                if tok_is(k, ">>") { depth -= 2 }
+                k += 1
+            }
+            variant = true
+        }
+        while tok_is(k, "?") || tok_is(k, "??") {
+            variant = true
+            k += 1
+        }
+        if variant && tok_is(k, ")") && tok_is(k + 1, "{") { return true }
+    }
     if at_word("(") && tok_is(pos + 1, "const") {        // (const errno.type){6}, as kelvinc's (#696)
         var k:int64 = pos
         var depth:int64 = 0

@@ -29,6 +29,7 @@ let find(xs:$[int64]^, v:int64):int64? {       // a result that may be absent
     return none
 }
 var p:point? = {1, 2}                    // the T's initializer, wrapped; so is return {1, 2} (#77)
+var e:point? = {}                        // none: braces with nothing in them (#725); so is (point?){}
 var r = Optional<int64>(4)                 // explicit: some(4); Optional<i64>() is none
 var s = Optional<int64>.some(4)            // the cases by the type's name; Optional<i64>.none
 ```
@@ -59,6 +60,13 @@ examples.
   - The arms of a `?:` take this too (#116): `return c ? v : none`,
     `var x:i64? = c ? n : none`, and `c ? Optional<i64>(n) : none`,
     where the other arm gives the type.
+  - Braces are the `T`'s initializer, wrapped: `var p:point? = {1, 2}`
+    is `some` of the point, and so is `(point?){1, 2}`.
+    - Braces with nothing in them are `none` (#725), as a `T?` declared
+      with no value is: `var p:point? = {}`, `(i64?){}`, a member's or
+      an element's `{}`, `return {}`.
+    - They are an initializer's: an argument and an assignment take
+      `(T?){...}`, `none` or the value.
   - An owner moves in, as a case's value does.
   - A value that is no `T` is an error in Kelvin's words (#411):
     `let o:i64? = $"s"` gives `case 'some' of i64? holds an i64, and

@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #724 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #725 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -50,9 +50,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1041 programs kelvinc refuses in kelvinc's words:
-  the 990 of #652 to #656, and those of #659 to #678, #702, #705 and
-  #724 alike.
+- kc says each of the 1043 programs kelvinc refuses in kelvinc's words:
+  the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724
+  and #725 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -151,26 +151,31 @@ known, not what is planned.
     is kelvinc's `unknown type name 'JSON'`; kc leaves it to C.
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
-  - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
-    tag 0 is `some`, and kc refuses: kelvinc's to settle first, as it
-    is no meaning to copy; a fixed array in another type is kelvinc's
-    error too, said alike since #705;
+  - `(T?){}`, which kelvinc built as `some(0)` and kc refused, is none
+    in both, the user's answer after #723 (#725); a fixed array in
+    another type is kelvinc's error too, said alike since #705;
   - the number of a prelude enum's word that only C gives, which no
     enum of the prelude has, so no program reaches it.
 - kc's output that differed from kelvinc's, found while #692 to #696
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of 476 of the 506 programs
+- kc builds and prints what kelvinc's prints of 477 of the 507 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #722; the 30 of the rest need C headers, #inline C or a JS module.
+  #725; the 30 of the rest need C headers, #inline C or a JS module.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
+- Found while #725 was made, not changed:
+  - Braces assigned to a member, an element or through a pointer,
+    `p.x = {1}`, `a[0] = {3}`, `h^ = {3, 4}`, are kelvinc's `a list is
+    not a value here: ...`, and C's error of kc's C.
+  - `ok({1, 2})` where a `Result<pt, i64>` goes is kelvinc's error, and
+    kc's ok of the struct.
 - The user's order after #723, go on with them all, each pushed when
   its battery is clean:
   - the two differences found while #717 was made (#724);
   - `(T?){}` and `x:T? = {}`, none in both compilers, as an Optional
-    declared with no value, the user's answer;
+    declared with no value, the user's answer (#725);
   - `q[i]` of a `q:[T](N)^`, read by kc as kelvinc reads it, the user's
     answer, where kc says its own error (#362);
   - the 30 programs kc does not build, in batches, `#inline C` passed
@@ -179,7 +184,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P729, the details of #724, until reviewed; the reviews confirmed
+- P729 and P730, the details of #724 and #725, until reviewed; the reviews confirmed
   every row to P728, and a review's own detail row is confirmed by that
   review (#675).
 

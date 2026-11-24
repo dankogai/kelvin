@@ -13988,3 +13988,19 @@ kelvinc's error in its words, with two tests of tests/error.
 Details are provisional P729.
 
 There are 1574 tests, and all pass with clang and with gcc 15.
+
+### 772. An Optional's empty braces are none
+
+**Claude** wrote #724, its battery run and pushed when clean, its CI
+all green, and went on with the user's answer of the Optional's
+braces.
+
+**Claude** made it #725: `{}` where a `T?` is initialized, and
+`(T?){}`, are none in both compilers, as a `T?` declared with no value
+is; kc reads `(T?){...}`, gives a global of an Optional its value at
+its first use, and refuses braces as an argument and assigned to a
+variable in kelvinc's words.
+
+Details are provisional P730.
+
+There are 1577 tests, and all pass with clang and with gcc 15.

@@ -10865,6 +10865,21 @@ static Expr *parse_initializer_for(Type *t) {
     }
     if (!bracket && !is_p(open, "{"))
         return parse_assign();
+    if (!bracket && optional_record(t) && is_p(peek2(), "}")) {
+        /* {} of a T? is none, as a T? declared with no value is (#725):
+           it was some of the T's zero */
+        Decl *r = optional_record(t);
+        advance();
+        advance();
+        Expr *e = new_expr(E_CALL, open->pos);
+        e->a = new_expr(E_IDENT, open->pos);
+        e->a->text = r->spelling;
+        e->op = "case_make";
+        e->target = r;
+        e->type = base_type(tag_type_name(r), open->pos);
+        e->text = "none";
+        return e;
+    }
     if (!bracket && variant_record(t) && !is_p(peek2(), ".")) {
         /* {...} of a T? or a Result is the value's initializer, wrapped (#72, #75) */
         Type *inner = ((Var *)variant_record(t)->members.data[value_case(variant_record(t))])->type;

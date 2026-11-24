@@ -1487,6 +1487,22 @@ kc reads what it is written in, and little more.
     Result's say `a struct or union is initialized with '{...}'`; and
     `[T](n)` there is `'x' is an i64, and this is i64^`;
   - tests/error's brackets_not_array.k and zeros_not_array.k have them.
+- **An Optional's empty braces are none** (#725), as kelvinc's since
+  the same number, the user's answer:
+  - `{}` where a `T?` is initialized is none, a struct's too, where kc
+    wrote some of its zero, gen_value_of; braces that hold something
+    are the T's initializer, wrapped, and `{}` of a Result is ok of its
+    zero;
+  - `(T?){...}`, `(Optional<T>){...}` and `(Result<T, E>){...}` are
+    read, compound_ahead;
+  - a global of an Optional, a Result or an enum with values is given
+    its value at its first use, global_const, as kelvinc's, where C
+    refused the initializer kc wrote;
+  - braces given as an argument where an Optional, a Result or an enum
+    with values goes, and braces assigned to a variable, are kelvinc's
+    `a list is not a value here`, where kc built them;
+  - tests/run's optional_empty_braces.k and tests/error's
+    optional_braces_arg.k and braces_assigned.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

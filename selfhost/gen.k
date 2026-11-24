@@ -3756,9 +3756,14 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
         lead += "' is"
         if !computed_count_in(py0, 0 - 1) && !typed_value_ok(a, py0, &lead) { return false }   // a count C computes, C's to check, as kelvinc leaves it (#656)
     }
-    if bare_init(a) && nodes[p].ty >= 0 && (types[nodes[p].ty].kind == Y_FIXED || (types[nodes[p].ty].kind == Y_STRUCT && tagged_of(nodes[p].ty) < 0 && !enum_int(nodes[p].ty))) {
-        var m = $"a list is not a value here: the parameter is "   // as kelvinc says it (#32, #612)
-        let w:String = kelvinc_type_text(nodes[p].ty)
+    if bare_init(a) && nodes[p].ty >= 0 && (types[nodes[p].ty].kind == Y_FIXED || (types[nodes[p].ty].kind == Y_STRUCT && !enum_int(nodes[p].ty))) {
+        var m = $"a list is not a value here: the parameter is "   // as kelvinc says it (#32, #612); an Optional's, a Result's and an enum with values' too (#725)
+        let py:int64 = nodes[p].ty
+        var w:String = kelvinc_type_text(py)
+        if tagged_of(py) >= 0 && nodes[tagged_of(py)].c != 1 && !kc_made(types[py].name) {
+            w = $"struct "
+            w += kelvin_type_text(py)
+        }
         m += &w
         m += ", so write a compound literal, as in '("
         m += &w
@@ -11634,6 +11639,14 @@ let const_init(e:int64):bool {
     return false
 }
 
+// whether C initializes the global d with its value: a constant, and no
+// Optional, Result or enum with values, whose value a function makes, as
+// kelvinc's case_make (#725)
+let global_const(d:int64):bool {
+    if nodes[d].ty >= 0 && types[nodes[d].ty].kind == Y_STRUCT && tagged_of(nodes[d].ty) >= 0 { return false }
+    return const_init(nodes[d].a)
+}
+
 // the getter and its once of the first-use global d, as kelvinc writes
 // them: its value made in a function of its own, moved into its storage
 let gen_first_use(d:int64) {
@@ -12493,6 +12506,12 @@ let gen_value(n:int64, y:int64) {
 }
 
 let gen_value_of(n:int64, y:int64) {
+    if bare_init(n) && nodes[n].b < 0 && y >= 0 && some_type(y) >= 0 {   // {} of a T? is none, as a T? declared with no value, as kelvinc's (#725)
+        put("_kv_")
+        put_tok(types[y].name)
+        put("_make_none()")
+        return
+    }
     if (nodes[n].kind == N_ARRAY || nodes[n].kind == N_DICT) && y >= 0 { dollar_retarget(n, y) }   // $["a"] where a $[cstr] goes (#616)
     if y >= 0 && types[y].kind == Y_FN && nodes[n].kind != N_COND {   // a function where a function type goes (#428)
         gen_fn_value(n, y)
@@ -16441,6 +16460,10 @@ let bare_declaration(e:int64):bool {
 
 let gen_assign(n:int64) {
     if (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && bare_declaration(nodes[n].a) { return }
+    if nodes[n].b >= 0 && bare_init(nodes[n].b) && nodes[nodes[n].a].kind == N_ID && !tok_is(nodes[nodes[n].a].t, "self") {   // x = {...} of a variable: braces are an initializer's, a case's value's, x.c = {a, b}, and an entry's, d[k] = {a, b}, as kelvinc says it (#725)
+        tok_error(nodes[nodes[n].b].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+        return
+    }
     if nodes[n].b >= 0 && (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && temp_borrowed(nodes[n].b) { return }   // (#612)
     let borrowed:int64 = nodes[n].b >= 0 && nodes[nodes[n].b].kind == N_ADDR ? nodes[nodes[n].b].a : 0 - 1
     if borrowed >= 0 && (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && nodes[borrowed].kind == N_ID && nodes[nodes[n].a].kind == N_ID && marks.count > 0 {
@@ -24287,7 +24310,7 @@ let gen_program() {
     put("#ifndef _DARWIN_C_SOURCE\n#define _DARWIN_C_SOURCE\n#endif\n")
     put("#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n#include <kelvin_prelude.h>\n")
     for d in decls {                                     // pthread_once of a first-use global's getter, as kelvinc includes it (#700)
-        if nodes[d].kind == D_GLOBAL && nodes[d].a >= 0 && !extern_decls.contains(d) && !thread_decls.contains(d) && !const_init(nodes[d].a) {
+        if nodes[d].kind == D_GLOBAL && nodes[d].a >= 0 && !extern_decls.contains(d) && !thread_decls.contains(d) && !global_const(d) {
             put("#include <pthread.h>\n")
             break
         }
@@ -24411,7 +24434,7 @@ let gen_program() {
                 thread_owner_error(d, nodes[d].ty)
                 return
             }
-            if nodes[d].a >= 0 && !extern_decls.contains(d) && !thread_decls.contains(d) && !const_init(nodes[d].a) {   // given its value at first use, as kelvinc's #493 (#700)
+            if nodes[d].a >= 0 && !extern_decls.contains(d) && !thread_decls.contains(d) && !global_const(d) {   // given its value at first use, as kelvinc's #493 (#700)
                 first_use[tok_text(nodes[d].t)] = d
                 put("static ")
                 put_ctype(nodes[d].ty)
