@@ -905,3 +905,5 @@ So far the changes from C are these, by topic.
   they were `some(0)`; kc reads `(T?){...}` (#725)
 - kc reads `q[i]` of a pointer as kelvinc does: of a `[T](N)^` the
   array `i` rows on, and of a `T^` a `T`, where it was a `u8` (#726)
+- kc passes `#inline C { ... }` through to the C it writes, at the top
+  level and among statements, as kelvinc does (#727)

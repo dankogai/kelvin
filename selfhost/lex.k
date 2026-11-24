@@ -16,7 +16,8 @@ enum tkind {                    // the kinds of tokens (#210)
     T_TPL,      // `...` with no ${...}: a string, its text as C's literal after the files' (#445)
     T_TPL_HEAD, // `...${ of a template, its text so
     T_TPL_MID,  // }...${
-    T_TPL_TAIL  // }...`
+    T_TPL_TAIL, // }...`
+    T_INLINE    // #inline C { ... }, the C between its braces (#727)
 }
 
 struct tok {
@@ -787,28 +788,31 @@ let lex_error_at(file:int64, i:int64, what:cstr) {
 }
 
 // #inline C { ... } from i, after its word, as kelvinc's lex_inline_c
-// reads it: its errors in kelvinc's words; kc writes no C of its own, so
-// one that is right is refused after, as before
-let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
+// reads it: its errors in kelvinc's words, and -1; of one that is right,
+// where its C begins, inline_from, and its } (#727)
+var inline_from:int64 = 0
+
+let inline_c_check(i0:int64, to:int64, file:int64, line:int64):int64 {
     var i:int64 = i0
     while i < to && (codes[i] == ' ' || codes[i] == '\t') { i += 1 }
     if !(i < to && codes[i] == 'C' && !(is_alpha(code_at(i + 1)) || is_digit(code_at(i + 1)))) {
         lex_error_at(file, i, "expected 'C' after '#inline': #inline C { ... }")   // where it reads, as kelvinc's here (#682)
-        return
+        return 0 - 1
     }
     i += 1
     while i < to && (codes[i] == ' ' || codes[i] == '\t') { i += 1 }
     if !(i < to && codes[i] == '{') {
         lex_error_at(file, i, "expected '{' after '#inline C', on the same line")
-        return
+        return 0 - 1
     }
     i += 1
+    inline_from = i
     var depth:int64 = 1
     var start = true                             // only blanks since the '{' or a new line
     while true {
         if i >= to {
             lex_error(file, line, "unterminated '#inline C {': it ends with the '}' that matches its '{'")
-            return
+            return 0 - 1
         }
         let c:uint32 = codes[i]
         if c == '#' && start {
@@ -826,7 +830,7 @@ let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
                 m += "' in '#inline C' is C's preprocessor, which Kelvin leaves out (#296): import a header with '#import <x.h> as C' outside it, and write a constant as an enum's or a Kelvin let"
             }
             lex_error_at(file, i, m.cstr)                // at its '#', as kelvinc's (#681)
-            return
+            return 0 - 1
         }
         if c == '\n' {
             start = true
@@ -859,15 +863,18 @@ let inline_c_check(i0:int64, to:int64, file:int64, line:int64) {
         }
         if c == '?' && code_at(i + 1) == '?' {
             lex_error_at(file, i, "'??' in '#inline C' is a trigraph of C, which Kelvin does not have (#220): write what it stands for")
-            return
+            return 0 - 1
         }
         i += 1
     }
+    let close:int64 = i
     i += 1
     while i < to && (codes[i] == ' ' || codes[i] == '\t' || codes[i] == '\r') { i += 1 }
-    if i < to && codes[i] != '\n' && !(codes[i] == '/' && code_at(i + 1) == '/') {
+    if i < to && codes[i] != '\n' && !(codes[i] == '/' && (code_at(i + 1) == '/' || code_at(i + 1) == '*')) {   // a comment of either kind, as kelvinc's line_ends (#727)
         lex_error_at(file, i, "unexpected text after the '}' of '#inline C'")
+        return 0 - 1
     }
+    return close
 }
 
 // ---------- #if os(...) (#643), as kelvinc's lexer reads it ----------
@@ -1279,6 +1286,9 @@ let lex_range(from:int64, to:int64, file:int64) {
             add_tok(T_CHAR, s, i - s, line, file)
         } else if c == '#' {
             let s:int64 = i
+            var q:int64 = s                              // only blanks before it on its line, as kelvinc says it (#727)
+            while q > from && codes[q - 1] != '\n' && (codes[q - 1] == ' ' || codes[q - 1] == '\t') { q -= 1 }
+            if q > from && codes[q - 1] != '\n' { lex_error_at(file, s, "'#' must start a line") }
             while i < to && codes[i] != '\n' { i += 1 }
             var a:int64 = s
             while a < i && codes[a] != '<' && codes[a] != '"' { a += 1 }
@@ -1348,7 +1358,14 @@ let lex_range(from:int64, to:int64, file:int64) {
                 continue
             }
             if inlines && !imports {                     // #inline C { ... }, kelvinc's words of what is wrong in it (#629)
-                inline_c_check(w + 6, to, file, line)
+                let close:int64 = inline_c_check(w + 6, to, file, line)
+                if close >= 0 {                          // its C a token, the line going on after its } (#727)
+                    add_tok(T_INLINE, inline_from, close - inline_from, line, file)
+                    toks[toks.count - 1].src = s         // an error of it at its #, as kelvinc's
+                    line += lines_in(s, close)
+                    i = close + 1
+                }
+                continue
             }
             if !imports && !inlines {                    // #include, #define: as kelvinc says it (#296, #612)
                 lex_error(file, line, "only '#import <header.h> as C', '#inline C { ... }' and '#if os(...)' are supported; C's preprocessor Kelvin leaves out (#296)")

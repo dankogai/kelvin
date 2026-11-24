@@ -47,6 +47,24 @@ let put_line(t:int64) {
     out += "\"\n"
 }
 
+// the C of #inline C's token t, as written, with a \ before a ? that
+// follows a ?, in its strings and comments: Kelvin has no trigraphs
+// (#220), as kelvinc's untrigraphed (#727)
+let put_inline_c_text(t:int64) {
+    let at:int64 = toks[t].at
+    for i in 0..<toks[t].len {
+        if codes[at + i] == '?' && i > 0 && codes[at + i - 1] == '?' { out += "\\" }
+        out += codes[at + i]
+    }
+    out += "\n"
+}
+
+// a top level's, after its line (#727)
+let put_inline_c(t:int64) {
+    put_line(t)
+    put_inline_c_text(t)
+}
+
 let put_tok(t:int64) {
     let at:int64 = toks[t].at
     var from = 0
@@ -22577,6 +22595,8 @@ let gen_stmt_of(n:int64, depth:int64) {
     case S_LABEL:                                        // again:, C's, as kelvinc writes it (#715)
         put_tok(nodes[n].t)
         put(":;\n")
+    case S_INLINE:                                       // C statements as written, seeing the locals by their names (#727)
+        put_inline_c_text(nodes[n].t)
     case S_GOTO:                                         // goto again (#715)
         put("goto ")
         put_tok(nodes[n].t)
@@ -23136,6 +23156,28 @@ let has_return(s0:int64):bool {
     return false
 }
 
+// whether s, or a statement after it, holds #inline C anywhere: C's own,
+// which kc does not follow, as kelvinc's unfollowed (#727)
+let holds_inline(s0:int64):bool {
+    var s:int64 = s0
+    while s >= 0 {
+        let k:nkind = nodes[s].kind
+        if k == S_INLINE { return true }
+        if k == S_BLOCK && holds_inline(nodes[s].a) { return true }
+        if (k == S_IF || k == S_IFLET || k == S_WHILE || k == S_DO) && (holds_inline(nodes[s].b) || holds_inline(nodes[s].c)) { return true }
+        if (k == S_FOR || k == S_EACH || k == S_CFOR) && holds_inline(nodes[s].c) { return true }
+        if k == S_SWITCH {
+            var c:int64 = nodes[s].b
+            while c >= 0 {
+                if holds_inline(nodes[c].b) { return true }
+                c = nodes[c].next
+            }
+        }
+        s = nodes[s].next
+    }
+    return false
+}
+
 let no_result(d:int64):bool { nodes[d].ty < 0 || types[nodes[d].ty].kind == Y_VOID }
 
 // those of the program's functions that never return, to the last of
@@ -23145,7 +23187,7 @@ let find_noreturn() {
     while more {
         more = false
         for d in decls {
-            if nodes[d].kind == D_FN && nodes[d].b >= 0 && no_result(d) && !anon_fns.contains(d) && !noreturn_fns.has(d) && path_ends(nodes[d].b) && !has_return(nodes[nodes[d].b].a) {
+            if nodes[d].kind == D_FN && nodes[d].b >= 0 && no_result(d) && !anon_fns.contains(d) && !noreturn_fns.has(d) && path_ends(nodes[d].b) && !has_return(nodes[nodes[d].b].a) && !holds_inline(nodes[nodes[d].b].a) {
                 noreturn_fns[d] = true
                 more = true
             }
@@ -23158,7 +23200,7 @@ let missing_return(d:int64):bool {
     if no_result(d) || is_main(d) || tok_starts(nodes[d].t, "_kv_") && !anon_fns.contains(d) { return false }
     let only:int64 = nodes[nodes[d].b].a                 // a body of one expression is its result
     if only >= 0 && nodes[only].next < 0 && nodes[only].kind == S_EXPR { return false }
-    if path_ends(nodes[d].b) { return false }
+    if path_ends(nodes[d].b) || holds_inline(nodes[nodes[d].b].a) { return false }   // C's return is C's (#727)
     var m = $""
     if anon_fns.contains(d) {
         m += "this anonymous function"
@@ -24387,7 +24429,18 @@ let gen_program() {
         put_ctype(y)
         put(";\n")
     }
-    for i in 0..<decls.count as int64 {                  // the structs and the enums with values (#215), each
+    var first_inline:int64 = decls.count as int64        // the first #inline C of the top level: the records written after it wait for it (#727)
+    for i in 0..<decls.count as int64 {
+        if nodes[decls[i]].kind == D_INLINE && i < first_inline { first_inline = i }
+    }
+    for i in first_inline..<decls.count as int64 {       // declared, for a prototype before the C to name
+        let d:int64 = decls[i]
+        if (nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1)) && !kc_made(nodes[d].t) && !tok_is(nodes[d].t, "struct") && !tok_is(nodes[d].t, "union") && !tok_is(nodes[d].t, "enum") {
+            put_ctype(type_of_kind(Y_STRUCT, -1, nodes[d].t))
+            put(";\n")
+        }
+    }
+    for i in 0..<first_inline {                          // the structs and the enums with values (#215), each
         let d:int64 = decls[i]                           // after what it holds, as the Arrays and Dictionaries (#225)
         if nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1) {
             write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t))
@@ -24398,9 +24451,29 @@ let gen_program() {
     for i in 0..<sets.count as int64 { write_type(sets[i]) }     // (#274)
     for i in 0..<fn_types.count as int64 { write_type(fn_types[i]) }   // (#428)
     put("\n")
+    var declared_to:int64 = 0                            // the functions declared before an #inline C, for its C to call (#727)
     for i in 0..<decls.count as int64 {                  // the globals
         let d:int64 = decls[i]
         if nodes[d].kind == D_ASSERT { gen_assert(d) }   // (#394)
+        if nodes[d].kind == D_INLINE {                   // C of the program's own, where it stands among the globals, the functions written before it declared (#727)
+            for j in declared_to..<i {
+                let f:int64 = decls[j]
+                if nodes[f].kind == D_FN && !is_main(f) && (nodes[f].b >= 0 || nodes[f].c < 0 || in_kh(nodes[f].t)) && !failed {
+                    gen_signature(f)
+                    put(";\n")
+                }
+            }
+            declared_to = i
+            put_inline_c(nodes[d].t)
+            var j:int64 = i + 1                          // the records written after it, up to the next, which may hold its types
+            while j < decls.count as int64 && nodes[decls[j]].kind != D_INLINE {
+                let r:int64 = decls[j]
+                if nodes[r].kind == D_STRUCT || (nodes[r].kind == D_ENUM && nodes[r].flag == 1) {
+                    write_type(type_of_kind(Y_STRUCT, -1, nodes[r].t))
+                }
+                j += 1
+            }
+        }
         if nodes[d].kind == D_GLOBAL {
             if nodes[d].a >= 0 && nodes[nodes[d].a].kind == N_ASYNC {      // as kelvinc's (#313)
                 gen_error(nodes[d].a, "'async' starts a call on a thread of its own, in a function: write it in one")

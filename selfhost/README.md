@@ -38,6 +38,8 @@ Agreed in #279.
 
 - **What kc need not do:** read C's source, `#import <foo.h> as C` and
   `#inline C { ... }`.
+  - While it writes C, kc writes a header's `#include` (#207) and
+    passes `#inline C` through as it stands (#727), reading neither.
   - libc is still Kelvin's to call, as C calls it.
 - **Now:** kc writes C from `*.k` and hands it to `cc` or `gcc`, and
   builds itself so (#204).
@@ -1510,6 +1512,32 @@ kc reads what it is written in, and little more.
     pointer: `p[1] += 300` of an `i64^` was refused, and `let x = p[1]`
     an `u8`;
   - tests/run's array_pointer_rows.k has them.
+- **`#inline C { ... }`** (#727), as kelvinc's #197 and #198, the
+  first of the 30 programs' batches: kc passes its C through to the C
+  it writes, where its lexer checked it and refused it after.
+  - The lexer makes it a token, T_INLINE, the C between its braces,
+    the line going on after its `}`, where a comment of either kind
+    may follow.
+  - At the top level it is a D_INLINE, written where it stands among
+    the globals: the functions written before it are declared first,
+    for its C to call, and the structs and enums with values written
+    after it are written after it, as they may hold its types.
+  - Among a block's, an anonymous function's or a case's statements it
+    is an S_INLINE, written as it stands after its `#line`, seeing the
+    locals by their names; as the body of a statement or after a label
+    it is kelvinc's error.
+  - A `?` after a `?` in it is written `\?`, as kelvinc's
+    untrigraphed: Kelvin has no trigraphs (#220).
+  - What it declares is C's, as a header's (#207), and a function that
+    holds it is not asked for its return, as kelvinc's unfollowed.
+  - On the way, as kelvinc's: `'#' must start a line`, which kc did
+    not say; and `expected '{': the body of 'if' is a block, as in ...`
+    where no parenthesized condition comes before what C would take
+    for a body, of `if` and `while`.
+  - tests/run's inline_c.k, inline_c_fn.k, inline_c_hash.k,
+    no_trigraphs.k and stmt_macros.k, which kc refused, print what
+    kelvinc's print; inline_c_order.k and tests/error's
+    hash_mid_line.k and inline_c_body.k are new.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
@@ -2077,7 +2105,7 @@ kc reads what it is written in, and little more.
     `??`, which is not always evaluated.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
-  `#inline C`, which kc skips.
+  `#inline C`, which kc passes through (#727).
 - **`C.name`** (#417), as kelvinc's #416: where the program declares
   no `C`, a local, a global, a function, a struct or an enum, it is
   kelvinc's error, in its words: `as C` names no namespace, and a
@@ -2560,7 +2588,7 @@ steps can take them on one at a time.
     collections of them, and `((T):R)^`;
   - `union`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
-  - `#inline C`, `--lib` and `.kh`;
+  - `--lib` and `.kh`; `#inline C` is passed through (#727);
   - and kelvinc's hundreds of messages.
 - **There is no specification but kelvinc:** grammar.md is partial, and
   the 834 tests of tests/run.sh are the nearest thing. A Kelvin kelvinc

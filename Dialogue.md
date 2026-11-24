@@ -14017,3 +14017,18 @@ pointer for a `u8`, which is a `T` of a `T^` now.
 Details are provisional P731.
 
 There are 1578 tests, and all pass with clang and with gcc 15.
+
+### 774. #inline C passed through by kc
+
+**Claude** wrote #726, its battery run and pushed when clean, its CI
+all green, and went on with the 30 programs kc does not build, the
+five of `#inline C` first.
+
+**Claude** made it #727: kc passes `#inline C` through to the C it
+writes, at the top level and among statements, and the five programs
+print what kelvinc's print; 25 are left, each stopping on what kc
+reads otherwise than kelvinc.
+
+Details are provisional P732.
+
+There are 1581 tests, and all pass with clang and with gcc 15.

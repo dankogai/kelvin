@@ -74,7 +74,9 @@ enum nkind {                    // the kinds of nodes (#210)
     D_GLOBAL,   // as S_VAR
     D_IMPORT,
     D_ENUM,     // enum t { a... }, each an N_ID, its a a value or -1
-    D_ASSERT    // as S_ASSERT, at the top level (#394)
+    D_ASSERT,   // as S_ASSERT, at the top level (#394)
+    D_INLINE,   // #inline C { ... } at the top level (#727): t its C
+    S_INLINE    // and among a function's statements
 }
 
 enum ykind {                    // the kinds of types (#210)
@@ -2200,6 +2202,48 @@ let set_ahead():bool {
 }
 
 let parse_statement():int64    // prototypes: an anonymous function asks them (#324)
+
+// whether a condition that began at token c, a (, is followed here by
+// what C would take for its body, a name, a number, text or a statement's
+// word: then kelvinc says the body is a block, write 'if cond { ... }',
+// and else that it expected '{' (#727)
+let c_body_ahead(c:int64):bool {
+    if !tok_is(c, "(") { return false }
+    var a:int64 = c                                      // past the ) that matches it, as kelvinc's after_matching_paren
+    var depth:int64 = 0
+    while toks[a].kind != T_EOF {
+        if tok_is(a, "(") { depth += 1 }
+        if tok_is(a, ")") {
+            depth -= 1
+            if depth == 0 { break }
+        }
+        a += 1
+    }
+    a += 1
+    while toks[a].kind == T_NL { a += 1 }
+    let k:tkind = toks[a].kind
+    return k == T_ID || k == T_NUM || k == T_STR || k == T_TPL_HEAD || tok_is(a, ";")
+}
+
+// a statement among a block's, an anonymous function's or a case's:
+// #inline C { ... } there is C statements where they stand, and what it
+// names C's, as a header's (#727); after a label it is the label's
+// statement, which kelvinc refuses
+var label_before = false
+
+let parse_listed():int64 {
+    if !at_kind(T_INLINE) {
+        let s:int64 = parse_statement()
+        label_before = nodes[s].kind == S_LABEL
+        return s
+    }
+    if label_before {
+        parse_error("#inline C cannot be the body of a statement or follow a label; put it in a block")
+        return make_node(S_BLOCK, pos)
+    }
+    c_headers = true
+    return make_node(S_INLINE, advance())
+}
 let parse_typed(is_let:int64):int64
 let unnamed_param(p:int64, k:int64, anon:bool)
 
@@ -2365,7 +2409,7 @@ let parse_anon():int64 {
     anon_depth += 1
     skip_newlines()
     while !at_word("}") && !failed {
-        let st:int64 = parse_statement()
+        let st:int64 = parse_listed()
         if last < 0 {
             nodes[b].a = st
         } else {
@@ -3773,9 +3817,10 @@ let parse_if():int64 {
         }
         advance()
     }
+    let cond_at:int64 = pos
     set_a(n, parse_cond())
     if !at_word("{") && !failed {                        // if (n > 0) n = 0, as kelvinc says it
-        parse_error("the body of 'if' is a block: write 'if cond { ... }'")
+        parse_error(c_body_ahead(cond_at) ? "the body of 'if' is a block: write 'if cond { ... }'" : "expected '{': the body of 'if' is a block, as in 'if cond { ... }'")
         return n
     }
     set_b(n, parse_block())
@@ -3841,7 +3886,7 @@ let parse_switch_body():int64 {
         skip_newlines()
         var lasts = -1
         while !at_word("case") && !at_word("default") && !at_word("}") && !failed {
-            let s:int64 = parse_statement()
+            let s:int64 = parse_listed()
             if lasts < 0 {
                 nodes[c].b = s
             } else {
@@ -3990,6 +4035,10 @@ let nested_function_error():bool {
 
 let parse_statement():int64 {
     let t:int64 = pos
+    if at_kind(T_INLINE) {                               // a block's loop takes one; here it is a body, as kelvinc says it (#727)
+        parse_error("#inline C cannot be the body of a statement or follow a label; put it in a block")
+        return make_node(S_BLOCK, t)
+    }
     if at_word("case") || (at_word("default") && tok_is(pos + 1, ":")) {   // a switch reads its own, as kelvinc says it
         if switch_level > 0 {
             parse_error("a case is written at the top of the switch's block, not inside a statement of it")
@@ -4178,9 +4227,10 @@ let parse_statement():int64 {
     }
     if at_word("while") {
         let n:int64 = make_node(S_WHILE, advance())
+        let cond_at:int64 = pos
         set_a(n, parse_cond())
         if !at_word("{") && !failed {                    // as kelvinc says it
-            parse_error("the body of 'while' is a block: write 'while cond { ... }'")
+            parse_error(c_body_ahead(cond_at) ? "the body of 'while' is a block: write 'while cond { ... }'" : "expected '{': the body of 'while' is a block, as in 'while cond { ... }'")
             return n
         }
         set_b(n, parse_block())
@@ -4595,7 +4645,7 @@ let parse_block():int64 {
             skip_newlines()
             continue
         }
-        let s:int64 = parse_statement()
+        let s:int64 = parse_listed()
         if last < 0 {
             nodes[n].a = s
         } else {
@@ -6062,6 +6112,9 @@ let parse_program() {
         let first:int64 = decls.count as int64
         if at_word("static_assert") || at_word("_Static_assert") {
             decls += parse_assert(D_ASSERT)             // (#394)
+        } else if at_kind(T_INLINE) {                    // C of the program's own, written where it stands (#727)
+            decls += make_node(D_INLINE, advance())
+            c_headers = true                             // what it declares is C's, as a header's (#207)
         } else if at_kind(T_IMPORT) {
             let n:int64 = make_node(D_IMPORT, advance())
             if tok_is(nodes[n].t, "<IO>") { nodes[n].flag = 1 }

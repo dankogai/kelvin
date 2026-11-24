@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #726 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #727 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -50,9 +50,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1043 programs kelvinc refuses in kelvinc's words:
-  the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724
-  and #725 alike.
+- kc says each of the 1045 programs kelvinc refuses in kelvinc's words:
+  the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
+  #725 and #727 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -160,9 +160,10 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of 478 of the 508 programs
+- kc builds and prints what kelvinc's prints of 484 of the 509 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #726; the 30 of the rest need C headers, #inline C or a JS module.
+  #727; the 25 of the rest import C headers or a JS module, and stop
+  on what kc reads otherwise than kelvinc.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
 - Found while #725 was made, not changed:
@@ -183,6 +184,14 @@ known, not what is planned.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's `this method is not
     known`.
+- Found while #727 was made, not changed:
+  - A struct written before an `#inline C` that holds one of its types
+    is C's error in both; a function written before it that takes a
+    struct written after it, which holds its type, is kelvinc's C's
+    error, and kc's build.
+  - `while (i == 0) (i) += 1` is kelvinc's `assignment is a statement
+    in Kelvin, not a value`, and kc's `expected '{': the body of
+    'while' is a block`.
 - The user's order after #723, go on with them all, each pushed when
   its battery is clean:
   - the two differences found while #717 was made (#724);
@@ -191,12 +200,20 @@ known, not what is planned.
   - `q[i]` of a `q:[T](N)^`, read by kc as kelvinc reads it, the user's
     answer, where kc said its own error of #362 (#726);
   - the 30 programs kc does not build, in batches, `#inline C` passed
-    through to C among them.
+    through to C among them:
+    - `#inline C` (#727): inline_c, inline_c_fn, inline_c_hash,
+      no_trigraphs, stmt_macros;
+    - the 25 left: addr, anonymous_edge, anonymous_values, array_types,
+      casts_edge, casts_edge2, casts_edge3, coalesce_text, cstr,
+      function_types, io_kill, io_process, io_signal, is_null,
+      local_storage, methods_edge, nowhere, order_free, pointer_step,
+      properties_c, semicolons_edge, semicolons_more, tag_names_edge,
+      text_numbers, text_numbers_more.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P729 to P731, the details of #724 to #726, until reviewed; the reviews confirmed
+- P729 to P732, the details of #724 to #727, until reviewed; the reviews confirmed
   every row to P728, and a review's own detail row is confirmed by that
   review (#675).
 
