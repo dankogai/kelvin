@@ -270,6 +270,10 @@ let u:():() := tick        // the same, the result written out (#141)
 - `(T)` has no result, as a function without `:R` has none, and `...`
   ends a variadic one: `(i32, ...):i64`. The parameters are types
   without names.
+  - A call through one takes as many arguments as it has parameters,
+    or more of a variadic one (#740): `f(1)` of an `f:(i64, i64):i64`
+    is `this function, of type (i64, i64):i64, takes 2 arguments, and
+    it is given 1`, a variable's, an element's and a member's alike.
 - A function type is a reference (P32): it is assigned with `:=`, is
   `nowhere` until assigned, and is compared with `nowhere`
   (`if f != nowhere`). A `let` one is a `const` pointer.

@@ -14247,3 +14247,25 @@ confirmed by #739.
 Details are P744, confirmed by #739 itself.
 
 There are 1593 tests, and all pass with clang and with gcc 15.
+
+### 787. A call through a function value of the wrong count
+
+**Claude** wrote #739, its battery run and pushed when clean, no row
+provisional, and listed the six cases kelvinc leaves to C.
+
+**User:** go on with the six left to C
+
+**Claude** asked the words of four of them: a call through a function
+value of the wrong count, a struct's member given the wrong kind of
+initializer, a pointer that is itself const, and `ok({})`.
+
+**User:** kc's sentence (recommended); as a parameter's (recommended);
+read it, refuse the change (recommended); the list error (recommended)
+
+**Claude** made the first #740: kelvinc says kc's sentence of a call
+through a function value of the wrong count, `or more` of a variadic
+one.
+
+Details are provisional P745.
+
+There are 1596 tests, and all pass with clang and with gcc 15.

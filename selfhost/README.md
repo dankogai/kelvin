@@ -1694,6 +1694,13 @@ kc reads what it is written in, and little more.
     and written `const int64_t * const *`, put_ctype, where kc wrote
     const twice before the type;
   - tests/run's const_read_types.k has them.
+- **A call through a function value of the wrong count** (#740), the
+  first of the six left to C, the user's order after #739: kc's
+  sentence is kelvinc's since the same number.
+  - A variadic one's says `or more`, gen_fn_call; a member's, `o.f(1)`,
+    is said at its `(`, as any call's.
+  - tests/error's fn_value_arg_count.k, fn_value_arg_count_variadic.k
+    and fn_value_arg_count_member.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

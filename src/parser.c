@@ -8264,10 +8264,26 @@ static void resolve_call(Expr *call) {
         ns_mark(call, call->a->text);
 }
 
+/* a call through a function value of type ft takes as many arguments as
+   ft has parameters, or more of a variadic one (#740): C said it */
+static void check_fn_count(Expr *call, Type *ft) {
+    if (call->items.len >= ft->params.len && (call->items.len == ft->params.len || ft->variadic))
+        return;
+    bare_tags = true;
+    char *shown = kelvin_type(ft);
+    bare_tags = false;
+    error_at(call->pos, "this function, of type %s, takes %d argument%s%s, and it is given %d", shown, ft->params.len,
+             ft->params.len == 1 ? "" : "s", ft->variadic ? " or more" : "", call->items.len);
+}
+
 static void resolve_call_of(Expr *call) {
     Expr *callee = call->a;
-    if (callee->kind != E_IDENT)
+    if (callee->kind != E_IDENT) {
+        Type *ft = callee->kind == E_INDEX || callee->kind == E_FIELD || callee->kind == E_DEREF ? value_type(callee) : NULL;
+        if (ft && unqualified(ft)->kind == T_FUNC) /* fs[0](1), o.f(1): an element's or a member's (#740) */
+            check_fn_count(call, unqualified(ft));
         return;
+    }
     if (callee->op && !strcmp(callee->op, "callee")) { /* $(...) (#181): the function being written */
         Decl *d = callee->target;
         if ((call->items.len != d->params.len && !d->variadic) || call->items.len < d->params.len)
@@ -8286,6 +8302,7 @@ static void resolve_call_of(Expr *call) {
         if (ft && unqualified(ft)->kind == T_FUNC) {
             ft = unqualified(ft);
             call->fn_type = ft;
+            check_fn_count(call, ft);
             for (int k = 0; k < call->items.len && k < ft->params.len; k++)
                 move_argument(call->items.data[k], param_type(ft->params.data[k]), strfmt("'%s'", callee->text));
         }

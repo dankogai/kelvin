@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #739 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #740 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,9 +61,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1053 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1056 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733 and #736 alike.
+  #725, #727, #733, #736 and #740 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -165,12 +165,21 @@ known, not what is planned.
     `const i64^ const^`, and a fault of kelvinc's found there: a
     variable inferred from a read through const was const itself, and
     is the plain type, the user's answer (#738);
-  - left, each C's error in kelvinc, which kc says in Kelvin's words
-    or builds, the batches done: `v()` of a variadic value; a number
-    where a struct's array member goes; `var q:cstr const`, whose
-    const kc does not write; `ok({})` of a struct's Result; `while (i
-    == 0) (i) += 1`; and a function type's parameter of an inner count
-    another parameter gives, whose typedef kc writes with `n`.
+  - left then, each C's error in kelvinc, which kc said in Kelvin's
+    words or built, six: the user's order after #739, below.
+- The user's order after #739, the six left to C, with the answers of
+  their words, each pushed when clean:
+  - a call through a function value of the wrong count, `f(1)` of an
+    `f:(i64, i64):i64` and `v()` of a variadic one: kc's sentence,
+    kelvinc's too, `this function, of type (i64, i64):i64, takes 2
+    arguments, and it is given 1`, `or more` of a variadic one (#740);
+  - left: a struct's member given the wrong kind of initializer, as a
+    parameter's, `'y' of pt is an i64, and this is text`; `T^ const`
+    and `cstr const`, read and named, `p := &y` of one `'p' is an i64^
+    const, a pointer that does not change`; `ok({})`, the list error;
+    `while (i == 0) (i) += 1`, kc's as kelvinc's; and a function type's
+    parameter of an inner count another parameter gives, whose typedef
+    kc writes with `n`.
 - Found while #724 was made:
   - `var o:i64? = [i64](3)` is kelvinc's `case 'some' of i64? holds an
     i64, and this is i64^`, and kc's too since #736.
@@ -212,6 +221,10 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #740 was made, not changed:
+  - `let t:() := { println("t") }`, an anonymous function of no
+    parameter and no result where `()` goes, is kelvinc's, and kc's
+    `this is no function, where () goes`.
 - Found while #738 was made, not changed:
   - `typeof(k)` where an expression goes is kelvinc's `expected an
     expression, found 'typeof'`, and C's error of kc's C.
@@ -245,8 +258,9 @@ known, not what is planned.
     error.
 - Found while #729 was made, not changed:
   - `v()` of a `v:(i32, ...):i64`, fewer arguments than its
-    parameters, is C's error of kelvinc's C, and kc's `this function,
-    of type (i32, ...):i64, takes 1 argument, and it is given 0`.
+    parameters, was C's error of kelvinc's C: `this function, of type
+    (i32, ...):i64, takes 1 argument or more, and it is given 0` in
+    both since #740.
   - `var q:cstr const := name` is kelvinc's `const uint8_t *const q`;
     kc reads the const and writes none, so that `q := other` is C's to
     kelvinc and built by kc.
@@ -284,8 +298,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P744, and a review's own
-  detail row is confirmed by that review (#675).
+- P745, the details of #740, until reviewed; the reviews confirmed
+  every row to P744, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

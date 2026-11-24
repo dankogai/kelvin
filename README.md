@@ -935,3 +935,6 @@ So far the changes from C are these, by topic.
 - A variable inferred from a value read through const, `var d = s[0]`
   of a `cstr`, is the plain type, which changes, where it was const
   and C refused the change; kc names such reads as kelvinc (#738)
+- A call through a function value of the wrong count, `f(1)` of an
+  `f:(i64, i64):i64`, is an error in Kelvin's words, where it was C's
+  (#740)

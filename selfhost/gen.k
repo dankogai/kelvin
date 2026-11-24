@@ -18165,16 +18165,17 @@ let gen_fn_call(n:int64, fy:int64) {
         want += 1
         p = types[p].name
     }
-    if count != want && !(types[fy].konst == 4 && count > want) {   // as kelvinc says it; a variadic one takes more (#729)
+    if count != want && !(types[fy].konst == 4 && count > want) {   // as kelvinc says it since #740; a variadic one takes more (#729)
         var m = $"this function, of type "
         let w:String = kelvin_type_text(fy)
         m += &w
         m += ", takes "
         m += String(want)
         m += want == 1 ? " argument" : " arguments"
+        if types[fy].konst == 4 { m += " or more" }
         m += ", and it is given "
         m += String(count)
-        gen_error(n, m.cstr)
+        if nodes[n].kind == N_METHOD && tok_is(nodes[n].t + 1, "(") { tok_error(nodes[n].t + 1, m.cstr) } else { gen_error(n, m.cstr) }   // o.f(1), a member's, at its ( as any call's (#740)
         return
     }
     var opened = hold_fn_args(nodes[n].b, fy)          // an owner by value the function's, not held (#722)
