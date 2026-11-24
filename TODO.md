@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #743 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #744 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,9 +61,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1067 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1068 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736, #740, #741, #742 and #743 alike.
+  #725, #727, #733, #736, #740, #741, #742, #743 and #744 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -183,9 +183,12 @@ known, not what is planned.
   - `ok({})` and `err({})`, the list error of `ok({1, 2})` in both,
     where kelvinc said the case holds a T, and this is (), and kc
     built it or left it to C (#743);
-  - left: `while (i == 0) (i) += 1`, kc's as kelvinc's; and a function type's
-    parameter of an inner count another parameter gives, whose typedef
-    kc writes with `n`.
+  - `while (i == 0) (i) += 1`, kc's as kelvinc's, `assignment is a
+    statement in Kelvin, not a value`; and a function type's parameter
+    of an inner count another parameter gives, `f:([[i64](n)](2)):i64`,
+    whose typedef kc wrote with `n` and writes with no count, `T
+    (*)[]` (#744);
+  - left: none of the six.
 - Found while #724 was made:
   - `var o:i64? = [i64](3)` is kelvinc's `case 'some' of i64? holds an
     i64, and this is i64^`, and kc's too since #736.
@@ -227,6 +230,15 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #744 was made, not changed:
+  - `apply.typename` of a function that takes an
+    `f:([[i64](n)](2)):i64` is `?` by kelvinc, and `(i64,
+    ([[i64](n)](2)):i64):i64` by kc.
+  - A function of rows of another type given to it, `{
+    (m:[[f64](3)](2)):i64 in 1 }`, is C's error of kelvinc's C, and
+    kc's `this is ([f64](3)^):i64, where ([[i64](n)](2)):i64 goes`.
+  - A function of rows of four given where `n` is 3 is built by both,
+    as C takes a row of any count there.
 - Found while #743 was made, not changed:
   - `Result<T, U>.ok({})` and `.ok({1, 2})`, the case by the type's
     name, are built by both, the braces its value's initializer.
@@ -285,8 +297,8 @@ known, not what is planned.
     member filled, with no NUL.
   - A function's parameter of a function type whose own parameter's
     inner array counts by another parameter, `f:([[i64](n)](2)):i64`,
-    is built by kelvinc; kc writes `n` into the type's typedef, C's
-    error.
+    is built by kelvinc; kc wrote `n` into the type's typedef, C's
+    error, and builds it since #744.
 - Found while #729 was made, not changed:
   - `v()` of a `v:(i32, ...):i64`, fewer arguments than its
     parameters, was C's error of kelvinc's C: `this function, of type
@@ -330,7 +342,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P745 to P748, the details of #740 to #743, until reviewed; the reviews confirmed
+- P745 to P749, the details of #740 to #744, until reviewed; the reviews confirmed
   every row to P744, and a review's own detail row is confirmed by that
   review (#675).
 

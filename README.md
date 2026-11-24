@@ -948,3 +948,6 @@ So far the changes from C are these, by topic.
 - `ok({})` and `err({})` are `a list is not a value here`, as
   `ok({1, 2})` is, where the case was said to hold a T, and this is ()
   (#743)
+- kc says `while (i == 0) (i) += 1` in kelvinc's words and builds a
+  function type's parameter of rows counted by another parameter,
+  `f:([[i64](n)](2)):i64` (#744)

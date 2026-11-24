@@ -3970,7 +3970,7 @@ let parse_if():int64 {
     set_a(n, parse_cond())
     word_below("{")
     if !at_word("{") && !failed {                        // if (n > 0) n = 0, as kelvinc says it
-        parse_error(c_body_ahead(cond_at) ? "the body of 'if' is a block: write 'if cond { ... }'" : "expected '{': the body of 'if' is a block, as in 'if cond { ... }'")
+        parse_error(at_assign() ? "assignment is a statement in Kelvin, not a value: assign on a line of its own" : c_body_ahead(cond_at) ? "the body of 'if' is a block: write 'if cond { ... }'" : "expected '{': the body of 'if' is a block, as in 'if cond { ... }'")   // if (i == 0) (i) += 1: the condition's assignment first, as kelvinc says it (#743)
         return n
     }
     set_b(n, parse_block())
@@ -4387,7 +4387,7 @@ let parse_statement():int64 {
         set_a(n, parse_cond())
         word_below("{")
         if !at_word("{") && !failed {                    // as kelvinc says it
-            parse_error(c_body_ahead(cond_at) ? "the body of 'while' is a block: write 'while cond { ... }'" : "expected '{': the body of 'while' is a block, as in 'while cond { ... }'")
+            parse_error(at_assign() ? "assignment is a statement in Kelvin, not a value: assign on a line of its own" : c_body_ahead(cond_at) ? "the body of 'while' is a block: write 'while cond { ... }'" : "expected '{': the body of 'while' is a block, as in 'while cond { ... }'")   // while (i == 0) (i) += 1: the condition's assignment first, as kelvinc says it (#743)
             return n
         }
         set_b(n, parse_block())

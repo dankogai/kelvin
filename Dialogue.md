@@ -14316,3 +14316,17 @@ kc's alone are left for #744.
 Details are provisional P748.
 
 There are 1608 tests, and all pass with clang and with gcc 15.
+
+### 791. kc's last two of the six left to C
+
+**Claude** wrote #743, its battery run and pushed when clean.
+
+**Claude** made the last two #744, kc's alone: `while (i == 0) (i) +=
+1` is kelvinc's sentence of an assignment, and a function type's
+parameter of rows counted by another parameter is built, its typedef
+written with no count. None of the six is left; P745 to P749 are
+provisional until reviewed.
+
+Details are provisional P749.
+
+There are 1610 tests, and all pass with clang and with gcc 15.

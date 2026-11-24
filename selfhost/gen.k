@@ -18082,7 +18082,8 @@ let fn_counts_apart(a:int64, b:int64):bool {
         let xp = arrays && (types[x].name <= 0 - 10 || types[x].name == 0 - 2 || types[x].name == 0 - 4)   // a count C computes, or a parameter's array, its pointer
         let yp = arrays && (types[y].name <= 0 - 10 || types[y].name == 0 - 2 || types[y].name == 0 - 4)
         let computed = xp && yp && (types[x].name == 0 - 4 || types[x].konst == 1) == (types[y].name == 0 - 4 || types[y].konst == 1)
-        if x != y && !computed { return false }
+        let rows = x >= 0 && y >= 0 && x != y && types[x].kind == Y_FIXED && types[y].kind == Y_FIXED && types[types[x].elem].kind == Y_FIXED && types[types[y].elem].kind == Y_FIXED && types[types[x].elem].elem == types[types[y].elem].elem && (types[types[x].elem].name <= 0 - 10 || types[types[y].elem].name <= 0 - 10)   // rows of a count C computes, [[i64](n)](2): a pointer to a row in C, of any count (#743)
+        if x != y && !computed && !rows { return false }
         p = types[p].name
         q = types[q].name
     }
@@ -24305,7 +24306,11 @@ let write_type(y:int64) {
         if p < 0 { put("void") }
         while p >= 0 {
             let pe:int64 = types[p].elem
-            if pe >= 0 && types[pe].kind == Y_FIXED && types[pe].name <= 0 - 10 {   // [T](n), a count C computes, its pointer, as C takes it and kelvinc writes it, no name of it before its declaration (#719)
+            if pe >= 0 && types[pe].kind == Y_FIXED && types[types[pe].elem].kind == Y_FIXED && types[types[pe].elem].name <= 0 - 10 {   // [[T](n)](2), rows of a count C computes: a pointer to a row of no count written, T (*)[], which a row of any count goes to, where kelvinc writes T (*)[n] in the function's own line and no typedef (#743)
+                if types[pe].konst == 1 || types[types[pe].elem].konst == 1 { put("const ") }
+                put_ctype(types[types[pe].elem].elem)
+                put(" (*)[]")
+            } else if pe >= 0 && types[pe].kind == Y_FIXED && types[pe].name <= 0 - 10 {   // [T](n), a count C computes, its pointer, as C takes it and kelvinc writes it, no name of it before its declaration (#719)
                 if types[pe].konst == 1 { put("const ") }
                 put_ctype(types[pe].elem)
                 put(" *")

@@ -1736,6 +1736,22 @@ kc reads what it is written in, and little more.
   - `some({})` is still `some(v) makes no Optional`, as kelvinc's.
   - tests/error's case_word_empty_braces.k and err_word_empty_braces.k
     have them.
+- **The last two of the six** (#744), kc's alone:
+  - `while (i == 0) (i) += 1` and `if (i == 0) (i) = 1` are kelvinc's
+    `assignment is a statement in Kelvin, not a value: assign on a
+    line of its own`, parse_if and the while of parse_statement, where kc
+    said the body is a block: the parentheses after a condition's are
+    a call's, and the assignment the condition's.
+  - a function type's parameter of rows whose count another parameter
+    gives, `f:([[i64](n)](2)):i64`, is written `T (*)[]` in the type's
+    typedef, a pointer to a row of no count written, which a row of
+    any count goes to, write_type, where kc wrote `n` at the top of
+    the file, C's error; kelvinc writes `T (*)[n]` in the function's
+    own line and no typedef.
+    - A function of rows of three goes where it goes, fn_counts_apart,
+      as kelvinc's C takes it.
+  - tests/error's condition_call_assigned.k and tests/run's
+    fn_type_row_count.k have them.
   - tests/error's member_value_text.k, member_array_number.k,
     array_declared_number.k and cstr_takes_no_number.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
