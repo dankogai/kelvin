@@ -1714,6 +1714,7 @@ on a new line`
     println(sm_m ?? "bytes", " ", sm_apply(3) { (a:int64) in a * 2 }, " ", sm_apply(4) { (a:int64):int64 in $0 + a })
     var sm_g:sm_bag = {1, [7, 8, 9], "hey"}              // a struct's array members, a list and text; a global's array of functions
     println(sm_g.xs[2], " ", sm_g.name, " ", sm_table[1].run(4), " ", sm_table[0].name, " ", argv.typename)
+    println(([int32](3))[1, 2, 3][1], " ", (sm_bag){1, [7, 8, 9], "hey"}.n, " ", sizeof ([int32](3))[1, 2, 3])   // a compound literal's commas in a macro's argument, in parentheses (#732)
     return 0
 }
 let sm_table:[sm_entry](2) = [{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}]

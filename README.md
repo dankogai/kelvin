@@ -917,3 +917,6 @@ So far the changes from C are these, by topic.
 - kc builds every program of tests/run and examples, each printing
   what kelvinc's prints: `IO.popen`, a module's `extern lazy` global
   and the rest of the last eight (#730)
+- A compound literal where a macro's argument goes,
+  `println(([i32](3))[1, 2, 3][1])`, is written in parentheses, where it
+  was C's error (#732)

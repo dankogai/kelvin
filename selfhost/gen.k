@@ -3467,8 +3467,34 @@ let gen_args(first:int64) {
     var a:int64 = first
     while a >= 0 {
         if a != first { put(", ") }
-        gen_expr(a)
+        gen_macro_arg(a)
         a = nodes[a].next
+    }
+}
+
+// whether the C of n holds a compound literal that no parentheses hold,
+// (T){1, 2}.x and ([T](2))[1, 2][0]: its commas would divide a macro's
+// arguments (#732)
+let bares_list(n:int64):bool {
+    if n < 0 { return false }
+    let k:nkind = nodes[n].kind
+    if (k == N_LIST || k == N_INIT) && nodes[n].ty >= 0 { return true }
+    if k == N_INDEX || k == N_FIELD || k == N_DEREF || k == N_CAST || k == N_UNARY || k == N_ADDR || k == N_SIZEOF { return bares_list(nodes[n].a) }
+    if k == N_BIN { return bares_list(nodes[n].a) || bares_list(nodes[n].b) }
+    if k == N_COND { return bares_list(nodes[n].a) || bares_list(nodes[n].b) || bares_list(nodes[n].c) }
+    return false
+}
+
+// a as the argument of a call that may be a macro's, println's or a
+// header's: in parentheses where a compound literal's commas show, as
+// kelvinc's macro_arg (#732)
+let gen_macro_arg(a:int64) {
+    if bares_list(a) {
+        put("(")
+        gen_expr(a)
+        put(")")
+    } else {
+        gen_expr(a)
     }
 }
 
@@ -6681,7 +6707,7 @@ let gen_print_args_to(first:int64, sink:cstr) {
             put(sink)
             put(", .width = 2}, &_kv_sv, -1); (const uint8_t *)\"\"; })")
         } else {
-            gen_expr(a)
+            gen_macro_arg(a)
         }
         a = nodes[a].next
     }

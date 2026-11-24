@@ -14104,3 +14104,18 @@ confirmed by #731.
 Details are P736, confirmed by #731 itself.
 
 There are 1581 tests, and all pass with clang and with gcc 15.
+
+### 779. A compound literal where a macro's argument goes
+
+**Claude** wrote #731, its battery run and pushed when clean, its CI
+all green, no row provisional, and listed what TODO.md has left.
+
+**User:** go on with the three kelvinc faults
+
+**Claude** made the first #732: an argument whose C shows a compound
+literal's commas is written in parentheses, in kelvinc and in kc,
+where `println(sizeof ([i32](3))[1, 2, 3])` was C's error.
+
+Details are provisional P737.
+
+There are 1582 tests, and all pass with clang and with gcc 15.

@@ -1628,6 +1628,15 @@ kc reads what it is written in, and little more.
     anonymous_edge.k, array_types.k, anonymous_values.k and
     local_storage.k, which kc refused, print what kelvinc's print;
     selfhost/sample.k has the forms.
+- **A compound literal where a macro's argument goes** (#732), as
+  kelvinc's since the same number, a fault of both: `println(([i32](3))[1,
+  2, 3][1])` and `(point){1, 2}.y` there were C's error, the literal's
+  commas dividing the macro's arguments.
+  - gen_macro_arg writes an argument in parentheses where bares_list
+    tells its C shows a compound literal that no parentheses hold,
+    under an index, a member, a sign, a cast, sizeof or an operator;
+    gen_args and println's and print's arguments ask it.
+  - tests/run's compound_macro_args.k and selfhost/sample.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

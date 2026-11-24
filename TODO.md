@@ -34,18 +34,22 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #731 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #732 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
 
-- `println(sizeof ([i32](3))[1, 2, 3])` is C's error of kelvinc's C,
-  `expected '}'`: the commas of the compound literal divide the
-  arguments of the println macro, which no parentheses hold; found
-  while #729 was made, not changed. `i32(sizeof ...)` and a declaration
-  take it.
+- The user's order after #731, the three faults of kelvinc's found
+  while #724 to #730 were made, one number each, pushed when clean:
+  - a compound literal's commas where a macro's argument goes,
+    `println(sizeof ([i32](3))[1, 2, 3])`, which was C's error of
+    kelvinc's C, and of kc's: the argument in parentheses (#732);
+  - an element changed through a `[const i64](3)^`, C's error of
+    kelvinc's C;
+  - a global whose value needs a struct written after a function that
+    names the global, below.
 - A global whose value needs a struct written after a function that
   names the global, `let tb:[e](2) = [{"inc", { $0 + 1 }}]` with
   `struct e` after `main`, is kelvinc's `'$0' is a parameter of an
@@ -171,9 +175,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of all 509 programs of
+- kc builds and prints what kelvinc's prints of all 510 programs of
   tests/run and examples, the quines as run.sh compares them, as of
-  #730.
+  #732.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
 - Found while #725 was made, not changed:
@@ -245,8 +249,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P736, and a review's own
-  detail row is confirmed by that review (#675).
+- P737, the details of #732, until reviewed; the reviews confirmed
+  every row to P736, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

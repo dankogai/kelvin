@@ -159,6 +159,32 @@ static void sync(Pos p) {
 
 static const char *fn_cname(Decl *d, Expr *e);
 static char *expr(Expr *e);
+
+/* s as the argument of a call (#732): where the callee is a macro, as
+   println is and a header's may be, the preprocessor divides its
+   arguments at every comma that no parentheses hold, a compound
+   literal's among them, sizeof (T){1, 2} and ([T](2))[1, 2][0]; text
+   with such a comma goes in parentheses, which change no value */
+static char *macro_arg(char *s) {
+    int depth = 0;
+    for (const char *p = s; *p; p++) {
+        if (*p == '"' || *p == '\'') {
+            char q = *p;
+            for (p++; *p && *p != q; p++)
+                if (*p == '\\' && p[1])
+                    p++;
+            if (!*p)
+                break;
+        } else if (*p == '(') {
+            depth++;
+        } else if (*p == ')') {
+            depth--;
+        } else if (*p == ',' && depth == 0) {
+            return strfmt("(%s)", s);
+        }
+    }
+    return s;
+}
 static const char *range_max(Type *t);
 static char *range_walk(Type *t, const char *r, const char *p);
 static char *optional_case(Type *opt, const char *c);
@@ -1043,7 +1069,7 @@ static char *expr_bare(Expr *e) {
                                : e->fn_type && i < e->fn_type->params.len && local_owner(x)
                                    ? owner_take(e->fn_type->params.data[i])
                                    : NULL;
-            buf_printf(&b, "%s%s", i ? ", " : "", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+            buf_printf(&b, "%s%s", i ? ", " : "", take ? strfmt("%s(&%s)", take, c_name(x->text)) : macro_arg(expr(x)));
         }
         buf_puts(&b, ")");
         return b.buf;
