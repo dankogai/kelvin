@@ -14301,3 +14301,18 @@ listed in TODO.md, not changed.
 Details are provisional P747.
 
 There are 1606 tests, and all pass with clang and with gcc 15.
+
+### 790. ok({}) is a list that is no value
+
+**Claude** wrote #742, its battery run and pushed when clean, and
+went on with the last three of the six, in a copy of the repository
+while the battery ran.
+
+**Claude** made the fourth #743: `ok({})` and `err({})` are the list
+error of `ok({1, 2})` in both, where kelvinc said the case holds a T,
+and this is (), and kc built it or left it to C; the two that are
+kc's alone are left for #744.
+
+Details are provisional P748.
+
+There are 1608 tests, and all pass with clang and with gcc 15.

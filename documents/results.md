@@ -68,6 +68,11 @@ its cases named `none` and `some` (#72); it has its own document,
     words (#411), of a word, a `T` alone, `Result<T, U>.ok(v)` and `r
     ?? ok(v)` alike: `case 'ok' of Result<i64, String> holds an i64,
     and this is String`.
+    - Braces are no value there (#736, #743): `ok({1, 2})`, and
+      `ok({})` and `err({})` of nothing in them, are `a list is not a
+      value here: write a compound literal, ...`.
+      - A struct's goes as `ok((point){1, 2})`, or as the Result's own
+        initializer, `var r:Result<point, i64> = {1, 2}`.
   - `Result<T, U>.ok(v)`, `Result<T, U>.err(e)` and `Result<T, U>(v)`
     spell them out, where nothing says which Result is meant.
 - **Reading:** `r.ok` and `r.err` are the values, checked at run time.

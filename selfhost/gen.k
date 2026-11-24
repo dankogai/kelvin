@@ -12663,9 +12663,9 @@ let gen_value(n:int64, y:int64) {
 }
 
 let gen_value_of(n:int64, y:int64) {
-    if nodes[n].kind == N_CALL && is_case_word(n) && nodes[n].b >= 0 && bare_init(nodes[n].b) && nodes[nodes[n].b].b >= 0 && nodes[nodes[n].a].kind == N_ID && nodes[nodes[n].a].t > 0 && nodes[nodes[n].a].t < eof_pos && !tok_is(nodes[nodes[n].a].t - 1, ".") && (tok_is(nodes[nodes[n].a].t, "ok") || tok_is(nodes[nodes[n].a].t, "err") || tok_is(nodes[nodes[n].a].t, "some")) {   // ok({1, 2}), some({1, 2}) as written: braces are no value there, as kelvinc says it (#736), past its first element; {.rect = {2.0, 3.0}} of an enum with values is its case's initializer
+    if nodes[n].kind == N_CALL && is_case_word(n) && nodes[n].b >= 0 && bare_init(nodes[n].b) && (nodes[nodes[n].b].b >= 0 || !tok_is(nodes[nodes[n].a].t, "some")) && nodes[nodes[n].a].kind == N_ID && nodes[nodes[n].a].t > 0 && nodes[nodes[n].a].t < eof_pos && !tok_is(nodes[nodes[n].a].t - 1, ".") && (tok_is(nodes[nodes[n].a].t, "ok") || tok_is(nodes[nodes[n].a].t, "err") || tok_is(nodes[nodes[n].a].t, "some")) {   // ok({1, 2}), some({1, 2}) as written: braces are no value there, as kelvinc says it (#736), past its first element; {.rect = {2.0, 3.0}} of an enum with values is its case's initializer
         let open:int64 = nodes[nodes[n].b].t
-        tok_error(tok_is(open, "{") && tok_is(open + 2, "}") ? open + 1 : list_fail_tok(nodes[n].b), "a list is not a value here: write a compound literal, as in '(i32[3]){1, 2, 3}'; as a function with no parameters and no result, this would do nothing")
+        tok_error(nodes[nodes[n].b].b < 0 ? open : tok_is(open, "{") && tok_is(open + 2, "}") ? open + 1 : list_fail_tok(nodes[n].b), "a list is not a value here: write a compound literal, as in '(i32[3]){1, 2, 3}'; as a function with no parameters and no result, this would do nothing")   // ok({}) too, at its { (#743)
         return
     }
     if bare_init(n) && nodes[n].b < 0 && y >= 0 && some_type(y) >= 0 {   // {} of a T? is none, as a T? declared with no value, as kelvinc's (#725)

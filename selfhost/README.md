@@ -1729,6 +1729,13 @@ kc reads what it is written in, and little more.
   - tests/error's pointer_own_const.k, pointer_own_const_member.k,
     pointer_own_const_step.k, pointer_own_const_elements.k and
     cstr_own_const.k, and tests/run's pointer_own_const.k, have them.
+- **`ok({})` and `err({})`** (#743), the fourth of the six, as
+  kelvinc's since the same number: `a list is not a value here: ...`,
+  gen_value_of, at the `{`, where kc built the one of a struct's case
+  and left a number's to C.
+  - `some({})` is still `some(v) makes no Optional`, as kelvinc's.
+  - tests/error's case_word_empty_braces.k and err_word_empty_braces.k
+    have them.
   - tests/error's member_value_text.k, member_array_number.k,
     array_declared_number.k and cstr_takes_no_number.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the

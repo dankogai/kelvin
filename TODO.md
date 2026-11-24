@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #742 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #743 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,9 +61,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1065 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1067 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736, #740, #741 and #742 alike.
+  #725, #727, #733, #736, #740, #741, #742 and #743 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -180,8 +180,10 @@ known, not what is planned.
     and named by both, `p := &y`, `p += 1` and a member's `h.p := &y`
     of one `'p' is an i64^ const, a pointer that does not change:
     declare it without const to point it elsewhere` (#742);
-  - left: `ok({})`, the list error;
-    `while (i == 0) (i) += 1`, kc's as kelvinc's; and a function type's
+  - `ok({})` and `err({})`, the list error of `ok({1, 2})` in both,
+    where kelvinc said the case holds a T, and this is (), and kc
+    built it or left it to C (#743);
+  - left: `while (i == 0) (i) += 1`, kc's as kelvinc's; and a function type's
     parameter of an inner count another parameter gives, whose typedef
     kc writes with `n`.
 - Found while #724 was made:
@@ -225,6 +227,12 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #743 was made, not changed:
+  - `Result<T, U>.ok({})` and `.ok({1, 2})`, the case by the type's
+    name, are built by both, the braces its value's initializer.
+  - `ok({ n += 1 })` where a `Result<(), i64>` goes is kelvinc's `a
+    Result of a function type has no spelling yet`, said of the type,
+    and kc's `expected an expression, found '+='`.
 - Found while #742 was made, not changed:
   - A literal's element read through const keeps the const in
     kelvinc: `$[q[0]]` of a `q:const i64^` and `$[p]` of a `p:i64^
@@ -257,8 +265,9 @@ known, not what is planned.
     to a `[i64](2)^` that may change it, are kc's errors, in Kelvin's
     words, where kelvinc's C warns, as #362 has it.
 - Found while #736 was made, not changed:
-  - `ok({})` where a `Result<pt, i64>` goes is kelvinc's `case 'ok' of
-    Result<pt, i64> holds a pt, and this is ()`, and kc's build.
+  - `ok({})` where a `Result<pt, i64>` goes was kelvinc's `case 'ok' of
+    Result<pt, i64> holds a pt, and this is ()`, and kc's build: `a
+    list is not a value here` in both since #743.
   - `var p:Nope^ := nowhere` of a name that is no type is C's error of
     both.
 - Found while #733 was made, not changed:
@@ -321,7 +330,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P745 to P747, the details of #740 to #742, until reviewed; the reviews confirmed
+- P745 to P748, the details of #740 to #743, until reviewed; the reviews confirmed
   every row to P744, and a review's own detail row is confirmed by that
   review (#675).
 

@@ -945,3 +945,6 @@ So far the changes from C are these, by topic.
   change: `p := &y` is `'p' is an i64^ const, a pointer that does not
   change: declare it without const to point it elsewhere`, where it
   was C's error (#742)
+- `ok({})` and `err({})` are `a list is not a value here`, as
+  `ok({1, 2})` is, where the case was said to hold a T, and this is ()
+  (#743)

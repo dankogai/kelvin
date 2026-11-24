@@ -357,6 +357,16 @@ static List lazy_records;  /* the structs of lazy Sequences (#323), written befo
 static int lazy_serial;
 enum { ANON_BARE, ANON_WRITTEN, ANON_CONTEXT };
 static int anon_kind;
+/* the anonymous functions written {}, of no parameters, no result and
+   an empty body (#743): where a value goes, ok({}), they are a list that
+   is no value, as {1, 2} is */
+static List empty_braces;
+static bool is_empty_braces(Expr *v) {
+    for (int i = 0; i < empty_braces.len; i++)
+        if (empty_braces.data[i] == v)
+            return true;
+    return false;
+}
 static int trailing_end = -1;
 /* for $'s hints: the `{` of a body that follows a call in a condition,
    the `{` of a block on the line after a call (#35), how deep in
@@ -14263,6 +14273,7 @@ static Expr *parse_anon_fn(Type *ctx) {
     params_start = saved_start;
     params_end = saved_end;
     anon_start = saved_anon;
+    bool bare = anon_kind == ANON_BARE;
     anon_kind = saved_kind;
     init_depth = saved_init;
     anon_note = saved_note;
@@ -14276,6 +14287,8 @@ static Expr *parse_anon_fn(Type *ctx) {
     Expr *e = new_expr(E_FUNC, open->pos);
     e->text = d->name;
     e->type = fn_type_of(d);
+    if (bare && !d->body->stmts.len)
+        list_push(&empty_braces, e); /* {} (#743) */
     return e;
 }
 
@@ -17962,6 +17975,9 @@ static Expr *optional_of(Expr *v, Type *target, Pos pos) {
         int k;
         Var *c = case_named(r, v->a->text, &k);
         Expr *x = v->items.data[0];
+        if (is_empty_braces(x) && c->type && c->type->kind != T_FUNC) /* ok({}), as ok({1, 2}) (#743) */
+            error_at(x->pos, "a list is not a value here: write a compound literal, as in '(i32[3]){1, 2, 3}'; as a "
+                             "function with no parameters and no result, this would do nothing");
         pick_overload(x, c->type);
         x = optional_of(string_of_literal(drop_cstr(x, c->type), c->type), c->type, pos);
         reject_record_mismatch(x, c->type, pos);
