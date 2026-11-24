@@ -14082,3 +14082,25 @@ done.
 Details are provisional P735.
 
 There are 1581 tests, and all pass with clang and with gcc 15.
+
+### 778. The review, batch 20
+
+**Claude** wrote #730, its battery run and pushed when clean, its CI
+all green, the four of the user's order done, and asked what next.
+
+**User:** review P729 to P735 (recommended); push each when clean
+(recommended)
+
+**Claude** read each row against the code and found two faults: 37
+declarations written of #724 where 35 were tried, and P734's the
+shower for show_value; and asked how the review should treat them.
+
+**User:** amend 2, confirm all (recommended)
+
+**Claude** made it #731: the two amended, P729 to P735 marked
+confirmed, as later numbers amend them, and P736, #731's own row,
+confirmed by #731.
+
+Details are P736, confirmed by #731 itself.
+
+There are 1581 tests, and all pass with clang and with gcc 15.
