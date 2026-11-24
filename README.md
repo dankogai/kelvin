@@ -926,3 +926,6 @@ So far the changes from C are these, by topic.
 - A global used before it is written takes the types it names with
   it where it is moved up, a struct written after `main` among them
   (#734)
+- kc says five more errors in kelvinc's words: an array where a value
+  goes, braces assigned to a member, `ok({1, 2})`, a fixed array's
+  method and a row where a number goes (#736)

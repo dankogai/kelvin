@@ -383,10 +383,29 @@ let put_int(n:int64) {
     out += String(n)                             // a number's text (#212)
 }
 
+// the ( of the type of a compound literal n, ([T](N))[a, b] or (T){a, b},
+// where kelvinc says an error of it, or n's own token (#736)
+let literal_open(n:int64):int64 {
+    let t:int64 = nodes[n].t
+    if (nodes[n].kind != N_LIST && nodes[n].kind != N_INIT) || nodes[n].ty < 0 || t >= eof_pos || t < 2 { return t }
+    var open:int64 = t - 1
+    var depth:int64 = 0
+    while open > 0 {
+        if tok_is(open, ")") { depth += 1 }
+        if tok_is(open, "(") {
+            depth -= 1
+            if depth == 0 { return open }
+        }
+        if depth == 0 && !tok_is(open, "[") { return t }  // no type in parentheses before it
+        open -= 1
+    }
+    return t
+}
+
 let gen_error(n:int64, what:cstr) {
     if !failed {
         let said:String = as_shown(what)                    // (#600)
-        let at:String = error_at_text(nodes[n].t)           // file:line:col, as kelvinc's (#652)
+        let at:String = error_at_text(literal_open(n))      // file:line:col, as kelvinc's (#652)
         println(at, ": error: ", said)
     }
     failed = true
@@ -3645,7 +3664,8 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     if wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0) && !(c_tag && (number_lit || text_lit)) { return true }   // C's, a plain enum, an enum with values
     var y:int64 = 0 - 1
     if !number_lit && !text_lit {
-        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL { return true }
+        let row = k == N_INDEX && !is_slice(v) && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_FIXED && types[types[type_of(nodes[v].a)].elem].kind == Y_FIXED   // a[1] of an array of arrays, an array (#736)
+        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row { return true }
         if k == N_ID && (is_case_word(v) || var_type(nodes[v].t) < 0) { return true }
         y = type_of(v)
         if failed { return false }
@@ -3688,7 +3708,11 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     m += " "
     m += &w
     m += ", and this is "
-    if y >= 0 {
+    if y >= 0 && types[y].kind == Y_FIXED && types[y].name != 0 - 2 && types[y].name != 0 - 4 {   // an array where a value goes, its first element's address, as kelvinc names it (#736)
+        let got:String = kelvin_type_text(types[y].elem)
+        m += &got
+        m += "^"
+    } else if y >= 0 {
         let got:String = kelvin_type_text(y)
         m += &got
     } else {
@@ -11097,6 +11121,8 @@ let gen_method_of(n:int64) {
         var m:String = tok_text(t)
         m += "() is not a method: a value's text is 'x.cstr', and String(x.cstr) a String (#22, #55)"
         gen_error(n, m.cstr)
+    } else if yk == Y_FIXED {                            // [i64](3) has no member 'sum', as kelvinc says it (#736)
+        member_unknown(n, y)
     } else if !method_elsewhere(n) {
         gen_error(n, "this method is not known")
     }
@@ -12584,6 +12610,11 @@ let gen_value(n:int64, y:int64) {
 }
 
 let gen_value_of(n:int64, y:int64) {
+    if nodes[n].kind == N_CALL && is_case_word(n) && nodes[n].b >= 0 && bare_init(nodes[n].b) && nodes[nodes[n].b].b >= 0 && nodes[nodes[n].a].kind == N_ID && nodes[nodes[n].a].t > 0 && nodes[nodes[n].a].t < eof_pos && !tok_is(nodes[nodes[n].a].t - 1, ".") && (tok_is(nodes[nodes[n].a].t, "ok") || tok_is(nodes[nodes[n].a].t, "err") || tok_is(nodes[nodes[n].a].t, "some")) {   // ok({1, 2}), some({1, 2}) as written: braces are no value there, as kelvinc says it (#736), past its first element; {.rect = {2.0, 3.0}} of an enum with values is its case's initializer
+        let open:int64 = nodes[nodes[n].b].t
+        tok_error(tok_is(open, "{") && tok_is(open + 2, "}") ? open + 1 : list_fail_tok(nodes[n].b), "a list is not a value here: write a compound literal, as in '(i32[3]){1, 2, 3}'; as a function with no parameters and no result, this would do nothing")
+        return
+    }
     if bare_init(n) && nodes[n].b < 0 && y >= 0 && some_type(y) >= 0 {   // {} of a T? is none, as a T? declared with no value, as kelvinc's (#725)
         put("_kv_")
         put_tok(types[y].name)
@@ -16623,9 +16654,24 @@ let bare_declaration(e:int64):bool {
     return true
 }
 
+// whether braces assigned to the place a are kelvinc's error (#725,
+// #736): all but a case's value, x.c of an enum with values, an
+// Optional or a Result, and a Dictionary's entry, d[k]; self is left to
+// what says a getter does not change it
+let braces_refused(a:int64):bool {
+    let k:nkind = nodes[a].kind
+    if k == N_SELF || (k == N_ID && tok_is(nodes[a].t, "self")) { return false }
+    if k == N_ID || k == N_DEREF { return true }
+    if k != N_FIELD && k != N_INDEX { return false }
+    let by:int64 = type_of(nodes[a].a)
+    if failed || by < 0 { return false }
+    if k == N_FIELD { return !(types[by].kind == Y_STRUCT && tagged_of(by) >= 0) }
+    return types[by].kind != Y_DICT
+}
+
 let gen_assign(n:int64) {
     if (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && bare_declaration(nodes[n].a) { return }
-    if nodes[n].b >= 0 && bare_init(nodes[n].b) && nodes[nodes[n].a].kind == N_ID && !tok_is(nodes[nodes[n].a].t, "self") {   // x = {...} of a variable: braces are an initializer's, a case's value's, x.c = {a, b}, and an entry's, d[k] = {a, b}, as kelvinc says it (#725)
+    if nodes[n].b >= 0 && bare_init(nodes[n].b) && braces_refused(nodes[n].a) {   // x = {...}: braces are an initializer's, a case's value's, x.c = {a, b}, and an entry's, d[k] = {a, b}, as kelvinc says it (#725); of a member, an element and p^ too (#736)
         tok_error(nodes[nodes[n].b].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
         return
     }
@@ -21072,6 +21118,11 @@ let value_mismatch_text(v:int64, vy:int64):String {
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
     if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
     if types[y].kind == Y_CSTR { return vk == Y_STRING ? $"" : $"text" }
+    if types[y].kind == Y_FIXED && types[y].name != 0 - 2 && types[y].name != 0 - 4 {   // an array where a value goes is its first element's address, i64^, as kelvinc names it (#736)
+        var w = kelvin_type_text(types[y].elem)
+        w += "^"
+        return w
+    }
     return kelvin_type_text(y)
 }
 

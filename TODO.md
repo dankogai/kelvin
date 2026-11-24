@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #735 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #736 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,9 +61,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1048 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1053 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727 and #733 alike.
+  #725, #727, #733 and #736 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -153,13 +153,24 @@ known, not what is planned.
   a[2]`, and says a list where no array is declared in kelvinc's words,
   `'[...]' initializes an array, and this is Array<i64>: write a
   value`, the two differences found while #717 was made (#724).
-- Found while #724 was made, not changed:
+- The user's order after #735, kc's small differences, those found
+  while #724 to #733 were made, in batches, each pushed when clean:
+  - the words of errors (#736): an array where a value goes named by
+    its pointer, `i64^`; braces assigned to a member, an element and
+    `p^`; `ok({1, 2})`; a method a fixed array has not; a row where a
+    number goes;
+  - left: zeros where a pointer goes and `[i64](n)^`; the names of
+    `q[1]` through a `const i64^`, `[cstr const](2)` and `const i64^
+    const^`; and those below that are C's in kelvinc.
+- Found while #724 was made:
   - `var o:i64? = [i64](3)` is kelvinc's `case 'some' of i64? holds an
-    i64, and this is i64^`, and kc's `... and this is [i64](3)`.
+    i64, and this is i64^`, and kc's too since #736.
   - `var p:i64^ := [i64](3)`, zeros where a pointer goes, is kelvinc's
     zeroed compound literal, `(int64_t [3]){0}`, and kc's error.
-  - A type name that is not known, `let j:JSON = [1]` with no import,
-    is kelvinc's `unknown type name 'JSON'`; kc leaves it to C.
+  - A type name that is not known, `let j:JSON = 1` with no import, is
+    C's error of each one's C, `unknown type name 'JSON'` of kelvinc's
+    and, where kc's C differs, another of kc's: no error of Kelvin's in
+    either (#736 looked).
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc built as `some(0)` and kc refused, is none
@@ -176,12 +187,11 @@ known, not what is planned.
   #734.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
-- Found while #725 was made, not changed:
+- Found while #725 was made, kc's too since #736:
   - Braces assigned to a member, an element or through a pointer,
     `p.x = {1}`, `a[0] = {3}`, `h^ = {3, 4}`, are kelvinc's `a list is
-    not a value here: ...`, and C's error of kc's C.
-  - `ok({1, 2})` where a `Result<pt, i64>` goes is kelvinc's error, and
-    kc's ok of the struct.
+    not a value here: ...`.
+  - `ok({1, 2})` where a `Result<pt, i64>` goes is kelvinc's error.
 - Found while #726 was made, not changed:
   - `r[1][2] = 5` through a `[const i64](3)^` was C's error of
     kelvinc's C, and kc's `this changes an element of a [const
@@ -191,8 +201,12 @@ known, not what is planned.
   - `q[1].typename` through a `const i64^` is kelvinc's `const i64`,
     and kc's `i64`; a cstr's `s[1]` likewise, `const u8`.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
-    `[i64](3) has no member 'sum'`, and kc's `this method is not
-    known`.
+    `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #736 was made, not changed:
+  - `ok({})` where a `Result<pt, i64>` goes is kelvinc's `case 'ok' of
+    Result<pt, i64> holds a pt, and this is ()`, and kc's build.
+  - `var p:Nope^ := nowhere` of a name that is no type is C's error of
+    both.
 - Found while #733 was made, not changed:
   - `[const cstr](2)` is named `[cstr const](2)` by kelvinc's
     `.typename` and `[const cstr](2)` by kc's.
@@ -251,8 +265,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P740, and a review's own
-  detail row is confirmed by that review (#675).
+- P741, the details of #736, until reviewed; the reviews confirmed
+  every row to P740, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

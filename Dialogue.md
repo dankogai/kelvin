@@ -14174,3 +14174,20 @@ confirmed by #735.
 Details are P740, confirmed by #735 itself.
 
 There are 1586 tests, and all pass with clang and with gcc 15.
+
+### 783. The words of five errors, in kc
+
+**Claude** wrote #735, its battery run and pushed when clean, no row
+provisional.
+
+**User:** go on with kc's small differences
+
+**Claude** made the first batch #736, in a copy of the repository
+while #735's battery ran: kc says in kelvinc's words an array where a
+value goes, braces assigned to a member, `ok({1, 2})`, a method a
+fixed array has not and a row where a number goes; a type name that is
+not known was found C's error in both.
+
+Details are provisional P741.
+
+There are 1591 tests, and all pass with clang and with gcc 15.

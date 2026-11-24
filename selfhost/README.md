@@ -1652,6 +1652,26 @@ kc reads what it is written in, and little more.
     named so; and a var of `[const T]` is taken, as kelvinc takes it.
   - tests/error's const_elements_behind_pointer.k,
     const_pointer_indexed.k and const_elements_var.k have them.
+- **The words of five errors** (#736), as kelvinc's, the first batch
+  of kc's small differences, the user's order after #735:
+  - an array where a value goes is named by its first element's
+    address, `i64^`, where kc named the array, `[i64](3)`:
+    value_mismatch_text and typed_value_ok; a row of an array of
+    arrays, `a[1]`, where a number goes is said so too, where it was
+    C's error;
+  - an error of a compound literal, `([T](N))[a, b]` or `(T){a, b}`,
+    is said at the `(` of its type, literal_open, which gen_error asks;
+  - braces assigned to a member, an element and `p^` are kelvinc's `a
+    list is not a value here`, braces_refused, where they were C's
+    error; a case's value and a Dictionary's entry take them still;
+  - `ok({1, 2})`, `err({1})` and `some({1, 2})` as written are
+    kelvinc's error past the first element, where kc built them;
+  - a method a fixed array has not, `a.sum()`, is `[i64](3) has no
+    member 'sum'`, member_unknown, where kc said the method is not
+    known;
+  - tests/error's array_where_value.k, row_where_value.k,
+    braces_member_assigned.k, case_word_braces.k and fixed_no_method.k
+    have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
