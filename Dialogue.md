@@ -14226,3 +14226,24 @@ list is C's error in kelvinc, each listed in TODO.md.
 Details are provisional P743.
 
 There are 1593 tests, and all pass with clang and with gcc 15.
+
+### 786. The review, batch 22
+
+**Claude** wrote #738, its battery run and pushed when clean, its CI
+all green, the three batches of kc's small differences done, and asked
+what next.
+
+**User:** review P741 to P743 (recommended)
+
+**Claude** read each row against the code and found one fault: P742's
+gen_expr for gen_expr_of; and asked how the review should treat it.
+
+**User:** amend 1, confirm all (recommended)
+
+**Claude** made it #739: the one amended, P741 to P743 marked
+confirmed, as later numbers amend them, and P744, #739's own row,
+confirmed by #739.
+
+Details are P744, confirmed by #739 itself.
+
+There are 1593 tests, and all pass with clang and with gcc 15.

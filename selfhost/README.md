@@ -1677,7 +1677,7 @@ kc reads what it is written in, and little more.
   - `[T](N)` where a value goes is C's zeroed compound literal,
     `(int64_t [3]){0}`, its first element's address: `var p:i64^ :=
     [i64](3)`, an argument, `p := [i64](2)`, and rows, `var r:[i64](2)^
-    := [[i64](2)](3)`, where gen_expr said an array is not a value;
+    := [[i64](2)](3)`, where gen_expr_of said an array is not a value;
   - `[T](n)^`, a pointer to an array of a count C computes, is read as
     one of a count written, `__typeof__(int64_t[n]) *`: fixed_inside
     no longer refuses it, and fixed_ptr_ok takes two computed counts
