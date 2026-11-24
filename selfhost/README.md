@@ -1710,6 +1710,8 @@ kc reads what it is written in, and little more.
     said an array is not copied by '='.
   - A number where a cstr goes is `'s' is a cstr, and this is a
     number`, typed_value_ok, which kc took, `var s:cstr := 0`.
+  - tests/error's member_value_text.k, member_array_number.k,
+    array_declared_number.k and cstr_takes_no_number.k have them.
 - **A pointer that is itself const** (#742), `T^ const` and `cstr
   const`, the third of the six, as kelvinc's since the same number:
   - it is a type of its own, konst 5, own_const of parse.k, which
@@ -1752,8 +1754,16 @@ kc reads what it is written in, and little more.
       as kelvinc's C takes it.
   - tests/error's condition_call_assigned.k and tests/run's
     fn_type_row_count.k have them.
-  - tests/error's member_value_text.k, member_array_number.k,
-    array_declared_number.k and cstr_takes_no_number.k have them.
+- **A value read of a volatile is of the plain type** (#746), as
+  kelvinc's, with its fix of the same number, a literal's element
+  read through const:
+  - plain_value(y) of parse.k is own_plain of unvolatile: `var d = v`
+    of a `v:volatile i64` is an `i64`, inferred, where kc kept the
+    volatile and kelvinc dropped it since #738;
+  - an element of a `$[...]` and a `[...]`, a `${...}`'s key and value
+    and a Set's element are of it, type_of and dict_key_type, as they
+    were of a pointer's own const since #742;
+  - tests/run's literal_plain_elements.k has them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -951,3 +951,6 @@ So far the changes from C are these, by topic.
 - kc says `while (i == 0) (i) += 1` in kelvinc's words and builds a
   function type's parameter of rows counted by another parameter,
   `f:([[i64](n)](2)):i64` (#744)
+- A literal's element read through const is of the plain type:
+  `$[p^]` of a `const i64^` is an `Array<i64>`, where C warned or
+  refused, and a volatile's too (#746)

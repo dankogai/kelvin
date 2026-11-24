@@ -14349,3 +14349,27 @@ numbers amend them, and P750, #745's own row, confirmed by #745.
 Details are P750, confirmed by #745 itself.
 
 There are 1610 tests, and all pass with clang and with gcc 15.
+
+### 793. A literal's element read through const is of the plain type
+
+**Claude** wrote #745, its battery run and pushed when clean, its CI
+all green, and listed what is left, none of it ordered.
+
+**User:** resolve kelvinc then kc. when they are both done, let us be
+ready for 0.4.1.
+
+**Claude** asked whether each is pushed when clean, and what ready for
+0.4.1 covers.
+
+**User:** push each when clean (recommended); the chores, stop before
+the tag (recommended)
+
+**Claude** made the first #746: an element of a literal whose type is
+inferred is of the plain type where it is read through const, as a
+variable is since #738, where C warned or refused; a volatile's too,
+which kc kept. A line of selfhost/README.md that #742 had displaced is
+put back.
+
+Details are provisional P751.
+
+There are 1611 tests, and all pass with clang and with gcc 15.

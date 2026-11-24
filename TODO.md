@@ -34,13 +34,24 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #745 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #746 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
 
+- The user's order after #745, resolve kelvinc's listed faults, then
+  kc's, each pushed when clean, then the chores of 0.4.1 short of the
+  tag:
+  - a literal's element read through const, `$[q[0]]` of a `q:const
+    i64^`, `${"k": q[0]}`, `[q[0], q[0]]` and `$[p]` of a `p:i64^
+    const`, is of the plain type, as a variable inferred of it is
+    since #738, where C warned or refused and the fixed array's
+    elements were const; a volatile's too, in kc as well (#746);
+  - left: `apply.typename` of a function that takes an
+    `f:([[i64](n)](2)):i64`, `?`; a function of rows of another type
+    given to it, C's error; member_value's clause that is never false.
 - The user's order after #731, the three faults of kelvinc's found
   while #724 to #730 were made, one number each, pushed when clean:
   - a compound literal's commas where a macro's argument goes,
@@ -230,6 +241,14 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #746 was made:
+  - `var d = v` of a `v:volatile i64` was an `i64` by kelvinc and a
+    `volatile i64` by kc: an `i64` in both since #746.
+  - selfhost/README.md's line of #741's tests stood after #744's,
+    where #742's lines were written into #741's: put back by #746,
+    which the review #745 had not seen.
+  - `var d = Set([q[0]])` is kelvinc's `expected an expression, found
+    'Set'`, and kc's `'d' needs a type`: not changed.
 - Found while #745, the review, was made, not changed:
   - parser.c's member_value asks, of a pointer member, `!(w->kind ==
     T_BASE && ...)` after `w->kind == T_PTR`, a clause that is never
@@ -250,11 +269,12 @@ known, not what is planned.
     Result of a function type has no spelling yet`, said of the type,
     and kc's `expected an expression, found '+='`.
 - Found while #742 was made, not changed:
-  - A literal's element read through const keeps the const in
+  - A literal's element read through const kept the const in
     kelvinc: `$[q[0]]` of a `q:const i64^` and `$[p]` of a `p:i64^
-    const` are C's warning, `${"k": q[0]}` C's error, and
-    `[q[0], q[0]]` a `[const i64](2)`; kc holds the plain type, as a
-    variable inferred of one is since #738.
+    const` were C's warning, `${"k": q[0]}` C's error, and
+    `[q[0], q[0]]` a `[const i64](2)`; kc held the plain type, as a
+    variable inferred of one is since #738, and kelvinc does since
+    #746.
   - `var t:String = s` of a cstr variable is kelvinc's `'t' is a
     String, and this is cstr`, and C's error of kc's C.
   - `var d := ${"a"}`, a Set of text given by `:=`, is built by
@@ -346,8 +366,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P750, and a review's own
-  detail row is confirmed by that review (#675).
+- P751, the details of #746, until reviewed; the reviews confirmed
+  every row to P750, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

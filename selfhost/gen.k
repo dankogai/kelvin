@@ -2934,13 +2934,13 @@ let type_of(n:int64):int64 {
     }
     if k == N_DICT {                                                  // ${k: v}: of the first entry's types (#267)
         let ky:int64 = dict_key_type(type_of(nodes[n].b))
-        let vy:int64 = own_plain(type_of(nodes[nodes[n].b].next))
+        let vy:int64 = plain_value(type_of(nodes[nodes[n].b].next))
         if ky < 0 || vy < 0 { return -1 }
         optional_of(vy)                                               // V?, which d[k] read whole is (#219)
         return type_of_kind(Y_DICT, vy, ky)
     }
     if k == N_ARRAY {                                                 // $[a, b]: an Array of a's type (#266)
-        let e:int64 = own_plain(type_of(nodes[n].b))               // of a p:i64^ const an i64^'s, a value of it (#742)
+        let e:int64 = plain_value(type_of(nodes[n].b))             // of a p:i64^ const an i64^'s, a value of it (#742), of a volatile an i64's (#746)
         if e < 0 { return -1 }
         return type_of_kind(Y_ARRAY, e, -1)
     }
@@ -3033,7 +3033,7 @@ let type_of(n:int64):int64 {
         }
         let first:int64 = nodes[n].b
         if first < 0 || is_case_word(first) { return -1 }
-        let e:int64 = own_plain(type_of(first))
+        let e:int64 = plain_value(type_of(first))
         if e < 0 { return -1 }
         var count = 0
         var x = first
@@ -12169,7 +12169,7 @@ let gen_array(n:int64, given:int64) {
 // as kelvinc's: a cstr is no key (#267)
 let dict_key_type(y:int64):int64 {
     if y >= 0 && types[y].kind == Y_CSTR { return base_type(Y_STRING) }
-    return y
+    return plain_value(y)                                // a key read of a volatile is a value of it (#746)
 }
 
 let type_text(y:int64):String    // a prototype: one_entry_type names the types (#267)
@@ -15124,7 +15124,7 @@ let inferred(n:int64):int64 {
         needs_type(n)                                  // as kelvinc says it
         return -1
     }
-    return own_plain(y)                                  // var q := p of a p:i64^ const is an i64^, a value of it (#738, #742)
+    return plain_value(y)                                // var q := p of a p:i64^ const is an i64^, a value of it (#738, #742), and var d = v of a volatile an i64 (#746)
 }
 
 // a type as Kelvin spells it, for a message (#233): i64, cstr, i64^,

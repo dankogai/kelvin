@@ -1668,6 +1668,12 @@ let own_plain(y:int64):int64 {
     return type_of_kind(types[y].kind, types[y].elem, types[y].name)
 }
 
+// the type of a value read of a y: the plain type of a pointer that is
+// itself const and of a volatile's (#746), as kelvinc's own_unqualified
+let plain_value(y:int64):int64 {
+    return own_plain(unvolatile(y))
+}
+
 // T^ atomic of the pointer y, konst 2 as an atomic number's, the
 // pointer itself C's _Atomic (#701)
 let atomic_pointer(y:int64):int64 {

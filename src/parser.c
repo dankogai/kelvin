@@ -1224,6 +1224,7 @@ static Expr *dict_key(Expr *k, Type *dt);
 static Expr *string_of_literal(Expr *x, Type *target);
 static Expr *string_of_ranged(Expr *x, Type *target);
 static Type *inferred_type(Expr *e, Pos pos);
+static Type *element_type(Expr *e, Pos pos);
 static Expr *property(Expr *e, Token *name, char *member);
 static bool is_text_type(Type *t);
 static bool is_text_expr(Expr *e);
@@ -11726,7 +11727,7 @@ static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first) {
         if (is_p(peek(), ":"))
             error_at(peek()->pos, "a Set holds elements, not entries: ${a, b, c}; a Dictionary's are ${k: v}");
         if (!st) {
-            Type *k0 = inferred_type(k, k->pos);
+            Type *k0 = element_type(k, k->pos);
             if (k0 && is_cstr(k0))
                 k0 = base_type("String", k->pos);
             if (!kt) {
@@ -11983,7 +11984,7 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first, bool dol
             v = c;
         }
         if (!dt) {
-            Type *k0 = inferred_type(k, k->pos), *v0 = inferred_type(v, v->pos);
+            Type *k0 = element_type(k, k->pos), *v0 = element_type(v, v->pos);
             if (k0 && is_cstr(k0))
                 k0 = base_type("String", k->pos);
             if (!kt) {
@@ -12405,6 +12406,15 @@ static void count_items(Type *t, Expr *init) {
 /* The type of [a, b, ...] (#48): T[N] where every item is a T kelvinc
    sees (a literal, a bool, a seen value, or a nested list of one type),
    none designated; NULL otherwise */
+/* the type of e as an element of a literal whose type is inferred (#746):
+   a value of it, of the plain type where e is read through const, q[0] of
+   a const i64^ or a p:i64^ const, or is a volatile's, as a variable
+   inferred of it is (#738) */
+static Type *element_type(Expr *e, Pos pos) {
+    Type *t = inferred_type(e, pos);
+    return t ? own_unqualified(t) : NULL;
+}
+
 static Type *list_type(Expr *e, Pos pos) {
     if (!e->bracket || !e->items.len)
         return NULL;
@@ -12413,7 +12423,7 @@ static Type *list_type(Expr *e, Pos pos) {
         if (e->designators.data[i])
             return NULL;
         Expr *x = e->items.data[i];
-        Type *t = x->kind == E_INIT ? list_type(x, pos) : inferred_type(x, pos);
+        Type *t = x->kind == E_INIT ? list_type(x, pos) : element_type(x, pos);
         if (!t || (elem && strcmp(kelvin_type(elem), kelvin_type(t))))
             return NULL;
         elem = elem ? elem : t;

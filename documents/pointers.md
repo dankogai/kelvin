@@ -120,6 +120,12 @@ let f := &twice           // a function's address is the function itself
       change. The read is const, and named so: `p^.typename` is
       `const i64`, and a pointer's own const follows it, `cstr const`,
       `const i64^ const^`.
+      - An element of a literal whose type is inferred is a value too
+        (#746): `$[p^]` is an `Array<i64>`, `[p^, p^]` a `[i64](2)`
+        and `${"k": p^}` a `Dictionary<String, i64>`, where the
+        elements were const and C warned or refused.
+      - So is what is read of a `volatile`: `var d = v` and `$[v]` of
+        a `v:volatile i64` are an `i64` and an `Array<i64>`.
   - A qualifier before an Array, a Dictionary or a Set is a borrow's
     alone, `const $[T]^`; `const $[T]` of a variable is an error that
     says a let is the variable's.
