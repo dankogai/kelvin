@@ -15473,11 +15473,12 @@ let counted(y:int64, v:int64):int64 {
     if types[y].kind != Y_FIXED { return y }
     var e:int64 = types[y].elem
     let first:int64 = nodes[v].b
-    if types[e].kind == Y_FIXED && types[e].name == 0 - 1 && first >= 0 && nodes[first].kind == N_LIST && nodes[first].flag == 0 {
+    if types[e].kind == Y_FIXED && (types[e].name == 0 - 1 || types[e].name == 0 - 3) && first >= 0 && nodes[first].kind == N_LIST && nodes[first].flag == 0 {
         e = counted(e, first)
     }
     var c:int64 = types[y].name
-    if c == 0 - 1 {
+    let konst = types[y].konst == 1 || c == 0 - 3        // [const T], its count its elements' too (#733)
+    if c == 0 - 1 || c == 0 - 3 {
         c = 0
         var x:int64 = first
         while x >= 0 {
@@ -15485,7 +15486,9 @@ let counted(y:int64, v:int64):int64 {
             x = nodes[x].next
         }
     }
-    return type_of_kind(Y_FIXED, e, c)
+    if e == types[y].elem && c == types[y].name { return y }   // as written, its const elements too (#733)
+    let r:int64 = type_of_kind(Y_FIXED, e, c)
+    return konst ? const_fixed(r) : r
 }
 
 // ([T](N))[a, b] where no type is written (#419): C's (T [N]){a, b}, its
@@ -15709,12 +15712,8 @@ let computed_ok(n:int64, y:int64, v:int64):bool {
 let gen_fixed_var(n:int64) {
     var y:int64 = nodes[n].ty
     let v:int64 = nodes[n].a
-    if types[y].name == 0 - 3 {                          // [const T] of a local: a let's (#357)
-        if nodes[n].flag != 1 {
-            gen_error(n, "a var of [const T] would not change its elements: declare it with let")
-            return
-        }
-        y = type_of_kind(Y_FIXED, types[y].elem, 0 - 1)
+    if types[y].name == 0 - 3 {                          // [const T] of a local, a var's too, as kelvinc takes it (#357, #733)
+        y = const_fixed(type_of_kind(Y_FIXED, types[y].elem, 0 - 1))   // its elements const still, as its typename says (#733)
     }
     if !fixed_elem_ok(types[y].elem) {
         if is_owner(types[y].elem) {                     // as kelvinc says it
@@ -16060,6 +16059,20 @@ let resolve_chain(n:int64) {
     }
 }
 
+// whether the place a is a let's own, by members and elements alone, no
+// pointer between (#733)
+let let_owned(a:int64):bool {
+    var x:int64 = a
+    while nodes[x].kind == N_FIELD || nodes[x].kind == N_INDEX {
+        if nodes[x].kind == N_INDEX {
+            let by:int64 = type_of(nodes[x].a)
+            if by < 0 || types[by].kind != Y_FIXED || types[by].name == 0 - 2 || types[by].name == 0 - 4 { return false }
+        }
+        x = nodes[x].a
+    }
+    return nodes[x].kind == N_ID && how_declared(nodes[x].t) == 1
+}
+
 // a change of place n where its variable is a let is an error, in
 // kelvinc's words (#271); whether n may change
 let may_change(n:int64):bool {
@@ -16070,7 +16083,23 @@ let may_change(n:int64):bool {
         if nodes[e].kind == N_INDEX {
             let ay:int64 = type_of(nodes[e].a)
             if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].name == 0 - 2 { return true }
-            if ay >= 0 && types[ay].kind == Y_PTR { return true }   // p[i] of a pointer: what it points to, not the pointer, C's to judge of a const one, as kelvinc leaves it (#714)
+            if ay >= 0 && types[ay].kind == Y_PTR && ptr_const(ay) && types[types[ay].elem].kind != Y_FIXED {   // p[i] through a const T^, what it points to, as p^ is, in kelvinc's words since #733
+                var s = $"this changes what a "
+                s += kelvin_type_text(ay)
+                s += " points to, a read-only borrow, as a let's is: borrow a var, or take it without const"
+                tok_error(change_tok(n), s.cstr)
+                return false
+            }
+            if ay >= 0 && types[ay].kind == Y_PTR && types[types[ay].elem].kind != Y_FIXED { return true }   // p[i] of a pointer: what it points to, not the pointer (#714)
+            if ay >= 0 && types[ay].kind == Y_PTR {      // q[i] of a [T](N)^, a row: its elements judged as the array's (#726, #733)
+                e = nodes[e].a
+                continue
+            }
+            if ay >= 0 && types[ay].kind == Y_CSTR { return true }   // a cstr's byte: gen_assign says a cstr is immutable, a let's too, as kelvinc's (#733)
+            if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].konst == 1 && let_owned(nodes[e].a) {   // a let's own array: that it is a let comes first, as kelvinc's (#733)
+                e = nodes[e].a
+                continue
+            }
             if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].konst == 1 {   // (#425)
                 var m = $"this changes an element of a "
                 let w:String = type_text(ay)

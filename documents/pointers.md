@@ -94,6 +94,8 @@ let f := &twice           // a function's address is the function itself
   - Through it everything reads and nothing changes: `xs^ += 4`,
     `xs^[0] = 1` or `d^.remove(k)` is an error, `this changes what a
     const Array<i64>^ points to, a read-only borrow`.
+    - So is `p[i] = v` through a `const T^` (#733), which is what it
+      points to `i` places on.
   - A qualifier before an Array, a Dictionary or a Set is a borrow's
     alone, `const $[T]^`; `const $[T]` of a variable is an error that
     says a let is the variable's.

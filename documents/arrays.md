@@ -59,6 +59,10 @@ struct bag { n: int64; xs: [int64](3) }
   - `var m:[[i64]] = [[1, 2, 3], [4, 5, 6]]` is `[[i64](3)](2)`; a row
     that is a string gives no count, so write it, `[[u8](3)]`.
 - A qualifier is the elements', inside the brackets: `[const u8]`.
+  - An element of a `[const T](N)` does not change, a `var`'s too, and
+    behind a pointer, `r:[const i64](3)^`: `a[i] = v`, `r^[i] = v` and
+    `r[k][i] = v` are errors, `this changes an element of a [const
+    i64](3), whose elements are const` (#733).
 - Suffixes still read left to right after the brackets: `[T](N)^` is a
   pointer to the array, `[T^](N)` an array of pointers.
 - `T[N]` and `T[]` are errors whose hint spells the type the new way.

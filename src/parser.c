@@ -10209,6 +10209,26 @@ static void reject_const_change(Expr *e, Pos pos) {
     if (e && e->kind == E_IDENT && !value_type(e) && enum_of(e->text)) /* LIMIT.flip(0) (#469) */
         error_at(pos, "'%s' is an enum's constant and cannot change; copy it into a var, as in 'var k:i32 = %s'",
                  e->text, e->text);
+    /* an element through a const T^, p[i], is what it points to, and an
+       element of a [const T](N), where it stands or behind a pointer, is
+       const (#733): each was C's error */
+    for (Expr *x = e; x && (x->kind == E_FIELD || x->kind == E_INDEX); x = x->a) {
+        Type *bt = x->kind == E_INDEX && x->a ? value_type(x->a) : NULL;
+        if (!bt || !bt->elem || !bt->elem->is_const || is_cstr(bt))
+            continue;
+        if (bt->kind == T_PTR) {
+            bare_tags = true;
+            char *pt = kelvin_type(bt);
+            bare_tags = false;
+            error_at(pos, "this changes what a %s points to, a read-only borrow, as a let's is: borrow a var, or take "
+                          "it without const",
+                     pt);
+        }
+        if (bt->kind == T_ARRAY)
+            error_at(pos, "this changes an element of a %s, whose elements are const: declare it without const to "
+                          "change them",
+                     kelvin_type(bt));
+    }
     while (e && (e->kind == E_FIELD || e->kind == E_INDEX))
         e = e->a;
     if (!e || e->kind != E_DEREF)

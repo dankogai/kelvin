@@ -1637,6 +1637,21 @@ kc reads what it is written in, and little more.
     under an index, a member, a sign, a cast, sizeof or an operator;
     gen_args and println's and print's arguments ask it.
   - tests/run's compound_macro_args.k and selfhost/sample.k have them.
+- **What const keeps from changing** (#733), as kelvinc's since the
+  same number, where its C said it: kc's words of an element of a
+  `[const T](N)` are kelvinc's now, and may_change is brought to its
+  order.
+  - `p[i] = v` through a `const T^` is kelvinc's `this changes what a
+    const i64^ points to`, where kc left it to C; `q[i]` of a
+    `[T](N)^` is a row, its elements judged as the array's.
+  - A let's own `[const T](N)` says first that it is a let, let_owned;
+    a let cstr's byte that a cstr is immutable.
+  - A row's type recounted keeps its const elements, counted, which
+    lost them of `[[const i64](2)](2)`; `[const T]` of no count is
+    counted in a compound literal and a row; a let's `[const T]` is
+    named so; and a var of `[const T]` is taken, as kelvinc takes it.
+  - tests/error's const_elements_behind_pointer.k,
+    const_pointer_indexed.k and const_elements_var.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #732 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #733 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -47,7 +47,8 @@ known, not what is planned.
     `println(sizeof ([i32](3))[1, 2, 3])`, which was C's error of
     kelvinc's C, and of kc's: the argument in parentheses (#732);
   - an element changed through a `[const i64](3)^`, C's error of
-    kelvinc's C;
+    kelvinc's C, and with it every element of a `[const T](N)` and
+    `p[i] = v` through a `const T^`: errors in Kelvin's words (#733);
   - a global whose value needs a struct written after a function that
     names the global, below.
 - A global whose value needs a struct written after a function that
@@ -65,9 +66,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1045 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1048 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725 and #727 alike.
+  #725, #727 and #733 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -187,10 +188,9 @@ known, not what is planned.
   - `ok({1, 2})` where a `Result<pt, i64>` goes is kelvinc's error, and
     kc's ok of the struct.
 - Found while #726 was made, not changed:
-  - `r[1][2] = 5` through a `[const i64](3)^` is C's error of
-    kelvinc's C, `cannot assign to variable 'r' with const-qualified
-    type`, and kc's `this changes an element of a [const i64](3)`: a
-    fault of kelvinc's words.
+  - `r[1][2] = 5` through a `[const i64](3)^` was C's error of
+    kelvinc's C, and kc's `this changes an element of a [const
+    i64](3)`: kelvinc's words too since #733.
   - A pointer to an array of a count C computes, `[i64](n)^`, is
     kelvinc's, and kc's `not yet`.
   - `q[1].typename` through a `const i64^` is kelvinc's `const i64`,
@@ -198,6 +198,13 @@ known, not what is planned.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's `this method is not
     known`.
+- Found while #733 was made, not changed:
+  - `[const cstr](2)` is named `[cstr const](2)` by kelvinc's
+    `.typename` and `[const cstr](2)` by kc's.
+  - A pointer to a const pointer is `const i64^ const^` in kelvinc's
+    words and `const const i64^^` in kc's.
+  - `var c:[i64](2)` with no value is not zeroed by kelvinc, and is by
+    kc.
 - Found while #730 was made, not changed:
   - A number where a struct's array member goes, `{1, [7, 8, 9], 5}`
     of a `name:[u8](8)`, is left to C by kelvinc, which builds it, and
@@ -249,7 +256,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P737, the details of #732, until reviewed; the reviews confirmed
+- P737 and P738, the details of #732 and #733, until reviewed; the reviews confirmed
   every row to P736, and a review's own detail row is confirmed by that
   review (#675).
 

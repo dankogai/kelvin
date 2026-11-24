@@ -920,3 +920,6 @@ So far the changes from C are these, by topic.
 - A compound literal where a macro's argument goes,
   `println(([i32](3))[1, 2, 3][1])`, is written in parentheses, where it
   was C's error (#732)
+- An element of a `[const T](N)`, behind a pointer too, and `p[i] = v`
+  through a `const T^` are errors in Kelvin's words, where they were
+  C's (#733)

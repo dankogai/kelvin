@@ -14119,3 +14119,20 @@ where `println(sizeof ([i32](3))[1, 2, 3])` was C's error.
 Details are provisional P737.
 
 There are 1582 tests, and all pass with clang and with gcc 15.
+
+### 780. What const keeps from changing, in Kelvin's words
+
+**Claude** wrote #732, its battery run and pushed when clean, its CI
+all green, and went on with the second fault, in a copy of the
+repository while the battery ran.
+
+**Claude** made it #733: kelvinc says in Kelvin's words, kc's of
+#425, that an element of a `[const T](N)` does not change, behind a
+pointer too, and that `p[i] = v` through a `const T^` changes what it
+points to; kc is brought to kelvinc's order, and two faults of kc's
+found with it are mended, a row's const elements lost and a var of
+`[const T]` refused.
+
+Details are provisional P738.
+
+There are 1585 tests, and all pass with clang and with gcc 15.
