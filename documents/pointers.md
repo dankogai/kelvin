@@ -53,6 +53,24 @@ and `.isNull` are in [properties.md](properties.md).
   - `.typename` spells it, `u8^ restrict`, and a parameter's leaves a
     function type as C's does: `(u8^):u8` takes a function of
     `u8^ restrict`.
+- **`T^ const`** (#742) is a pointer that is itself const, C's
+  `T *const`: `var p:i64^ const := &x`.
+  - What it points to changes through it, `p^ += 1` and `p[0] = 2`.
+  - It points nowhere else: `p := &y`, `p += 1` and `p++` are errors,
+    `'p' is an i64^ const, a pointer that does not change: declare it
+    without const to point it elsewhere`, where they were C's.
+    - A member's is `'.p' is an i64^ const, ...`, a var's struct's
+      too.
+    - An element of a `[i64^ const](2)` is an element of an array
+      whose elements are const (#733).
+    - Of a `let` the let is said first, as of any.
+  - `const i64^ const` has both consts: nothing changes through it,
+    and it points nowhere else.
+  - With `restrict` either order is written, `i64^ const restrict` and
+    `i64^ restrict const`, and it is named `i64^ const restrict`.
+  - A variable inferred of one, `var q := p`, is a plain `i64^`, a
+    value of it (#738), which points elsewhere.
+  - `cstr const` is a cstr's, as `s := "b"` of one is the same error.
 
 ### Prefix `&`
 

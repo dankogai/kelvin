@@ -1710,6 +1710,25 @@ kc reads what it is written in, and little more.
     said an array is not copied by '='.
   - A number where a cstr goes is `'s' is a cstr, and this is a
     number`, typed_value_ok, which kc took, `var s:cstr := 0`.
+- **A pointer that is itself const** (#742), `T^ const` and `cstr
+  const`, the third of the six, as kelvinc's since the same number:
+  - it is a type of its own, konst 5, own_const of parse.k, which
+    type_suffixes makes of a `const` after a `^` or a cstr, with
+    `restrict` in either order; own_plain is the pointer it is the
+    const of, and `const i64^ const` keeps both, const_pointee;
+  - it is written `int64_t * const`, put_ctype, where kc wrote no
+    const, and named `i64^ const`, `i64^ const restrict`, type_text;
+  - `p := &y`, `p += 1`, `p++` and a member's `h.p := &y` are `'p' is
+    an i64^ const, a pointer that does not change: declare it without
+    const to point it elsewhere`, may_change, and an element of a
+    `[i64^ const](2)` the array's, whose elements are const;
+  - where a value goes it is the plain pointer: a variable inferred of
+    it, inferred, a `$[...]`'s, a `${...}`'s and a `[...]`'s element,
+    type_of, and what a `T?` wraps, fits_value and
+    value_mismatch_text;
+  - tests/error's pointer_own_const.k, pointer_own_const_member.k,
+    pointer_own_const_step.k, pointer_own_const_elements.k and
+    cstr_own_const.k, and tests/run's pointer_own_const.k, have them.
   - tests/error's member_value_text.k, member_array_number.k,
     array_declared_number.k and cstr_takes_no_number.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the

@@ -10319,6 +10319,16 @@ static void reject_let_change(Expr *lhs, Token *t) {
                  let, let);
     if (let)
         error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let);
+    /* a pointer that is itself const, p:i64^ const or q:cstr const, a variable's or a member's, does not change
+       (#742): C said it of its T *const */
+    Type *own = lhs->kind == E_IDENT || lhs->kind == E_FIELD ? target_type(lhs) : NULL;
+    if (own && own->is_const && (own->kind == T_PTR || is_cstr(own))) {
+        bare_tags = true;
+        char *shown = kelvin_type(own);
+        bare_tags = false;
+        error_at(t->pos, "'%s%s' is %s %s, a pointer that does not change: declare it without const to point it elsewhere",
+                 lhs->kind == E_FIELD ? "." : "", lhs->text, article(shown), shown);
+    }
     reject_const_change(lhs, t->pos); /* p^ = v through a read-only borrow (#273) */
 }
 

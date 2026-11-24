@@ -14284,3 +14284,20 @@ a cstr goes, which it took.
 Details are provisional P746.
 
 There are 1600 tests, and all pass with clang and with gcc 15.
+
+### 789. A pointer that is itself const does not change
+
+**Claude** wrote #741, its battery run and pushed when clean, and
+went on with the third of the six, in a copy of the repository while
+the battery ran. One job of #740's CI was given no macOS runner and
+cancelled by GitHub; run again, all nine passed, as #741's did.
+
+**Claude** made it #742: `T^ const` and `cstr const`, a pointer that
+is itself const, is refused its change in Kelvin's words by both,
+`'p' is an i64^ const, a pointer that does not change`, and read,
+written and named by kc as kelvinc; three faults found there are
+listed in TODO.md, not changed.
+
+Details are provisional P747.
+
+There are 1606 tests, and all pass with clang and with gcc 15.

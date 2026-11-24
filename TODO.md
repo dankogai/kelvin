@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #741 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #742 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,9 +61,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1060 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1065 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736, #740 and #741 alike.
+  #725, #727, #733, #736, #740, #741 and #742 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -176,9 +176,11 @@ known, not what is planned.
   - a struct's member given the wrong kind of initializer, as a
     parameter's, `'y' of pt is an i64, and this is text`, an array
     member's and `var a:[i64](3) = 5` too (#741);
-  - left: `T^ const`
-    and `cstr const`, read and named, `p := &y` of one `'p' is an i64^
-    const, a pointer that does not change`; `ok({})`, the list error;
+  - `T^ const` and `cstr const`, a pointer that is itself const, read
+    and named by both, `p := &y`, `p += 1` and a member's `h.p := &y`
+    of one `'p' is an i64^ const, a pointer that does not change:
+    declare it without const to point it elsewhere` (#742);
+  - left: `ok({})`, the list error;
     `while (i == 0) (i) += 1`, kc's as kelvinc's; and a function type's
     parameter of an inner count another parameter gives, whose typedef
     kc writes with `n`.
@@ -223,6 +225,16 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #742 was made, not changed:
+  - A literal's element read through const keeps the const in
+    kelvinc: `$[q[0]]` of a `q:const i64^` and `$[p]` of a `p:i64^
+    const` are C's warning, `${"k": q[0]}` C's error, and
+    `[q[0], q[0]]` a `[const i64](2)`; kc holds the plain type, as a
+    variable inferred of one is since #738.
+  - `var t:String = s` of a cstr variable is kelvinc's `'t' is a
+    String, and this is cstr`, and C's error of kc's C.
+  - `var d := ${"a"}`, a Set of text given by `:=`, is built by
+    kelvinc and refused by kc, `'d' is a value (Set<String>)`.
 - Found while #741 was made, not changed:
   - A number given to a `cstr` parameter of a function defined inside
     a function, `take(5)`, is kelvinc's `'c' of 'take' is a cstr, and
@@ -272,8 +284,9 @@ known, not what is planned.
     (i32, ...):i64, takes 1 argument or more, and it is given 0` in
     both since #740.
   - `var q:cstr const := name` is kelvinc's `const uint8_t *const q`;
-    kc reads the const and writes none, so that `q := other` is C's to
-    kelvinc and built by kc.
+    kc read the const and wrote none, so that `q := other` was C's to
+    kelvinc and built by kc: `'q' is a cstr const, a pointer that does
+    not change` in both since #742, kc writing the const.
   - `volatile` of a struct, and `const volatile` of what is no pointer,
     are read by kc as kelvinc reads them, and tried by no test.
 - Found while #727 was made, not changed:
@@ -308,7 +321,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P745 and P746, the details of #740 and #741, until reviewed; the reviews confirmed
+- P745 to P747, the details of #740 to #742, until reviewed; the reviews confirmed
   every row to P744, and a review's own detail row is confirmed by that
   review (#675).
 

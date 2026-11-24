@@ -941,3 +941,7 @@ So far the changes from C are these, by topic.
 - A struct's member takes a value of its kind: `{1, "two"}` is `'y' of
   point is an i64, and this is text`, and a number where an array
   member goes is an error, where they were C's (#741)
+- `T^ const` and `cstr const`, a pointer that is itself const, does not
+  change: `p := &y` is `'p' is an i64^ const, a pointer that does not
+  change: declare it without const to point it elsewhere`, where it
+  was C's error (#742)

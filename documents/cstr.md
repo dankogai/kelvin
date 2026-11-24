@@ -62,6 +62,10 @@ let card:cstr := `${n} items` // a template's text, on the stack too
       scope in a `_kv_` variable, declared only where `.count` is used;
       after `s := t`, the next use measures again.
   - `cstr const` is a constant pointer.
+    - `s := "b"` of one is an error (#742): `'s' is a cstr const, a
+      pointer that does not change: declare it without const to point
+      it elsewhere`, where it was C's.
+    - A variable inferred of one, `var t := s`, is a plain `cstr`.
   - It has no `+` or `-`, a literal too (#282).
     - Only a `String` has `+`: `"a" + "b"` and `x + y` are errors;
       `$"a" + "b"` is the String `"ab"`, and so is `"a" + $"b"`.

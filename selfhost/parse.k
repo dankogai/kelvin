@@ -1221,6 +1221,7 @@ let refuse_restrict() {
 // T^ of y, its innermost pointer to a const T: const T^, a borrow through
 // which T does not change, as C's const T * (#272)
 let const_pointee(y:int64):int64 {
+    if types[y].kind == Y_PTR && types[y].konst == 5 { return own_const(const_pointee(own_plain(y))) }   // const i64^ const, both (#742)
     if types[y].kind != Y_PTR { return y }
     let e:int64 = types[y].elem
     if types[e].kind == Y_PTR { return type_of_kind(Y_PTR, const_pointee(e), types[y].name) }
@@ -1649,6 +1650,24 @@ let unvolatile(y:int64):int64 {
     return type_of_kind(types[y].kind, types[y].elem, types[y].name)
 }
 
+// T^ const and cstr const, a pointer that is itself const, C's T *const
+// (#742), as kelvinc reads it: a type of its own, konst 5, as an atomic
+// pointer is of 2; the pointer it is the const of, own_plain
+let own_const(y:int64):int64 {
+    if failed || (types[y].kind != Y_PTR && types[y].kind != Y_CSTR) || types[y].konst != 0 { return y }
+    for i in 0..<types.count as int64 {
+        if types[i].konst == 5 && types[i].kind == types[y].kind && types[i].elem == types[y].elem && types[i].name == types[y].name { return i }
+    }
+    let c:ty = {types[y].kind, types[y].elem, types[y].name, 5}
+    types += c
+    return types.count as int64 - 1
+}
+
+let own_plain(y:int64):int64 {
+    if y < 0 || types[y].konst != 5 { return y }
+    return type_of_kind(types[y].kind, types[y].elem, types[y].name)
+}
+
 // T^ atomic of the pointer y, konst 2 as an atomic number's, the
 // pointer itself C's _Atomic (#701)
 let atomic_pointer(y:int64):int64 {
@@ -1763,7 +1782,7 @@ let type_suffixes(y0:int64):int64 {
     var y:int64 = y0
     let cast_type = type_depth == cast_depth             // x as T ? a : b: the ? a choice's, as kelvinc's TYPE_AS (#710)
     var const_after = false                              // T const^ and T volatile^, a qualifier after what it qualifies, as C's and kelvinc's (#729); (T const){v} too
-    while (at_word("const") || at_word("volatile")) && (tok_is(pos + 1, "^") || tok_is(pos + 1, ")") || tok_is(pos + 1, "const") || tok_is(pos + 1, "volatile") || tok_is(pos + 1, ":=") || tok_is(pos + 1, "=") || tok_is(pos + 1, ",") || tok_is(pos + 1, ";") || toks[pos + 1].kind == T_NL) {
+    while (at_word("const") || at_word("volatile")) && (tok_is(pos + 1, "^") || tok_is(pos + 1, ")") || tok_is(pos + 1, "const") || tok_is(pos + 1, "volatile") || tok_is(pos + 1, ":=") || tok_is(pos + 1, "=") || tok_is(pos + 1, ",") || tok_is(pos + 1, ";") || tok_is(pos + 1, "}") || (types[y].kind == Y_CSTR && tok_is(pos + 1, "restrict")) || toks[pos + 1].kind == T_NL) {
         if at_word("volatile") { y = volatile_base(y) } else { const_after = true }
         advance()
     }
@@ -1786,13 +1805,22 @@ let type_suffixes(y0:int64):int64 {
             if at_word("const") && tok_is(pos + 1, "^") {   // T^ const^, a pointer to a const pointer, its const after what it qualifies (#738)
                 const_after = true
                 advance()
+            } else if at_word("const") {                 // T^ const, the pointer itself const (#742)
+                advance()
+                y = own_const(restrict_of(y))            // T^ const restrict, as T^ restrict const
             }
         }
     }
+    var cstr_const = const_after && types[y].kind == Y_CSTR   // cstr const, a cstr itself const (#742), where no ^ took the const
     if types[y].kind == Y_CSTR && at_word("restrict") {   // cstr restrict, a pointer in C, as kelvinc's (#718)
         advance()
         y = type_of_kind(Y_CSTR, -1, 2)
+        if at_word("const") {                            // cstr restrict const, as cstr const restrict
+            advance()
+            cstr_const = true
+        }
     }
+    if cstr_const { y = own_const(y) }
     refuse_restrict()
     return y
 }

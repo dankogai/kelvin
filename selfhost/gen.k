@@ -563,6 +563,11 @@ let put_ctype(y:int64) {
         put_ctype(unvolatile(y))
         return
     }
+    if types[y].konst == 5 {                                     // T^ const, C's T * const (#742)
+        put_ctype(own_plain(y))
+        put(" const")
+        return
+    }
     switch types[y].kind {                                       // every kind of type (#210)
     case Y_TYPEOF:                                      // x.type of what only C sees, as kelvinc writes it (#696)
         if types[y].elem == 1 { put("const ") }
@@ -2929,13 +2934,13 @@ let type_of(n:int64):int64 {
     }
     if k == N_DICT {                                                  // ${k: v}: of the first entry's types (#267)
         let ky:int64 = dict_key_type(type_of(nodes[n].b))
-        let vy:int64 = type_of(nodes[nodes[n].b].next)
+        let vy:int64 = own_plain(type_of(nodes[nodes[n].b].next))
         if ky < 0 || vy < 0 { return -1 }
         optional_of(vy)                                               // V?, which d[k] read whole is (#219)
         return type_of_kind(Y_DICT, vy, ky)
     }
     if k == N_ARRAY {                                                 // $[a, b]: an Array of a's type (#266)
-        let e:int64 = type_of(nodes[n].b)
+        let e:int64 = own_plain(type_of(nodes[n].b))               // of a p:i64^ const an i64^'s, a value of it (#742)
         if e < 0 { return -1 }
         return type_of_kind(Y_ARRAY, e, -1)
     }
@@ -3028,7 +3033,7 @@ let type_of(n:int64):int64 {
         }
         let first:int64 = nodes[n].b
         if first < 0 || is_case_word(first) { return -1 }
-        let e:int64 = type_of(first)
+        let e:int64 = own_plain(type_of(first))
         if e < 0 { return -1 }
         var count = 0
         var x = first
@@ -12023,7 +12028,7 @@ let fits_value(n:int64, t:int64):bool {
     if k == N_STR && tk == Y_STRING { return true }     // text a String, some("lit") of a String? (#413)
     if bare_init(n) { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
     if k == N_NULL && (tk == Y_PTR || tk == Y_CSTR || tk == Y_FN) { return true }   // nowhere where a pointer goes: some(nowhere) of an i64^? (#729)
-    if type_of(n) == t { return true }
+    if own_plain(type_of(n)) == t { return true }       // a p:i64^ const is an i64^ where a value goes (#742)
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
 
@@ -15119,12 +15124,19 @@ let inferred(n:int64):int64 {
         needs_type(n)                                  // as kelvinc says it
         return -1
     }
-    return y
+    return own_plain(y)                                  // var q := p of a p:i64^ const is an i64^, a value of it (#738, #742)
 }
 
 // a type as Kelvin spells it, for a message (#233): i64, cstr, i64^,
 // $[String], i64?, Result<i64, String>
 let type_text(y:int64):String {
+    if types[y].konst == 5 {                                   // i64^ const, cstr const, as kelvinc names it (#742)
+        let plain:int64 = own_plain(y)
+        let rest = types[y].kind == Y_PTR ? ptr_restrict(y) : types[y].name == 2   // i64^ const restrict, the const first, as kelvinc names it
+        var s = type_text(!rest ? plain : types[y].kind == Y_PTR ? type_of_kind(Y_PTR, types[y].elem, ptr_const(y) ? 1 : 0 - 1) : base_type(Y_CSTR))
+        s += rest ? " const restrict" : " const"
+        return s
+    }
     if types[y].konst == 3 {                                   // volatile u8, as kelvinc names it (#729)
         var s = $"volatile "
         let w:String = type_text(unvolatile(y))
@@ -16224,11 +16236,11 @@ let may_change(n:int64):bool {
                 continue
             }
             if ay >= 0 && types[ay].kind == Y_CSTR { return true }   // a cstr's byte: gen_assign says a cstr is immutable, a let's too, as kelvinc's (#733)
-            if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].konst == 1 && let_owned(nodes[e].a) {   // a let's own array: that it is a let comes first, as kelvinc's (#733)
+            if ay >= 0 && types[ay].kind == Y_FIXED && (types[ay].konst == 1 || (types[ay].elem >= 0 && types[types[ay].elem].konst == 5)) && let_owned(nodes[e].a) {   // a let's own array: that it is a let comes first, as kelvinc's (#733)
                 e = nodes[e].a
                 continue
             }
-            if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].konst == 1 {   // (#425)
+            if ay >= 0 && types[ay].kind == Y_FIXED && (types[ay].konst == 1 || (types[ay].elem >= 0 && types[types[ay].elem].konst == 5)) {   // (#425); [i64^ const](2), whose elements are const pointers (#742)
                 var m = $"this changes an element of a "
                 let w:String = type_text(ay)
                 m += &w
@@ -16288,6 +16300,21 @@ let may_change(n:int64):bool {
     let r = changed_root(n)
     if r < 0 { return true }
     let how = how_declared(nodes[r].t)
+    if how == 0 && (nodes[n].kind == N_ID || nodes[n].kind == N_FIELD) && !failed {   // a pointer that is itself const, a variable's or a member's, as kelvinc says it (#742)
+        let oy:int64 = type_of(n)
+        if oy >= 0 && types[oy].konst == 5 {
+            var s = nodes[n].kind == N_FIELD ? $"'." : $"'"
+            s += tok_text(nodes[n].t)
+            s += "' is "
+            let w:String = kelvin_type_text(oy)
+            s += article_of(&w)
+            s += " "
+            s += &w
+            s += ", a pointer that does not change: declare it without const to point it elsewhere"
+            tok_error(change_tok(n), s.cstr)
+            return false
+        }
+    }
     if how == 0 { return true }
     var s = $"'"
     s += tok_text(nodes[r].t)
@@ -21212,7 +21239,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
     if k == N_STR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // text where a u8^ goes, as kelvinc's fit (#694, #730)
     if k == N_STR { return vk == Y_STRING || vk == Y_CSTR ? $"" : $"text" }
     if number { return is_number_kind(vk) ? $"" : $"a number" }
-    let y:int64 = type_of(v)
+    let y:int64 = own_plain(type_of(v))                 // a p:i64^ const is an i64^ where a value goes (#742)
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
     if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
     if types[y].kind == Y_CSTR { return vk == Y_STRING ? $"" : $"text" }
