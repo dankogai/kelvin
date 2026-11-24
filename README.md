@@ -910,3 +910,7 @@ So far the changes from C are these, by topic.
 - kc reads a `{`, `as`, `[` and a product's `*` at the start of a
   line, `return`'s value on the next line and `q++` in a `for`'s
   clause, as kelvinc does (#728)
+- kc reads `volatile`, a variadic function's type `(T, ...):R`,
+  compound literals of a C header's types and `nowhere`'s properties,
+  as kelvinc does; an array's compound literal goes where a pointer
+  goes again, which #724 had refused (#729)

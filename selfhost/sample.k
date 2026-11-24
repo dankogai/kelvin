@@ -1691,6 +1691,20 @@ on a new line`
     println(last_comma, " ", atoi("21").cm_tripled())   // a method of a C call's value, by C's _Generic (#652)
     var ex_env = IO.exec(["env"], "r", "", ["KC_X=ok"], true)   // a directory, an environment and fresh (#653)
     println((ex_env.string ?? $"").trim())
+    var tl_d:div_t = (div_t){.quot = 3, .rem = 1}        // a header's type's compound literal, a typed array literal where a pointer goes, a count by sizeof (#729)
+    var tl_a:size_t^ := ([size_t](2))[1, 2]
+    var tl_z:int32^ := ([int32](sizeof tl_d / sizeof tl_d.quot))[40, 2]
+    let tl_c:size_t = (size_t const){3}
+    println(tl_d.quot, " ", tl_d.rem, " ", tl_a[1], " ", tl_z[0] + tl_z[1], " ", tl_c)
+    var vo_digits:[uint8](3) = ['4', '2', 0]             // volatile, and a qualifier after what it qualifies (#729)
+    let vo_p:volatile uint8^ := &vo_digits[0]
+    var vo_q:uint8 volatile^ := "text"
+    var vo_n:volatile int64 = 5
+    vo_n += 1
+    println(vo_p.typename, " ", vo_q.typename, " ", vo_p^, " ", vo_n, " ", vo_q.cstr[0] == '0', " ", int64(vo_digits))
+    let va_f:(int64, ...):int64 := thrice_va             // a variadic function's type (#729)
+    let nw_r := nowhere                                  // nowhere, an any^, and its properties
+    println(va_f(2, "x", 4.5), " ", va_f.typename, " ", nw_r.typename, " ", nowhere.isNull, " ", nowhere.addr, " ", va_f.hex.count > 2)
     return 0
 }
 

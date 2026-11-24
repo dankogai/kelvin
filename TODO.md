@@ -34,14 +34,19 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #728 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #729 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
 
-- None known: an integer literal past u64's greatest is kelvinc's error,
+- `println(sizeof ([i32](3))[1, 2, 3])` is C's error of kelvinc's C,
+  `expected '}'`: the commas of the compound literal divide the
+  arguments of the println macro, which no parentheses hold; found
+  while #729 was made, not changed. `i32(sizeof ...)` and a declaration
+  take it.
+- Else none known: an integer literal past u64's greatest is kelvinc's error,
   and so is one past i64's in a declaration with no type (#678), found
   while literals.md was written (#677).
 - A member of arithmetic, `(n + 1).foo`, is kelvinc's error (#669).
@@ -160,9 +165,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of 490 of the 509 programs
+- kc builds and prints what kelvinc's prints of 501 of the 509 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #728; the 19 of the rest import C headers or a JS module, and stop
+  #729; the 8 of the rest import C headers or a JS module, and stop
   on what kc reads otherwise than kelvinc.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
@@ -184,6 +189,15 @@ known, not what is planned.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's `this method is not
     known`.
+- Found while #729 was made, not changed:
+  - `v()` of a `v:(i32, ...):i64`, fewer arguments than its
+    parameters, is C's error of kelvinc's C, and kc's `this function,
+    of type (i32, ...):i64, takes 1 argument, and it is given 0`.
+  - `var q:cstr const := name` is kelvinc's `const uint8_t *const q`;
+    kc reads the const and writes none, so that `q := other` is C's to
+    kelvinc and built by kc.
+  - `volatile` of a struct, and `const volatile` of what is no pointer,
+    are read by kc as kelvinc reads them, and tried by no test.
 - Found while #727 was made, not changed:
   - A struct written before an `#inline C` that holds one of its types
     is C's error in both; a function written before it that takes a
@@ -206,16 +220,16 @@ known, not what is planned.
     - lines that go on and five forms beside them (#728):
       semicolons_edge, semicolons_more, pointer_step, methods_edge,
       order_free, tag_names_edge;
-    - the 19 left: addr, anonymous_edge, anonymous_values, array_types,
-      casts_edge, casts_edge2, casts_edge3, coalesce_text, cstr,
-      function_types, io_kill, io_process, io_signal, is_null,
-      local_storage, nowhere, properties_c, text_numbers,
-      text_numbers_more.
+    - C's types and values (#729): casts_edge, casts_edge2,
+      casts_edge3, cstr, text_numbers, text_numbers_more,
+      function_types, nowhere, is_null, addr, properties_c;
+    - the 8 left: anonymous_edge, anonymous_values, array_types,
+      coalesce_text, io_kill, io_process, io_signal, local_storage.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P729 to P733, the details of #724 to #728, until reviewed; the reviews confirmed
+- P729 to P734, the details of #724 to #729, until reviewed; the reviews confirmed
   every row to P728, and a review's own detail row is confirmed by that
   review (#675).
 

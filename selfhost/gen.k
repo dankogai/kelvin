@@ -68,6 +68,10 @@ let put_inline_c(t:int64) {
 let put_tok(t:int64) {
     let at:int64 = toks[t].at
     var from = 0
+    if toks[t].len >= 4 && (codes[at] == 'i' || codes[at] == 'u' || codes[at] == 'f') && (codes[at + 1] == 'n' || codes[at + 1] == 'i' || codes[at + 1] == 'l') && number_word(t) >= 0 {   // a member named int64 is i64, the word's other spelling, as kelvinc reads it (#36, #729)
+        out += type_word(number_word(t))
+        return
+    }
     if codes[at] == '$' && toks[t].len > 1 {           // $0 is _kv_arg0 in C, as kelvinc names it (#326)
         out += "_kv_arg"
         from = 1
@@ -533,6 +537,11 @@ let put_ctype(y:int64) {
     if types[y].konst == 1 && types[y].kind != Y_FIXED {        // const T of typeof(x) of a let (#708)
         put("const ")
         put_ctype(base_type(types[y].kind))
+        return
+    }
+    if types[y].konst == 3 {                                     // volatile T, C's (#729)
+        put("volatile ")
+        put_ctype(unvolatile(y))
         return
     }
     switch types[y].kind {                                       // every kind of type (#210)
@@ -2925,6 +2934,7 @@ let type_of(n:int64):int64 {
         tok_error(nodes[n].t, said.cstr)
         return 0 - 1
     }
+    if k == N_NULL && nodes[n].flag == 7 { return type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }   // nowhere whose property is read, an any^, as kelvinc's: its .isNull, .addr, .hex and .cstr a pointer's (#729)
     if k == N_NULL { return base_type(Y_C) }
     if k == N_SELF {                                     // (#213); a number's, a String's or a Bytes's own (#550)
         if !self_known(n) { return 0 - 1 }               // where there is one (#602)
@@ -3066,7 +3076,7 @@ let type_of(n:int64):int64 {
         }
         let pp:int64 = pointer_property(n)
         if pp == 1 { return base_type(Y_U64) }                          // x.size, sizeof x, C's size (#462, #472)
-        if pp == 2 { return base_type(Y_C) }                            // p.addr, a uintptr_t
+        if pp == 2 { return uintptr_type() }                            // p.addr, a uintptr_t, C's typedef, whose .size and .hex are properties (#729)
         if pp == 3 { return y }                                         // p.next, p.prev, of its type
         if pp < 0 { return -1 }
         if pretty_value(n) { return base_type(Y_STRING) }               // its text indented, a new String (#336, #337, #452)
@@ -6014,7 +6024,7 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
             put_self(path, t)
             put("), _kv_p)")
         } else if k == Y_PTR {                           // an address; to a C header's type, as C decides
-            put(ek == Y_C ? "kv_cstr_put_pointer(_kv_p, " : "kv_cstr_put_address(_kv_p, ")
+            put(ek == Y_C || text_unseen(e) ? "kv_cstr_put_pointer(_kv_p, " : "kv_cstr_put_address(_kv_p, ")   // xmlChar^ too, a header's typedef (#729)
             put_self(path, t)
             put(")")
         } else {
@@ -7797,7 +7807,7 @@ let put_text_write(y:int64, lv:cstr, depth:int64) {
         put(lv)
         put(", _kv_p)")
     } else if k == Y_PTR {
-        put(ek == Y_C ? "kv_cstr_put_pointer(_kv_p, " : "kv_cstr_put_address(_kv_p, ")
+        put(ek == Y_C || text_unseen(types[y].elem) ? "kv_cstr_put_pointer(_kv_p, " : "kv_cstr_put_address(_kv_p, ")   // xmlChar^ too, a header's typedef (#729)
         put(lv)
         put(")")
     } else if is_number_kind(k) {
@@ -7998,7 +8008,10 @@ let scalar_cstr(n:int64):bool {
 // _Generic of what has text, a Kelvin struct there kv_cstr_unseen_struct,
 // which C refuses, as it has no buffer sized for its text (#652)
 let comma_cstr(n:int64):bool {
-    return nodes[n].kind == N_FIELD && tok_is(nodes[n].t, "cstr") && nodes[nodes[n].a].kind == N_COMMA
+    if nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "cstr") { return false }
+    if nodes[nodes[n].a].kind == N_COMMA { return true }
+    let a:int64 = nodes[n].a                             // l.label.cstr of a C struct's member, which only C sees, the same, as kelvinc's (#729)
+    return nodes[a].kind == N_FIELD && !failed && text_unseen(type_of(a))
 }
 
 let gen_comma_cstr(n:int64) {
@@ -8066,6 +8079,7 @@ let pointer_property(n:int64):int64 {
     if y < 0 { return 0 }
     let k = types[y].kind
     if k == Y_C { return 0 }                            // what only C sees has its own
+    if k == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) && (!size || types[y].elem < 0 - 1) { return 0 }   // a header's struct, by its word or a typedef: the member wins, as kelvinc's #26 and #37 (#729); a typedef's .size its sizeof
     let sd = struct_of(y)
     if sd >= 0 {                                         // a field of the name wins; a struct's size is sizeof
         var m:int64 = nodes[sd].a
@@ -8162,7 +8176,7 @@ let number_text(n:int64):bool {
     if y < 0 { return false }
     let k = types[y].kind
     if text_unseen(y) { return true }                   // of what only C sees, which C's _Generic tells (#37, #612)
-    return is_int_kind(k) || k == Y_F64 || k == Y_F32 || ((k == Y_PTR || k == Y_CSTR) && tok_is(nodes[n].t, "hex"))
+    return is_int_kind(k) || k == Y_F64 || k == Y_F32 || ((k == Y_PTR || k == Y_CSTR || k == Y_FN) && tok_is(nodes[n].t, "hex"))   // a function value's too, as kelvinc's #37 (#729)
 }
 
 // whether x.dec and the rest of a receiver of kind k are refused, as
@@ -8172,7 +8186,7 @@ let number_text_refused(n:int64, k:ykind):bool {
     let t:int64 = nodes[n].t
     let w:String = tok_text(t)
     let floating = k == Y_F64 || k == Y_F32
-    if is_int_kind(k) || (floating && (tok_is(t, "dec") || tok_is(t, "hex"))) || ((k == Y_PTR || k == Y_CSTR) && tok_is(t, "hex")) { return false }
+    if is_int_kind(k) || (floating && (tok_is(t, "dec") || tok_is(t, "hex"))) || ((k == Y_PTR || k == Y_CSTR || k == Y_FN) && tok_is(t, "hex")) { return false }
     if k == Y_FIXED && tok_is(t, "hex") {                // as kelvinc says it
         gen_error(n, "'.hex' of an array: an array is no pointer; write '(&a[0]).hex'")
         return true
@@ -8206,7 +8220,8 @@ let gen_number_text(n:int64, y:int64) {
     d += "]"
     block_store += &d
     let a:int64 = nodes[n].a
-    if types[y].kind == Y_PTR || types[y].kind == Y_CSTR {
+    let address = types[y].kind == Y_PTR || types[y].kind == Y_CSTR || types[y].kind == Y_FN   // a function value's address too, as kelvinc's #37 (#729)
+    if address {
         put("kv_hex_addr((uintptr_t)(")
         gen_expr(a)
         put(")")
@@ -8220,7 +8235,7 @@ let gen_number_text(n:int64, y:int64) {
     }
     put(", _kv_text")
     put_int(s)
-    put(types[y].kind == Y_PTR || types[y].kind == Y_CSTR ? ")" : "); })")
+    put(address ? ")" : "); })")
 }
 
 // ---------- template literals (#445) ----------
@@ -8884,7 +8899,7 @@ let converter_text(v:int64):bool {
     let k = types[y].kind
     if k == Y_CSTR || k == Y_STRING || k == Y_BYTES { return true }   // a Bytes too, as kelvinc's #88
     if k == Y_PTR && owner_text_ref(y) { return true }   // a String or a Bytes by reference, as kelvinc's #495
-    return (k == Y_PTR || k == Y_FIXED) && types[y].elem >= 0 && types[types[y].elem].kind == Y_U8
+    return (k == Y_PTR || k == Y_FIXED) && types[y].elem >= 0 && (types[types[y].elem].kind == Y_U8 || types[types[y].elem].kind == Y_I8) && types[types[y].elem].konst != 3   // i8s too, as kelvinc's; a volatile u8^ is no text, as C's volatile char * is not (#729)
 }
 
 // v as the runtime's readers take text (#429), as kelvinc's text_arg: a
@@ -9169,7 +9184,9 @@ let gen_converter(n:int64) {
         gen_error(base, m.cstr)
         return
     }
-    let unseen = vy < 0 || types[vy].kind == Y_C || (types[vy].kind == Y_STRUCT && struct_of(vy) < 0 && tagged_of(vy) < 0)   // a C typedef too, size_t, whose kind C knows (#472)
+    let ve:int64 = vy >= 0 && (types[vy].kind == Y_PTR || types[vy].kind == Y_FIXED) ? types[vy].elem : 0 - 1   // xmlChar^, [gchar](8): C's text types, which its _Generic reads, as kelvinc's (#729)
+    let unseen_text = ve >= 0 && types[ve].konst != 3 && (types[ve].kind == Y_C || (types[ve].kind == Y_STRUCT && struct_of(ve) < 0 && tagged_of(ve) < 0 && !enum_int(ve)))
+    let unseen = vy < 0 || types[vy].kind == Y_C || (types[vy].kind == Y_STRUCT && struct_of(vy) < 0 && tagged_of(vy) < 0) || unseen_text   // a C typedef too, size_t, whose kind C knows (#472)
     if base >= 0 && !text && !unseen {
         var m = $"a base is for reading text, as in "
         m += &name
@@ -11727,6 +11744,10 @@ let member_fixed_ok(f:int64, y:int64, what:cstr, local:bool):bool {
             gen_error(f, m.cstr)
             return false
         }
+        if g == y && types[g].name == 0 - 1 && nodes[f].next < 0 && nodes[f].kind == S_VAR && what[0] == 'a' && what[2] == 'm' {   // a struct's last member of no count, C's flexible array member, as kelvinc's (#729)
+            g = types[g].elem
+            continue
+        }
         if types[g].name < 0 && types[g].name > 0 - 10 {   // a count a global or an enumerator gives goes on (#696)
             var m = type_text(g)
             m += " as "
@@ -11891,6 +11912,7 @@ let fits_value(n:int64, t:int64):bool {
     if y >= 0 && is_number_kind(types[y].kind) { return true }   // a bool or a number of another kind, as kelvinc converts it; none of a bool? (#415)
     if k == N_STR && tk == Y_STRING { return true }     // text a String, some("lit") of a String? (#413)
     if bare_init(n) { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
+    if k == N_NULL && (tk == Y_PTR || tk == Y_CSTR || tk == Y_FN) { return true }   // nowhere where a pointer goes: some(nowhere) of an i64^? (#729)
     if type_of(n) == t { return true }
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
@@ -14535,7 +14557,7 @@ let gen_expr_of(n:int64) {
         let said:String = held_dollars[n] ?? $""
         tok_error(nodes[n].t, said.cstr)
     } else if k == N_NULL {
-        put("NULL")
+        put("((void *)0)")                               // as kelvinc writes it (#729)
     } else if k == N_SELF {
         if self_known(n) { put("self") }                 // (#602)
     } else if k == N_NUM && widen_ints && !float_tok(t) {
@@ -14805,6 +14827,16 @@ let anon_type_text(an:int64):String {
 
 // C's size_t, a type only C knows, of its word made once (#717)
 var size_t_y:int64 = 0 - 1
+var uintptr_y:int64 = 0 - 1
+
+let uintptr_type():int64 {
+    if uintptr_y < 0 {
+        var w = $"uintptr_t"
+        uintptr_y = type_of_kind(Y_STRUCT, 0 - 1, made_token(&w))
+    }
+    return uintptr_y
+}
+
 let size_t_type():int64 {
     if size_t_y < 0 {
         var w = $"size_t"
@@ -14917,6 +14949,7 @@ let inferred(n:int64):int64 {
         empty_error(v)
         return -1
     }
+    if k == N_NULL && !held_dollars.has(v) { return type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }   // var r := nowhere, an any^, as kelvinc infers it (#729)
     if bare_init(v) || k == N_NULL || word {
         needs_type(n)                                  // as kelvinc says it
         return -1
@@ -14940,6 +14973,12 @@ let inferred(n:int64):int64 {
 // a type as Kelvin spells it, for a message (#233): i64, cstr, i64^,
 // $[String], i64?, Result<i64, String>
 let type_text(y:int64):String {
+    if types[y].konst == 3 {                                   // volatile u8, as kelvinc names it (#729)
+        var s = $"volatile "
+        let w:String = type_text(unvolatile(y))
+        s += &w
+        return s
+    }
     if types[y].konst == 1 && types[y].kind != Y_FIXED {       // const i64, of typeof(x) of a let, as kelvinc names it (#708)
         var s = $"const "
         let w:String = type_text(base_type(types[y].kind))
@@ -15043,6 +15082,7 @@ let type_text(y:int64):String {
             p = types[p].name
             if p >= 0 { s += ", " }
         }
+        if types[y].konst == 4 { s += ", ..." }          // (i32, ...):i64, as kelvinc names it (#729)
         s += ")"
         if types[y].elem >= 0 {
             s += ":"
@@ -15486,6 +15526,8 @@ let fixed_list_fits(v:int64, y:int64):bool {
             return false
         } else if types[e].kind == Y_PTR && !is_case_word(x) {
             // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557)
+        } else if types[e].kind == Y_C || types[e].kind == Y_TYPEOF || (types[e].kind == Y_STRUCT && struct_of(e) < 0 && tagged_of(e) < 0 && !enum_int(e)) {
+            // an element of a type only C sees, size_t, div_t, is C's to check, as kelvinc leaves it (#729)
         } else if types[e].kind == Y_CSTR && nodes[x].kind == N_NULL {
             // nowhere, a cstr's no text, as kelvinc takes it (#698)
         } else if is_variant(e) && (is_case_word(x) || value_mismatch_text(x, e).count == 0) {
@@ -15533,6 +15575,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
 let constant_count(e:int64):bool {
     let k = nodes[e].kind
     if k == N_NUM { return !float_tok(nodes[e].t) }
+    if k == N_SIZEOF || k == N_ALIGN { return true }     // sizeof t / sizeof t[0], C's constant, as kelvinc leaves it to C (#729)
     if k == N_ID { return local_at(nodes[e].t) < 0 && decl_named(nodes[e].t, D_GLOBAL) < 0 && enum_of(nodes[e].t) >= 0 }
     if k == N_UNARY && tok_is(nodes[e].t, "-") { return constant_count(nodes[e].a) }
     if k == N_BIN {
@@ -15747,11 +15790,12 @@ let temp_borrowed(v:int64):bool {
 // first, and what only C sees takes C's { }
 let list_refused(n:int64):bool {
     let y:int64 = nodes[n].ty
+    let typed = nodes[nodes[n].a].flag == 0 && nodes[nodes[n].a].ty >= 0   // ([T](N))[a, b], an array's compound literal, a value: its first element's address, as [T](n) is (#729)
     let k:ykind = types[y].kind
     if k == Y_FIXED || k == Y_ARGV || k == Y_C || k == Y_TYPEOF { return false }
     if (k == Y_CSTR || k == Y_PTR || k == Y_FN) && nodes[n].c != 1 { return false }
     if k == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return false }   // a C header's type
-    if nodes[nodes[n].a].flag == 1 {                     // [T](n), which is its first element's address there: 'x' is an i64, and this is i64^
+    if nodes[nodes[n].a].flag == 1 || typed {            // [T](n), which is its first element's address there: 'x' is an i64, and this is i64^
         if k == Y_CSTR || k == Y_PTR || k == Y_FN || (k == Y_STRUCT && tagged_of(y) >= 0 && (nodes[tagged_of(y)].c == 1 || kc_made(types[y].name))) { return false }
         let zy:int64 = type_of(nodes[n].a)
         if failed || zy < 0 || types[zy].kind != Y_FIXED { return false }
@@ -15766,7 +15810,21 @@ let list_refused(n:int64):bool {
         let ew:String = kelvin_type_text(types[zy].elem)
         z += &ew
         z += "^"
-        gen_error(nodes[n].a, z.cstr)
+        if typed {                                       // at the ( of its type, as kelvinc's
+            var open:int64 = nodes[nodes[n].a].t - 1
+            var depth:int64 = 0
+            while open > 0 {
+                if tok_is(open, ")") { depth += 1 }
+                if tok_is(open, "(") {
+                    depth -= 1
+                    if depth == 0 { break }
+                }
+                open -= 1
+            }
+            tok_error(open, z.cstr)
+        } else {
+            gen_error(nodes[n].a, z.cstr)
+        }
         return true
     }
     var m = $"'[...]' initializes an array, and this is "
@@ -17492,7 +17550,8 @@ let decl_fn_type(d:int64):int64 {
         p = nodes[p].next
     }
     let r:int64 = nodes[d].ty
-    return fn_type_of(&ps, r >= 0 && types[r].kind == Y_VOID ? 0 - 1 : r)
+    let fy:int64 = fn_type_of(&ps, r >= 0 && types[r].kind == Y_VOID ? 0 - 1 : r)
+    return variadic_fns.contains(d) ? variadic_fn(fy) : fy   // (T, ...):R of a variadic one (#729)
 }
 
 // how many functions the name t names (#41), by fn_overloads, and the
@@ -17510,12 +17569,12 @@ let fn_of_type(t:int64, y:int64):int64 {
             at += 1
         }
         for x in decls {
-            if nodes[x].kind == D_FN && nodes[x].c < 0 && toks[nodes[x].t].kind == T_ID && prelude_file(toks[nodes[x].t].file) && tok_text(nodes[x].t) == bare && !variadic_fns.contains(x) && decl_fn_type(x) == y { return x }
+            if nodes[x].kind == D_FN && nodes[x].c < 0 && toks[nodes[x].t].kind == T_ID && prelude_file(toks[nodes[x].t].file) && tok_text(nodes[x].t) == bare && decl_fn_type(x) == y { return x }   // a variadic one's by (T, ...):R (#729)
         }
         return 0 - 1
     }
     for x in decls {
-        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) && !variadic_fns.contains(x) && decl_fn_type(x) == y { return x }
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) && decl_fn_type(x) == y { return x }   // a variadic one's by (T, ...):R (#729)
     }
     return 0 - 1
 }
@@ -17582,6 +17641,16 @@ let pick_call_args(n:int64) {
     }
 }
 
+// whether the function x is a prototype of one written with its body, of
+// the name and the type: the two are one function (#729)
+let prototype_of_body(x:int64):bool {
+    if nodes[x].b >= 0 { return false }
+    for o in decls {
+        if o != x && nodes[o].kind == D_FN && nodes[o].c < 0 && nodes[o].b >= 0 && same_text(nodes[o].t, nodes[x].t) && decl_fn_type(o) == decl_fn_type(x) { return true }
+    }
+    return false
+}
+
 // the function type of the name n of a function (#428); of an overloaded
 // name, kelvinc's error, as the type wanted does not say which here
 let named_fn_type(n:int64):int64 {
@@ -17589,7 +17658,7 @@ let named_fn_type(n:int64):int64 {
     var d:int64 = 0 - 1
     var fns:int64 = 0
     for x in decls {
-        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, nodes[n].t) {
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, nodes[n].t) && !prototype_of_body(x) {
             if fns == 0 { d = x }
             fns += 1
         }
@@ -17603,10 +17672,6 @@ let named_fn_type(n:int64):int64 {
         m += tok_text(nodes[n].t)
         m += "'"
         gen_error(n, m.cstr)
-        return 0 - 1
-    }
-    if variadic_fns.contains(d) {                        // as parse says it of (T, ...):R (#453)
-        gen_error(n, "kc's function types take no '...' yet: C's variadic functions are called by name")
         return 0 - 1
     }
     return decl_fn_type(d)
@@ -17912,7 +17977,7 @@ let gen_fn_call(n:int64, fy:int64) {
         want += 1
         p = types[p].name
     }
-    if count != want {                                   // as kelvinc says it
+    if count != want && !(types[fy].konst == 4 && count > want) {   // as kelvinc says it; a variadic one takes more (#729)
         var m = $"this function, of type "
         let w:String = kelvin_type_text(fy)
         m += &w
@@ -17943,6 +18008,11 @@ let gen_fn_call(n:int64, fy:int64) {
     p = types[fy].name
     while a >= 0 {
         if a != nodes[n].b { put(", ") }
+        if p < 0 {                                       // past the parameters, a variadic one's, C's to take (#729)
+            gen_expr(a)
+            a = nodes[a].next
+            continue
+        }
         if !gen_fn_arg(n, a, types[p].elem) { return }   // an owner moved in, as into a function by its name (#722)
         a = nodes[a].next
         p = types[p].name
@@ -20881,6 +20951,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
     let vk:ykind = types[vy].kind
     let number = k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM)
     if is_case_word(v) { return $"" }                   // none, ok(v), err(e): gen_value reads them by the type (#343)
+    if k == N_NULL && (vk == Y_PTR || vk == Y_CSTR || vk == Y_FN) { return $"" }   // nowhere where a pointer goes, an i64^?'s some too (#729)
     let inner:int64 = wrap_type(vy)
     if inner >= 0 {                                     // an Optional, or the T it holds, wrapped (#343); a Result's ok (#344)
         if k != N_STR && !number {
@@ -23962,6 +24033,7 @@ let write_type(y:int64) {
             p = types[p].name
             if p >= 0 { put(", ") }
         }
+        if types[y].konst == 4 { put(", ...") }          // C's variadic function (#729)
         put(");\n")
     } else if k == Y_STRUCT {
         written[y] = 2                                   // while what it holds is written (#346)

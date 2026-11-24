@@ -1563,6 +1563,44 @@ kc reads what it is written in, and little more.
   - tests/run's semicolons_edge.k, semicolons_more.k, pointer_step.k,
     methods_edge.k, order_free.k and tag_names_edge.k, which kc
     refused, print what kelvinc's print.
+- **C's types and values** (#729), as kelvinc's, the third of the 30
+  programs' batches:
+  - **A fault of #724, mended:** `var a:i64^ := ([i64](2))[7, 8]`, an
+    array's compound literal where a pointer goes, was refused by
+    list_refused as a list where no array is declared; it is a value,
+    its first element's address, and where neither an array nor a
+    pointer is declared it is kelvinc's `'x' is an i64, and this is
+    i64^`, at the `(` of its type.
+  - `(div_t){...}` of a header's type and `(size_t const){3}` are
+    compound literals, compound_ahead; an element of a type only C
+    sees is C's to check; a count by `sizeof` is C's constant.
+  - **`volatile`**, a type of its own, konst 3, as an atomic one is of
+    2, volatile_base: `volatile u8^`, `u8 volatile^`, `const volatile
+    u8^`, `volatile i64`; C's `volatile T`, named so; a `volatile u8^`
+    is no text, as kelvinc has it. A qualifier after what it qualifies,
+    `i64 const^`, is read, type_suffixes.
+  - **`(T, ...):R`**, a variadic function's type, konst 4 of a Y_FN,
+    variadic_fn: C's `R (*)(T, ...)`, called with more arguments than
+    its parameters; a variadic function's name is a value of it, and a
+    prototype with its body is one function, prototype_of_body.
+  - `nowhere` whose property is read is an `any^`: `nowhere.isNull`,
+    `.addr`, `.hex`, `.cstr`; `var r := nowhere` infers `any^`; it goes
+    where an `i64^?` goes, some of it; it is written `((void *)0)`.
+  - `p.addr` is a `uintptr_t`, whose `.size` and `.hex` are
+    properties; `f.hex` of a function value is its address.
+  - Of a header's struct, written `struct blob` or by a typedef, a
+    member named as a property wins, `.size`, `.addr`; a member named
+    `int64` is `i64`, the word's other spelling, put_tok; `l.label.cstr`
+    of its member is by C's `_Generic`, as `(a, b).cstr`; a pointer
+    member to a header's type, `xmlChar^`, prints as C decides,
+    `kv_cstr_put_pointer`; `int64(v)` of one reads its text, and of an
+    `i8^` and an `[i8](N)` too.
+  - A struct's last member of no count, `a:[i32]`, is C's flexible
+    array member.
+  - tests/run's casts_edge.k, casts_edge2.k, casts_edge3.k, cstr.k,
+    text_numbers.k, text_numbers_more.k, function_types.k, nowhere.k,
+    is_null.k, addr.k and properties_c.k, which kc refused, print what
+    kelvinc's print; selfhost/sample.k has the forms.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

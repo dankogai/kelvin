@@ -312,6 +312,18 @@ let fn_type_of(ps:const $[int64]^, r:int64):int64 {
     return type_of_kind(Y_FN, r, chain)
 }
 
+// the function type y with ... after its parameters, C's variadic one
+// (#729): a type of its own, konst 4, its parameters those written
+let variadic_fn(y:int64):int64 {
+    for i in 0..<types.count as int64 {
+        if types[i].konst == 4 && types[i].kind == Y_FN && types[i].elem == types[y].elem && types[i].name == types[y].name { return i }
+    }
+    let c:ty = {Y_FN, types[y].elem, types[y].name, 4}
+    types += c
+    fn_types += types.count as int64 - 1
+    return types.count as int64 - 1
+}
+
 // ---------- the cursor ----------
 
 let at_kind(k:tkind):bool {
@@ -848,6 +860,8 @@ let compound_ahead():bool {
         return false
     }
     if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
+    if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && c_headers && !local_named(pos + 1) && written_type(pos + 1) == 0 - 2 { return true }   // (div_t){...}, a C header's type, as kelvinc reads any name there (#729)
+    if at_word("(") && toks[pos + 1].kind == T_ID && (tok_is(pos + 2, "const") || tok_is(pos + 2, "volatile")) && tok_is(pos + 3, ")") && tok_is(pos + 4, "{") { return true }   // (size_t const){3}, its qualifier after it (#729)
     if at_word("(") && (number_word(pos + 1) >= 0 || tok_is(pos + 1, "bool")) && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") { return true }   // (int64){1}, a number's, as kelvinc's (#524)
     if at_word("(") && tagged_word(pos + 1) && tok_is(pos + 3, ")") && tok_is(pos + 4, "{") { return true }   // (struct T){...} (#453)
     if at_word("(") && tok_is(pos + 1, "typeof") && tok_is(pos + 2, "(") {   // (typeof(p)){...}, as kelvinc's (#696)
@@ -1561,10 +1575,20 @@ let parse_type_core():int64 {
         let y = parse_bare_type()
         return atomic_base(y, at)
     }
+    if at_word("volatile") {                             // volatile T, volatile const T (#729)
+        advance()
+        let both = at_word("const")
+        if both { advance() }
+        let y = volatile_base(parse_bare_type())
+        return both ? const_pointee(y) : y
+    }
     if at_word("const") {
         let const_at:int64 = advance()                   // where kelvinc says an array's qualifier (#688)
+        let vol = at_word("volatile")                    // const volatile T (#729)
+        if vol { advance() }
         let typed = value_type_at(pos)
-        let y = parse_bare_type()
+        let y0 = parse_bare_type()
+        let y = vol ? volatile_base(y0) : y0
         if typed && types[y].kind == Y_FIXED { return const_fixed(y) }   // const xs.type, const on its elements, as kelvinc's #34 (#425)
         if typed && types[y].kind == Y_TYPEOF { return type_of_kind(Y_TYPEOF, 1, types[y].name) }   // told so (#425)
         if types[y].kind == Y_ARRAY {               // as kelvinc has it of each spelling, $[T] (#273, #274)
@@ -1602,6 +1626,26 @@ let atomic_base(y:int64, at:int64):int64 {
     m += &w
     parse_error_at(at, m.cstr)
     return y
+}
+
+// volatile T (#729), C's, as kelvinc's: a type of its own, konst 3, as an
+// atomic one is of 2; of a pointer, what it points to at last
+let volatile_base(y:int64):int64 {
+    if failed { return y }
+    if types[y].kind == Y_PTR { return type_of_kind(Y_PTR, volatile_base(types[y].elem), types[y].name) }
+    if types[y].konst != 0 { return y }
+    for i in 0..<types.count as int64 {
+        if types[i].konst == 3 && types[i].kind == types[y].kind && types[i].elem == types[y].elem && (types[i].name == types[y].name || (types[y].kind == Y_STRUCT && same_text(types[i].name, types[y].name))) { return i }
+    }
+    let c:ty = {types[y].kind, types[y].elem, types[y].name, 3}
+    types += c
+    return types.count as int64 - 1
+}
+
+// the type y is the volatile of, or y (#729)
+let unvolatile(y:int64):int64 {
+    if y < 0 || types[y].konst != 3 { return y }
+    return type_of_kind(types[y].kind, types[y].elem, types[y].name)
 }
 
 // T^ atomic of the pointer y, konst 2 as an atomic number's, the
@@ -1717,6 +1761,11 @@ let fn_typed(y:int64):bool {
 let type_suffixes(y0:int64):int64 {
     var y:int64 = y0
     let cast_type = type_depth == cast_depth             // x as T ? a : b: the ? a choice's, as kelvinc's TYPE_AS (#710)
+    var const_after = false                              // T const^ and T volatile^, a qualifier after what it qualifies, as C's and kelvinc's (#729); (T const){v} too
+    while (at_word("const") || at_word("volatile")) && (tok_is(pos + 1, "^") || tok_is(pos + 1, ")") || tok_is(pos + 1, "const") || tok_is(pos + 1, "volatile") || tok_is(pos + 1, ":=") || tok_is(pos + 1, "=") || tok_is(pos + 1, ",") || tok_is(pos + 1, ";") || toks[pos + 1].kind == T_NL) {
+        if at_word("volatile") { y = volatile_base(y) } else { const_after = true }
+        advance()
+    }
     while at_word("^") || ((at_word("?") || at_word("??")) && !cast_type) {
         if at_word("??") {                       // T??, which lexes as ?? (#229)
             y = optional_of(optional_of(y))
@@ -1725,7 +1774,8 @@ let type_suffixes(y0:int64):int64 {
             y = optional_of(y)                   // T?, an Optional (#217)
             advance()
         } else {
-            y = type_of_kind(Y_PTR, y, -1)
+            y = type_of_kind(Y_PTR, y, const_after ? 1 : 0 - 1)
+            const_after = false
             advance()
             y = restrict_of(y)                   // T^ restrict (#393)
             if at_word("atomic") {               // T^ atomic, the pointer itself atomic, kelvinc's (#642, #701)
@@ -1896,10 +1946,12 @@ let parse_bare_type():int64 {
     if at_word("(") {                            // (T, U):R, a function type (#428)
         advance()
         var ps:$[int64] = $[]
+        var variadic = false
         while !at_word(")") && !failed {
-            if at_word("...") {
-                parse_error("kc's function types take no '...' yet: C's variadic functions are called by name")
-                return base_type(Y_VOID)
+            if at_word("...") {                          // (T, ...):R, C's variadic function's type, as kelvinc's (#729)
+                advance()
+                variadic = true
+                break
             }
             if at_kind(T_ID) && tok_is(pos + 1, ":") {   // (a:i64):i64, as kelvinc says it
                 parse_error("a function type lists its parameters' types without names")
@@ -1927,7 +1979,8 @@ let parse_bare_type():int64 {
                 r = parse_type()
             }
         }
-        return fn_type_of(&ps, r)
+        let fy:int64 = fn_type_of(&ps, r)
+        return variadic ? variadic_fn(fy) : fy
     }
     if at_word("{") || ((at_word("struct") || at_word("union") || at_word("enum")) && tok_is(pos + 1, "{")) {
         return type_suffixes(parse_anon_record())   // {x:f64, y:f64}, union{...}, enum{...}, with no tag (#476)
@@ -3323,6 +3376,7 @@ let parse_steps(first:int64):int64 {
             } else {
                 let n:int64 = make_node(N_FIELD, t)
                 nodes[n].a = e
+                if nodes[e].kind == N_NULL { nodes[e].flag = 7 }   // nowhere.isNull: its property's is an any^'s, as kelvinc's (#729)
                 e = n
             }
         } else if at_word("^") {

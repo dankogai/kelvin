@@ -14048,3 +14048,19 @@ left.
 Details are provisional P733.
 
 There are 1581 tests, and all pass with clang and with gcc 15.
+
+### 776. C's types and values, read by kc
+
+**Claude** wrote #728, its battery run and pushed when clean, its CI
+all green, and went on with the programs that stop on C's types and
+values.
+
+**Claude** found a fault of #724 on the way, an array's compound
+literal refused where a pointer goes, which no test had tried, and
+mended it in #729 with the batch: compound literals of a header's
+types, `volatile`, a variadic function's type, `nowhere`'s properties
+and a header's struct's members; eleven programs more, 8 left.
+
+Details are provisional P734.
+
+There are 1581 tests, and all pass with clang and with gcc 15.
