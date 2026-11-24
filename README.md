@@ -932,3 +932,6 @@ So far the changes from C are these, by topic.
 - kc reads zeros where a pointer goes, `var p:i64^ := [i64](3)`, and
   `[T](n)^`, a pointer to an array of a count C computes, as kelvinc
   does (#737)
+- A variable inferred from a value read through const, `var d = s[0]`
+  of a `cstr`, is the plain type, which changes, where it was const
+  and C refused the change; kc names such reads as kelvinc (#738)

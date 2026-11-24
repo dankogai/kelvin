@@ -96,6 +96,12 @@ let f := &twice           // a function's address is the function itself
     const Array<i64>^ points to, a read-only borrow`.
     - So is `p[i] = v` through a `const T^` (#733), which is what it
       points to `i` places on.
+    - A value read through it is a value (#738): `var y = p^` and
+      `var d = s[0]` of a `cstr` are a plain `i64` and `u8`, which
+      change, where the variable was const itself and C refused the
+      change. The read is const, and named so: `p^.typename` is
+      `const i64`, and a pointer's own const follows it, `cstr const`,
+      `const i64^ const^`.
   - A qualifier before an Array, a Dictionary or a Set is a borrow's
     alone, `const $[T]^`; `const $[T]` of a variable is an error that
     says a let is the variable's.

@@ -12540,6 +12540,10 @@ static Var *parse_var(bool with_init, int let) {
         int bound_at = scope_types.len - 1; /* the initializer may bind temporaries after it (#187) */
         v->init = parse_initializer();
         v->type = inferred_type(v->init, v->pos);
+        if (v->type) /* a value read through const, s[0] of a cstr or p^ of a let's address, is a value: the variable
+                        inferred of it is of the plain type, which a var changes (#738); what a pointer points to keeps
+                        its const */
+            v->type = own_unqualified(v->type);
         reject_unfit_literal(v->init, v->type); /* let x = 18446744073709551615, an i64 (#678) */
         reject_let_vla(v, let);
         reject_owner_copy(v->init, v->type, v->init->pos);

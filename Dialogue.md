@@ -14211,3 +14211,18 @@ asked what should happen.
 Details are provisional P742.
 
 There are 1592 tests, and all pass with clang and with gcc 15.
+
+### 785. A variable inferred from a read through const
+
+**Claude** wrote #737, its battery run and pushed when clean, and
+went on with the user's answer of the third batch.
+
+**Claude** made it #738: kelvinc infers the plain type of a variable
+from a value read through const, which a var changes; kc names what is
+read through const as kelvinc, a pointer's own const after it, and
+writes a pointer to a const pointer as C has it. What is left of the
+list is C's error in kelvinc, each listed in TODO.md.
+
+Details are provisional P743.
+
+There are 1593 tests, and all pass with clang and with gcc 15.

@@ -1783,6 +1783,10 @@ let type_suffixes(y0:int64):int64 {
                 advance()
                 y = atomic_pointer(y)
             }
+            if at_word("const") && tok_is(pos + 1, "^") {   // T^ const^, a pointer to a const pointer, its const after what it qualifies (#738)
+                const_after = true
+                advance()
+            }
         }
     }
     if types[y].kind == Y_CSTR && at_word("restrict") {   // cstr restrict, a pointer in C, as kelvinc's (#718)

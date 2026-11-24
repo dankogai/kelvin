@@ -1683,6 +1683,17 @@ kc reads what it is written in, and little more.
     no longer refuses it, and fixed_ptr_ok takes two computed counts
     for alike, C's to judge;
   - tests/run's array_zeros_pointer.k has them.
+- **The names of what is read through const** (#738), as kelvinc's,
+  the third batch of kc's small differences:
+  - `q[1]` and `q^` through a `const i64^`, a cstr's `s[1]` and an
+    element of a `[const T](N)` are named `const i64`, `const u8`,
+    const_read, which gen_typename asks; the variable inferred of one
+    is the plain type in both, kelvinc's fix of the same number;
+  - a pointer's own const follows it: `[cstr const](2)`, `cstr const`,
+    `const i64^ const^`, type_text; `T^ const^` is read, type_suffixes,
+    and written `const int64_t * const *`, put_ctype, where kc wrote
+    const twice before the type;
+  - tests/run's const_read_types.k has them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

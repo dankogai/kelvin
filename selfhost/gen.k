@@ -611,9 +611,10 @@ let put_ctype(y:int64) {
         }                                                        // else a C header's typedef (#207)
         put_tok(types[y].name)
     case Y_PTR:
-        if ptr_const(y) && types[types[y].elem].kind != Y_CSTR { put("const ") }   // const T^ (#272)
+        let own = types[types[y].elem].kind == Y_CSTR || types[types[y].elem].kind == Y_PTR   // a pointer's own const follows its *: const cstr^ (#470), const i64^ const^ (#738)
+        if ptr_const(y) && !own { put("const ") }       // const T^ (#272)
         put_ctype(types[y].elem)
-        put(ptr_const(y) && types[types[y].elem].kind == Y_CSTR ? " const *" : " *")   // const cstr^, whose text is const already (#470)
+        put(ptr_const(y) && own ? " const *" : " *")
         if ptr_restrict(y) { put("restrict") }          // T^ restrict (#393)
     case Y_ARGV: put("char **")
     case Y_FIXED:                                                // a fixed array is declared by put_fixed_decl (#354)
@@ -14168,6 +14169,20 @@ let function_typename(a:int64) {
 // x.typename (#426), as kelvinc's: the name of x's type as C text, x
 // never run, a '?' after a '?' escaped (#220); of a literal, whose type
 // is C's, "a" a u8^, or of what only C sees, C's _Generic, kv_typename
+// whether a reads through const: an element or p^ of a const T^, a
+// cstr's byte, an element of a [const T](N) or of a parameter's (#738)
+let const_read(a:int64):bool {
+    let k:nkind = nodes[a].kind
+    if k != N_INDEX && k != N_DEREF { return false }
+    let by:int64 = type_of(nodes[a].a)
+    if failed || by < 0 { return false }
+    let bk:ykind = types[by].kind
+    if bk == Y_PTR { return ptr_const(by) && types[types[by].elem].kind != Y_FIXED }
+    if k == N_INDEX && bk == Y_CSTR { return true }
+    if k == N_INDEX && bk == Y_FIXED { return types[by].konst == 1 || types[by].name == 0 - 3 || types[by].name == 0 - 4 }
+    return false
+}
+
 let gen_typename(n:int64) {
     let a:int64 = nodes[n].a
     if function_named(a) {
@@ -14182,7 +14197,13 @@ let gen_typename(n:int64) {
         put("))")
         return
     }
-    let raw:String = types[y].kind == Y_ARGV ? $"cstr^" : kelvin_type_text(y)   // a parameter's [cstr] is its pointer, as kelvinc names it (#730)
+    var raw:String = types[y].kind == Y_ARGV ? $"cstr^" : kelvin_type_text(y)   // a parameter's [cstr] is its pointer, as kelvinc names it (#730)
+    if const_read(a) {                                   // q[1] through a const i64^, s[1] of a cstr, a[0] of a [const T]: const i64, and a pointer's own const after it, cstr const, as kelvinc names it (#738)
+        let pointer = types[y].kind == Y_PTR || types[y].kind == Y_CSTR
+        var named = pointer ? raw.copy() : $"const "
+        if pointer { named += " const" } else { named += &raw }
+        raw = named.copy()
+    }
     let w:String = shown_text(raw.cstr, false)           // the files' own c64 is c64 (#600)
     put("\"")
     var after_q = false
@@ -15096,8 +15117,11 @@ let type_text(y:int64):String {
             s += "^"
             return s
         }
-        var s = types[y].name == 0 - 3 || types[y].konst == 1 ? $"[const " : $"["   // [const T](N) (#425)
+        let konst = types[y].name == 0 - 3 || types[y].konst == 1
+        let after = konst && (types[types[y].elem].kind == Y_PTR || types[types[y].elem].kind == Y_CSTR)   // [cstr const](2), a pointer's own const after it, as kelvinc spells it (#738)
+        var s = konst && !after ? $"[const " : $"["   // [const T](N) (#425)
         s += type_text(types[y].elem)
+        if after { s += " const" }
         s += "]"
         if types[y].name <= 0 - 10 {                     // [u8](n), of a count C computes (#366)
             let c:int64 = 0 - 10 - types[y].name
@@ -15117,12 +15141,14 @@ let type_text(y:int64):String {
         s += "]"
         return s
     case Y_PTR:
-        var s = ptr_const(y) ? $"const " : $""           // (#272)
+        let after = ptr_const(y) && types[y].elem >= 0 && (types[types[y].elem].kind == Y_PTR || types[types[y].elem].kind == Y_CSTR)   // a pointer's own const follows it: const i64^ const^, as kelvinc spells it (#738)
+        var s = ptr_const(y) && !after ? $"const " : $""           // (#272)
         let e = type_text(types[y].elem)
         let grouped = types[y].elem >= 0 && types[types[y].elem].kind == Y_FN   // ((i64):i64)^, as kelvinc spells it (#696)
         if grouped { s += "(" }
         s += &e
         if grouped { s += ")" }
+        if after { s += " const" }
         s += "^"
         if ptr_restrict(y) { s += " restrict" }          // (#393)
         return s

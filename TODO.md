@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #737 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #738 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -161,11 +161,16 @@ known, not what is planned.
     number goes;
   - zeros where a pointer goes, `var p:i64^ := [i64](3)`, and a
     pointer to an array of a count C computes, `[i64](n)^` (#737);
-  - left: the names of `q[1]` through a `const i64^`, `[cstr const](2)`
-    and `const i64^ const^`, with a fault of kelvinc's found there: a
-    variable inferred from a read through const is const itself, and
-    is to be the plain type, the user's answer; and those below that
-    are C's in kelvinc.
+  - the names of `q[1]` through a `const i64^`, `[cstr const](2)` and
+    `const i64^ const^`, and a fault of kelvinc's found there: a
+    variable inferred from a read through const was const itself, and
+    is the plain type, the user's answer (#738);
+  - left, each C's error in kelvinc, which kc says in Kelvin's words
+    or builds, the batches done: `v()` of a variadic value; a number
+    where a struct's array member goes; `var q:cstr const`, whose
+    const kc does not write; `ok({})` of a struct's Result; `while (i
+    == 0) (i) += 1`; and a function type's parameter of an inner count
+    another parameter gives, whose typedef kc writes with `n`.
 - Found while #724 was made:
   - `var o:i64? = [i64](3)` is kelvinc's `case 'some' of i64? holds an
     i64, and this is i64^`, and kc's too since #736.
@@ -187,9 +192,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of all 512 programs of
+- kc builds and prints what kelvinc's prints of all 513 programs of
   tests/run and examples, the quines as run.sh compares them, as of
-  #737.
+  #738.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
 - Found while #725 was made, kc's too since #736:
@@ -204,9 +209,12 @@ known, not what is planned.
   - A pointer to an array of a count C computes, `[i64](n)^`, is
     kelvinc's, and kc's too since #737.
   - `q[1].typename` through a `const i64^` is kelvinc's `const i64`,
-    and kc's `i64`; a cstr's `s[1]` likewise, `const u8`.
+    and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #738 was made, not changed:
+  - `typeof(k)` where an expression goes is kelvinc's `expected an
+    expression, found 'typeof'`, and C's error of kc's C.
 - Found while #737 was made, not changed:
   - Zeros of a count C computes where a pointer goes, `var q:i64^ :=
     [i64](n)`, are C's error of both, `compound literal cannot be of
@@ -221,9 +229,8 @@ known, not what is planned.
     both.
 - Found while #733 was made, not changed:
   - `[const cstr](2)` is named `[cstr const](2)` by kelvinc's
-    `.typename` and `[const cstr](2)` by kc's.
-  - A pointer to a const pointer is `const i64^ const^` in kelvinc's
-    words and `const const i64^^` in kc's.
+    `.typename`, and a pointer to a const pointer `const i64^ const^`:
+    kc's too since #738.
   - `var c:[i64](2)` with no value is not zeroed by kelvinc, and is by
     kc.
 - Found while #730 was made, not changed:
@@ -277,7 +284,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P741 and P742, the details of #736 and #737, until reviewed; the reviews confirmed
+- P741 to P743, the details of #736 to #738, until reviewed; the reviews confirmed
   every row to P740, and a review's own detail row is confirmed by that
   review (#675).
 
