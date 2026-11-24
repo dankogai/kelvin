@@ -13964,3 +13964,27 @@ confirmed by #723.
 Details are P728, confirmed by #723 itself.
 
 There are 1572 tests, and all pass with clang and with gcc 15.
+
+### 771. A let's array const in C, and a list where no array is declared
+
+**Claude** reported #723 and listed what was left: the 30 programs
+kc does not build, the two differences found while #717 was made,
+kelvinc's `(T?){}` and kc's own error of `q[i]` through a `[T](N)^`.
+
+**User:** go on with them all
+
+**Claude** asked what an Optional's empty braces should mean, which
+kelvinc builds as `some(0)`; whether `q[i]` of a `q:[T](N)^` should be
+read, as kelvinc reads it, or refused, as kc refuses it; and whether
+to push each numbered change when its battery is clean.
+
+**User:** none (recommended); kc reads it as kelvinc (recommended);
+push each when clean (recommended)
+
+**Claude** made the two differences #724: a let's local array is
+written with C's const, and a list where no array is declared is
+kelvinc's error in its words, with two tests of tests/error.
+
+Details are provisional P729.
+
+There are 1574 tests, and all pass with clang and with gcc 15.

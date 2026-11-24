@@ -1475,6 +1475,18 @@ kc reads what it is written in, and little more.
   - tests/run's anon_owner_result.k and method_overload.k, which kc
     refused, print what kelvinc's print: the last of the unlisted
     failures the user ordered taught after #709.
+- **A let's array const in C, and a list where no array is declared**
+  (#724), as kelvinc's, the two differences found while #717 was made:
+  - a let's local array is written with C's const, `const int32_t
+    a[2]`, by put_fixed_decl, a pointer's own const after its star,
+    `const uint8_t * const names[2]`; a global's `[const T]` of a let
+    has one const where it had two;
+  - a list where no array is declared is kelvinc's error in its words,
+    list_refused: `'[...]' initializes an array, and this is
+    Array<i64>: write a value`; a record's, an Optional's and a
+    Result's say `a struct or union is initialized with '{...}'`; and
+    `[T](n)` there is `'x' is an i64, and this is i64^`;
+  - tests/error's brackets_not_array.k and zeros_not_array.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -898,3 +898,5 @@ So far the changes from C are these, by topic.
   (#721)
 - kc takes and gives owners through function values, as kelvinc does
   (#722)
+- kc writes a let's local array with C's `const` and says a list where
+  no array is declared in kelvinc's words (#724)

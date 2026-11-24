@@ -15274,8 +15274,16 @@ let put_alignas(n:int64) {
 }
 
 let put_fixed_decl(y:int64, name:int64) {
-    put_fixed_base(y)
-    if fixed_const { put(" const") }                     // int64_t const g[3], const uint8_t * const s[2]
+    var base:int64 = y
+    var konst = false
+    while types[base].kind == Y_FIXED {
+        if types[base].konst == 1 { konst = true }
+        base = types[base].elem
+    }
+    let star = types[base].kind == Y_PTR || types[base].kind == Y_CSTR   // C's T *, whose own const follows it
+    if (konst && types[base].kind != Y_CSTR) || (fixed_const && !star) { put("const ") }   // const int64_t g[3], once, as kelvinc writes it (#724)
+    put_ctype(base)
+    if fixed_const && star { put(" const") }             // const uint8_t * const s[2]
     put(" ")
     put_tok(name)
     put_fixed_counts(y)
@@ -15640,7 +15648,10 @@ let gen_fixed_var(n:int64) {
     } else if v >= 0 && nodes[v].kind == N_STR {        // [u8] = "hi", C's array of text, its count C's, as kelvinc's (#717)
         set_ty(n, y)
         put_alignas(n)
+        let text_const = fixed_const
+        if nodes[n].flag == 1 { fixed_const = true }     // (#724)
         put_fixed_decl(y, nodes[n].t)
+        fixed_const = text_const
         put(" = ")
         gen_expr(v)
         put(";\n")
@@ -15659,7 +15670,10 @@ let gen_fixed_var(n:int64) {
     }
     set_ty(n, y)                                         // S_VAR declares it so
     put_alignas(n)                                       // (#396)
+    let global_const = fixed_const
+    if nodes[n].flag == 1 { fixed_const = true }         // a let's elements are C's const, a local's too, as kelvinc's (#724)
     put_fixed_decl(y, nodes[n].t)
+    fixed_const = global_const
     put(" = ")
     if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 0 && nodes[v].b >= 0 {
         gen_fixed_list(v, y)
@@ -15683,12 +15697,51 @@ let temp_borrowed(v:int64):bool {
     return true
 }
 
+// let xs:Array<i64> = [1], a list where no array is declared, kelvinc's
+// error in its words (#724): a record's, an Optional's and a Result's
+// say '{...}', the rest a value; a reference given by '=' says that
+// first, and what only C sees takes C's { }
+let list_refused(n:int64):bool {
+    let y:int64 = nodes[n].ty
+    let k:ykind = types[y].kind
+    if k == Y_FIXED || k == Y_ARGV || k == Y_C || k == Y_TYPEOF { return false }
+    if (k == Y_CSTR || k == Y_PTR || k == Y_FN) && nodes[n].c != 1 { return false }
+    if k == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return false }   // a C header's type
+    if nodes[nodes[n].a].flag == 1 {                     // [T](n), which is its first element's address there: 'x' is an i64, and this is i64^
+        if k == Y_CSTR || k == Y_PTR || k == Y_FN || (k == Y_STRUCT && tagged_of(y) >= 0 && (nodes[tagged_of(y)].c == 1 || kc_made(types[y].name))) { return false }
+        let zy:int64 = type_of(nodes[n].a)
+        if failed || zy < 0 || types[zy].kind != Y_FIXED { return false }
+        var z = $"'"
+        z += tok_text(nodes[n].t)
+        z += "' is "
+        let zw:String = kelvin_type_text(y)
+        z += article_of(&zw)
+        z += " "
+        z += &zw
+        z += ", and this is "
+        let ew:String = kelvin_type_text(types[zy].elem)
+        z += &ew
+        z += "^"
+        gen_error(nodes[n].a, z.cstr)
+        return true
+    }
+    var m = $"'[...]' initializes an array, and this is "
+    let record = k == Y_STRUCT && !enum_int(y)
+    if record && tagged_of(y) >= 0 && nodes[tagged_of(y)].c != 1 && !kc_made(types[y].name) { m += "struct " }   // an enum with values, as kelvinc spells it
+    if enum_int(y) { m += "enum " }
+    let w:String = kelvin_type_text(y)
+    m += &w
+    m += record ? ": a struct or union is initialized with '{...}'" : ": write a value"
+    gen_error(nodes[n].a, m.cstr)
+    return true
+}
+
 let gen_var(n:int64) {
     let written = nodes[n].ty >= 0
     if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
     if failed { return }
     if nodes[n].a >= 0 && temp_borrowed(nodes[n].a) { return }   // let p := &$"text" (#187, #612)
-    if nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_LIST && nodes[n].ty >= 0 && types[nodes[n].ty].kind == Y_STRUCT && struct_of(nodes[n].ty) >= 0 {   // let p:point = [1, 2], as kelvinc says it
+    if nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_LIST && nodes[nodes[n].a].flag == 0 && nodes[n].ty >= 0 && types[nodes[n].ty].kind == Y_STRUCT && struct_of(nodes[n].ty) >= 0 {   // let p:point = [1, 2], as kelvinc says it
         var m = $"'[...]' initializes an array, and this is "
         m += nodes[struct_of(nodes[n].ty)].flag == 1 ? "union " : "struct "
         let w:String = kelvin_type_text(nodes[n].ty)
@@ -15697,6 +15750,7 @@ let gen_var(n:int64) {
         gen_error(nodes[n].a, m.cstr)
         return
     }
+    if written && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_LIST && list_refused(n) { return }   // let xs:Array<i64> = [1] (#724)
     if written && nodes[n].a >= 0 && nodes[n].t < eof_pos {   // its value of its type, in Kelvin's words (#255, #612)
         if record_differs(nodes[n].a, nodes[n].ty) { return }
         var lead = $"'"

@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #723 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #724 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -50,9 +50,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1039 programs kelvinc refuses in kelvinc's words:
-  the 990 of #652 to #656, and those of #659 to #678, #702 and #705
-  alike.
+- kc says each of the 1041 programs kelvinc refuses in kelvinc's words:
+  the 990 of #652 to #656, and those of #659 to #678, #702, #705 and
+  #724 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -138,13 +138,17 @@ known, not what is planned.
 - kc reads `.pretty` of an enum with values, `async` of a function
   value and a number's text in a brace-less for body, as kelvinc's
   (#721).
-- Found while #717 was made, not changed:
-  - kc writes a let's local array without C's `const`, `int32_t a[2]`,
-    where kelvinc writes `const int32_t a[2]`; kc's own checks keep it
-    read-only, and what is printed is the same.
-  - `let xs:Array<i64> = [1]` is kelvinc's error `'[...]' initializes
-    an array, and this is Array<i64>: write a value`, and kc's `an
-    array is not a value here: ...`; no test of tests/error has it.
+- kc writes a let's local array with C's `const`, `const int32_t
+  a[2]`, and says a list where no array is declared in kelvinc's words,
+  `'[...]' initializes an array, and this is Array<i64>: write a
+  value`, the two differences found while #717 was made (#724).
+- Found while #724 was made, not changed:
+  - `var o:i64? = [i64](3)` is kelvinc's `case 'some' of i64? holds an
+    i64, and this is i64^`, and kc's `... and this is [i64](3)`.
+  - `var p:i64^ := [i64](3)`, zeros where a pointer goes, is kelvinc's
+    zeroed compound literal, `(int64_t [3]){0}`, and kc's error.
+  - A type name that is not known, `let j:JSON = [1]` with no import,
+    is kelvinc's `unknown type name 'JSON'`; kc leaves it to C.
 - Places where kc reads not yet what kelvinc reads, 29 as counted after
   #675, ordered taught in batches after #691:
   - `(T?){}`, which kelvinc builds as `some(0)`, a zeroed C struct whose
@@ -162,12 +166,22 @@ known, not what is planned.
   #722; the 30 of the rest need C headers, #inline C or a JS module.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
+- The user's order after #723, go on with them all, each pushed when
+  its battery is clean:
+  - the two differences found while #717 was made (#724);
+  - `(T?){}` and `x:T? = {}`, none in both compilers, as an Optional
+    declared with no value, the user's answer;
+  - `q[i]` of a `q:[T](N)^`, read by kc as kelvinc reads it, the user's
+    answer, where kc says its own error (#362);
+  - the 30 programs kc does not build, in batches, `#inline C` passed
+    through to C among them.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P728, and a review's own
-  detail row is confirmed by that review (#675).
+- P729, the details of #724, until reviewed; the reviews confirmed
+  every row to P728, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 
