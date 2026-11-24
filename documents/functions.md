@@ -463,6 +463,9 @@ let main():int32 {
     declared ahead, `struct b;`, as in Swift.
     - Not past an `#import` before it: a file imported reads what is
       written before it.
+    - What it names moves with it (#734): a struct written after
+      `main` and before a global that `main` names is moved up before
+      that global, which was read before the struct's members.
   - A local is still declared before it is used, as in C, and once in
     a block: `let n = 1` and then `var n = 2` is kelvinc's error, `'n'
     is declared already in this block` (#628), where it was C's. A

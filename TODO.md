@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #733 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #734 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -50,14 +50,9 @@ known, not what is planned.
     kelvinc's C, and with it every element of a `[const T](N)` and
     `p[i] = v` through a `const T^`: errors in Kelvin's words (#733);
   - a global whose value needs a struct written after a function that
-    names the global, below.
-- A global whose value needs a struct written after a function that
-  names the global, `let tb:[e](2) = [{"inc", { $0 + 1 }}]` with
-  `struct e` after `main`, is kelvinc's `'$0' is a parameter of an
-  anonymous function, and this is not in one`: the global's value is
-  read where it is first named, before the struct's members; kc builds
-  it. Found while #730 was made, not changed.
-- Else none known: an integer literal past u64's greatest is kelvinc's error,
+    names the global: the struct is moved up with the global (#734).
+  With it the three are done.
+- None known: an integer literal past u64's greatest is kelvinc's error,
   and so is one past i64's in a declaration with no type (#678), found
   while literals.md was written (#677).
 - A member of arithmetic, `(n + 1).foo`, is kelvinc's error (#669).
@@ -176,9 +171,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of all 510 programs of
+- kc builds and prints what kelvinc's prints of all 511 programs of
   tests/run and examples, the quines as run.sh compares them, as of
-  #732.
+  #734.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
 - Found while #725 was made, not changed:
@@ -256,7 +251,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P737 and P738, the details of #732 and #733, until reviewed; the reviews confirmed
+- P737 to P739, the details of #732 to #734, until reviewed; the reviews confirmed
   every row to P736, and a review's own detail row is confirmed by that
   review (#675).
 

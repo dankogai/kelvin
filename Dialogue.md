@@ -14136,3 +14136,18 @@ found with it are mended, a row's const elements lost and a var of
 Details are provisional P738.
 
 There are 1585 tests, and all pass with clang and with gcc 15.
+
+### 781. A global moved up takes its types with it
+
+**Claude** wrote #733, its battery run and pushed when clean, and
+went on with the third fault, found in hoist_place: a type written
+before a global was taken for placed, where the global was being moved
+up past it.
+
+**Claude** made it #734: a global moved up to before what names it
+takes the types it names with it; the three faults of the user's order
+are done.
+
+Details are provisional P739.
+
+There are 1586 tests, and all pass with clang and with gcc 15.

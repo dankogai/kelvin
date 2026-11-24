@@ -18447,8 +18447,10 @@ static void hoist_place(int k) {
             mt->declared = true;
             continue;
         }
-        if (mt->state || m < k || mt->seg > it->seg)
-            continue; /* placed, written before it, or past an import before it */
+        if (mt->state || mt->seg > it->seg)
+            continue; /* placed, as all written before the first being placed are, or past an import before it; one
+                         written before this one and after that first, which this one is moved up past, is placed
+                         before it too (#734) */
         hoist_depth++;
         hoist_place(m);
         hoist_depth--;

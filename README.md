@@ -923,3 +923,6 @@ So far the changes from C are these, by topic.
 - An element of a `[const T](N)`, behind a pointer too, and `p[i] = v`
   through a `const T^` are errors in Kelvin's words, where they were
   C's (#733)
+- A global used before it is written takes the types it names with
+  it where it is moved up, a struct written after `main` among them
+  (#734)
