@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #727 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #728 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -160,9 +160,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of 484 of the 509 programs
+- kc builds and prints what kelvinc's prints of 490 of the 509 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #727; the 25 of the rest import C headers or a JS module, and stop
+  #728; the 19 of the rest import C headers or a JS module, and stop
   on what kc reads otherwise than kelvinc.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
@@ -203,17 +203,19 @@ known, not what is planned.
     through to C among them:
     - `#inline C` (#727): inline_c, inline_c_fn, inline_c_hash,
       no_trigraphs, stmt_macros;
-    - the 25 left: addr, anonymous_edge, anonymous_values, array_types,
+    - lines that go on and five forms beside them (#728):
+      semicolons_edge, semicolons_more, pointer_step, methods_edge,
+      order_free, tag_names_edge;
+    - the 19 left: addr, anonymous_edge, anonymous_values, array_types,
       casts_edge, casts_edge2, casts_edge3, coalesce_text, cstr,
       function_types, io_kill, io_process, io_signal, is_null,
-      local_storage, methods_edge, nowhere, order_free, pointer_step,
-      properties_c, semicolons_edge, semicolons_more, tag_names_edge,
-      text_numbers, text_numbers_more.
+      local_storage, nowhere, properties_c, text_numbers,
+      text_numbers_more.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P729 to P732, the details of #724 to #727, until reviewed; the reviews confirmed
+- P729 to P733, the details of #724 to #728, until reviewed; the reviews confirmed
   every row to P728, and a review's own detail row is confirmed by that
   review (#675).
 

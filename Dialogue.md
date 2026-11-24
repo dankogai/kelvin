@@ -14032,3 +14032,19 @@ reads otherwise than kelvinc.
 Details are provisional P732.
 
 There are 1581 tests, and all pass with clang and with gcc 15.
+
+### 775. Lines that go on, read by kc
+
+**Claude** wrote #727, its battery run and pushed when clean, its CI
+all green, and went on with the six programs that stop on how a line
+ends or goes on.
+
+**Claude** made it #728: a `{`, `as`, `[` and a product's `*` at the
+start of a line, `return`'s value on the next line, `q++` in a `for`'s
+clause, `1.e5`, a function of a wide name used before it is written,
+`sizeof(big^)` of a variable and a header struct's method; 19 are
+left.
+
+Details are provisional P733.
+
+There are 1581 tests, and all pass with clang and with gcc 15.

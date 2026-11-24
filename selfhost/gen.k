@@ -1578,7 +1578,8 @@ let recv_type(recv:int64):int64 {
     if tok_is(recv, "String") { return base_type(Y_STRING) }
     if tok_is(recv, "Bytes") { return base_type(Y_BYTES) }
     if number_word(recv) >= 0 { return number_word(recv) }   // extend u32, a codepoint's (#527)
-    return type_of_kind(Y_STRUCT, -1, recv)
+    let tag:int64 = decl_named(recv, D_STRUCT) < 0 ? c_tags.get(tok_text(recv), 0 - 1) : 0 - 1   // timespec of struct timespec;, a header's struct, C's struct timespec (#453, #728)
+    return type_of_kind(Y_STRUCT, tag, recv)
 }
 var method_names_of:Dictionary<int64, int64>   // a method of several by its parameters' types: the token of its name as written (#515)
 var method_targets:Dictionary<int64, int64>    // the method each call of such a name chose
@@ -2970,8 +2971,8 @@ let type_of(n:int64):int64 {
         if failed { return 0 - 1 }
         if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") { return base_type(Y_VOID) }
         let d:int64 = call_target(n)                       // the overload its arguments fit (#234)
-        if nodes[f].kind == N_ID && wide_tok(nodes[f].t) && (d < 0 || (toks[nodes[d].t].file == toks[nodes[f].t].file && nodes[d].t > nodes[f].t)) {
-            unknown_wide(n, nodes[f].t)                  // declared where it is used, as kelvinc has it (#385)
+        if nodes[f].kind == N_ID && wide_tok(nodes[f].t) && d < 0 {
+            unknown_wide(n, nodes[f].t)                  // one declared nowhere, as kelvinc has it (#385); one written after its call is known, as any function (#505, #728)
             return -1
         }
         if d < 0 && c_headers { return base_type(Y_C) }      // a C header's function (#207)
@@ -14147,8 +14148,17 @@ let gen_sizeof(n:int64):bool {
         return true
     }
     put("((int64_t)sizeof(")
+    var by:int64 = y                                     // sizeof(big^) where a variable big hides the struct: what it points to, C's sizeof *p, as kelvinc's (#728)
+    var stars:int64 = 0
+    while by >= 0 && types[by].kind == Y_PTR && types[by].elem >= 0 {
+        by = types[by].elem
+        stars += 1
+    }
     if y >= 0 && types[y].kind == Y_STRUCT && types[y].name >= 0 && var_type(types[y].name) >= 0 {
         put_tok(types[y].name)
+    } else if stars > 0 && by >= 0 && types[by].kind == Y_STRUCT && types[by].name >= 0 && types[by].name < eof_pos && (var_type(types[by].name) >= 0 || (declaring >= 0 && same_text(types[by].name, declaring))) {
+        for _ in 0..<stars { put("*") }
+        put_tok(types[by].name)
     } else if y >= 0 {
         put_ctype(y)
     } else if nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 && decl_named(nodes[a].t, D_FN) >= 0 {
@@ -15770,7 +15780,19 @@ let list_refused(n:int64):bool {
     return true
 }
 
+// the variable whose declaration is being written, in scope from its
+// declarator, as C's: sizeof(big^) in the value of let big:big^ is of
+// what it points to (#728)
+var declaring:int64 = 0 - 1
+
 let gen_var(n:int64) {
+    let outer_declaring:int64 = declaring
+    declaring = nodes[n].t
+    gen_var_of(n)
+    declaring = outer_declaring
+}
+
+let gen_var_of(n:int64) {
     let written = nodes[n].ty >= 0
     if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
     if failed { return }
@@ -22700,8 +22722,8 @@ let gen_stmt_of(n:int64, depth:int64) {
     case S_IFLET: gen_iflet(n, depth)
     case S_RETURN:
         gen_return(n)
-        let after:int64 = nodes[n].next                  // as kelvinc says it (#611)
-        if nodes[n].a < 0 && after >= 0 && !failed && nodes[n].t < eof_pos && !tok_is(nodes[n].t + 1, ";") && (nodes[current].ty < 0 || types[nodes[current].ty].kind == Y_VOID) {
+        let after:int64 = nodes[n].next                  // as kelvinc says it (#611); a label, or what holds one, may be gone to (#728)
+        if nodes[n].a < 0 && after >= 0 && !failed && nodes[n].t < eof_pos && !tok_is(nodes[n].t + 1, ";") && (nodes[current].ty < 0 || types[nodes[current].ty].kind == Y_VOID) && !holds_kind(after, S_LABEL, true) {
             gen_error(after, "this never runs: in a function with no result, 'return' ends at the end of its line, and this follows it in the same block")
         }
     case S_BREAK: put("break;\n")
@@ -23158,21 +23180,26 @@ let has_return(s0:int64):bool {
 
 // whether s, or a statement after it, holds #inline C anywhere: C's own,
 // which kc does not follow, as kelvinc's unfollowed (#727)
-let holds_inline(s0:int64):bool {
+let holds_inline(s0:int64):bool { holds_kind(s0, S_INLINE, false) }
+
+// whether s0, and where one is false a statement after it, is of kind
+// want or holds one anywhere (#728)
+let holds_kind(s0:int64, want:nkind, one:bool):bool {
     var s:int64 = s0
     while s >= 0 {
         let k:nkind = nodes[s].kind
-        if k == S_INLINE { return true }
-        if k == S_BLOCK && holds_inline(nodes[s].a) { return true }
-        if (k == S_IF || k == S_IFLET || k == S_WHILE || k == S_DO) && (holds_inline(nodes[s].b) || holds_inline(nodes[s].c)) { return true }
-        if (k == S_FOR || k == S_EACH || k == S_CFOR) && holds_inline(nodes[s].c) { return true }
+        if k == want { return true }
+        if k == S_BLOCK && holds_kind(nodes[s].a, want, false) { return true }
+        if (k == S_IF || k == S_IFLET || k == S_WHILE || k == S_DO) && (holds_kind(nodes[s].b, want, false) || holds_kind(nodes[s].c, want, false)) { return true }
+        if (k == S_FOR || k == S_EACH || k == S_CFOR) && holds_kind(nodes[s].c, want, false) { return true }
         if k == S_SWITCH {
             var c:int64 = nodes[s].b
             while c >= 0 {
-                if holds_inline(nodes[c].b) { return true }
+                if holds_kind(nodes[c].b, want, false) { return true }
                 c = nodes[c].next
             }
         }
+        if one { return false }
         s = nodes[s].next
     }
     return false

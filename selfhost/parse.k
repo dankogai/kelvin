@@ -2225,6 +2225,16 @@ let c_body_ahead(c:int64):bool {
     return k == T_ID || k == T_NUM || k == T_STR || k == T_TPL_HEAD || tok_is(a, ";")
 }
 
+// the word w where it begins the next line, the lines before it passed:
+// a head's { on the line after it, and an else after a }, as kelvinc,
+// which has no lines there, reads them (#35, #728)
+let word_below(w:cstr) {
+    if !at_kind(T_NL) { return }
+    var k:int64 = pos
+    while toks[k].kind == T_NL { k += 1 }
+    if tok_is(k, w) && toks[k].file == toks[pos - 1].file { pos = k }
+}
+
 // a statement among a block's, an anonymous function's or a case's:
 // #inline C { ... } there is C statements where they stand, and what it
 // names C's, as a header's (#727); after a label it is the label's
@@ -3209,6 +3219,21 @@ let place_follows():bool {
 
 var chains = 0                                   // the names of chains kc makes (#221)
 
+// where the simple statement being read began, or -1: a ++ at its own
+// level, in no ( ), [ ] or { } of it, steps as a statement where a , or
+// the ) of a for's clauses follows (#728)
+var simple_from:int64 = 0 - 1
+
+let simple_level():bool {
+    if simple_from < 0 { return false }
+    var depth:int64 = 0
+    for k in simple_from..<pos {
+        if tok_is(k, "(") || tok_is(k, "[") || tok_is(k, "{") || tok_is(k, "$[") || tok_is(k, "${") { depth += 1 }
+        if tok_is(k, ")") || tok_is(k, "]") || tok_is(k, "}") { depth -= 1 }
+    }
+    return depth == 0
+}
+
 // the postfix steps after e: calls, members, indexes, x!, x?.m
 let parse_steps(first:int64):int64 {
     var e:int64 = first
@@ -3218,7 +3243,12 @@ let parse_steps(first:int64):int64 {
             while toks[q].kind == T_NL { q += 1 }
             if tok_is(q, ".") && toks[q + 1].kind == T_ID { skip_newlines() }
         }
-        if (at_word("++") || at_word("--")) && !(toks[pos + 1].kind == T_NL || tok_is(pos + 1, ";") || tok_is(pos + 1, "}") || toks[pos + 1].kind == T_EOF) {   // p--^, as kelvinc says it
+        if at_kind(T_NL) {                               // and [ there, an index, as kelvinc's continues_expression (#728)
+            var q:int64 = pos
+            while toks[q].kind == T_NL { q += 1 }
+            if tok_is(q, "[") && toks[q].file == toks[pos - 1].file { skip_newlines() }
+        }
+        if (at_word("++") || at_word("--")) && !(toks[pos + 1].kind == T_NL || tok_is(pos + 1, ";") || tok_is(pos + 1, "}") || toks[pos + 1].kind == T_EOF) && !((tok_is(pos + 1, ",") || tok_is(pos + 1, ")")) && simple_level()) {   // p--^, as kelvinc says it; q++ in a for's clause and a comma list is a statement (#728)
             var m = $"'"
             m += tok_text(pos)
             m += "' is a statement in Kelvin, not a value: step the pointer on a line of its own"
@@ -3430,6 +3460,7 @@ let parse_unary():int64 {
 // is (-x) as u8, &b as T^ (&b) as T^ (#453), where kc had read &(b as T^)
 let parse_cast():int64 {
     var e:int64 = parse_unary()
+    lines_before("as")                                   // as on the next line goes on, as kelvinc's (#728)
     while at_word("as") || annotation_ahead() {          // x as T, x:T (#264)
         let t:int64 = advance()
         let n:int64 = make_node(N_CAST, t)
@@ -3479,6 +3510,27 @@ let range_ends():bool {
     return !(at_word("(") || at_word("-") || at_word("+") || at_word("!") || at_word("&") || at_word("$[") || at_word("${") || at_word("[") || at_word("."))
 }
 
+// whether the operand at token j0, with its postfixes, is assigned to, as
+// in *p = 1, *p.x += 2 or *(p + 1) = 3, as kelvinc's assigned_after (#728)
+let group_end(i:int64):int64    // a prototype
+let lines_before(w:cstr)    // a prototype: as on the next line
+
+let assigned_after(j0:int64):bool {
+    var j:int64 = tok_is(j0, "(") ? group_end(j0) : j0 + 1
+    while true {
+        if tok_is(j, ".") && toks[j + 1].kind == T_ID {
+            j += 2
+        } else if tok_is(j, "[") || tok_is(j, "(") {
+            j = group_end(j)
+        } else if tok_is(j, "^") {
+            j += 1
+        } else {
+            break
+        }
+    }
+    return tok_is(j, "=") || tok_is(j, ":=") || tok_is(j, "+=") || tok_is(j, "-=") || tok_is(j, "*=") || tok_is(j, "/=") || tok_is(j, "%=") || tok_is(j, "<<=") || tok_is(j, ">>=") || tok_is(j, "&=") || tok_is(j, "~=") || tok_is(j, "|=") || tok_is(j, "??=") || tok_is(j, "!!=") || tok_is(j, "**=") || tok_is(j, "++") || tok_is(j, "--")
+}
+
 // whether a binary operator starts the next line, which goes on with the
 // expression before it, as kelvinc's continues_expression
 let operator_on_next_line():bool {
@@ -3513,7 +3565,7 @@ let parse_binary(min:int64):int64 {
     while !failed {
         if operator_on_next_line() {
             skip_newlines()
-            if at_word("*") && toks[pos + 1].kind == T_ID && adjacent(pos, pos + 1) {   // a line of *p = 1, as kelvinc says it
+            if at_word("*") && (toks[pos + 1].kind == T_ID || tok_is(pos + 1, "(")) && adjacent(pos, pos + 1) && assigned_after(pos + 1) {   // a line of *p = 1, as kelvinc says it; *PI*r goes on with a product (#728)
                 parse_error("dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'")
                 return e
             }
@@ -3637,7 +3689,7 @@ let c_cast_ahead(t:int64):bool {
         }
         return false
     }
-    let operand = toks[after].kind == T_ID || toks[after].kind == T_NUM || toks[after].kind == T_STR || tok_is(after, "!") || tok_is(after, "++") || tok_is(after, "--") || tok_is(after, "sizeof")
+    let operand = (toks[after].kind == T_ID && !tok_is(after, "as")) || toks[after].kind == T_NUM || toks[after].kind == T_STR || tok_is(after, "!") || tok_is(after, "++") || tok_is(after, "--") || tok_is(after, "sizeof")
     let maybe = tok_is(after, "(") || tok_is(after, "*") || tok_is(after, "&") || tok_is(after, "-") || tok_is(after, "~")
     if tok_is(word, "void") && !marks && (operand || maybe || toks[after].kind == T_NL || tok_is(after, ";")) {
         parse_error_at(t, "C casts are not Kelvin: to discard a value, write it as a statement of its own")
@@ -3819,13 +3871,17 @@ let parse_if():int64 {
     }
     let cond_at:int64 = pos
     set_a(n, parse_cond())
+    word_below("{")
     if !at_word("{") && !failed {                        // if (n > 0) n = 0, as kelvinc says it
         parse_error(c_body_ahead(cond_at) ? "the body of 'if' is a block: write 'if cond { ... }'" : "expected '{': the body of 'if' is a block, as in 'if cond { ... }'")
         return n
     }
     set_b(n, parse_block())
+    word_below("else")
     if at_word("else") {
         advance()
+        word_below("{")
+        word_below("if")
         if at_word("if") {
             set_c(n, parse_if())
         } else if !at_word("{") {                        // as kelvinc says it
@@ -3856,6 +3912,7 @@ let parse_switch():int64 {
 let parse_switch_body():int64 {
     let n:int64 = make_node(S_SWITCH, advance())
     set_a(n, parse_cond())
+    word_below("{")
     expect("{")
     skip_newlines()
     var last = -1
@@ -4131,11 +4188,13 @@ let parse_statement():int64 {
     }
     if at_word("do") {                                   // do { } while c, C's (#459)
         let n:int64 = make_node(S_DO, advance())
+        word_below("{")
         if !at_word("{") {                               // as kelvinc says it
             parse_error("expected '{': the body of 'do' is a block")
             return n
         }
         set_b(n, parse_block())
+        word_below("while")
         if !at_word("while") {
             parse_error("expected 'while' after the body of 'do'")
             return n
@@ -4229,6 +4288,7 @@ let parse_statement():int64 {
         let n:int64 = make_node(S_WHILE, advance())
         let cond_at:int64 = pos
         set_a(n, parse_cond())
+        word_below("{")
         if !at_word("{") && !failed {                    // as kelvinc says it
             parse_error(c_body_ahead(cond_at) ? "the body of 'while' is a block: write 'while cond { ... }'" : "expected '{': the body of 'while' is a block, as in 'while cond { ... }'")
             return n
@@ -4277,6 +4337,7 @@ let parse_statement():int64 {
             parse_error("expected '..<' or '...' in a range, as in '0..<n' or '1...n'")
             return make_node(S_BREAK, v)
         }
+        word_below("{")
         if !failed && !at_word("{") {                    // as kelvinc says it
             parse_error("expected '{': the body of 'for' is a block, as in 'for i in a..<b { ... }'")
             return make_node(S_BREAK, v)
@@ -4300,6 +4361,11 @@ let parse_statement():int64 {
     }
     if at_word("return") {
         let n:int64 = make_node(S_RETURN, advance())
+        if at_kind(T_NL) && fn_parsing >= 0 && nodes[fn_parsing].kind == D_FN && nodes[fn_parsing].ty >= 0 && types[nodes[fn_parsing].ty].kind != Y_VOID {
+            var k:int64 = pos                            // in a function with a result, return takes the value on the next line, as kelvinc's #35 (#728)
+            while toks[k].kind == T_NL { k += 1 }
+            if !tok_is(k, "}") && !tok_is(k, ";") && toks[k].kind != T_EOF && toks[k].file == toks[pos - 1].file { pos = k }
+        }
         if !at_kind(T_NL) && !at_word("}") && !at_word(";") { set_a(n, parse_expr()) }
         end_statement()
         return n
@@ -4325,7 +4391,10 @@ let parse_statement():int64 {
 // an expression or an assignment, a statement's or a C for's step (#458)
 let parse_simple():int64 {
     let t:int64 = pos
+    let outer_simple:int64 = simple_from
+    simple_from = pos
     let e:int64 = parse_expr()
+    simple_from = outer_simple
     if at_word("++") || at_word("--") {                  // p++ and p-- step a pointer, as statements (#51, #459)
         let n:int64 = make_node(S_ASSIGN, advance())
         nodes[n].a = e
@@ -4776,6 +4845,7 @@ let parse_function():int64 {
     }
     let outer_fn:int64 = fn_parsing
     fn_parsing = n                                       // what $(...) calls (#181, #629)
+    word_below("{")                                      // a { on the line after a head is its body, as kelvinc's #35 (#728)
     if at_word("{") { set_b(n, parse_block()) }
     fn_parsing = outer_fn
     return n

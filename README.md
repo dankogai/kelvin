@@ -907,3 +907,6 @@ So far the changes from C are these, by topic.
   array `i` rows on, and of a `T^` a `T`, where it was a `u8` (#726)
 - kc passes `#inline C { ... }` through to the C it writes, at the top
   level and among statements, as kelvinc does (#727)
+- kc reads a `{`, `as`, `[` and a product's `*` at the start of a
+  line, `return`'s value on the next line and `q++` in a `for`'s
+  clause, as kelvinc does (#728)

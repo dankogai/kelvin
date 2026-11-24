@@ -1538,6 +1538,31 @@ kc reads what it is written in, and little more.
     no_trigraphs.k and stmt_macros.k, which kc refused, print what
     kelvinc's print; inline_c_order.k and tests/error's
     hash_mid_line.k and inline_c_body.k are new.
+- **Lines that go on, and five forms beside them** (#728), as
+  kelvinc's, the second of the 30 programs' batches:
+  - a `{` on the line after a head is its body, word_below: of a
+    function, `if`, `else`, `while`, `for`, `switch` and `do`; an
+    `else` after a `}` and a `do`'s `while` on the next line too;
+  - `as` and `[` at the start of a line go on with the expression
+    before them, as an operator and `.m` do; a `*` there goes on with a
+    product, `*PI*r`, and is kelvinc's error of C's dereference only
+    where what it touches is assigned, assigned_after;
+  - in a function with a result, `return` takes the value on the next
+    line; in one with none, what follows a `return` is no error where
+    it is a label or holds one, holds_kind;
+  - `q++` and `q--` step a pointer in a `for`'s clause and a comma
+    list, simple_level, where kc said they were no value;
+  - `1.e5` and `1.E+3` are numbers, C's, where kc read a member `e5`;
+  - a function with a name past ASCII is known before it is written,
+    as any function since #505;
+  - `(point) as T` of a variable in parentheses is no C cast;
+  - `sizeof(big^)` where a variable `big` hides its struct, in its own
+    declaration too, is of what it points to, C's `sizeof *p`;
+  - a method of a header's struct declared `struct timespec;` takes
+    C's `struct timespec`, recv_type;
+  - tests/run's semicolons_edge.k, semicolons_more.k, pointer_step.k,
+    methods_edge.k, order_free.k and tag_names_edge.k, which kc
+    refused, print what kelvinc's print.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

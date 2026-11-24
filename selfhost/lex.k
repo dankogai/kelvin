@@ -1198,6 +1198,9 @@ let lex_range(from:int64, to:int64, file:int64) {
                 if !hex && d == '.' && is_digit(code_at(i + 1)) {       // 1.5, not 0..<n (#262)
                     i += 1
                     more = true
+                } else if !hex && d == '.' && (code_at(i + 1) == 'e' || code_at(i + 1) == 'E') && (is_digit(code_at(i + 2)) || code_at(i + 2) == '+' || code_at(i + 2) == '-') {
+                    i += 1                                              // 1.e5, 1.E+3, C's, as kelvinc's method_after_number (#728)
+                    more = true
                 } else if !hex && (d == '+' || d == '-') && (code_at(i - 1) == 'e' || code_at(i - 1) == 'E') && (is_digit(code_at(i + 1)) || code_at(i + 1) == '_') {
                     i += 1                                              // 2.5e-8
                     more = true
