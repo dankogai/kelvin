@@ -3302,6 +3302,7 @@ let type_of(n:int64):int64 {
         if yk == Y_DICT && nodes[n].flag == 1 { return optional_of(types[y].elem) }    // d[k] read whole (#219)
         if yk == Y_ARRAY || yk == Y_DICT || yk == Y_FIXED { return types[y].elem }   // a fixed array's (#354)
         if yk == Y_ARGV { return base_type(Y_CSTR) }
+        if yk == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind != Y_VOID { return types[y].elem }   // p[i] of a T^ is a T, and of a [T](N)^ the row i, as kelvinc's (#726)
         return base_type(Y_U8)
     }
     if k == N_UNARY {
@@ -13042,10 +13043,6 @@ let one_index(n:int64):bool {
 let gen_element(n:int64) {
     let y:int64 = type_of(nodes[n].a)
     if !one_index(n) { return }                          // (#627)
-    if y >= 0 && types[y].kind == Y_PTR && types[types[y].elem].kind == Y_FIXED {   // where kelvinc's C reads an address (#362)
-        gen_error(n, "this points to an array: index what it points to, q^[i]")
-        return
-    }
     if y >= 0 && types[y].kind == Y_ARRAY {
         put("(*")
         put_array_name(y)

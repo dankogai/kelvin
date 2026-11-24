@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #725 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #726 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -160,9 +160,9 @@ known, not what is planned.
   were made, is kelvinc's, the user's order after #705 (#706 to #708).
 - kc takes and gives owners through function values, as kelvinc's
   (#722).
-- kc builds and prints what kelvinc's prints of 477 of the 507 programs
+- kc builds and prints what kelvinc's prints of 478 of the 508 programs
   of tests/run and examples, the quines as run.sh compares them, as of
-  #725; the 30 of the rest need C headers, #inline C or a JS module.
+  #726; the 30 of the rest need C headers, #inline C or a JS module.
   The 49 that stopped on errors of kc's own, which the user ordered
   taught in batches after #709, are taught, #710 to #722.
 - Found while #725 was made, not changed:
@@ -171,20 +171,32 @@ known, not what is planned.
     not a value here: ...`, and C's error of kc's C.
   - `ok({1, 2})` where a `Result<pt, i64>` goes is kelvinc's error, and
     kc's ok of the struct.
+- Found while #726 was made, not changed:
+  - `r[1][2] = 5` through a `[const i64](3)^` is C's error of
+    kelvinc's C, `cannot assign to variable 'r' with const-qualified
+    type`, and kc's `this changes an element of a [const i64](3)`: a
+    fault of kelvinc's words.
+  - A pointer to an array of a count C computes, `[i64](n)^`, is
+    kelvinc's, and kc's `not yet`.
+  - `q[1].typename` through a `const i64^` is kelvinc's `const i64`,
+    and kc's `i64`; a cstr's `s[1]` likewise, `const u8`.
+  - A method a fixed array has not, `r[1].sum()`, is kelvinc's
+    `[i64](3) has no member 'sum'`, and kc's `this method is not
+    known`.
 - The user's order after #723, go on with them all, each pushed when
   its battery is clean:
   - the two differences found while #717 was made (#724);
   - `(T?){}` and `x:T? = {}`, none in both compilers, as an Optional
     declared with no value, the user's answer (#725);
   - `q[i]` of a `q:[T](N)^`, read by kc as kelvinc reads it, the user's
-    answer, where kc says its own error (#362);
+    answer, where kc said its own error of #362 (#726);
   - the 30 programs kc does not build, in batches, `#inline C` passed
     through to C among them.
 - Self-hosting's mid goal, no C emission, has no number yet.
 
 ## Provisional rows
 
-- P729 and P730, the details of #724 and #725, until reviewed; the reviews confirmed
+- P729 to P731, the details of #724 to #726, until reviewed; the reviews confirmed
   every row to P728, and a review's own detail row is confirmed by that
   review (#675).
 

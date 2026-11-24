@@ -14004,3 +14004,16 @@ variable in kelvinc's words.
 Details are provisional P730.
 
 There are 1577 tests, and all pass with clang and with gcc 15.
+
+### 773. q[i] of a pointer
+
+**Claude** wrote #725, its battery run and pushed when clean, its CI
+all green, and went on with the user's answer of `q[i]`.
+
+**Claude** made it #726: kc reads `q[i]` of a `[T](N)^` as kelvinc,
+the array `i` rows on, and found on the way that kc took `p[i]` of any
+pointer for a `u8`, which is a `T` of a `T^` now.
+
+Details are provisional P731.
+
+There are 1578 tests, and all pass with clang and with gcc 15.

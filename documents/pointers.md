@@ -165,6 +165,12 @@ Kelvin has no `void` type:
     errors, and so is a `cstr`, which is text, not a cursor (#52): take
     a `var p:u8^ := s` to step.
   - A pointer only C sees, as `getenv`'s, steps as C allows.
+- `p[i]` is what `p` points to `i` places on, C's `p[i]`, unchecked:
+  of a `T^` a `T`.
+  - Of a `[T](N)^`, a pointer to a whole array, it is the array `i`
+    rows on (#726): `q[0]` is `q^`, and `q[1]` a next row only where
+    `q` points among rows, as `&m[0]` of a `[[T](N)](M)` does.
+  - `q^[i]` is element `i` of the array it points to.
 - `p.next` is `p + 1` and `p.prev` is `p - 1`, a value, for a pointer
   kelvinc can see; `any^` has neither.
   - On anything else, `.next` is a field, so a list still walks with

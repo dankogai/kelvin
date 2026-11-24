@@ -903,3 +903,5 @@ So far the changes from C are these, by topic.
 - An Optional's braces with nothing in them, `var x:i64? = {}` and
   `(i64?){}`, are `none`, as a `T?` declared with no value is, where
   they were `some(0)`; kc reads `(T?){...}` (#725)
+- kc reads `q[i]` of a pointer as kelvinc does: of a `[T](N)^` the
+  array `i` rows on, and of a `T^` a `T`, where it was a `u8` (#726)

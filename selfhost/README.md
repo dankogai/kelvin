@@ -1503,6 +1503,13 @@ kc reads what it is written in, and little more.
     `a list is not a value here`, where kc built them;
   - tests/run's optional_empty_braces.k and tests/error's
     optional_braces_arg.k and braces_assigned.k have them.
+- **`q[i]` of a pointer** (#726), as kelvinc's, the user's answer:
+  - of a `[T](N)^` it is the array `i` rows on, C's `q[i]`, where
+    gen_element said kc's own error of #362;
+  - of a `T^` it is a `T`, type_of's, where it was a `u8` of any
+    pointer: `p[1] += 300` of an `i64^` was refused, and `let x = p[1]`
+    an `u8`;
+  - tests/run's array_pointer_rows.k has them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
@@ -2223,8 +2230,9 @@ kc reads what it is written in, and little more.
   - Behind a pointer (#362), `[int64](4)^`, as kelvinc's P61: a local's
     by `:=`, a parameter, a member, a result; C's `__typeof__(int64_t[4])
     *q`, which goes wherever a C type does.
-    - `q^[i]`, `q^.count`, `for x in q^`; `q.count` and `q[i]` are errors,
-      kelvinc's words of `.count`, where its `q[i]` reads an address.
+    - `q^[i]`, `q^.count`, `for x in q^`; `q.count` is an error,
+      kelvinc's words; `q[i]` is the array `i` rows on, as kelvinc's
+      (#726), where it was kc's own error.
     - Its count and elements are the argument's, and a let's array goes
       to it alone where it reads: kc's errors, where kelvinc's C warns;
       `const [int64](4)^` is kelvinc's error in its words.
