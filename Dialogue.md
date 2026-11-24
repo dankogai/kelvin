@@ -14151,3 +14151,26 @@ are done.
 Details are provisional P739.
 
 There are 1586 tests, and all pass with clang and with gcc 15.
+
+### 782. The review, batch 21
+
+**Claude** wrote #734, its battery run and pushed when clean, its CI
+all green, the three faults done, and asked what next.
+
+**User:** review P737 to P739 (recommended)
+
+**Claude** read each row against the code and found three faults:
+P737's expr for expr_bare, P738's order of reject_let_change and
+reject_const_change, and P738 not saying its check of the error tests
+ran in a copy of the repository; and asked how the review should treat
+them.
+
+**User:** amend 3, confirm all (recommended)
+
+**Claude** made it #735: the three amended, P737 to P739 marked
+confirmed, as later numbers amend them, and P740, #735's own row,
+confirmed by #735.
+
+Details are P740, confirmed by #735 itself.
+
+There are 1586 tests, and all pass with clang and with gcc 15.
