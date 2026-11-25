@@ -14373,3 +14373,22 @@ put back.
 Details are provisional P751.
 
 There are 1611 tests, and all pass with clang and with gcc 15.
+
+### 794. .typename of a count C computes is the type as written
+
+**Claude** wrote #746, its battery run and pushed when clean, its CI
+all green, and went on with the second, in a copy of the repository
+while the battery ran: `apply.typename` was `?` because kelvinc left
+every type of a count C computes to C, a `var a:[i32](n)`'s too, which
+kc named; and asked what a `b:a.type` of such an array is, which a
+test and properties.md had as `?`.
+
+**User:** [i32](n), as a's (recommended)
+
+**Claude** made it #747: a count C computes is named as written,
+through a `.type` too, in both; five differences found there are
+listed in TODO.md, not changed.
+
+Details are provisional P752.
+
+There are 1612 tests, and all pass with clang and with gcc 15.

@@ -954,3 +954,6 @@ So far the changes from C are these, by topic.
 - A literal's element read through const is of the plain type:
   `$[p^]` of a `const i64^` is an `Array<i64>`, where C warned or
   refused, and a volatile's too (#746)
+- `.typename` names a count C computes as written: `[i32](n)` of a
+  `var a:[i32](n)`, and a function's that takes such an array, where
+  it was `?` (#747)

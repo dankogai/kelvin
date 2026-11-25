@@ -2835,6 +2835,15 @@ let resolve_anon_word(n:int64) {
     }
 }
 
+// the type a v.type stands for where v is a fixed array of a count C
+// computes, which kc's parser leaves a v.type (#747), or y: its name and
+// its rows are the array's, as kelvinc sees them
+let seen_through(y:int64):int64 {
+    if y < 0 || types[y].kind != Y_TYPEOF || types[y].konst != 0 || types[y].name < 0 { return y }
+    let vy:int64 = type_of(types[y].name)
+    return vy >= 0 && types[vy].kind == Y_FIXED ? vy : y
+}
+
 let type_of(n:int64):int64 {
     resolve_anon_word(n)                                 // red, rgb(v) (#694)
     if nodes[n].kind == N_CALL && word_misused(n, false) { return 0 - 1 }   // int(x), cstr(p) (#612); a bare i32 where it is written
@@ -3297,7 +3306,7 @@ let type_of(n:int64):int64 {
     }
     if k == N_INDEX && int_bit_index(n) { return base_type(Y_BOOL) }   // x.bits[k], a bit of an integer (#530)
     if k == N_INDEX {
-        let y:int64 = type_of(nodes[n].a)
+        let y:int64 = seen_through(type_of(nodes[n].a))  // u[0] of a u:r.type, a row of r's (#747)
         if y < 0 { return -1 }
         let yk:ykind = types[y].kind
         let ix:int64 = nodes[n].b
@@ -14241,7 +14250,9 @@ let gen_typename(n:int64) {
         function_typename(a)
         return
     }
-    let y:int64 = type_of(a)
+    var y:int64 = type_of(a)
+    if failed { return }
+    y = seen_through(y)                                  // w of a v.type whose v is a [i64](n): v's type, as kelvinc names it (#747)
     if failed { return }
     if y < 0 || types[y].kind == Y_C || types[y].kind == Y_TYPEOF || nodes[a].kind == N_NUM || nodes[a].kind == N_CHAR || nodes[a].kind == N_STR {   // a C x.type's as C's (#696)
         put("kv_typename((")

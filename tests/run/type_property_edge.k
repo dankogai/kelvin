@@ -74,7 +74,9 @@ let main():int32 {
     println(" ", ev, " ", ev2, " ", { (k:int64):k.type in k + 1 }(4), " ", CHAR_BIT + INT_MAX);
 
     // .typename: a literal is C's, nowhere is any^, a choice of one type is
-    // that type, a C struct is spelled so, and anything else is "?"
+    // that type, a C struct is spelled so, and a b:a.type of an array of
+    // a count C computes is the array's as written, [i32](n) (#747),
+    // where it was "?"
     var f:inc.type := inc;
     let w = true;
     var q:point = {3, 4};
@@ -88,4 +90,4 @@ let main():int32 {
 // out: 012301 [const i32](3)
 // out: 3 4 true 8 4 2 18 15
 // out: 789 6 7 5 107
-// out: any^ i32 point struct cpt ((i64):i64)^ ? {x: 1, y: 2}
+// out: any^ i32 point struct cpt ((i64):i64)^ [i32](n) {x: 1, y: 2}

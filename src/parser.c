@@ -6673,6 +6673,27 @@ static bool type_has_expr(Type *t) {
     }
 }
 
+/* whether t holds a v.type, which only C sees through: an array's count
+   that C computes is written, [i64](n), and is none (#747) */
+static bool type_has_typeof(Type *t) {
+    if (!t)
+        return false;
+    switch (t->kind) {
+    case T_TYPEOF:
+        return true;
+    case T_ARRAY:
+    case T_PTR:
+        return type_has_typeof(t->elem);
+    case T_FUNC:
+        for (int i = 0; i < t->params.len; i++)
+            if (type_has_typeof(t->params.data[i]))
+                return true;
+        return type_has_typeof(t->elem);
+    default:
+        return false;
+    }
+}
+
 static Type *parse_typeof(int dot) {
     Token *head = peek();
     Decl *tag = head->kind == TK_IDENT ? record_spelled(head->text) : NULL;
@@ -9973,7 +9994,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
                 t = base_type(strfmt("enum %s", en->name), e->pos);
         }
         Expr *x;
-        if (t && !type_has_expr(t)) {
+        if (t && !type_has_typeof(t)) { /* a count C computes is named as written, [i64](n) (#747), where it was C's ? */
             bare_tags = true;
             char *text = xstrdup(kelvin_type(t));
             bare_tags = false;

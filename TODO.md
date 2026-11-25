@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #746 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #747 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -49,9 +49,12 @@ known, not what is planned.
     const`, is of the plain type, as a variable inferred of it is
     since #738, where C warned or refused and the fixed array's
     elements were const; a volatile's too, in kc as well (#746);
-  - left: `apply.typename` of a function that takes an
-    `f:([[i64](n)](2)):i64`, `?`; a function of rows of another type
-    given to it, C's error; member_value's clause that is never false.
+  - `apply.typename` of a function that takes an
+    `f:([[i64](n)](2)):i64`, which was `?`, and with it the name of
+    every type of a count C computes, `[i32](n)`, a `b:a.type`'s too,
+    the user's answer, as a's (#747);
+  - left: a function of rows of another type given to such a
+    parameter, C's error; member_value's clause that is never false.
 - The user's order after #731, the three faults of kelvinc's found
   while #724 to #730 were made, one number each, pushed when clean:
   - a compound literal's commas where a macro's argument goes,
@@ -241,6 +244,21 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #747 was made, not changed:
+  - A function's parameter that is a fixed array is named as written
+    by kelvinc, `g3.typename` of a `g3(m:[[i64](3)](2))`
+    `([[i64](3)](2)):i64`, and as its pointer by kc, `([i64](3)^):i64`;
+    `let f:([[i64](3)](2)):i64 := g3` is built by kelvinc and refused
+    by kc, `no function 'g3' is ([[i64](3)](2)):i64`.
+  - `let h := apply` of a function that takes an
+    `f:([[i64](n)](2)):i64` is C's error of kelvinc's C, `n` in the
+    variable's type, and built by kc.
+  - `w.count` of a `w:v.type` whose `v` is a `[i64](n)` is kc's `this
+    member is not known`, and 3 by kelvinc.
+  - `var w:[v.type](2)` of such a `v` is `?` by kelvinc's `.typename`
+    and kc's "not yet".
+  - `var v:[i64](sizeof(i64))` is built by kelvinc and refused by kc,
+    `[i64](...) takes its count from its elements`.
 - Found while #746 was made:
   - `var d = v` of a `v:volatile i64` was an `i64` by kelvinc and a
     `volatile i64` by kc: an `i64` in both since #746.
@@ -255,8 +273,8 @@ known, not what is planned.
     false.
 - Found while #744 was made, not changed:
   - `apply.typename` of a function that takes an
-    `f:([[i64](n)](2)):i64` is `?` by kelvinc, and `(i64,
-    ([[i64](n)](2)):i64):i64` by kc.
+    `f:([[i64](n)](2)):i64` was `?` by kelvinc, and `(i64,
+    ([[i64](n)](2)):i64):i64` by kc: kelvinc's too since #747.
   - A function of rows of another type given to it, `{
     (m:[[f64](3)](2)):i64 in 1 }`, is C's error of kelvinc's C, and
     kc's `this is ([f64](3)^):i64, where ([[i64](n)](2)):i64 goes`.
@@ -366,7 +384,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P751, the details of #746, until reviewed; the reviews confirmed
+- P751 and P752, the details of #746 and #747, until reviewed; the reviews confirmed
   every row to P750, and a review's own detail row is confirmed by that
   review (#675).
 

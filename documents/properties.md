@@ -146,9 +146,17 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 - **`v.typename`** is the text of `v`'s type as Kelvin writes it, a
   `cstr`: `"i64"`, `"point"`, `"u8^"`, `"[i32](4)"`, `"(i64):i64"`,
   `"((i64):i64)^"`.
-  - Where kelvinc cannot see the type, or it holds a `__typeof__`, C's
-    `_Generic` gives the Kelvin name of a built-in type
-    (`getenv("X").typename` is `"u8^"`), and anything else is `"?"`.
+  - A count C computes is named as written (#747): `var a:[i32](n)`
+    is `"[i32](n)"`, and `"[i32](...)"` where the count is no name,
+    `[i32](n + 1)`; a `b:a.type` of it and its rows are named so too,
+    and a function that takes one, `"(i64, ([[i64](n)](2)):i64):i64"`,
+    where they were `"?"`.
+    - The name is the type as written, not the count the array has: a
+      later `n = 10` leaves `a` its elements and its name.
+  - Where kelvinc cannot see the type, or it holds a `__typeof__` that
+    kelvinc does not see through, C's `_Generic` gives the Kelvin name
+    of a built-in type (`getenv("X").typename` is `"u8^"`), and
+    anything else is `"?"`.
   - A literal is C's: `42.typename` is `"i32"`, as `42.size` is 4, and
     `nowhere.typename` is `"any^"`.
   - Through `_Generic`, an array is a pointer, an enum its integer type,

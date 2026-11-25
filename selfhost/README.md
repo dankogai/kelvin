@@ -1764,6 +1764,17 @@ kc reads what it is written in, and little more.
     and a Set's element are of it, type_of and dict_key_type, as they
     were of a pointer's own const since #742;
   - tests/run's literal_plain_elements.k has them.
+- **The name of a v.type of a count C computes** (#747), as kelvinc's
+  since the same number, which names such a type as written where it
+  was C's `?`: kc named `[i64](n)` already, and a function's that
+  takes one.
+  - seen_through(y) is the array a `v.type` stands for where `v` is a
+    fixed array of a count C computes, which kc's parser leaves a
+    `v.type`: gen_typename names a `w:v.type` by it, `[i64](n)`, where
+    it wrote C's `?`, and type_of a row of it, `w[0]`, where it was a
+    `u8`.
+  - tests/run's typename_computed_count.k has them, and
+    type_property_edge.k's `b.typename` is `[i32](n)`.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
