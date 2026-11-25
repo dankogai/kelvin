@@ -3007,7 +3007,7 @@ let type_of(n:int64):int64 {
         if y < 0 && (tok_is(t, "OS") || tok_is(t, "SYS")) { return -1 }   // of OS.name, whose type os_type tells (#463)
         if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
         if y < 0 { gen_error(n, "this name is not known") }
-        return y
+        return seen_through(y)                               // a w:v.type of a [i64](n) is read as the array, walked and shown too (#756)
     }
     if k == N_CALL {
         let f:int64 = nodes[n].a
@@ -3108,7 +3108,7 @@ let type_of(n:int64):int64 {
         if std_io(n) >= 0 { return base_type(Y_IO) }                     // IO.stdout and the rest (#452)
         let e = tagged_named(nodes[n].a)
         if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }      // T.none (#215)
-        let y:int64 = type_of(nodes[n].a)
+        let y:int64 = seen_through(type_of(nodes[n].a))                  // w.count of a w:v.type, the array's (#756)
         if y < 0 { return -1 }
         if shown_cstr(n) { return base_type(Y_CSTR) }                   // its text, as print shows it (#450)
         if scalar_cstr(n) { return base_type(Y_CSTR) }                  // a number's text and the rest (#462)
@@ -9860,7 +9860,7 @@ let gen_member(n:int64) {
         put("()")
         return
     }
-    let y:int64 = type_of(a)
+    let y:int64 = seen_through(type_of(a))               // w.count and w.size of a w:v.type, the array's (#756)
     if y < 0 { return }
     if shown_cstr(n) {                                   // v.cstr, its text (#450)
         gen_shown_cstr(n, a, y)
@@ -15945,7 +15945,7 @@ let gen_fixed_var(n:int64) {
     } else if v >= 0 {                                   // a copy, as C has none
         gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
         return
-    } else if types[y].name < 0 {
+    } else if types[y].name < 0 && types[y].name > 0 - 10 {   // no count: one of constants, [i64](sizeof(i64)) or [i64](K), is declared and zeroed, as one of a number (#756)
         var m = type_text(y)
         m += " takes its count from its elements: write ["
         let ew:String = type_text(types[y].elem)

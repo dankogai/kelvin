@@ -14542,3 +14542,18 @@ at a declaration too; kc judges an element's and `p^`'s as kelvinc.
 Details are provisional P760.
 
 There are 1634 tests, and all pass with clang and with gcc 15.
+
+### 803. kc: three more that kelvinc reads
+
+**Claude** wrote #755, its battery run and pushed when clean, and
+went on with kc's list, in a copy of the repository while the
+batteries ran.
+
+**Claude** made the third batch #756: a `w:v.type` of an array of a
+count C computes read as the array, an array of a constant count with
+no value, and a struct's braces that begin with an Array, each as
+kelvinc reads it. Two differences found there are listed in TODO.md.
+
+Details are provisional P761.
+
+There are 1637 tests, and all pass with clang and with gcc 15.

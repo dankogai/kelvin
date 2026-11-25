@@ -2374,10 +2374,11 @@ let anon_ahead():bool {
     var depth:int64 = 0
     var inner:int64 = 0                                  // in ( ) and [ ]
     var deep_dollar = false                              // a $0 in a brace within, {{ $0 + 1 }, { $0 }} a list of them (#719)
+    var listed_dollar = false                            // a $[0] at the brace's own level: $0 where no , of the brace follows, and an Array where one does, {$[1], 2}, a struct's values, as kelvinc reads them (#756)
     while toks[i].kind != T_EOF {
         if tok_is(i, "{") || tok_is(i, "${") { depth += 1 }
         if tok_is(i, "}") {
-            if depth == 0 { return deep_dollar }
+            if depth == 0 { return deep_dollar || listed_dollar }
             depth -= 1
         }
         if tok_is(i, "(") || tok_is(i, "[") || tok_is(i, "$[") { inner += 1 }
@@ -2394,9 +2395,11 @@ let anon_ahead():bool {
             }
         }
         if depth == 0 && inner == 0 && tok_is(i, ",") { return false }   // {a, { $0 }}, a list that holds one (#428)
-        let dollar = (toks[i].kind == T_ID && codes[toks[i].at] == '$') || (tok_is(i, "$[") && toks[i + 1].kind == T_NUM && tok_is(i + 2, "]"))   // $[0], as $0 (#612)
-        if dollar && depth == 0 { return true }
-        if dollar { deep_dollar = true }
+        let named = toks[i].kind == T_ID && codes[toks[i].at] == '$'
+        let listed = tok_is(i, "$[") && toks[i + 1].kind == T_NUM && tok_is(i + 2, "]")   // $[0], as $0 (#612)
+        if named && depth == 0 { return true }
+        if listed && depth == 0 { listed_dollar = true }
+        if named || listed { deep_dollar = deep_dollar || depth > 0 }
         i += 1
     }
     return false

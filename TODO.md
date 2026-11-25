@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #755 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #756 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -119,7 +119,12 @@ known, not what is planned.
     kc says the rule of an element and of `p^` too, `this target is a
     value (i64)`, which it built (#755). tests/run's
     set_declared_reference.k, #749's, is tests/error's.
-  - left: the rest listed under "Found while" #746 to #755.
+  - three that kc did not read (#756): a `w:v.type` of an array of a
+    count C computes, read as the array, its `.count`, its elements, a
+    walk and its text; an array of a constant count with no value,
+    `var a:[i64](sizeof(i64))`, `[i64](K)` and `[i64](2 * 4)`; and a
+    struct's braces whose first value is an Array, `{$[1], 2}`.
+  - left: the rest listed under "Found while" #746 to #756.
 
 - The user's order after #745, kc's two listed differences, after
   kelvinc's faults (#746 to #748), pushed when clean (#749):
@@ -303,9 +308,15 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #756 was made, not changed:
+  - `{$[1]}`, one value and no comma, of a struct of one Array is its
+    value by kelvinc, which knows the struct, and `$0` by kc.
+  - `var v:[i64]`, no count and no value, is C's error of kelvinc's C
+    and kc's `[i64] takes its count from its elements`.
 - Found while #755 was made, not changed:
   - `{$[1], 2}` of a struct whose first member is an Array is built by
-    kelvinc and kc's `'$0' is a parameter of an anonymous function`.
+    kelvinc and was kc's `'$0' is a parameter of an anonymous
+    function`: built by both since #756.
 - Found while #753 was made, not changed:
   - `h(3, corners)` in a function whose `h` is a parameter of the type
     `(i64, ([[i64](3)](2)):i64):i64` was refused by kc, `no function
@@ -364,12 +375,13 @@ known, not what is planned.
   - `let h := apply` of a function that takes an
     `f:([[i64](n)](2)):i64` was C's error of kelvinc's C, `n` in the
     variable's type, and built by kc: built by both since #753.
-  - `w.count` of a `w:v.type` whose `v` is a `[i64](n)` is kc's `this
-    member is not known`, and 3 by kelvinc.
+  - `w.count` of a `w:v.type` whose `v` is a `[i64](n)` was kc's `this
+    member is not known`, and 3 by kelvinc: 3 by both since #756.
   - `var w:[v.type](2)` of such a `v` is `?` by kelvinc's `.typename`
     and kc's "not yet".
-  - `var v:[i64](sizeof(i64))` is built by kelvinc and refused by kc,
-    `[i64](...) takes its count from its elements`.
+  - `var v:[i64](sizeof(i64))` is built by kelvinc and was refused by
+    kc, `[i64](...) takes its count from its elements`: built by both
+    since #756.
 - Found while #746 was made:
   - `var d = v` of a `v:volatile i64` was an `i64` by kelvinc and a
     `volatile i64` by kc: an `i64` in both since #746.
@@ -499,7 +511,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P757 to P760, the details of #752 to #755, until reviewed; the reviews confirmed
+- P757 to P761, the details of #752 to #756, until reviewed; the reviews confirmed
   every row to P756, and a review's own detail row is confirmed by that
   review (#675).
 

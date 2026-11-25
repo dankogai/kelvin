@@ -977,3 +977,7 @@ So far the changes from C are these, by topic.
 - An Array, a Dictionary and a Set are values: `:=` of one is `'d'
   is a value (Array<i64>): assign it with '=', not ':='`, where
   `a := b` built and freed one twice (#755)
+- kc reads a `w:v.type` of an array of a count C computes as the
+  array, an array of a constant count with no value,
+  `[i64](sizeof(i64))`, and a struct's braces that begin with an
+  Array, `{$[1], 2}` (#756)

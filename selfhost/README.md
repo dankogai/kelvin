@@ -1847,6 +1847,21 @@ kc reads what it is written in, and little more.
     set_declared_reference.k, owner_reference_assigned.k and
     element_reference_assigned.k have them; tests/run's
     set_declared_reference.k is gone.
+- **Three that kc did not read** (#756), as kelvinc's:
+  - a `w:v.type` of an array of a count C computes is read as the
+    array, seen_through, wherever its name is read, type_of: its
+    `.count` and `.size`, a walk, `for x in w`, and its text, where kc
+    knew no member of it and walked none; it is declared by
+    `__typeof__(v)` still;
+  - an array of a constant count that C computes, `[i64](sizeof(i64))`,
+    `[i64](K)` or `[i64](2 * 4)`, is declared with no value and zeroed,
+    gen_fixed_var, where kc asked for its elements;
+  - a struct's braces whose first value is an Array, `{$[1], 2}`, are
+    its values: `$[0]` at the brace's own level is `$0` only where no
+    comma of the brace follows, anon_ahead of parse.k, where kc read
+    an anonymous function at once;
+  - tests/run's typeof_counted_array.k, constant_count_array.k and
+    struct_array_member_first.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
