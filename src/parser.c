@@ -8128,9 +8128,12 @@ static char *param_key(Decl *d, int k) {
 /* whether a parameter of type a of one function type is, in C, one of
    type b of another (#748): an array is the pointer C makes of it, and a
    row of a count C computes, [i64](n), is a row of any count */
+static bool fn_types_same(Type *g, Type *want);
 static bool fn_param_same(Type *a, Type *b) {
     a = param_type(unqualified(a));
     b = param_type(unqualified(b));
+    if (a->kind == T_FUNC && b->kind == T_FUNC) /* a function's parameter that is a function, by its own (#753) */
+        return fn_types_same(a, b);
     if (a->kind == T_PTR && b->kind == T_PTR && a->elem && b->elem && a->elem->kind == T_ARRAY &&
         b->elem->kind == T_ARRAY && a->elem->is_const == b->elem->is_const) {
         Expr *n = a->elem->size, *m = b->elem->size;

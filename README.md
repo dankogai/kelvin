@@ -968,3 +968,6 @@ So far the changes from C are these, by topic.
 - An element of a fixed array and a value of a Dictionary's literal
   are of the kind written: `[1, "a"]` of a `[i64](2)` is `an element
   of [i64](2) is an i64, and this is text`, where it was C's (#752)
+- A variable is of the type of a function whose rows count by a
+  parameter, `let h := apply`, where C found no `n` in its type
+  (#753)

@@ -1807,6 +1807,13 @@ kc reads what it is written in, and little more.
   - tests/error's array_element_text.k,
     array_element_struct_number.k, array_element_fn_type.k,
     dict_value_text.k and dict_value_cstr.k have them.
+- **A pointer to a row of a count C computes in a function type**
+  (#753) is written with no count in the type's typedef, `T (*)[]`,
+  write_type, as #744 wrote an array of such rows: `let g := grid` of
+  a `grid(n:i64, m:[[i64](n)](2))` and of a `p:[i64](n)^`, where kc
+  wrote `n` at the top of the file, C's error; kelvinc writes the
+  same since that number, where it wrote `n` in the variable's type.
+  - tests/run's fn_value_counted_rows.k has them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

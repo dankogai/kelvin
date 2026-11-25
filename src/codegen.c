@@ -248,6 +248,18 @@ static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
                 ptr->elem = p->elem;
                 p = ptr;
             }
+            /* a row of a count C computes, [[i64](n)](2) or [i64](n)^, is a row of no count written, T (*)[], which
+               a row of any count goes to (#753): its n is another scope's where the type is a variable's, as of
+               'let h := apply' */
+            if (p->kind == T_PTR && p->elem && p->elem->kind == T_ARRAY && p->elem->size &&
+                p->elem->size->kind != E_LITERAL) {
+                Type *row = xcalloc(1, sizeof *row), *ptr = xcalloc(1, sizeof *ptr);
+                *row = *p->elem;
+                row->size = NULL;
+                *ptr = *p;
+                ptr->elem = row;
+                p = ptr;
+            }
             buf_printf(&params, "%s%s", i ? ", " : "", decl(p, ""));
         }
         if (t->variadic)

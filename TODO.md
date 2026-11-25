@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 and #752 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #753 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -55,8 +55,12 @@ known, not what is planned.
     text` and `a value of Dictionary<String, i64> is an i64, and this
     is text`, where they were C's, a struct's element built with a
     number (#752);
-  - left: `let h := apply` of a function that takes an
-    `f:([[i64](n)](2)):i64`, C's error.
+  - `let h := apply` of a function that takes an
+    `f:([[i64](n)](2)):i64`, and `let g := grid` of one that takes an
+    `m:[[i64](n)](2)`, are built, the row written with no count in a
+    function type, `T (*)[]`, where C found no `n` in the variable's
+    type; kc, which built the first, builds the second so (#753).
+  With it kelvinc's two are done.
 
 - The user's order after #745, resolve kelvinc's listed faults, then
   kc's, each pushed when clean, then the chores of 0.4.1 short of the
@@ -279,6 +283,11 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #753 was made, not changed:
+  - `h(3, corners)` in a function whose `h` is a parameter of the type
+    `(i64, ([[i64](3)](2)):i64):i64` is refused by kc, `no function
+    'corners' is ([[i64](3)](2)):i64`, of a function's fixed array
+    parameter, listed with #747's.
 - Found while #752 was made, not changed:
   - A container of structs is named with `struct` by kelvinc,
     `Array<struct pt>` and `Dictionary<String, struct pt>`, by
@@ -330,8 +339,8 @@ known, not what is planned.
     `let f:([[i64](3)](2)):i64 := g3` is built by kelvinc and refused
     by kc, `no function 'g3' is ([[i64](3)](2)):i64`.
   - `let h := apply` of a function that takes an
-    `f:([[i64](n)](2)):i64` is C's error of kelvinc's C, `n` in the
-    variable's type, and built by kc.
+    `f:([[i64](n)](2)):i64` was C's error of kelvinc's C, `n` in the
+    variable's type, and built by kc: built by both since #753.
   - `w.count` of a `w:v.type` whose `v` is a `[i64](n)` is kc's `this
     member is not known`, and 3 by kelvinc.
   - `var w:[v.type](2)` of such a `v` is `?` by kelvinc's `.typename`
@@ -467,7 +476,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P757, the details of #752, until reviewed; the reviews confirmed
+- P757 and P758, the details of #752 and #753, until reviewed; the reviews confirmed
   every row to P756, and a review's own detail row is confirmed by that
   review (#675).
 

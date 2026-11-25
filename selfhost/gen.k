@@ -24330,6 +24330,11 @@ let write_type(y:int64) {
                 if types[pe].konst == 1 || types[types[pe].elem].konst == 1 { put("const ") }
                 put_ctype(types[types[pe].elem].elem)
                 put(" (*)[]")
+            } else if pe >= 0 && types[pe].kind == Y_PTR && types[pe].elem >= 0 && types[types[pe].elem].kind == Y_FIXED && types[types[pe].elem].name <= 0 - 10 {   // [T](n)^, and the pointer a function's own [[T](n)](2) is: a row of no count written too (#753), of let g := grid
+                let row:int64 = types[pe].elem
+                if ptr_const(pe) || types[row].konst == 1 { put("const ") }
+                put_ctype(types[row].elem)
+                put(" (*)[]")
             } else if pe >= 0 && types[pe].kind == Y_FIXED && types[pe].name <= 0 - 10 {   // [T](n), a count C computes, its pointer, as C takes it and kelvinc writes it, no name of it before its declaration (#719)
                 if types[pe].konst == 1 { put("const ") }
                 put_ctype(types[pe].elem)

@@ -14492,3 +14492,19 @@ not changed.
 Details are provisional P757.
 
 There are 1627 tests, and all pass with clang and with gcc 15.
+
+### 800. A variable of a function's type whose rows count by a parameter
+
+**Claude** wrote #752, its battery run and pushed when clean, and
+went on with the second, in a copy of the repository while the battery
+ran.
+
+**Claude** made it #753: `let h := apply` and `let g := grid` are
+built, a row of a count C computes written with no count in a function
+type, in kelvinc's C and in kc's typedef, where C found no `n`.
+kelvinc's two are done; one difference found there is listed in
+TODO.md, of kc's.
+
+Details are provisional P758.
+
+There are 1628 tests, and all pass with clang and with gcc 15.

@@ -287,6 +287,11 @@ let u:():() := tick        // the same, the result written out (#141)
     - An array parameter is the pointer C makes of it, and rows of a
       count C computes, `[[i64](n)](2)`, take rows of any count: a
       function of rows of three goes there, by its name too.
+      - A variable is of such a function's type (#753): `let h :=
+        apply` of an `apply(n:i64, f:([[i64](n)](2)):i64)`, and `let g
+        := grid` of a `grid(n:i64, m:[[i64](n)](2))`, where C found no
+        `n` in the variable's type. In C the row is written with no
+        count, `int64_t (*)[]`.
 - A function type is a reference (P32): it is assigned with `:=`, is
   `nowhere` until assigned, and is compared with `nowhere`
   (`if f != nowhere`). A `let` one is a `const` pointer.
