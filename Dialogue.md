@@ -14444,3 +14444,30 @@ wait for the user's word.
 Details are provisional P755.
 
 There are 1622 tests, and all pass with clang and with gcc 15.
+
+### 798. The review, batch 24
+
+**Claude** wrote #750, its battery run and pushed when clean, its CI
+all green, and asked whether to tag and release.
+
+**User:** tag and release now (recommended)
+
+**Claude** tagged v0.4.1 at #750's commit and published the release
+Kelvin 0.4.1, its notes CHANGELOG.md's, and listed what is left: P751
+to P755 provisional, and the differences found on the way, in TODO.md.
+
+**User:** review P751 to P755
+
+**Claude** read each row against the code, the batteries' summaries
+and the saved runs and found one fault: a phrase of P754's that read
+wrongly; and asked how the review should treat it.
+
+**User:** amend 1, confirm all, push (recommended)
+
+**Claude** made it #751: the one amended, P751 to P755 marked
+confirmed, as later numbers amend them, and P756, #751's own row,
+confirmed by #751; TODO.md says 0.4.1 released.
+
+Details are P756, confirmed by #751 itself.
+
+There are 1622 tests, and all pass with clang and with gcc 15.
