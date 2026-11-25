@@ -34,10 +34,13 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #749 so far.
-  - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
-  - The README's line of the release notes.
-  - The tag and the release.
+  - 0.4.1's are done but the last, the user's order after #745, ready
+    for 0.4.1, and of the answer, the chores, stop before the tag
+    (#750): the CHANGELOG entry, #651 to #749; kelvinc's
+    KELVIN_VERSION and the VS Code package's; Design.md's status; the
+    README's line of the release notes.
+  - Left, on the user's word: the tag v0.4.1 and the release.
+  - The next CHANGELOG entry is from #751 on.
 
 ## Faults in kelvinc
 
@@ -429,7 +432,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P751 to P754, the details of #746 to #749, until reviewed; the reviews confirmed
+- P751 to P755, the details of #746 to #750, until reviewed; the reviews confirmed
   every row to P750, and a review's own detail row is confirmed by that
   review (#675).
 

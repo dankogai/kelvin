@@ -53,8 +53,10 @@ let main(argc:i32, argv:[cstr]): i32 {
   (#467), 0.1.1 with `fetch()` (#496), 0.2.0 with `RegExp` and
   `BigInt` in the prelude (#514), 0.3.0 with math in the prelude,
   `Kelvin.name`, a String of graphemes and the numbers of any size
-  (#608), 0.4.0 the latest, with C's last features, `<Combinatorics>`
-  and Kelvin's own errors where C's came (#650).
+  (#608), 0.4.0 with C's last features, `<Combinatorics>` and Kelvin's
+  own errors where C's came (#650), 0.4.1 the latest, with `<Prime>`,
+  `_` among a literal's digits, more of those errors and kc building
+  every program kelvinc builds (#750).
 - [TODO.md](TODO.md) is what is left, checked against the code (#658).
 - [Design.md](Design.md) has the design decisions, and
   [Dialogue.md](Dialogue.md) how they were made.

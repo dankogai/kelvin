@@ -1,5 +1,95 @@
 # Changelog
 
+## 0.4.1 (#750)
+
+The grammar and what a correct program means are 0.4.0's: `_` among a
+literal's digits and `<Prime>` are added; more of C's errors, of its
+warnings and of the programs that ran wrong are Kelvin's own errors;
+and kc builds every program kelvinc builds, and says each of kelvinc's
+errors in its words at its place: #651 to #749.
+
+### The language
+
+- **`_` among a numeric literal's digits** is left out (#671)
+  ([literals.md](documents/literals.md)), as Swift and Perl have it:
+  `1_000_000`, `0x7fff_ffff`, `0b1010_1010`, of every base and of a
+  float's fraction and exponent.
+- **A computed attribute of an integer type** (#668): `static let
+  i64.answer:i64 { 42 }` is read as `i64.answer`, where it was an
+  error.
+- **`{}` of an Optional is `none`** (#725)
+  ([optionals.md](documents/optionals.md)), as a `T?` declared with no
+  value is: `var x:i64? = {}`, where it was `some(0)`.
+- **A value read through const is a value** (#738, #746)
+  ([pointers.md](documents/pointers.md)): `var y = p^` of a
+  `p:const i64^` is a plain `i64`, which changes, and `$[p^]` an
+  `Array<i64>`, where the variable and the Array's elements were const
+  themselves, and C refused the change or warned.
+- **`T^ const`** is a pointer that is itself const, C's `T *const`
+  (#742): `var q:i64^ const := &v` changes what it points to,
+  `q^ += 1`, and points nowhere else.
+- **`.typename` names a count C computes as written** (#747)
+  ([properties.md](documents/properties.md)): `[i32](n)` of a
+  `var a:[i32](n)`, where it was `?`.
+- A global used before it is written takes the types it names with it
+  (#734), and a compound literal goes where a macro's argument goes,
+  `println(([i32](3))[1, 2, 3][1])` (#732).
+
+### The library
+
+- **`#import <Prime>`** (#668, #672) ([prime.md](documents/prime.md)),
+  of each integer type and of `BigInt`:
+  - `n.isPrime`, `n.nextPrime`, `n.prevPrime`, a `T?`,
+    `n.isProbablePrime` and `n.isSurelyPrime`; `N.primes`, an
+    `Iterator<N>` of the type's primes, 54 of `u8.primes`;
+  - `BigInt.generatePrime(bits)`, a random prime of exactly that many
+    bits, as OpenSSL makes one.
+
+### Kelvin's errors where C's came
+
+Each was C's error or warning, or a program that ran; each is kelvinc's
+now, and kc's in the same words.
+
+- A struct, a union or an enum with values that holds itself by value,
+  where kelvinc ended with a segmentation fault (#659).
+- A constant index outside a fixed array (#661); an integer divided by
+  a constant 0 (#662); a literal that does not fit its type,
+  `let c:u8 = 300` (#663); a shift by a constant count at or past the
+  width (#665); an integer literal past u64's greatest (#678).
+- A member of arithmetic whose type is C's, `(n + 1).foo` (#669).
+- What const keeps from changing: an element of a `[const T](N)` and
+  `p[i] = v` through a `const T^` (#733), and `q := &y` of a
+  `q:i64^ const` (#742).
+- A call through a function value of another count of arguments than
+  its type has parameters (#740).
+- A struct's member given a value of another kind, `{1, "two"}` of two
+  numbers, and a number where an array member goes, which C took
+  (#741).
+- `ok({})` and `err({})`, a list that is no value (#743).
+- A value where a function type goes that is no function of that type:
+  `num({ (x:f64):i64 in 1 })` is `this is (f64):i64, where (i64):i64
+  goes`, and so is text there, which C took with a warning (#748).
+
+### Documents
+
+- [literals.md](documents/literals.md) puts each literal beside its
+  counterpart (#677).
+- [TODO.md](TODO.md) is what is left, checked against the code, with
+  the rule of the versions: the version stays 0.4.x so long as the
+  grammar and the semantics stay the same (#658).
+- The decisions made during implementation, P645 to P750, are reviewed
+  and confirmed, in sixteen batches (#651 to #745).
+
+### kc
+
+- kc says each of the 1076 programs kelvinc refuses in kelvinc's words
+  (#652 to #656), at kelvinc's line and column but one (#681 to #690),
+  which `selfhost/errors.sh` compares.
+- kc builds every program of tests/run and examples, 519, each printing
+  what kelvinc's prints (#692 to #730), `#inline C` passed through
+  (#727).
+- It does the same of each change above.
+
 ## 0.4.0 (#650)
 
 C's last features written in Kelvin, `thread_local`, `atomic` and

@@ -14429,3 +14429,18 @@ TODO.md, not changed.
 Details are provisional P754.
 
 There are 1622 tests, and all pass with clang and with gcc 15.
+
+### 797. Version 0.4.1
+
+**Claude** wrote #749, its battery run and pushed when clean, kc's two
+done after kelvinc's faults, and did the chores the user had ordered
+for then, short of the tag, as answered.
+
+**Claude** made them #750: the version is 0.4.1, with Design.md's
+status and the README's line, and CHANGELOG.md's notes of #651 to
+#749, each example built and run first. The tag v0.4.1 and the release
+wait for the user's word.
+
+Details are provisional P755.
+
+There are 1622 tests, and all pass with clang and with gcc 15.
