@@ -1862,6 +1862,33 @@ kc reads what it is written in, and little more.
     an anonymous function at once;
   - tests/run's typeof_counted_array.k, constant_count_array.k and
     struct_array_member_first.k have them.
+- **Sentences and places of a value's kind** (#757), as kelvinc's:
+  - a Set's key: key_of_ok(y, key, k), which dict_key_ok asks of a
+    Dictionary's, is asked of each element of a Set's literal of a
+    written type, before their one type is, gen_set and gen_var, and
+    of `s += v`, insert, has and remove, where they were C's errors;
+  - an Array's `+=`, append and insert: gen_array_add asks
+    typed_value_ok of what is appended, with an element of the Array's
+    type is, and says it of a function's element, a number, text or a
+    function written of another type, where they were C's or `this is
+    i64, where (i64):i64 goes`;
+  - an Optional's element and value: a fixed list's and a Dictionary
+    literal's of another kind are said by case_value_fits, `case
+    'some' of i64? holds an i64, and this is text`, where kc said an
+    element of [i64?](1) is an i64?;
+  - a designated element's value, `[[1] = "a"]`, is of the element's
+    kind, fixed_list_fits, where it was left to C;
+  - value_error(v, what) says an error of a value that is a member
+    read at its `.`, kelvinc's place: typed_value_ok, gen_fn_value,
+    gen_array, fixed_list_fits, the Dictionary literal's value and
+    case_value_fits ask it, where kc said them at the member's name;
+  - cstr_place(a) tells any variable or member whose type is no
+    owner's, so that a number's member where a String parameter goes
+    is said by its kind, where kc said an owner moves in;
+  - tests/error's set_literal_key_kind.k, set_insert_key_kind.k,
+    array_append_kind.k, array_append_fn_kind.k, member_value_place.k,
+    optional_element_kind.k, designated_element_kind.k and
+    string_param_member_number.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

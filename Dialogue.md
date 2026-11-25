@@ -14557,3 +14557,19 @@ kelvinc reads it. Two differences found there are listed in TODO.md.
 Details are provisional P761.
 
 There are 1637 tests, and all pass with clang and with gcc 15.
+
+### 804. kc: sentences and places of a value's kind
+
+**Claude** wrote #756, its battery run and pushed when clean, and
+went on with the sentences of kc's list, in a copy of the repository
+while the batteries ran.
+
+**Claude** made the fourth batch #757: a Set's key, an Array's
+appended element, an Optional's element by its case and a designated
+element's value are kelvinc's sentences in kc, and an error of a value
+that is a member read is said at its `.`. What is left of kc's list
+is in TODO.md, each under where it was found.
+
+Details are provisional P762.
+
+There are 1645 tests, and all pass with clang and with gcc 15.

@@ -981,3 +981,6 @@ So far the changes from C are these, by topic.
   array, an array of a constant count with no value,
   `[i64](sizeof(i64))`, and a struct's braces that begin with an
   Array, `{$[1], 2}` (#756)
+- kc says a Set's key, an Array's appended element, an Optional's
+  element and a designated element's value in kelvinc's sentences,
+  and an error of a member read at its `.` (#757)

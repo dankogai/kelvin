@@ -411,6 +411,16 @@ let gen_error(n:int64, what:cstr) {
     failed = true
 }
 
+// an error of a value v at its place as kelvinc has it (#757): a member
+// read's at its ., o.n, where kc said it at the member's name
+let value_error(v:int64, what:cstr) {
+    if nodes[v].kind == N_FIELD && tok_is(nodes[v].t - 1, ".") {
+        tok_error(nodes[v].t - 1, what)
+        return
+    }
+    gen_error(v, what)
+}
+
 // an error of list v at its [, which kc's node keeps at its first element (#688)
 let gen_error_list(v:int64, what:cstr) {
     if tok_is(nodes[v].t - 1, "[") {
@@ -2844,12 +2854,13 @@ let seen_through(y:int64):int64 {
     return vy >= 0 && types[vy].kind == Y_FIXED ? vy : y
 }
 
-// whether a is a variable or a member that is a cstr, which is no owner
-// where a String goes (#749)
+// whether a is a variable or a member of a type that is no owner's, a
+// cstr (#749) or a number (#757), whose kind is said where an owner
+// goes, not that an owner moves
 let cstr_place(a:int64):bool {
     if nodes[a].kind != N_ID && nodes[a].kind != N_FIELD { return false }
     let y:int64 = type_of(a)
-    return y >= 0 && types[y].kind == Y_CSTR
+    return y >= 0 && types[y].kind != Y_C && types[y].kind != Y_TYPEOF && !is_owner(y)
 }
 
 let type_of(n:int64):int64 {
@@ -3746,7 +3757,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
         m += k == N_ID ? tok_text(nodes[v].t) : $"x"
         m += "'"
     }
-    gen_error(v, m.cstr)
+    value_error(v, m.cstr)
     return false
 }
 
@@ -4216,9 +4227,16 @@ let gen_key_of(key:int64, k:int64)    // a prototype: a Set's element too (#274)
 // whether k is a key of the Dictionary y, with kelvinc's error (#65,
 // #612): text of a String's keys, a cstr, a template or a String; an
 // integer of an integer's. What only C sees is C's
+let key_of_ok(y:int64, key:int64, k:int64):bool    // a prototype: a Dictionary's and a Set's ask it
+
 let dict_key_ok(y:int64, k:int64):bool {
+    return key_of_ok(y, types[y].name, k)
+}
+
+// whether k is a key of type key of the Dictionary or the Set y (#757): a
+// Set's element is its key, as kelvinc says it
+let key_of_ok(y:int64, key:int64, k:int64):bool {
     if failed { return false }
-    let key:int64 = types[y].name
     let kk:nkind = nodes[k].kind
     let number_lit = kk == N_NUM || kk == N_CHAR || (kk == N_UNARY && tok_is(nodes[k].t, "-") && nodes[nodes[k].a].kind == N_NUM)
     let text_lit = kk == N_STR || kk == N_TPL || kk == N_DSTR
@@ -10149,6 +10167,33 @@ let gen_array_add(y:int64, v:int64, what:cstr) {
         owner_copy_error(v, what)
         return
     }
+    if !is_owner(ey) && some_type(ey) < 0 && tagged_of(ey) < 0 {   // of the element's kind (#757), as an element set is (#612): xs += "x" of numbers was C's error
+        var lead = $"an element of "
+        let w:String = kelvin_type_text(y)
+        lead += &w
+        lead += " is"
+        if types[ey].kind == Y_FN {                      // a function's: a number, text, a value of another kind, or a function written of another type
+            let k:nkind = nodes[v].kind
+            let number = k == N_NUM || k == N_CHAR
+            let gy:int64 = number || k == N_STR ? 0 - 1 : k == N_ANON && nodes[v].flag == 0 ? anon_type(v) : k == N_ANON || (k == N_ID && var_type(nodes[v].t) < 0) ? ey : vy
+            if failed { return }
+            if number || k == N_STR || (gy >= 0 && types[gy].kind != Y_C && gy != ey && !fn_same(gy, ey)) {
+                var m = lead.copy()
+                m += " "
+                let ew:String = kelvin_type_text(ey)
+                m += article_of(&ew)
+                m += " "
+                m += &ew
+                m += ", and this is "
+                let gw:String = number ? $"a number" : k == N_STR ? $"text" : kelvin_type_text(gy)
+                m += &gw
+                gen_error(v, m.cstr)
+                return
+            }
+        } else if !typed_value_ok(v, ey, &lead) {
+            return
+        }
+    }
     gen_value(v, ey)
 }
 
@@ -10953,6 +10998,7 @@ let gen_method_of(n:int64) {
         put("(")
         gen_place(a)
         put(", ")
+        if !key_of_ok(y, types[y].elem, key) { return }   // s.has(5) of a Set of Strings, as kelvinc says it (#757)
         gen_key_of(types[y].elem, key)
         put(")")
         if hold { hold_close(key) }
@@ -12160,7 +12206,7 @@ let gen_array(n:int64, given:int64) {
                 m += &ew
                 m += ", and this is "
                 m += &bad
-                gen_error(e, m.cstr)
+                value_error(e, m.cstr)
                 return
             }
         }
@@ -12261,6 +12307,9 @@ let dict_entries_fit(n:int64, y:int64):bool {
                 return false
             }
         }
+        if value_case(types[y].elem) >= 0 && !is_case_word(v) && value_mismatch_text(v, types[y].elem).count > 0 {   // an Optional's value: its case's sentence, as kelvinc says it (#757)
+            if !case_value_fits(v, value_case(types[y].elem), types[y].elem) { return false }
+        }
         let bad:String = value_mismatch_text(v, types[y].elem)
         if bad.count > 0 {
             var m = $"a value of "
@@ -12272,7 +12321,7 @@ let dict_entries_fit(n:int64, y:int64):bool {
             m += &ew
             m += ", and this is "
             m += &bad
-            gen_error(v, m.cstr)
+            value_error(v, m.cstr)
             return false
         }
         k = nodes[v].next
@@ -12347,6 +12396,12 @@ let gen_set(n:int64, first:int64, given:int64) {
         }
         y = type_of(n)
         if y < 0 { return }
+    } else {                                             // of the type written: each element a key of it, as kelvinc says it (#757), where it was C's error
+        var e = first
+        while e >= 0 {
+            if !key_of_ok(y, types[y].elem, e) { return }
+            e = nodes[e].next
+        }
     }
     serial += 1
     let s = serial
@@ -12448,7 +12503,7 @@ let case_value_fits(v:int64, m:int64, whole:int64):bool {
     msg += &cw
     msg += ", and this is "
     msg += &bad
-    gen_error(v, msg.cstr)
+    value_error(v, msg.cstr)
     return false
 }
 
@@ -15695,7 +15750,26 @@ let fixed_list_fits(v:int64, y:int64):bool {
     let we:int64 = nodes[v].ty >= 0 && types[nodes[v].ty].kind == Y_FIXED ? types[nodes[v].ty].elem : e   // ([[T]])[...] as written, its rows checked first, as kelvinc's (#717)
     while x >= 0 {
         count += 1
-        if nodes[x].kind == N_ADESIG {                   // [i] = v: its place and value C's to check, as kelvinc leaves them (#715)
+        if nodes[x].kind == N_ADESIG {                   // [i] = v: its place C's to check, as kelvinc leaves it (#715); its value of the element's kind (#757), as kelvinc's since #752
+            let dv:int64 = nodes[x].a
+            let plain = dv >= 0 && !is_owner(e) && !is_variant(e) && types[e].kind != Y_PTR && types[e].kind != Y_C && types[e].kind != Y_TYPEOF && types[e].kind != Y_FIXED && types[e].kind != Y_FN && !(types[e].kind == Y_STRUCT && struct_of(e) < 0 && tagged_of(e) < 0 && !enum_int(e))
+            if plain {
+                let bad:String = value_mismatch_text(dv, e)
+                if bad.count > 0 {
+                    var m = $"an element of "
+                    let aw:String = type_text(y)
+                    m += &aw
+                    m += " is "
+                    let ew:String = kelvin_type_text(e)
+                    m += article_of(&ew)
+                    m += " "
+                    m += &ew
+                    m += ", and this is "
+                    m += &bad
+                    value_error(dv, m.cstr)
+                    return false
+                }
+            }
             x = nodes[x].next
             continue
         }
@@ -15723,6 +15797,8 @@ let fixed_list_fits(v:int64, y:int64):bool {
             // nowhere, a cstr's no text, as kelvinc takes it (#698)
         } else if is_variant(e) && (is_case_word(x) || value_mismatch_text(x, e).count == 0) {
             // none, or a value some(v) is made of, of an Optional's or a Result's element, as kelvinc takes it (#704)
+        } else if value_case(e) >= 0 && !is_case_word(x) {   // a value of another kind where an Optional's element goes: its case's sentence, as kelvinc says it (#757)
+            if !case_value_fits(x, value_case(e), e) { return false }
         } else {
             let bad:String = value_mismatch_text(x, e)
             if bad.count > 0 && nodes[x].kind == N_STR && types[e].kind == Y_FIXED && types[e].name < 0 {   // ["ab", "cd"] of [[u8]], as kelvinc says it
@@ -15740,7 +15816,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
                 m += &ew
                 m += ", and this is "
                 m += bad.count > 0 ? bad.copy() : $"not one"
-                gen_error(x, m.cstr)
+                value_error(x, m.cstr)
                 return false
             }
         }
@@ -16087,6 +16163,13 @@ let gen_var_of(n:int64) {
     pick_overload(nodes[n].a, y)                         // let h:(T):R := over (#537)
     if failed { return }
     if nodes[n].a >= 0 && !assigns_as(n, nodes[n].t, y, nodes[n].c == 1) { return }
+    if nodes[n].a >= 0 && y >= 0 && types[y].kind == Y_SET && nodes[nodes[n].a].kind == N_SET {   // a Set's elements of the type written, each a key of it, before they are asked their one type (#757)
+        var e:int64 = nodes[nodes[n].a].b
+        while e >= 0 {
+            if !key_of_ok(y, types[y].elem, e) { return }
+            e = nodes[e].next
+        }
+    }
     var who = $"'"                                       // a let's borrow, as an argument's (#273)
     who += tok_text(nodes[n].t)
     who += "'"
@@ -17142,6 +17225,7 @@ let gen_assign(n:int64) {
             put("_insert(")
             gen_place(lhs)
             put(", ")
+            if !key_of_ok(y, types[y].elem, v) { return }   // s += "a" of a Set of integers (#757)
             gen_key_of(types[y].elem, v)
             put(")")
             if hold { hold_close(v) }
@@ -18205,7 +18289,7 @@ let gen_fn_value(n:int64, y:int64) {
         } else if !(k == N_ID && var_type(nodes[n].t) < 0) {
             m += " goes"
         }
-        gen_error(n, m.cstr)
+        value_error(n, m.cstr)
         return
     }
     if k == N_ID && var_type(nodes[n].t) < 0 {

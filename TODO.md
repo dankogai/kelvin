@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #756 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #757 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -124,7 +124,21 @@ known, not what is planned.
     walk and its text; an array of a constant count with no value,
     `var a:[i64](sizeof(i64))`, `[i64](K)` and `[i64](2 * 4)`; and a
     struct's braces whose first value is an Array, `{$[1], 2}`.
-  - left: the rest listed under "Found while" #746 to #756.
+  - sentences and places that were kc's own or C's (#757): a Set's
+    element of another kind, in a literal of a written type, `s += v`,
+    insert, has and remove, `a key of Set<i64> is an integer`; an
+    Array's `+=`, append and insert of another kind, `an element of
+    Array<i64> is an i64, and this is text`, a function's too; an
+    element and a value where an Optional goes, by its case; a
+    designated element's value; a value that is a member read, said at
+    its `.`; and a member that is no owner where an owner's parameter
+    goes, said by its kind.
+  - left, each listed under its "Found while": a function of two types
+    inside a function named `_kv_main_t1` in an error, and a
+    function's name as an element there; `Set([q[0]])`; `{$[1]}` of a
+    struct of one Array; a Dictionary in a Dictionary's literal;
+    `[v.type](2)`; `nowhere` where an i64 goes; `a += { $0 + 1 }`,
+    which kelvinc refuses and kc builds; `s -= "a"` of a Set.
 
 - The user's order after #745, kc's two listed differences, after
   kelvinc's faults (#746 to #748), pushed when clean (#749):
@@ -138,10 +152,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1087 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1095 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754 and #755 alike.
+  #752, #754, #755 and #757 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -308,6 +322,11 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #757 was made, not changed:
+  - `a += { $0 + 1 }` of an Array of functions is kelvinc's `a list is
+    not a value here` and built by kc.
+  - `s -= "a"` of a Set is C's error of kelvinc's C and kc's `an owner
+    is assigned only as a String`.
 - Found while #756 was made, not changed:
   - `{$[1]}`, one value and no comma, of a struct of one Array is its
     value by kelvinc, which knows the struct, and `$0` by kc.
@@ -331,11 +350,13 @@ known, not what is planned.
     of kelvinc's C; of the second kc says `a value of ... is an i64^,
     and this is a number`.
   - An element or a value where an Optional goes is kelvinc's `case
-    'some' of i64? holds an i64, and this is text`, and kc's `an
-    element of [i64?](1) is an i64?, and this is text`.
-  - A designated element, `[[1] = "a"]`, is kelvinc's error and C's of
-    kc's C; a Set's element of another kind, `${"a"}` of a `${i64}`,
-    is kelvinc's `a key of Set<i64> is an integer` and C's of kc's C.
+    'some' of i64? holds an i64, and this is text`, and was kc's `an
+    element of [i64?](1) is an i64?, and this is text`: kelvinc's in
+    both since #757.
+  - A designated element, `[[1] = "a"]`, is kelvinc's error and was
+    C's of kc's C; a Set's element of another kind, `${"a"}` of a
+    `${i64}`, is kelvinc's `a key of Set<i64> is an integer` and was
+    C's of kc's C: kelvinc's in both since #757.
   - A Dictionary in a Dictionary's literal of another value's kind is
     said of the inner one by kelvinc and of the outer by kc.
   - `nowhere` where an i64 value goes is C's error of kelvinc's C and
@@ -356,11 +377,12 @@ known, not what is planned.
     ["a"]` and `${"a": "x"}` of a `${String: i64}`, a function's too,
     and kc's `an element of [i64](1) is an i64, and this is text`.
   - `a += "x"` of a `$[i64]` is kelvinc's `an element of Array<i64>
-    is an i64, and this is text`, and C's error of kc's C; `a += 5` of
-    a `$[(i64):i64]` is kelvinc's element sentence and kc's `this is
-    i64, where (i64):i64 goes`.
-  - A member where a function goes, `num(o.n)`, is said at the `o` by
-    kelvinc and at the `.` by kc.
+    is an i64, and this is text`, and was C's error of kc's C; `a +=
+    5` of a `$[(i64):i64]` is kelvinc's element sentence and was kc's
+    `this is i64, where (i64):i64 goes`: kelvinc's in both since #757.
+  - A member where a function goes, `num(o.n)`, is said at the `.` by
+    kelvinc and was said at the member's name by kc: at the `.` in
+    both since #757.
   - A function of a pointer to a row, `{ (m:[i64](3)^):i64 in ... }`,
     where rows of a count C computes go is built by kelvinc and was
     refused by kc: built since #754.
@@ -511,7 +533,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P757 to P761, the details of #752 to #756, until reviewed; the reviews confirmed
+- P757 to P762, the details of #752 to #757, until reviewed; the reviews confirmed
   every row to P756, and a review's own detail row is confirmed by that
   review (#675).
 
