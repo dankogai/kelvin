@@ -987,3 +987,6 @@ So far the changes from C are these, by topic.
 - An Array, a Dictionary and a Set of structs are named by the
   structs' bare names, `Array<point>`, where `.typename` said
   `Array<struct point>` (#758)
+- A number is no pointer: `var p:i64^ := 5` is `'p' is an i64^, and
+  this is a number`, where it was C's error; `0` is C's null still
+  (#760)

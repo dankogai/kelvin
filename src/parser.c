@@ -8290,6 +8290,10 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
         ok = text;
     else if (want->kind == T_PTR) {
         ok = !vt || vt->kind == T_PTR;
+        unsigned long long mag;
+        bool neg;
+        if (!vt && number && !(int_literal_value(v, &mag, &neg) && !mag)) /* a number that is no 0 is no pointer (#760): C's error */
+            ok = false;
         /* a let's borrow, a const T^, where a T^ that may change it goes (#273) */
         fixed = ok && vt && vt->elem && want->elem && vt->elem->is_const && !want->elem->is_const &&
                 (is_owner(unqualified(vt->elem)) || /* &x of a let of a number too, not a cstr's text */

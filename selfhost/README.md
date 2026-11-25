@@ -1893,6 +1893,18 @@ kc reads what it is written in, and little more.
   kelvinc's since that number, `Array<point>`, which kc named so:
   kelvinc's `.typename` and its errors said `Array<struct point>`; kc
   is as it was, and tests/run's container_struct_names.k has them.
+- **A number is no pointer** (#760), as kelvinc's since the same
+  number: no_pointer_number(v) tells a number, a character or a bool
+  written that is no 0, zero_literal of any base; typed_value_ok says
+  it where a pointer goes, `'p' is an i64^, and this is a number`,
+  where it was C's error, and fixed_list_fits of an element, a
+  designated one too.
+  - `0` is C's null: value_mismatch_text and fits_value take it where
+    a pointer and a pointer's Optional go, where kc said a number of a
+    Dictionary's value and of an Array's element.
+  - tests/error's pointer_number.k, pointer_number_argument.k and
+    pointer_number_element.k, and tests/run's pointer_zero.k, have
+    them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

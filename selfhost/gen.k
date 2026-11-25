@@ -3686,13 +3686,33 @@ let fn_of_type(t:int64, y:int64):int64    // and which of them is of a type (#69
 // or text, a cstr text, a pointer a pointer, a struct its own type; of
 // what kc sees no type, or only C does, nothing is said, nor of an enum
 // with values, which wraps what it is given
+// whether v is a number written that is no pointer (#760): any number,
+// a character or a bool but a 0, C's null, as kelvinc takes it
+let no_pointer_number(v:int64):bool {
+    let k:nkind = nodes[v].kind
+    if k == N_BOOL || k == N_CHAR { return true }
+    if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return !zero_literal(nodes[nodes[v].a].t) }
+    return k == N_NUM && !zero_literal(nodes[v].t)
+}
+
+// whether token t is an integer literal of 0, of any base: 0, 0x0, 0b00
+let zero_literal(t:int64):bool {
+    if toks[t].kind != T_NUM || float_tok(t) { return false }
+    for i in 0..<toks[t].len {
+        let c:uint32 = codes[toks[t].at + i]
+        let prefix = i == 1 && (c == 'x' || c == 'X' || c == 'b' || c == 'B' || c == 'o' || c == 'O')
+        if c != '0' && c != '_' && !prefix { return false }
+    }
+    return true
+}
+
 let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     if failed { return false }
     if want < 0 { return true }
     let wk:ykind = types[want].kind
     if wk == Y_C || wk == Y_FN || wk == Y_TYPEOF || wk == Y_VOID || wk == Y_PARAM { return true }
     let k:nkind = nodes[v].kind
-    let number_lit = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM)
+    let number_lit = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM) || (k == N_BOOL && wk == Y_PTR)   // true where a pointer goes is a number to kelvinc (#760)
     let text_lit = k == N_STR
     let c_tag:bool = wk == Y_STRUCT && (types[want].elem == 0 - 2 || types[want].elem == 0 - 3)   // struct nope, union u written: no number nor text, as kelvinc says it (#689)
     if wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0) && !(c_tag && (number_lit || text_lit)) { return true }   // C's, a plain enum, an enum with values
@@ -3724,6 +3744,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
             ok = false
             lend = wk == Y_PTR && types[want].elem >= 0 && type_text(types[want].elem) == type_text(y)
         }
+        if wk == Y_PTR && y < 0 && no_pointer_number(v) { ok = false }   // a number that is no 0 where a pointer goes, as kelvinc says it (#760), where it was C's error
     } else if wk == Y_STRUCT {
         ok = !number && !text && (y < 0 || yk != Y_STRUCT || type_text(y) == type_text(want)) && (y < 0 || yk == Y_STRUCT)
     } else {
@@ -12091,6 +12112,7 @@ let fits_value(n:int64, t:int64):bool {
     if k == N_STR && tk == Y_STRING { return true }     // text a String, some("lit") of a String? (#413)
     if bare_init(n) { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
     if k == N_NULL && (tk == Y_PTR || tk == Y_CSTR || tk == Y_FN) { return true }   // nowhere where a pointer goes: some(nowhere) of an i64^? (#729)
+    if k == N_NUM && tk == Y_PTR && zero_literal(nodes[n].t) { return true }   // 0, C's null, where a pointer's Optional goes (#760)
     if own_plain(type_of(n)) == t { return true }       // a p:i64^ const is an i64^ where a value goes (#742)
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
@@ -15752,7 +15774,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
         count += 1
         if nodes[x].kind == N_ADESIG {                   // [i] = v: its place C's to check, as kelvinc leaves it (#715); its value of the element's kind (#757), as kelvinc's since #752
             let dv:int64 = nodes[x].a
-            let plain = dv >= 0 && !is_owner(e) && !is_variant(e) && types[e].kind != Y_PTR && types[e].kind != Y_C && types[e].kind != Y_TYPEOF && types[e].kind != Y_FIXED && types[e].kind != Y_FN && !(types[e].kind == Y_STRUCT && struct_of(e) < 0 && tagged_of(e) < 0 && !enum_int(e))
+            let plain = dv >= 0 && !is_owner(e) && !is_variant(e) && (types[e].kind != Y_PTR || no_pointer_number(dv)) && types[e].kind != Y_C && types[e].kind != Y_TYPEOF && types[e].kind != Y_FIXED && types[e].kind != Y_FN && !(types[e].kind == Y_STRUCT && struct_of(e) < 0 && tagged_of(e) < 0 && !enum_int(e))
             if plain {
                 let bad:String = value_mismatch_text(dv, e)
                 if bad.count > 0 {
@@ -15789,8 +15811,8 @@ let fixed_list_fits(v:int64, y:int64):bool {
         } else if is_owner(e) && is_place(x) && !is_case_word(x) {   // as an Array's elements (#364)
             owner_assign_error(x)
             return false
-        } else if types[e].kind == Y_PTR && !is_case_word(x) {
-            // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557)
+        } else if types[e].kind == Y_PTR && !is_case_word(x) && !no_pointer_number(x) {
+            // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557); a number that is no 0 is said (#760)
         } else if types[e].kind == Y_C || types[e].kind == Y_TYPEOF || (types[e].kind == Y_STRUCT && struct_of(e) < 0 && tagged_of(e) < 0 && !enum_int(e)) {
             // an element of a type only C sees, size_t, div_t, is C's to check, as kelvinc leaves it (#729)
         } else if types[e].kind == Y_CSTR && nodes[x].kind == N_NULL {
@@ -21382,6 +21404,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
     }
     if k == N_STR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // text where a u8^ goes, as kelvinc's fit (#694, #730)
     if k == N_STR { return vk == Y_STRING || vk == Y_CSTR ? $"" : $"text" }
+    if number && vk == Y_PTR && !no_pointer_number(v) { return $"" }   // 0, C's null, where a pointer goes (#760)
     if number { return is_number_kind(vk) ? $"" : $"a number" }
     let y:int64 = own_plain(type_of(v))                 // a p:i64^ const is an i64^ where a value goes (#742)
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }

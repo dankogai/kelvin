@@ -39,12 +39,24 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #759 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #760 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #759, resolve kelvinc then kc, of what was
+  left listed, with the answers, each pushed when clean:
+  - a number where a pointer goes, `var p:i64^ := 5`, `first(5)`,
+    `[5]` of a `[i64^](1)`, a bool too, is `'p' is an i64^, and this
+    is a number` in each place a value goes, in both, where it was
+    C's error; `0` is C's null still, the user's answer, refuse any
+    but 0 (#760);
+  - left: `var v:[i64]`, no count and no value; `-=` of a Set, an
+    Array and a Dictionary, an error that names `.remove`; and a
+    number, a struct and a fixed array declared with no value, zeroed
+    by kelvinc as by kc.
 
 - The user's order after #751, resolve kelvinc then kc, of the
   differences found while #746 to #749 were made, each pushed when
@@ -157,10 +169,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1095 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1098 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755 and #757 alike.
+  #752, #754, #755, #757 and #760 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -355,9 +367,10 @@ known, not what is planned.
     `.typename` and in its errors, and `Array<pt>` by kc: `Array<pt>`
     by both since #758.
   - A number where a pointer goes as an element or a value, `[5]` of a
-    `[i64^](1)` and `${"a": 5}` of a `${String: i64^}`, is C's error
-    of kelvinc's C; of the second kc says `a value of ... is an i64^,
-    and this is a number`.
+    `[i64^](1)` and `${"a": 5}` of a `${String: i64^}`, was C's error
+    of kelvinc's C; of the second kc said `a value of ... is an i64^,
+    and this is a number`: said so in both, of any number but 0,
+    since #760.
   - An element or a value where an Optional goes is kelvinc's `case
     'some' of i64? holds an i64, and this is text`, and was kc's `an
     element of [i64?](1) is an i64?, and this is text`: kelvinc's in
@@ -542,8 +555,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P764, and a review's own
-  detail row is confirmed by that review (#675).
+- P765, the details of #760, until reviewed; the reviews confirmed
+  every row to P764, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

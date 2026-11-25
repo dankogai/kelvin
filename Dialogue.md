@@ -14607,3 +14607,25 @@ confirmed by #759.
 Details are P764, confirmed by #759 itself.
 
 There are 1646 tests, and all pass with clang and with gcc 15.
+
+### 807. A number is no pointer
+
+**Claude** wrote #759, its battery run and pushed when clean, its CI
+all green, and listed what is left.
+
+**User:** resolve kelvinc then kc
+
+**Claude** asked four things: whether each is pushed when clean; what
+a number where a pointer goes is; what `s -= "a"` of a Set is; and
+what a variable declared with no value is.
+
+**User:** push each when clean; refuse any number but 0; an error
+naming .remove; zero them in kelvinc (each the recommended)
+
+**Claude** made the first #760: a number, a character or a bool that
+is no 0 where a pointer goes is `'p' is an i64^, and this is a number`
+in both, where it was C's error; `0` is C's null still.
+
+Details are provisional P765.
+
+There are 1650 tests, and all pass with clang and with gcc 15.

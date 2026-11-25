@@ -175,6 +175,10 @@ Kelvin has no `void` type:
   `var r := nowhere` infers `any^`.
   - A pointer points `nowhere` as an Optional holds `none` (#446):
     `nullptr` is refused, with a hint to write `nowhere`.
+- **A number is no pointer** (#760): `var p:i64^ := 5`, `first(5)` and
+  `[5]` of a `[i64^](1)` are errors, `'p' is an i64^, and this is a
+  number`, in each place a value goes, where they were C's.
+  - `0` alone is taken, C's null: `var p:i64^ := 0` is `nowhere`.
 - **A reference declared without a value is `nowhere`**, so `var p:any^`
   means `var p:any^ := nowhere`.
   - This applies to every pointer declaration (`var q:i32^`), local or
