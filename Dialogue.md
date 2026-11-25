@@ -14645,3 +14645,15 @@ inner count's, each fixed before the battery.
 Details are provisional P766.
 
 There are 1651 tests, and all pass with clang and with gcc 15.
+
+### 809. An array of no count and no value
+
+**Claude** wrote #761, its battery run and pushed when clean.
+
+**Claude** made the third #762: `var v:[i64]`, an array of no count
+and no value, is kc's sentence in kelvinc, `[i64] takes its count from
+its elements`, where it was C's error.
+
+Details are provisional P767.
+
+There are 1652 tests, and all pass with clang and with gcc 15.

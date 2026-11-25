@@ -996,3 +996,5 @@ So far the changes from C are these, by topic.
 - A variable declared with no value is zero: `var x:i64`, `var
   p:point` and `var a:[i64](3)`, where kelvinc left them unset, as C
   (#761)
+- `var v:[i64]`, an array of no count and no value, is `[i64] takes
+  its count from its elements`, where it was C's error (#762)

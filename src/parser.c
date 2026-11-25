@@ -12812,6 +12812,13 @@ static Var *parse_var(bool with_init, int let) {
         check_typed_value(v->init, v->type, strfmt("'%s' is", v->name), v->init->pos); /* (#255) */
         reject_owner_array(v);
         pick_overload(v->init, v->type);
+    } else if (with_init && parsing_fn && v->type && v->type->kind == T_ARRAY && !v->type->size) {
+        /* var v:[i64], no count and no value (#762): C's error, definition of variable with array type needs an
+           explicit size or an initializer; kc's sentence */
+        bare_tags = true;
+        char *w = kelvin_type(v->type), *e = kelvin_type(v->type->elem);
+        bare_tags = false;
+        error_at(v->pos, "%s takes its count from its elements: write [%s](N), or the elements", w, e);
     }
     return v;
 }

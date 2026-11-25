@@ -171,6 +171,9 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
   - An array's takes `[...]` (#48), and `[T]` counts its items:
     `([size_t])[1, 2]`, `sizeof ([i32])[1, 2, 3]` is 12,
     `for x in ([i32])[5, 6, 7] { }`.
+    - A variable of `[T]` with no value has no count, and is an error
+      (#762): `var v:[i64]` is `[i64] takes its count from its
+      elements: write [i64](N), or the elements`, where it was C's.
 - **A list is not a value:** where C expects a value, as for
   `memcpy(buf, ['a', 'b'], 2)` or `show([1, 2])`, write a compound
   literal, `([u8])['a', 'b']`. kelvinc says so, rather than taking the

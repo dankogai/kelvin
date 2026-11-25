@@ -1910,6 +1910,11 @@ kc reads what it is written in, and little more.
   and a fixed array `{0}`, an empty record `{}`, a count C computes by
   `memset`. kc is as it was; tests/run's unset_variables_zero.k has
   them.
+- **An array of no count and no value** (#762) is kelvinc's error in
+  kc's sentence since that number, `[i64] takes its count from its
+  elements: write [i64](N), or the elements`, gen_fixed_var's, where
+  kelvinc left it to C; tests/error's array_no_count_no_value.k has
+  it.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

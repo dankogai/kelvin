@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #761 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #762 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -58,8 +58,11 @@ known, not what is planned.
     and as a pointer is nowhere, the user's answer, zero them in
     kelvinc, where kelvinc left them unset as C does; an array of a
     count C computes and a v.type by `memset` (#761);
-  - left: `var v:[i64]`, no count and no value; `-=` of a Set, an
-    Array and a Dictionary, an error that names `.remove`.
+  - `var v:[i64]`, an array of no count and no value in a function,
+    is `[i64] takes its count from its elements: write [i64](N), or
+    the elements`, kc's sentence, where it was C's error (#762);
+  - left: `-=` of a Set, an Array and a Dictionary, an error that
+    names `.remove`.
 
 - The user's order after #751, resolve kelvinc then kc, of the
   differences found while #746 to #749 were made, each pushed when
@@ -172,10 +175,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1098 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1099 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757 and #760 alike.
+  #752, #754, #755, #757, #760 and #762 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -353,8 +356,9 @@ known, not what is planned.
 - Found while #756 was made, not changed:
   - `{$[1]}`, one value and no comma, of a struct of one Array is its
     value by kelvinc, which knows the struct, and `$0` by kc.
-  - `var v:[i64]`, no count and no value, is C's error of kelvinc's C
-    and kc's `[i64] takes its count from its elements`.
+  - `var v:[i64]`, no count and no value, was C's error of kelvinc's C
+    and kc's `[i64] takes its count from its elements`: kc's sentence
+    in both since #762.
 - Found while #755 was made, not changed:
   - `{$[1], 2}` of a struct whose first member is an Array is built by
     kelvinc and was kc's `'$0' is a parameter of an anonymous
@@ -558,7 +562,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P765 and P766, the details of #760 and #761, until reviewed; the reviews confirmed
+- P765 to P767, the details of #760 to #762, until reviewed; the reviews confirmed
   every row to P764, and a review's own detail row is confirmed by that
   review (#675).
 
