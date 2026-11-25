@@ -1889,6 +1889,10 @@ kc reads what it is written in, and little more.
     array_append_kind.k, array_append_fn_kind.k, member_value_place.k,
     optional_element_kind.k, designated_element_kind.k and
     string_param_member_number.k have them.
+- **A container of structs by the struct's bare name** (#758) is
+  kelvinc's since that number, `Array<point>`, which kc named so:
+  kelvinc's `.typename` and its errors said `Array<struct point>`; kc
+  is as it was, and tests/run's container_struct_names.k has them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

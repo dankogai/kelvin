@@ -984,3 +984,6 @@ So far the changes from C are these, by topic.
 - kc says a Set's key, an Array's appended element, an Optional's
   element and a designated element's value in kelvinc's sentences,
   and an error of a member read at its `.` (#757)
+- An Array, a Dictionary and a Set of structs are named by the
+  structs' bare names, `Array<point>`, where `.typename` said
+  `Array<struct point>` (#758)

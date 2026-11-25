@@ -14573,3 +14573,15 @@ is in TODO.md, each under where it was found.
 Details are provisional P762.
 
 There are 1645 tests, and all pass with clang and with gcc 15.
+
+### 805. A container of structs by the struct's bare name
+
+**Claude** wrote #757, its battery run and pushed when clean, and
+made the difference of kelvinc's found with #752 the next, #758: an
+Array, a Dictionary and a Set of structs are named by the structs'
+bare names, `Array<point>`, by `.typename` and in kelvinc's errors,
+as kc names them, where kelvinc said `Array<struct point>`.
+
+Details are provisional P763.
+
+There are 1646 tests, and all pass with clang and with gcc 15.

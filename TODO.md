@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #757 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #758 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -61,6 +61,11 @@ known, not what is planned.
     function type, `T (*)[]`, where C found no `n` in the variable's
     type; kc, which built the first, builds the second so (#753).
   With it kelvinc's two are done.
+  - a container of structs is named by the struct's bare name,
+    `Array<point>` and `Dictionary<String, point>`, by `.typename` and
+    in kelvinc's errors, as kc names it, where kelvinc said
+    `Array<struct point>`; found while #752 was made, and of the same
+    order (#758).
 
 - The user's order after #745, resolve kelvinc's listed faults, then
   kc's, each pushed when clean, then the chores of 0.4.1 short of the
@@ -322,6 +327,9 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #758 was made, not changed:
+  - `a := $[]` of an Array is kelvinc's `'a' is a value (Array<pt>)`
+    and kc's `Array([]) has no element type`.
 - Found while #757 was made, not changed:
   - `a += { $0 + 1 }` of an Array of functions is kelvinc's `a list is
     not a value here` and built by kc.
@@ -342,9 +350,10 @@ known, not what is planned.
     'corners' is ([[i64](3)](2)):i64`, of a function's fixed array
     parameter: built since #754.
 - Found while #752 was made, not changed:
-  - A container of structs is named with `struct` by kelvinc,
+  - A container of structs was named with `struct` by kelvinc,
     `Array<struct pt>` and `Dictionary<String, struct pt>`, by
-    `.typename` and in its errors, and `Array<pt>` by kc.
+    `.typename` and in its errors, and `Array<pt>` by kc: `Array<pt>`
+    by both since #758.
   - A number where a pointer goes as an element or a value, `[5]` of a
     `[i64^](1)` and `${"a": 5}` of a `${String: i64^}`, is C's error
     of kelvinc's C; of the second kc says `a value of ... is an i64^,
@@ -533,7 +542,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P757 to P762, the details of #752 to #757, until reviewed; the reviews confirmed
+- P757 to P763, the details of #752 to #758, until reviewed; the reviews confirmed
   every row to P756, and a review's own detail row is confirmed by that
   review (#675).
 

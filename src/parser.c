@@ -6461,6 +6461,16 @@ static char *kelvin_type(Type *t) {
         Decl *ar = anon_record_of(t); /* a struct with no tag, by its members (#59) */
         if (ar)
             return strfmt("%s%s%s", q, *q ? " " : "", ar->spelling);
+        if (t->elem && (is_array_owner(t) || is_dict_owner(t) || is_set_owner(t))) {
+            /* an Array, a Dictionary and a Set of structs are named by the structs' bare names, Array<point>, as a
+               point? is and as they are written (#758), where the name made with the type said Array<struct point> */
+            bool saved = bare_tags;
+            bare_tags = true;
+            char *n = is_dict_owner(t) ? strfmt("Dictionary<%s, %s>", kelvin_type(t->key), kelvin_type(t->elem))
+                                       : strfmt("%s<%s>", is_array_owner(t) ? "Array" : "Set", kelvin_type(t->elem));
+            bare_tags = saved;
+            return strfmt("%s%s%s", q, *q ? " " : "", n);
+        }
         /* .typename (#34) spells a Kelvin tag by its bare name (#29) */
         const char *n = t->name;
         for (int k = 0; k < 3; k++) {

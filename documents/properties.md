@@ -146,6 +146,10 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 - **`v.typename`** is the text of `v`'s type as Kelvin writes it, a
   `cstr`: `"i64"`, `"point"`, `"u8^"`, `"[i32](4)"`, `"(i64):i64"`,
   `"((i64):i64)^"`.
+  - An Array, a Dictionary and a Set of structs are named by the
+    structs' bare names (#758), `"Array<point>"` and
+    `"Dictionary<String, point>"`, as a `point?` is, where they were
+    `"Array<struct point>"`; an error names them so too.
   - A count C computes is named as written (#747): `var a:[i32](n)`
     is `"[i32](n)"`, and `"[i32](...)"` where the count is no name,
     `[i32](n + 1)`; a `b:a.type` of it and its rows are named so too,
