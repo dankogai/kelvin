@@ -14392,3 +14392,24 @@ listed in TODO.md, not changed.
 Details are provisional P752.
 
 There are 1612 tests, and all pass with clang and with gcc 15.
+
+### 795. A value where a function type goes is a function of that type
+
+**Claude** wrote #747, its battery run and pushed when clean, and
+went on with the third, in a copy of the repository while the battery
+ran: a function of rows of another type was C's error because kelvinc
+checked no value where a function type goes, so that a function of
+another type was C's and text and a pointer were taken with a warning,
+the program built; kc said each in its words.
+
+**Claude** made it #748: a value where a function type goes is a
+function of that type, or `this is (f64):i64, where (i64):i64 goes`,
+kc's sentence, of an argument, a declaration, `:=`, a member and a
+return; rows of a count C computes take rows of any count, by a
+function's name too. member_value's clause that was never false is
+gone with it, and kelvinc's listed faults are done; five differences
+found there are listed in TODO.md, not changed.
+
+Details are provisional P753.
+
+There are 1618 tests, and all pass with clang and with gcc 15.

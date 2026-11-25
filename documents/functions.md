@@ -274,6 +274,19 @@ let u:():() := tick        // the same, the result written out (#141)
     or more of a variadic one (#740): `f(1)` of an `f:(i64, i64):i64`
     is `this function, of type (i64, i64):i64, takes 2 arguments, and
     it is given 1`, a variable's, an element's and a member's alike.
+  - Where one goes, a function of that type goes (#748): an argument,
+    a variable's value, `:=`, a struct's member and a `return`.
+    - A function of another type, an anonymous function that writes
+      its parameters or a variable's, is `this is (f64):i64, where
+      (i64):i64 goes`, where it was C's error.
+    - A value that is no function is the same error, `this is cstr,
+      where (i64):i64 goes`, where C refused a number and took text
+      and a pointer with a warning; `nowhere` goes.
+    - A function's name of no such type is `no function 'half' is
+      (i64):i64` (#223), a struct's member's too.
+    - An array parameter is the pointer C makes of it, and rows of a
+      count C computes, `[[i64](n)](2)`, take rows of any count: a
+      function of rows of three goes there, by its name too.
 - A function type is a reference (P32): it is assigned with `:=`, is
   `nowhere` until assigned, and is compared with `nowhere`
   (`if f != nowhere`). A `let` one is a `const` pointer.

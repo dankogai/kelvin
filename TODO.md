@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #747 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #748 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -53,8 +53,13 @@ known, not what is planned.
     `f:([[i64](n)](2)):i64`, which was `?`, and with it the name of
     every type of a count C computes, `[i32](n)`, a `b:a.type`'s too,
     the user's answer, as a's (#747);
-  - left: a function of rows of another type given to such a
-    parameter, C's error; member_value's clause that is never false.
+  - a function of rows of another type given to such a parameter,
+    C's error, and with it every value where a function type goes: a
+    function of another type, `this is (f64):i64, where (i64):i64
+    goes`, kc's sentence, and a value that is no function, of which C
+    took text and a pointer; member_value's clause that is never
+    false is gone with it (#748).
+  With it kelvinc's listed faults are done.
 - The user's order after #731, the three faults of kelvinc's found
   while #724 to #730 were made, one number each, pushed when clean:
   - a compound literal's commas where a macro's argument goes,
@@ -75,9 +80,9 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1068 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1073 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736, #740, #741, #742, #743 and #744 alike.
+  #725, #727, #733, #736, #740, #741, #742, #743, #744 and #748 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -244,6 +249,22 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #748 was made, not changed:
+  - A fixed array's element and a Dictionary literal's value of
+    another kind are C's errors of kelvinc's C, `var fs:[i64](1) =
+    ["a"]` and `${"a": "x"}` of a `${String: i64}`, a function's too,
+    and kc's `an element of [i64](1) is an i64, and this is text`.
+  - `a += "x"` of a `$[i64]` is kelvinc's `an element of Array<i64>
+    is an i64, and this is text`, and C's error of kc's C; `a += 5` of
+    a `$[(i64):i64]` is kelvinc's element sentence and kc's `this is
+    i64, where (i64):i64 goes`.
+  - A member where a function goes, `num(o.n)`, is said at the `o` by
+    kelvinc and at the `.` by kc.
+  - A function of a pointer to a row, `{ (m:[i64](3)^):i64 in ... }`,
+    where rows of a count C computes go is built by kelvinc and
+    refused by kc.
+  - A function of two types defined inside a function, `t`, given
+    where neither goes is said of `_kv_main_t1` by kc.
 - Found while #747 was made, not changed:
   - A function's parameter that is a fixed array is named as written
     by kelvinc, `g3.typename` of a `g3(m:[[i64](3)](2))`
@@ -267,17 +288,19 @@ known, not what is planned.
     which the review #745 had not seen.
   - `var d = Set([q[0]])` is kelvinc's `expected an expression, found
     'Set'`, and kc's `'d' needs a type`: not changed.
-- Found while #745, the review, was made, not changed:
-  - parser.c's member_value asks, of a pointer member, `!(w->kind ==
+- Found while #745, the review, was made:
+  - parser.c's member_value asked, of a pointer member, `!(w->kind ==
     T_BASE && ...)` after `w->kind == T_PTR`, a clause that is never
-    false.
+    false: gone since #748.
 - Found while #744 was made, not changed:
   - `apply.typename` of a function that takes an
     `f:([[i64](n)](2)):i64` was `?` by kelvinc, and `(i64,
     ([[i64](n)](2)):i64):i64` by kc: kelvinc's too since #747.
   - A function of rows of another type given to it, `{
-    (m:[[f64](3)](2)):i64 in 1 }`, is C's error of kelvinc's C, and
-    kc's `this is ([f64](3)^):i64, where ([[i64](n)](2)):i64 goes`.
+    (m:[[f64](3)](2)):i64 in 1 }`, was C's error of kelvinc's C, and
+    kc's `this is ([f64](3)^):i64, where ([[i64](n)](2)):i64 goes`:
+    kelvinc's `this is ([[f64](3)](2)):i64, where ...` since #748, the
+    array named as written, where kc names its pointer.
   - A function of rows of four given where `n` is 3 is built by both,
     as C takes a row of any count there.
 - Found while #743 was made, not changed:
@@ -384,7 +407,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P751 and P752, the details of #746 and #747, until reviewed; the reviews confirmed
+- P751 to P753, the details of #746 to #748, until reviewed; the reviews confirmed
   every row to P750, and a review's own detail row is confirmed by that
   review (#675).
 

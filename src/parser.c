@@ -8125,6 +8125,33 @@ static char *param_key(Decl *d, int k) {
     return key;
 }
 
+/* whether a parameter of type a of one function type is, in C, one of
+   type b of another (#748): an array is the pointer C makes of it, and a
+   row of a count C computes, [i64](n), is a row of any count */
+static bool fn_param_same(Type *a, Type *b) {
+    a = param_type(unqualified(a));
+    b = param_type(unqualified(b));
+    if (a->kind == T_PTR && b->kind == T_PTR && a->elem && b->elem && a->elem->kind == T_ARRAY &&
+        b->elem->kind == T_ARRAY && a->elem->is_const == b->elem->is_const) {
+        Expr *n = a->elem->size, *m = b->elem->size;
+        bool counted = n && m && n->kind == E_LITERAL && m->kind == E_LITERAL;
+        if (counted && strcmp(n->text, m->text))
+            return false;
+        Type *x = a->elem->elem, *y = b->elem->elem;
+        return x && y && !strcmp(fn_key(x), fn_key(y));
+    }
+    return !strcmp(fn_key(a), fn_key(b));
+}
+
+/* whether the function type g is, in C, the function type want (#748) */
+static bool fn_types_same(Type *g, Type *want) {
+    bool same = g->variadic == want->variadic && g->params.len == want->params.len && !g->elem == !want->elem &&
+                (!g->elem || !strcmp(fn_key(own_unqualified(g->elem)), fn_key(own_unqualified(want->elem))));
+    for (int i = 0; same && i < g->params.len; i++)
+        same = fn_param_same(g->params.data[i], want->params.data[i]);
+    return same;
+}
+
 /* A function's name used as a value (#41): the overload of the function
    type that want is; with none of that type an error, since C's function
    of the name is not taken where a Kelvin function has it (#223) */
@@ -8136,6 +8163,18 @@ static void pick_overload(Expr *v, Type *want) {
     for (int i = 0; i < v->cands.len; i++) {
         Decl *d = v->cands.data[i];
         if (!strcmp(fn_key(fn_type_of(d)), fn_key(want))) {
+            v->target = d;
+            v->cands.len = 0;
+            return;
+        }
+    }
+    /* none of the very type: one that is the type in C, of rows of three where rows of a count C computes go, as an
+       anonymous function of them is taken (#748) */
+    if (v->target && fn_types_same(fn_type_of(v->target), want))
+        return;
+    for (int i = 0; i < v->cands.len; i++) {
+        Decl *d = v->cands.data[i];
+        if (fn_types_same(fn_type_of(d), want)) {
             v->target = d;
             v->cands.len = 0;
             return;
@@ -8167,6 +8206,36 @@ static void check_entry_value(Expr *v, Type *dt, Pos pos) {
     check_typed_value(v, dt->elem, lead, pos);
 }
 
+/* a value v where one of the function type want goes (#748): a function
+   value of another type, an anonymous function that writes its
+   parameters or a variable of a function type, is "this is (f64):i64,
+   where (i64):i64 goes", kc's sentence, where it was C's error,
+   incompatible function pointer types; and so is a value that is no
+   function, a number, a bool, text, a String, a struct or a pointer,
+   "this is cstr, where (i64):i64 goes", where C refused a number and
+   took text and a pointer with a warning. A function's name is matched
+   by its overloads, and nowhere and what only C sees are C's. An
+   element's and an entry's are said as any value's there, with lead */
+static void check_fn_value(Expr *v, Type *want, const char *lead, Pos pos) {
+    if (v->kind == E_IDENT && (v->cands.len || v->target))
+        return;
+    Type *g = value_type(v);
+    if (!g && (number_expr(v) || v->kind == E_STRING || is_text_expr(v) || seen_bool(v)))
+        g = v->kind == E_STRING || is_text_expr(v) ? base_type("cstr", v->pos) : seen_bool(v) ? base_type("bool", v->pos) : inferred_type(v, v->pos);
+    g = g ? unqualified(g) : NULL;
+    Decl *rec;
+    if (!g || g->kind == T_TYPEOF || (g->kind == T_BASE && type_class(g, &rec) == 'u'))
+        return;
+    if (g->kind == T_FUNC && fn_types_same(g, want))
+        return;
+    bare_tags = true;
+    char *given = kelvin_type(g), *wanted = kelvin_type(want);
+    bare_tags = false;
+    if (lead) /* an element's and an entry's, as any value's there */
+        error_at(pos, "%s %s %s, and this is %s", lead, article(wanted), wanted, given);
+    error_at(v->pos, "this is %s, where %s goes", given, wanted);
+}
+
 /* v where a value of want goes, in Kelvin's words: "<lead> an i64, and
    this is text" (#246, #248) */
 static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
@@ -8179,6 +8248,8 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
     Decl *rec;
     if (want->kind == T_BASE && type_class(want, &rec) == 'u')
         return; /* a C typedef, as size_t, is C's (#251) */
+    if (want->kind == T_FUNC) /* a function value of another type (#748) */
+        check_fn_value(v, want, lead && (!strncmp(lead, "an element", 10) || !strncmp(lead, "an entry of", 11)) ? lead : NULL, pos);
     if (want->kind == T_FUNC || want->kind == T_TYPEOF)
         return; /* a function is matched by its overloads, and then C (#255) */
     Type *vt = value_type(v);
@@ -8237,7 +8308,6 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
    left as they were */
 static void member_value(Expr *v, Type *want, const char *lead, Pos pos) {
     Type *w = unqualified(want);
-    Decl *rec;
     if (want->kind == T_ARRAY) {
         Type *vt = value_type(v);
         bool bytes = want->elem && want->elem->kind == T_BASE &&
@@ -8254,7 +8324,7 @@ static void member_value(Expr *v, Type *want, const char *lead, Pos pos) {
     }
     if (w->kind == T_BASE && (number_kind(w) || !strcmp(w->name, "bool") || is_string(w) || is_cstr(w)))
         check_typed_value(v, want, lead, pos);
-    else if (w->kind == T_PTR && !(w->kind == T_BASE && type_class(w, &rec) == 'u'))
+    else if (w->kind == T_PTR || w->kind == T_FUNC) /* a function type's too (#748) */
         check_typed_value(v, want, lead, pos);
 }
 
@@ -10884,6 +10954,8 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             }
             if (!strcmp(t->text, ":=") && lhs->kind == E_IDENT && target_type(lhs) && target_type(lhs)->kind == T_PTR)
                 check_typed_value(e->b, target_type(lhs), strfmt("'%s' is", lhs->text), e->b->pos); /* q := &x of a let (#273) */
+            if (!strcmp(t->text, ":=") && target_type(lhs) && unqualified(target_type(lhs))->kind == T_FUNC)
+                check_fn_value(e->b, unqualified(target_type(lhs)), NULL, e->b->pos); /* g := { (x:f64):i64 in 2 } of a g:(i64):i64 (#748) */
             reject_template_escape(lhs, e->b, t->pos);
             if (compound_text(e->op)) { /* x op= y that x's type defines, in place (#518) */
                 Expr *c = resolve_compound(e, lhs);
@@ -11080,9 +11152,11 @@ static Expr *parse_initializer_for(Type *t) {
         }
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = string_of_literal(drop_cstr(parse_initializer_for(item), item), item); /* a cstr into a u8^ member (#52) */
-        if (record && item && !braced && !lost && links <= 1) { /* a member's value of its kind, as a parameter's (#741) */
+        if (record && item && (!braced || unqualified(item)->kind == T_FUNC) && !lost &&
+            links <= 1) { /* a member's value of its kind, as a parameter's (#741); a function's begins with a brace (#748) */
             const char *mname = d ? d->text : ((Var *)record->members.data[next])->name;
             member_value(value, item, strfmt("'%s' of %s is", mname, record_spelling(record)), value->pos);
+            pick_overload(value, unqualified(item)); /* a function's name where a member of a function type goes (#748) */
         }
         value = optional_of(value, item, value->pos); /* a T into a T? member (#72) */
         if (value->kind == E_IDENT && record && is_owner(item) && is_owner(value_type(value))) {
@@ -16096,6 +16170,8 @@ static Stmt *parse_stmt_here(void) {
             if (result && parsing_fn->ret->kind != T_FUNC && !is_optional_type(parsing_fn->ret) &&
                 !variant_record(parsing_fn->ret)) /* in Kelvin's words, where C's were (#627) */
                 check_typed_value(s->expr, parsing_fn->ret, strfmt("%s returns", fn_shown(parsing_fn)), s->expr->pos);
+            if (result && unqualified(parsing_fn->ret)->kind == T_FUNC) /* a function returned, of the result's type (#748) */
+                check_fn_value(s->expr, unqualified(parsing_fn->ret), NULL, s->expr->pos);
         }
         /* the function's own buffers are gone once it returns (#32, #35) */
         if (s->expr && result && !parsing_fn->text_method)

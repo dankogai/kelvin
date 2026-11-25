@@ -957,3 +957,6 @@ So far the changes from C are these, by topic.
 - `.typename` names a count C computes as written: `[i32](n)` of a
   `var a:[i32](n)`, and a function's that takes such an array, where
   it was `?` (#747)
+- A value where a function type goes is a function of that type:
+  `num({ (x:f64):i64 in 1 })` is `this is (f64):i64, where (i64):i64
+  goes`, and text there is an error, where C took it (#748)

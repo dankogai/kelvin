@@ -1775,6 +1775,14 @@ kc reads what it is written in, and little more.
     `u8`.
   - tests/run's typename_computed_count.k has them, and
     type_property_edge.k's `b.typename` is `[i32](n)`.
+- **A value where a function type goes** (#748) is kelvinc's error in
+  kc's words since that number, `this is (f64):i64, where (i64):i64
+  goes`, gen_fn_value's, which kc said of a function of another type
+  and of what is no function, where kelvinc left them to C.
+  - kc is as it was; tests/error's fn_value_other_type.k,
+    fn_value_no_function.k, fn_value_member_type.k,
+    fn_value_returned_type.k and fn_value_assigned_type.k, and
+    tests/run's fn_value_rows_named.k, have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
