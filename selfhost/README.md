@@ -1783,6 +1783,22 @@ kc reads what it is written in, and little more.
     fn_value_no_function.k, fn_value_member_type.k,
     fn_value_returned_type.k and fn_value_assigned_type.k, and
     tests/run's fn_value_rows_named.k, have them.
+- **A cstr variable is no String, and a Set is declared by :=**
+  (#749), as kelvinc's, kc's two listed differences:
+  - a cstr variable, a member or a template that is a cstr, where a
+    String goes is `'t' is a String, and this is cstr`,
+    typed_value_ok, which took any cstr as text: a declaration, an
+    assignment, a member and a `return`, whose function inside a
+    function is named by its own name, local_own_of;
+  - a parameter's and an Array's element's are said so, where an
+    owner's move and copy were refused first, cstr_place;
+  - an Optional's and a Result's case holds a String, `and this is
+    cstr`, value_mismatch_text, where it was C's error;
+  - `var d := ${"a"}` is taken, assigns_as, as an Array's and a
+    Dictionary's;
+  - tests/error's cstr_variable_string.k,
+    cstr_variable_string_param.k and cstr_variable_optional.k, and
+    tests/run's set_declared_reference.k, have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

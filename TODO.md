@@ -34,7 +34,7 @@ known, not what is planned.
   - A change of what a program means, or of what it must write, is
     0.5.0.
 - Release chores are done only when ordered.
-  - The CHANGELOG entry, from #651 on: #651 to #748 so far.
+  - The CHANGELOG entry, from #651 on: #651 to #749 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -80,9 +80,22 @@ known, not what is planned.
 
 ## kc
 
-- kc says each of the 1073 programs kelvinc refuses in kelvinc's words:
+- The user's order after #745, kc's two listed differences, after
+  kelvinc's faults (#746 to #748), pushed when clean (#749):
+  - a cstr variable where a String goes, `var t:String = s`, is
+    kelvinc's `'t' is a String, and this is cstr`, where it was C's
+    error of kc's C: a declaration, an assignment, a parameter, a
+    member, an Array's element, a `return`, and an Optional's and a
+    Result's case, `case 'some' of String? holds a String, and this is
+    cstr`, a template that is a cstr too;
+  - `var d := ${"a"}` declares a Set, as kelvinc takes it, as an
+    Array's and a Dictionary's.
+  With it both are done; what was found on the way is listed below.
+
+- kc says each of the 1076 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736, #740, #741, #742, #743, #744 and #748 alike.
+  #725, #727, #733, #736, #740, #741, #742, #743, #744, #748 and #749
+  alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -249,6 +262,13 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #749 was made, not changed:
+  - `d := ${2}` and `a := $[2]`, an owner assigned by `:=` after its
+    declaration, are built by kelvinc and kc's `an owner is assigned
+    only as a String`.
+  - A cstr variable as a Dictionary literal's value, `${"k": s}` of a
+    `${String: String}`, is C's error of kelvinc's C and kc's `a value
+    of Dictionary<String, String> is a String, and this is cstr`.
 - Found while #748 was made, not changed:
   - A fixed array's element and a Dictionary literal's value of
     another kind are C's errors of kelvinc's C, `var fs:[i64](1) =
@@ -317,9 +337,11 @@ known, not what is planned.
     variable inferred of one is since #738, and kelvinc does since
     #746.
   - `var t:String = s` of a cstr variable is kelvinc's `'t' is a
-    String, and this is cstr`, and C's error of kc's C.
+    String, and this is cstr`, and was C's error of kc's C: kc's too
+    since #749.
   - `var d := ${"a"}`, a Set of text given by `:=`, is built by
-    kelvinc and refused by kc, `'d' is a value (Set<String>)`.
+    kelvinc and was refused by kc, `'d' is a value (Set<String>)`:
+    built by both since #749.
 - Found while #741 was made, not changed:
   - A number given to a `cstr` parameter of a function defined inside
     a function, `take(5)`, is kelvinc's `'c' of 'take' is a cstr, and
@@ -407,7 +429,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P751 to P753, the details of #746 to #748, until reviewed; the reviews confirmed
+- P751 to P754, the details of #746 to #749, until reviewed; the reviews confirmed
   every row to P750, and a review's own detail row is confirmed by that
   review (#675).
 

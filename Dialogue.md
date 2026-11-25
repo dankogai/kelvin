@@ -14413,3 +14413,19 @@ found there are listed in TODO.md, not changed.
 Details are provisional P753.
 
 There are 1618 tests, and all pass with clang and with gcc 15.
+
+### 796. kc: a cstr variable is no String, and a Set is declared by :=
+
+**Claude** wrote #748, its battery run and pushed when clean, kelvinc's
+listed faults done, and went on with kc's two, in a copy of the
+repository while the battery ran.
+
+**Claude** made them #749: a cstr variable where a String goes is
+kelvinc's `'t' is a String, and this is cstr` in each place a value
+goes, where it was C's error or another sentence, and `var d :=
+${"a"}` declares a Set. Two differences found there are listed in
+TODO.md, not changed.
+
+Details are provisional P754.
+
+There are 1622 tests, and all pass with clang and with gcc 15.

@@ -960,3 +960,6 @@ So far the changes from C are these, by topic.
 - A value where a function type goes is a function of that type:
   `num({ (x:f64):i64 in 1 })` is `this is (f64):i64, where (i64):i64
   goes`, and text there is an error, where C took it (#748)
+- kc says a cstr variable where a String goes in kelvinc's words,
+  `'t' is a String, and this is cstr`, and declares a Set by `:=`
+  (#749)

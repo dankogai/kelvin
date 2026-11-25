@@ -2844,6 +2844,14 @@ let seen_through(y:int64):int64 {
     return vy >= 0 && types[vy].kind == Y_FIXED ? vy : y
 }
 
+// whether a is a variable or a member that is a cstr, which is no owner
+// where a String goes (#749)
+let cstr_place(a:int64):bool {
+    if nodes[a].kind != N_ID && nodes[a].kind != N_FIELD { return false }
+    let y:int64 = type_of(a)
+    return y >= 0 && types[y].kind == Y_CSTR
+}
+
 let type_of(n:int64):int64 {
     resolve_anon_word(n)                                 // red, rgb(v) (#694)
     if nodes[n].kind == N_CALL && word_misused(n, false) { return 0 - 1 }   // int(x), cstr(p) (#612); a bare i32 where it is written
@@ -3680,7 +3688,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     var y:int64 = 0 - 1
     if !number_lit && !text_lit {
         let row = k == N_INDEX && !is_slice(v) && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_FIXED && types[types[type_of(nodes[v].a)].elem].kind == Y_FIXED   // a[1] of an array of arrays, an array (#736)
-        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row { return true }
+        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row && !(k == N_TPL && wk == Y_STRING && nodes[v].flag != 1) { return true }   // a template that is a cstr where a String goes, as a cstr variable (#749)
         if k == N_ID && (is_case_word(v) || var_type(nodes[v].t) < 0) { return true }
         y = type_of(v)
         if failed { return false }
@@ -3697,7 +3705,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     if is_number_kind(wk) || wk == Y_BOOL {
         ok = number
     } else if wk == Y_STRING {
-        ok = text || yk == Y_STRING
+        ok = text_lit || yk == Y_STRING                  // text written, or a String: a cstr variable is 't' is a String, and this is cstr, as kelvinc says it (#749)
     } else if wk == Y_CSTR {
         ok = text || yk == Y_PTR || yk == Y_FIXED || yk == Y_ARGV   // no number, 's' is a cstr, and this is a number, as kelvinc says it (#741)
     } else if wk == Y_PTR || wk == Y_FIXED || wk == Y_ARGV {
@@ -3812,7 +3820,7 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
         put(wraps ? "))" : ")")
         return true
     }
-    if is_owner(nodes[p].ty) && is_place(a) && !is_case_word(a) {   // none is no place (#711)
+    if is_owner(nodes[p].ty) && is_place(a) && !is_case_word(a) && !cstr_place(a) {   // none is no place (#711), nor is a cstr variable an owner: the parameter's kind is said (#749)
         var m = $"an owner moves into "                  // as kelvinc says it (#471)
         let what = into_words("", nodes[d].c >= 0 && nodes[d].flag != 1 ? "." : "", nodes[d].t)
         m += &what
@@ -12125,7 +12133,7 @@ let gen_array(n:int64, given:int64) {
     put(" = {0}; ")
     var e = nodes[n].b
     while e >= 0 && !failed {
-        if is_owner(elem) && is_place(e) && !is_case_word(e) {   // none is no place (#343)
+        if is_owner(elem) && is_place(e) && !is_case_word(e) && !cstr_place(e) {   // none is no place (#343); a cstr variable's kind is said (#749)
             owner_assign_error(e)
             return
         }
@@ -15304,7 +15312,7 @@ let type_text(y:int64):String {
 // assigned, and what it is
 let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     let k:ykind = y >= 0 ? types[y].kind : Y_C
-    if k == Y_C || k == Y_TYPEOF || k == Y_ARRAY || k == Y_DICT { return true }   // what only C sees, a C x.type's too (#696); an Array and a Dictionary, as kelvinc
+    if k == Y_C || k == Y_TYPEOF || k == Y_ARRAY || k == Y_DICT || k == Y_SET { return true }   // what only C sees, a C x.type's too (#696); an Array and a Dictionary, as kelvinc
     if k == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return true }   // a C header's type, jmp_buf, as kelvinc (#696)
     let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_FN || (k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4))   // a function's, a pointer in C (#428); a parameter's array (#524)
     if reference == colon { return true }
@@ -17308,7 +17316,8 @@ let gen_return(n:int64) {
                 lead += tok_text(nodes[current].c)
                 lead += "."
             }
-            lead += tok_text(nodes[current].t)
+            let own:int64 = local_own_of.get(tok_text(nodes[current].t), 0 - 1)   // a function defined inside a function, by its own name (#749)
+            lead += tok_text(own >= 0 ? own : nodes[current].t)
             lead += "'"
         }
         lead += " returns"
@@ -21254,7 +21263,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
     let y:int64 = own_plain(type_of(v))                 // a p:i64^ const is an i64^ where a value goes (#742)
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
     if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
-    if types[y].kind == Y_CSTR { return vk == Y_STRING ? $"" : $"text" }
+    if types[y].kind == Y_CSTR { return $"cstr" }       // a cstr variable, and a template that is one, where a case of another kind goes, a String's too, as kelvinc names it (#749)
     if types[y].kind == Y_FIXED && types[y].name != 0 - 2 && types[y].name != 0 - 4 {   // an array where a value goes is its first element's address, i64^, as kelvinc names it (#736)
         var w = kelvin_type_text(types[y].elem)
         w += "^"
