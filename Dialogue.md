@@ -14508,3 +14508,18 @@ TODO.md, of kc's.
 Details are provisional P758.
 
 There are 1628 tests, and all pass with clang and with gcc 15.
+
+### 801. kc: a function's array parameter in its type
+
+**Claude** wrote #753, its battery run and pushed when clean, kelvinc's
+two done, and went on with kc's, in a copy of the repository while the
+batteries ran.
+
+**Claude** made the first batch #754: a function whose parameter is a
+fixed array is a value of its type as written, and goes where a
+function type that is the same in C goes, as kelvinc has it, where kc
+named the array's pointer and refused `take3(three)`.
+
+Details are provisional P759.
+
+There are 1631 tests, and all pass with clang and with gcc 15.

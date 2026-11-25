@@ -1814,6 +1814,25 @@ kc reads what it is written in, and little more.
   wrote `n` at the top of the file, C's error; kelvinc writes the
   same since that number, where it wrote `n` in the variable's type.
   - tests/run's fn_value_counted_rows.k has them.
+- **A function's array parameter in its type** (#754), as kelvinc's:
+  - written_param(p) is the type a function's type names its
+    parameter by, the array as written, `[i64](3)`, `[i64]` or
+    `[const i64](3)`, param_arrays's, and the pointer C makes of one
+    whose own count C computes; decl_fn_type, function_typename and
+    anon_type name by it, where they named every array's pointer,
+    `(i64^):i64`;
+  - fn_same(a, b) tells two function types that are one in C, as
+    kelvinc's fn_types_same: an array parameter is its pointer
+    whatever its count, pointed_of and pointed_const, a row of a count
+    C computes or of none is a row of any count, and a parameter that
+    is a function is compared by its own, fn_param_same; gen_fn_value
+    takes a function of such a type for the type that goes, where
+    fn_counts_apart took those of counts C computes alone, and
+    fn_of_type the first function of a name that is the type in C;
+  - write_type writes a written array parameter as its element's
+    pointer in a function type's typedef;
+  - tests/run's fn_array_params.k, and tests/error's
+    fn_value_rows_type.k and fn_name_const_elements.k, have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

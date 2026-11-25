@@ -971,3 +971,6 @@ So far the changes from C are these, by topic.
 - A variable is of the type of a function whose rows count by a
   parameter, `let h := apply`, where C found no `n` in its type
   (#753)
+- kc reads a function whose parameter is a fixed array as kelvinc:
+  its type is `([i64](3)):i64`, and `take3(three)` is built, where
+  kc refused it (#754)

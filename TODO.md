@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #753 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #754 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -101,6 +101,18 @@ known, not what is planned.
 
 ## kc
 
+- The user's order after #751, kc's differences found while #746 to
+  #753 were made, after kelvinc's two (#752, #753), each batch pushed
+  when clean:
+  - a function whose parameter is a fixed array is a value of its type
+    as written, `([i64](3)):i64`, `([[i64](3)](2)):i64` and
+    `([const i64](3)):i64`, as kelvinc names it, where kc named the
+    array's pointer; and it goes where a function type that is the
+    same in C goes, `take3(three)`, the array's pointer, an array of
+    no count and rows behind a pointer too, an anonymous function's
+    alike, where kc said no function of the name is of the type (#754);
+  - left: the rest listed under "Found while" #746 to #753.
+
 - The user's order after #745, kc's two listed differences, after
   kelvinc's faults (#746 to #748), pushed when clean (#749):
   - a cstr variable where a String goes, `var t:String = s`, is
@@ -113,10 +125,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1081 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1083 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749 and
-  #752 alike.
+  #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
+  #752 and #754 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -285,9 +297,9 @@ known, not what is planned.
     `[i64](3) has no member 'sum'`, and kc's too since #736.
 - Found while #753 was made, not changed:
   - `h(3, corners)` in a function whose `h` is a parameter of the type
-    `(i64, ([[i64](3)](2)):i64):i64` is refused by kc, `no function
+    `(i64, ([[i64](3)](2)):i64):i64` was refused by kc, `no function
     'corners' is ([[i64](3)](2)):i64`, of a function's fixed array
-    parameter, listed with #747's.
+    parameter: built since #754.
 - Found while #752 was made, not changed:
   - A container of structs is named with `struct` by kelvinc,
     `Array<struct pt>` and `Dictionary<String, struct pt>`, by
@@ -328,16 +340,16 @@ known, not what is planned.
   - A member where a function goes, `num(o.n)`, is said at the `o` by
     kelvinc and at the `.` by kc.
   - A function of a pointer to a row, `{ (m:[i64](3)^):i64 in ... }`,
-    where rows of a count C computes go is built by kelvinc and
-    refused by kc.
+    where rows of a count C computes go is built by kelvinc and was
+    refused by kc: built since #754.
   - A function of two types defined inside a function, `t`, given
     where neither goes is said of `_kv_main_t1` by kc.
 - Found while #747 was made, not changed:
   - A function's parameter that is a fixed array is named as written
     by kelvinc, `g3.typename` of a `g3(m:[[i64](3)](2))`
-    `([[i64](3)](2)):i64`, and as its pointer by kc, `([i64](3)^):i64`;
-    `let f:([[i64](3)](2)):i64 := g3` is built by kelvinc and refused
-    by kc, `no function 'g3' is ([[i64](3)](2)):i64`.
+    `([[i64](3)](2)):i64`, and was named as its pointer by kc,
+    `([i64](3)^):i64`; `let f:([[i64](3)](2)):i64 := g3` is built by
+    kelvinc and was refused by kc: as kelvinc's in both since #754.
   - `let h := apply` of a function that takes an
     `f:([[i64](n)](2)):i64` was C's error of kelvinc's C, `n` in the
     variable's type, and built by kc: built by both since #753.
@@ -476,7 +488,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P757 and P758, the details of #752 and #753, until reviewed; the reviews confirmed
+- P757 to P759, the details of #752 to #754, until reviewed; the reviews confirmed
   every row to P756, and a review's own detail row is confirmed by that
   review (#675).
 

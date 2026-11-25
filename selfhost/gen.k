@@ -14220,7 +14220,7 @@ let function_typename(a:int64) {
     put("\"(")
     var p:int64 = nodes[d].a
     while p >= 0 {
-        let w:String = kelvin_type_text(nodes[p].ty)
+        let w:String = kelvin_type_text(written_param(p))   // an array as written (#754)
         out += &w
         p = nodes[p].next
         if p >= 0 { put(", ") }
@@ -17811,12 +17811,66 @@ let fn_named(t:int64):int64 {
     return 0 - 1
 }
 
+// the type by which a function's type names its parameter p (#754), as
+// kelvinc's fn_type_of: an array as it is written, [T](N), [T] or
+// [const T](N), and one whose own count C computes the pointer C makes
+// of it, the count's name being lost with the names
+let written_param(p:int64):int64 {
+    let w:int64 = param_arrays.get(p, 0 - 1)
+    if w < 0 || types[w].name <= 0 - 10 { return nodes[p].ty }
+    return w
+}
+
+// what a parameter of type x points to where it is a pointer in C, an
+// array's elements or a pointer's own, or -1; and whether through const
+let pointed_of(x:int64):int64 {
+    if x >= 0 && (types[x].kind == Y_FIXED || types[x].kind == Y_PTR) { return types[x].elem }
+    return 0 - 1
+}
+
+let pointed_const(x:int64):bool {
+    if types[x].kind == Y_FIXED { return types[x].name == 0 - 4 || types[x].name == 0 - 3 || types[x].konst == 1 }
+    return ptr_const(x)
+}
+
+// whether the function types a and b are one in C (#754), as kelvinc's
+// fn_types_same: a parameter's array is the pointer C makes of it,
+// whatever its count; a row of a count C computes, or of none, is a row
+// of any count; a parameter that is a function is compared by its own
+let fn_same(a:int64, b:int64):bool    // a prototype: a parameter's asks it
+
+let fn_param_same(x:int64, y:int64):bool {
+    if x == y { return true }
+    if x < 0 || y < 0 { return false }
+    if types[x].kind == Y_FN && types[y].kind == Y_FN { return fn_same(x, y) }
+    let ex:int64 = pointed_of(x)
+    let ey:int64 = pointed_of(y)
+    if ex < 0 || ey < 0 || pointed_const(x) != pointed_const(y) { return false }
+    if ex == ey { return true }
+    if types[ex].kind != Y_FIXED || types[ey].kind != Y_FIXED || types[ex].elem != types[ey].elem || (types[ex].konst == 1) != (types[ey].konst == 1) { return false }
+    let m:int64 = types[ex].name
+    let n:int64 = types[ey].name
+    return m == n || m < 0 || n < 0                      // a count C computes, or none, is any
+}
+
+let fn_same(a:int64, b:int64):bool {
+    if a < 0 || b < 0 || types[a].kind != Y_FN || types[b].kind != Y_FN || types[a].elem != types[b].elem || types[a].konst != types[b].konst { return false }
+    var p:int64 = types[a].name
+    var q:int64 = types[b].name
+    while p >= 0 && q >= 0 {
+        if !fn_param_same(types[p].elem, types[q].elem) { return false }
+        p = types[p].name
+        q = types[q].name
+    }
+    return p < 0 && q < 0
+}
+
 // the function type of the function d: its parameters' and its result's (#428)
 let decl_fn_type(d:int64):int64 {
     var ps:$[int64] = $[]
     var p:int64 = nodes[d].a
     while p >= 0 {
-        ps += nodes[p].ty
+        ps += written_param(p)
         p = nodes[p].next
     }
     let r:int64 = nodes[d].ty
@@ -17845,6 +17899,9 @@ let fn_of_type(t:int64, y:int64):int64 {
     }
     for x in decls {
         if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) && decl_fn_type(x) == y { return x }   // a variadic one's by (T, ...):R (#729)
+    }
+    for x in decls {                                     // none of the very type: the first that is the type in C, as kelvinc's pick_overload (#754)
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) && fn_same(decl_fn_type(x), y) { return x }
     }
     return 0 - 1
 }
@@ -18035,7 +18092,7 @@ let anon_type(n:int64):int64 {
     var ps:$[int64] = $[]
     var p:int64 = nodes[n].a
     while p >= 0 {
-        ps += nodes[p].ty
+        ps += written_param(p)                           // an array as written, as a function's (#754)
         p = nodes[p].next
     }
     return fn_type_of(&ps, nodes[n].ty)
@@ -18089,27 +18146,6 @@ var anon_made:Dictionary<int64, int64>    // the function kc made of each anonym
 // the function n, where one of the function type y goes (#428): an
 // anonymous function, made a function of the program, of y's types where
 // it writes none; a function's name, of y's type; any other value of it
-// whether the function types a and b differ only by the counts C
-// computes of their parameters' arrays, [T](n) of one n and of another
-let fn_counts_apart(a:int64, b:int64):bool {
-    if types[a].kind != Y_FN || types[b].kind != Y_FN || types[a].elem != types[b].elem || types[a].konst != types[b].konst { return false }
-    var p:int64 = types[a].name
-    var q:int64 = types[b].name
-    while p >= 0 && q >= 0 {
-        let x:int64 = types[p].elem
-        let y:int64 = types[q].elem
-        let arrays = x >= 0 && y >= 0 && types[x].kind == Y_FIXED && types[y].kind == Y_FIXED && types[x].elem == types[y].elem
-        let xp = arrays && (types[x].name <= 0 - 10 || types[x].name == 0 - 2 || types[x].name == 0 - 4)   // a count C computes, or a parameter's array, its pointer
-        let yp = arrays && (types[y].name <= 0 - 10 || types[y].name == 0 - 2 || types[y].name == 0 - 4)
-        let computed = xp && yp && (types[x].name == 0 - 4 || types[x].konst == 1) == (types[y].name == 0 - 4 || types[y].konst == 1)
-        let rows = x >= 0 && y >= 0 && x != y && types[x].kind == Y_FIXED && types[y].kind == Y_FIXED && types[types[x].elem].kind == Y_FIXED && types[types[y].elem].kind == Y_FIXED && types[types[x].elem].elem == types[types[y].elem].elem && (types[types[x].elem].name <= 0 - 10 || types[types[y].elem].name <= 0 - 10)   // rows of a count C computes, [[i64](n)](2): a pointer to a row in C, of any count (#743)
-        if x != y && !computed && !rows { return false }
-        p = types[p].name
-        q = types[q].name
-    }
-    return p < 0 && q < 0
-}
-
 let gen_fn_value(n:int64, y:int64) {
     let k = nodes[n].kind                                // one of owners too, which a function kc makes owns, as kelvinc's: a call through it is refused (#515)
     if fn_picked.has(n) {                                // of its overloads, the one a function type said (#537)
@@ -18141,7 +18177,7 @@ let gen_fn_value(n:int64, y:int64) {
         gen_error(n, m.cstr)
         return
     }
-    if given >= 0 && given != y && fn_counts_apart(given, y) { given = y }   // (size_t, [i64](n)):i64 of two declarations: a count C computes is no part of the type, its array a pointer in C, as kelvinc's (#730)
+    if given >= 0 && given != y && fn_same(given, y) { given = y }   // (size_t, [i64](n)):i64 of two declarations: a count C computes is no part of the type, its array a pointer in C, as kelvinc's (#730)
     if k == N_ANON && nodes[n].flag == 0 && nodes[n].ty < 0 && given >= 0 && given != y && types[given].kind == Y_FN && types[y].kind == Y_FN && types[given].name == types[y].name && types[y].elem >= 0 {
         given = y                                        // { (a:i64) in a * 2 } where (i64):i64 goes: a written signature with no result takes the context's, as kelvinc's (#730)
     }
@@ -24337,6 +24373,10 @@ let write_type(y:int64) {
                 put(" (*)[]")
             } else if pe >= 0 && types[pe].kind == Y_FIXED && types[pe].name <= 0 - 10 {   // [T](n), a count C computes, its pointer, as C takes it and kelvinc writes it, no name of it before its declaration (#719)
                 if types[pe].konst == 1 { put("const ") }
+                put_ctype(types[pe].elem)
+                put(" *")
+            } else if pe >= 0 && types[pe].kind == Y_FIXED && types[pe].name > 0 - 10 {   // [T](N), [T] and [const T](N) as written (#754), and a parameter's own: the pointer C makes of it
+                if types[pe].konst == 1 || types[pe].name == 0 - 3 || types[pe].name == 0 - 4 { put("const ") }
                 put_ctype(types[pe].elem)
                 put(" *")
             } else {
