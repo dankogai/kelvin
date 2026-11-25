@@ -181,6 +181,12 @@ Kelvin has no `void` type:
   - `0` alone is taken, C's null: `var p:i64^ := 0` is `nowhere`.
 - **A reference declared without a value is `nowhere`**, so `var p:any^`
   means `var p:any^ := nowhere`.
+  - So every local declared without a value has one (#761): a number
+    and a bool are 0, a struct, a union, an enum and a fixed array
+    zeros, `var x:i64`, `var p:point`, `var a:[i64](3)`, where C left
+    them unset and reading one was the program's fault.
+    - An array of a count C computes, `var v:[i64](n)`, is zeroed with
+      `memset`, as C gives it no initializer.
   - This applies to every pointer declaration (`var q:i32^`), local or
     global, but not to `extern` ones.
 - **A function without a result** omits `: type`, as before.

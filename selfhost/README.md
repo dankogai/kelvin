@@ -1905,6 +1905,11 @@ kc reads what it is written in, and little more.
   - tests/error's pointer_number.k, pointer_number_argument.k and
     pointer_number_element.k, and tests/run's pointer_zero.k, have
     them.
+- **A variable declared with no value is zero** (#761) in kelvinc's C
+  since that number, as kc wrote it, put_zero_of: a number 0, a struct
+  and a fixed array `{0}`, an empty record `{}`, a count C computes by
+  `memset`. kc is as it was; tests/run's unset_variables_zero.k has
+  them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

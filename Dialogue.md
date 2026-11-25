@@ -14629,3 +14629,19 @@ in both, where it was C's error; `0` is C's null still.
 Details are provisional P765.
 
 There are 1650 tests, and all pass with clang and with gcc 15.
+
+### 808. A variable declared with no value is zero
+
+**Claude** wrote #760, its battery run and pushed when clean, and
+went on with the rest of kelvinc's four, in a copy of the repository
+while the battery ran.
+
+**Claude** made the second #761: a number, a bool, a struct, an enum
+and a fixed array declared with no value in a function are zero in
+kelvinc's C, as kc wrote them, an array of a count C computes by
+memset; the bootstrap found an empty struct's zero, `{}`, and an
+inner count's, each fixed before the battery.
+
+Details are provisional P766.
+
+There are 1651 tests, and all pass with clang and with gcc 15.

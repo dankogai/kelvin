@@ -2697,6 +2697,60 @@ static Type *const_type(Type *t) {
 
 static char *var_decl_of(const char *storage, Var *v);
 
+/* while set, a variable declared with no value in a function is zero
+   (#761): a number and a bool 0, a struct, a union, an enum, a fixed array
+   and a type only C sees {0}, as a pointer is nowhere (#20) and an owner
+   empty (#54); C left them unset */
+static bool zero_unset;
+
+/* whether t is a number's or a bool's type, whose zero is written 0 */
+static bool zero_scalar(Type *t) {
+    static const char *names[] = {"i8", "i16", "i32", "i64", "i128", "u8",   "u16",
+                                  "u32", "u64", "u128", "f32", "f64", "bool", NULL};
+    for (int i = 0; t->kind == T_BASE && names[i]; i++)
+        if (!strcmp(t->name, names[i]))
+            return true;
+    return false;
+}
+
+/* whether t is a struct or a union of no members, an array of such, or
+   one whose first member is such (#498): its zero is {}, as C refuses a
+   0 for an aggregate of no elements */
+static bool empty_aggregate(Type *t) {
+    while (t->kind == T_ARRAY)
+        t = t->elem;
+    Decl *r = t->kind == T_BASE ? kelvin_record(t->name) : NULL;
+    if (!r || (r->kind != D_STRUCT && r->kind != D_UNION))
+        return false;
+    if (!r->members.len)
+        return true;
+    Type *first = ((Var *)r->members.data[0])->type;
+    return first && first != t && empty_aggregate(first);
+}
+
+/* whether a variable of type t, declared with no value, is zeroed by a
+   memset after its declaration (#761), as C gives no initializer to an
+   array whose count it computes, nor kelvinc one to a v.type it does not
+   see: 1 of the array, by its name, and 2 of the v.type, by its address */
+static int zeroed_after(Type *type) {
+    bool array = false;
+    for (Type *a = type; a;) { /* a count of any of its dimensions, [[i64](n)](2), a v.type's seen through, [v.type](2) */
+        if (a->kind == T_TYPEOF) {
+            if (!a->elem)
+                return array ? 1 : 2;
+            a = a->elem;
+        } else if (a->kind == T_ARRAY) {
+            if (a->size && a->size->kind != E_LITERAL)
+                return 1;
+            array = true;
+            a = a->elem;
+        } else {
+            break;
+        }
+    }
+    return 0;
+}
+
 /* a variable's declaration in C: thread_local's _Thread_local after its
    storage (#641) */
 static char *var_decl(const char *storage, Var *v) {
@@ -2732,11 +2786,13 @@ static char *var_decl_of(const char *storage, Var *v) {
     bool vla = zeros && seen->size && seen->size->kind != E_LITERAL;
     /* an array declared from ([T])[...] takes the list itself, as C has no
        array from a value */
+    bool external = storage && !strcmp(storage, "extern");
     const char *init = vla                                                              ? NULL
                        : zeros                                                          ? "{0}"
                        : compound                                                       ? initializer(v->init->a)
                        : v->init                                                        ? initializer(v->init)
-                       : (seen->kind == T_PTR || seen->kind == T_FUNC) && !(storage && !strcmp(storage, "extern")) ? "0"
+                       : (seen->kind == T_PTR || seen->kind == T_FUNC) && !external      ? "0"
+                       : zero_unset && !external && !zeroed_after(v->type)               ? (zero_scalar(seen) ? "0" : empty_aggregate(seen) ? "{}" : "{0}")
                                                                                         : NULL;
     return strfmt("%s%s%s%s", storage ? storage : "", storage ? " " : "", d, init ? strfmt(" = %s", init) : "");
 }
@@ -2966,7 +3022,12 @@ static void stmt(Stmt *s) {
         for (int i = 0; i < s->vars.len; i++) {
             Var *v = s->vars.data[i];
             sync(v->pos);
+            zero_unset = true; /* a local declared with no value is zero (#761) */
             line("%s;", var_decl(s->storage, v));
+            zero_unset = false;
+            if (!v->init && zeroed_after(v->type) && !(s->storage && !strcmp(s->storage, "extern")))
+                line(zeroed_after(v->type) == 1 ? "memset(%s, 0, sizeof %s);" : "memset(&%s, 0, sizeof %s);", v->name,
+                     v->name);
             if (owner_free(v->type) && !(s->storage && !strcmp(s->storage, "static"))) {
                 list_push(&owner_locals, v->name);
                 list_push(&owner_locals, v->type);
@@ -3065,15 +3126,19 @@ static void stmt(Stmt *s) {
         if (s->init && s->init->kind == S_EXPR) {
             init = expr(s->init->expr);
         } else if (s->init && s->init->vars.len == 1) {
+            zero_unset = true; /* for (var i:i64; ...): a loop's variable with no value is zero too (#761) */
             init = var_decl(NULL, s->init->vars.data[0]);
+            zero_unset = false;
         } else if (s->init) {
             /* C allows only one base type per declaration, so declare
                several loop variables in an enclosing block */
             wrap = true;
             line("{");
             indent++;
+            zero_unset = true;
             for (int i = 0; i < s->init->vars.len; i++)
                 line("%s;", var_decl(NULL, s->init->vars.data[i]));
+            zero_unset = false;
         }
         line("for (%s; %s; %s)", init, s->expr ? stmt_cond(s->expr) : "", s->step ? expr(s->step) : "");
         body(s->body);

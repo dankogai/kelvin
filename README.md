@@ -230,6 +230,9 @@ So far the changes from C are these, by topic.
   made, `json.n(1.5)`, so that the text pastes back (#529)
 - there is no `void`: `any^` is C's `void *` and `nowhere` its null, and a
   reference declared without a value is `nowhere`
+  - a number, a struct, an enum and a fixed array declared without a
+    value in a function are zero (#761), as an owner is empty, where C
+    left them unset
 - numeric types always say their size (`u8`…`u64`, `i8`…`i64`,
   `i128`/`u128`, `f32`, `f64`, or by their full names `uint8`, `int64`,
   `float64`), so `char`, `int`, `long`, `float` and `double` are gone,
@@ -990,3 +993,6 @@ So far the changes from C are these, by topic.
 - A number is no pointer: `var p:i64^ := 5` is `'p' is an i64^, and
   this is a number`, where it was C's error; `0` is C's null still
   (#760)
+- A variable declared with no value is zero: `var x:i64`, `var
+  p:point` and `var a:[i64](3)`, where kelvinc left them unset, as C
+  (#761)

@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #760 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #761 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -53,10 +53,13 @@ known, not what is planned.
     is a number` in each place a value goes, in both, where it was
     C's error; `0` is C's null still, the user's answer, refuse any
     but 0 (#760);
+  - a number, a bool, a struct, a union, an enum and a fixed array
+    declared with no value in a function are zero, as kc writes them
+    and as a pointer is nowhere, the user's answer, zero them in
+    kelvinc, where kelvinc left them unset as C does; an array of a
+    count C computes and a v.type by `memset` (#761);
   - left: `var v:[i64]`, no count and no value; `-=` of a Set, an
-    Array and a Dictionary, an error that names `.remove`; and a
-    number, a struct and a fixed array declared with no value, zeroed
-    by kelvinc as by kc.
+    Array and a Dictionary, an error that names `.remove`.
 
 - The user's order after #751, resolve kelvinc then kc, of the
   differences found while #746 to #749 were made, each pushed when
@@ -499,8 +502,8 @@ known, not what is planned.
   - `[const cstr](2)` is named `[cstr const](2)` by kelvinc's
     `.typename`, and a pointer to a const pointer `const i64^ const^`:
     kc's too since #738.
-  - `var c:[i64](2)` with no value is not zeroed by kelvinc, and is by
-    kc.
+  - `var c:[i64](2)` with no value was not zeroed by kelvinc, and is by
+    kc: zeroed by both since #761.
 - Found while #730 was made, not changed:
   - A number where a struct's array member goes, `{1, [7, 8, 9], 5}`
     of a `name:[u8](8)`, was left to C by kelvinc, which built it:
@@ -555,7 +558,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P765, the details of #760, until reviewed; the reviews confirmed
+- P765 and P766, the details of #760 and #761, until reviewed; the reviews confirmed
   every row to P764, and a review's own detail row is confirmed by that
   review (#675).
 
