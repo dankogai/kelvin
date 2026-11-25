@@ -8220,6 +8220,7 @@ static void check_fn_value(Expr *v, Type *want, const char *lead, Pos pos) {
     if (v->kind == E_IDENT && (v->cands.len || v->target))
         return;
     Type *g = value_type(v);
+    bool seen = g != NULL; /* a literal is "text" or "a number" where an element's or an entry's is said (#752) */
     if (!g && (number_expr(v) || v->kind == E_STRING || is_text_expr(v) || seen_bool(v)))
         g = v->kind == E_STRING || is_text_expr(v) ? base_type("cstr", v->pos) : seen_bool(v) ? base_type("bool", v->pos) : inferred_type(v, v->pos);
     g = g ? unqualified(g) : NULL;
@@ -8232,7 +8233,8 @@ static void check_fn_value(Expr *v, Type *want, const char *lead, Pos pos) {
     char *given = kelvin_type(g), *wanted = kelvin_type(want);
     bare_tags = false;
     if (lead) /* an element's and an entry's, as any value's there */
-        error_at(pos, "%s %s %s, and this is %s", lead, article(wanted), wanted, given);
+        error_at(pos, "%s %s %s, and this is %s", lead, article(wanted), wanted,
+                 seen ? given : v->kind == E_STRING || is_text_expr(v) ? "text" : "a number");
     error_at(v->pos, "this is %s, where %s goes", given, wanted);
 }
 
@@ -8249,7 +8251,7 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
     if (want->kind == T_BASE && type_class(want, &rec) == 'u')
         return; /* a C typedef, as size_t, is C's (#251) */
     if (want->kind == T_FUNC) /* a function value of another type (#748) */
-        check_fn_value(v, want, lead && (!strncmp(lead, "an element", 10) || !strncmp(lead, "an entry of", 11)) ? lead : NULL, pos);
+        check_fn_value(v, want, lead && (!strncmp(lead, "an element", 10) || !strncmp(lead, "an entry of", 11) || !strncmp(lead, "a value of", 10)) ? lead : NULL, pos);
     if (want->kind == T_FUNC || want->kind == T_TYPEOF)
         return; /* a function is matched by its overloads, and then C (#255) */
     Type *vt = value_type(v);
@@ -11158,6 +11160,19 @@ static Expr *parse_initializer_for(Type *t) {
             member_value(value, item, strfmt("'%s' of %s is", mname, record_spelling(record)), value->pos);
             pick_overload(value, unqualified(item)); /* a function's name where a member of a function type goes (#748) */
         }
+        if (!record && bracket && t && t->kind == T_ARRAY && item && !lost && links <= 1 && !is_optional_type(item) &&
+            !variant_record(item) && (!braced || unqualified(item)->kind == T_FUNC)) {
+            /* an element of its kind (#752), as a member's (#741): C converted text and a pointer with a warning,
+               and went on inside a struct with a number */
+            bare_tags = true;
+            char *lead = strfmt("an element of %s is", kelvin_type(own_unqualified(t)));
+            bare_tags = false;
+            if (item->kind == T_ARRAY)
+                member_value(value, item, lead, value->pos);
+            else
+                check_typed_value(value, item, lead, value->pos);
+            pick_overload(value, unqualified(item));
+        }
         value = optional_of(value, item, value->pos); /* a T into a T? member (#72) */
         if (value->kind == E_IDENT && record && is_owner(item) && is_owner(value_type(value))) {
             list_push(&moving_in, value); /* moves in when the literal ends, as a call's arguments do (#503) */
@@ -12064,12 +12079,21 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first, bool dol
         }
         if (!accept_p(":"))
             error_at(peek()->pos, "an entry of a Dictionary is written key: value");
+        bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *v = is_p(peek(), "[") ? array_of_list(t, vt, dollar)
                   : dollar && !dt && is_p(peek(), "{") && brace_has_colon(cur)
                       ? dict_of_list(t, NULL, NULL, NULL, true) /* {k: v} within ${...} is a Dictionary (#616) */
                       : string_of_literal(drop_cstr(parse_initializer_for(vt), vt), vt);
         if (dollar && !dt)
             v = dollar_text(v); /* ${"k": "v"} is of Strings, where no type is written (#616) */
+        if (dt && vt && !is_optional_type(vt) && !variant_record(vt) && (!braced || unqualified(vt)->kind == T_FUNC)) {
+            /* a value of the Dictionary's kind where its type is written (#752), as an entry's (#246): C's error */
+            bare_tags = true;
+            char *lead = strfmt("a value of %s is", kelvin_type(unqualified(dt)));
+            bare_tags = false;
+            check_typed_value(v, vt, lead, v->pos);
+            pick_overload(v, unqualified(vt));
+        }
         v = optional_of(v, vt, v->pos); /* a T into a T? value (#72) */
         if (v->kind == E_INIT && vt) { /* {...} of a struct or array value, as its compound literal */
             Expr *c = new_expr(E_COMPOUND, v->pos);

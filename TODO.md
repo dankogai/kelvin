@@ -39,12 +39,24 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 so far.
+  - The next CHANGELOG entry is from #751 on: #751 and #752 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #751, resolve kelvinc then kc, of the
+  differences found while #746 to #749 were made, each pushed when
+  clean, the version 0.4.1 still:
+  - a fixed array's element and a Dictionary literal's value of
+    another kind, where the type is written, are kelvinc's errors in
+    kc's sentences, `an element of [i64](2) is an i64, and this is
+    text` and `a value of Dictionary<String, i64> is an i64, and this
+    is text`, where they were C's, a struct's element built with a
+    number (#752);
+  - left: `let h := apply` of a function that takes an
+    `f:([[i64](n)](2)):i64`, C's error.
 
 - The user's order after #745, resolve kelvinc's listed faults, then
   kc's, each pushed when clean, then the chores of 0.4.1 short of the
@@ -97,10 +109,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1076 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1081 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
-  #725, #727, #733, #736, #740, #741, #742, #743, #744, #748 and #749
-  alike.
+  #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749 and
+  #752 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -267,6 +279,27 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #752 was made, not changed:
+  - A container of structs is named with `struct` by kelvinc,
+    `Array<struct pt>` and `Dictionary<String, struct pt>`, by
+    `.typename` and in its errors, and `Array<pt>` by kc.
+  - A number where a pointer goes as an element or a value, `[5]` of a
+    `[i64^](1)` and `${"a": 5}` of a `${String: i64^}`, is C's error
+    of kelvinc's C; of the second kc says `a value of ... is an i64^,
+    and this is a number`.
+  - An element or a value where an Optional goes is kelvinc's `case
+    'some' of i64? holds an i64, and this is text`, and kc's `an
+    element of [i64?](1) is an i64?, and this is text`.
+  - A designated element, `[[1] = "a"]`, is kelvinc's error and C's of
+    kc's C; a Set's element of another kind, `${"a"}` of a `${i64}`,
+    is kelvinc's `a key of Set<i64> is an integer` and C's of kc's C.
+  - A Dictionary in a Dictionary's literal of another value's kind is
+    said of the inner one by kelvinc and of the outer by kc.
+  - `nowhere` where an i64 value goes is C's error of kelvinc's C and
+    kc's `this is a type only C sees`.
+  - A function's name of another type as an element, of a function
+    defined inside a function, is kelvinc's `no function 'half' is
+    (i64):i64` and kc's element sentence.
 - Found while #749 was made, not changed:
   - `d := ${2}` and `a := $[2]`, an owner assigned by `:=` after its
     declaration, are built by kelvinc and kc's `an owner is assigned
@@ -434,8 +467,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P756, and a review's own
-  detail row is confirmed by that review (#675).
+- P757, the details of #752, until reviewed; the reviews confirmed
+  every row to P756, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

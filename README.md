@@ -965,3 +965,6 @@ So far the changes from C are these, by topic.
 - kc says a cstr variable where a String goes in kelvinc's words,
   `'t' is a String, and this is cstr`, and declares a Set by `:=`
   (#749)
+- An element of a fixed array and a value of a Dictionary's literal
+  are of the kind written: `[1, "a"]` of a `[i64](2)` is `an element
+  of [i64](2) is an i64, and this is text`, where it was C's (#752)

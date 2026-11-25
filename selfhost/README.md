@@ -1799,6 +1799,14 @@ kc reads what it is written in, and little more.
   - tests/error's cstr_variable_string.k,
     cstr_variable_string_param.k and cstr_variable_optional.k, and
     tests/run's set_declared_reference.k, have them.
+- **An element's and a literal's value's kind** (#752) are kelvinc's
+  errors in kc's sentences since that number, `an element of [i64](2)
+  is an i64, and this is text` and `a value of Dictionary<String, i64>
+  is an i64, and this is text`, where kelvinc left them to C; kc is as
+  it was.
+  - tests/error's array_element_text.k,
+    array_element_struct_number.k, array_element_fn_type.k,
+    dict_value_text.k and dict_value_cstr.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -69,6 +69,10 @@ in [ownership.md](ownership.md); this is the summary.
     String or text, which becomes one; a `cstr` text; an Optional its
     `T` or `none`; anything else its own type. Else it is an error,
     `an entry of Dictionary<String, i64> is an i64, and this is text`.
+    - So is a value of a literal where the type is written (#752):
+      `var d:${String: i64} = ${"a": "x"}` is `a value of
+      Dictionary<String, i64> is an i64, and this is text`, where it
+      was C's error.
 - **Methods:** `has(k)`; `find(k)`, a `V^` or `nowhere` (`const V^` for
   a let).
   - `get(k, default)`, for a `V` that does not own.

@@ -92,6 +92,13 @@ let s:[uint8] = "hi"                       // a string fills a byte array
 - Fewer elements than the count leave the rest zero, as in C.
   - More are an error (#647), where C only warned and dropped them:
     `[i64](3) holds 3 elements, and this gives 4`.
+- An element is of the array's kind (#752), as a struct's member is of
+  its own (#741): `var a:[i64](2) = [1, "a"]` is `an element of
+  [i64](2) is an i64, and this is text`, where it was C's error.
+  - A number where an element that is a struct goes, `[5]` of a
+    `[point](1)`, is the same error, where C went on inside the struct
+    with it and built the program.
+  - An element of a function type is a function of that type (#748).
 - an array literal whose items are all of one inferred type is an array
   of them (#48):
   - `let a = [1, 2, 3]` is `[i64](3)`, `[1.5, 2.0]` is `[f64](2)`,

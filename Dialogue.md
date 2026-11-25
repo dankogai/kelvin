@@ -14471,3 +14471,24 @@ confirmed by #751; TODO.md says 0.4.1 released.
 Details are P756, confirmed by #751 itself.
 
 There are 1622 tests, and all pass with clang and with gcc 15.
+
+### 799. An element and a literal's value are of the kind written
+
+**Claude** wrote #751, its battery run and pushed when clean, its CI
+all green, and listed what is left.
+
+**User:** resolve kelvinc then kc
+
+**Claude** asked whether each is pushed when clean.
+
+**User:** push each when clean (recommended)
+
+**Claude** made the first #752: an element of a fixed array and a
+value of a Dictionary's literal of another kind are kelvinc's errors
+in kc's sentences, where they were C's and a struct's element built
+with a number. Seven differences found there are listed in TODO.md,
+not changed.
+
+Details are provisional P757.
+
+There are 1627 tests, and all pass with clang and with gcc 15.
