@@ -3668,7 +3668,18 @@ static Expr *parse_postfix_steps(Expr *e) {
                 x->type = value_type(e); /* an Array's own type names its C functions (#57) */
                 bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
                 brace_ends_condition = brace_in_for = false;
+                /* xs.append({ $0 + 1 }) and xs.insert(0, { $0 + 1 }) of an Array of functions (#764): the anonymous
+                   function is of the element's type, as in a literal's, where its $0 had none */
+                Type *own = x->type ? unqualified(x->type) : NULL;
+                Type *fe = own && is_array_owner(own) && own->elem && unqualified(own->elem)->kind == T_FUNC
+                               ? unqualified(own->elem)
+                               : NULL;
                 while (!is_p(peek(), ")")) {
+                    if (fe && is_p(peek(), "{") &&
+                        ((!strcmp(member, "append") && !x->items.len) || (!strcmp(member, "insert") && x->items.len == 1))) {
+                        fn_at = cur;
+                        fn_type = fe;
+                    }
                     list_push(&x->items, parse_assign());
                     if (!accept_p(","))
                         break;
@@ -8272,6 +8283,13 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
         return; /* a function is matched by its overloads, and then C (#255) */
     Type *vt = value_type(v);
     vt = vt ? unqualified(vt) : NULL;
+    if (!vt && v->kind == E_LITERAL && !strcmp(v->text, "nowhere") && want->kind != T_PTR && !is_cstr(want)) {
+        /* nowhere where no pointer goes is an any^ (#764): 'x' is an i64, and this is any^, where it was C's error */
+        vt = xcalloc(1, sizeof *vt);
+        vt->kind = T_PTR;
+        vt->pos = v->pos;
+        vt->elem = base_type("any", v->pos);
+    }
     if (vt && vt->kind == T_TYPEOF) /* of x.type, as x's, which may be C's */
         vt = vt->elem ? unqualified(vt->elem) : NULL;
     if ((vt && vt->kind == T_BASE && type_class(vt, &rec) == 'u') || (vt && vt->kind == T_TYPEOF))
@@ -10887,6 +10905,11 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 x->text = "append";
                 x->op = (char *)builtin_owner(value_type(lhs));
                 x->type = value_type(lhs);
+                if (x->op[0] == 'a' && is_p(peek(), "{") && x->type && unqualified(x->type)->elem &&
+                    unqualified(unqualified(x->type)->elem)->kind == T_FUNC) { /* xs += { $0 + 1 } (#764) */
+                    fn_at = cur;
+                    fn_type = unqualified(unqualified(x->type)->elem);
+                }
                 Expr *given = parse_assign();
                 check_appended(given, x->op, "+=");
                 if (x->op[0] == 'a') {
@@ -10910,6 +10933,10 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 x->op = "dict";
                 x->type = lhs->type;
                 list_push(&x->items, lhs->b);
+                if (is_p(peek(), "{") && lhs->type->elem && unqualified(lhs->type->elem)->kind == T_FUNC) {
+                    fn_at = cur; /* d[k] = { $0 + 1 } of a Dictionary of functions (#764): of the entry's type */
+                    fn_type = unqualified(lhs->type->elem);
+                }
                 Expr *v = case_value(lhs->type->elem);
                 assign_ok = ok;
                 reject_owner_copy(v, lhs->type->elem, t->pos);
@@ -12333,6 +12360,8 @@ static void check_element_value(Expr *v, Type *array, Pos pos) {
     char *lead = strfmt("an element of %s is", kelvin_type(unqualified(array)));
     bare_tags = false;
     check_typed_value(v, array->elem, lead, pos);
+    if (array->elem) /* a function's name where an element of a function type goes (#764): C's error */
+        pick_overload(v, unqualified(array->elem));
 }
 
 /* a place that owns: a variable, a field, an element, p^ */

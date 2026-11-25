@@ -1001,3 +1001,7 @@ So far the changes from C are these, by topic.
 - An Array, a Dictionary and a Set have `+=` alone: `s -= x` is `a Set
   has no '-=': remove an element with s.remove(x)`, where it was C's
   error (#763)
+- A function's name where functions are an Array's elements is the
+  overload of their type, `xs += twice`, and an anonymous function
+  takes it, `xs += { $0 + 1 }`; `nowhere` where a number goes is `'n'
+  is an i64, and this is any^`, where it was C's error (#764)

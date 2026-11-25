@@ -14670,3 +14670,22 @@ kc's an owner is assigned only as a String. kelvinc's four are done.
 Details are provisional P768.
 
 There are 1655 tests, and all pass with clang and with gcc 15.
+
+### 811. kc's eight, and what was found with them
+
+**Claude** wrote #763, its battery run and pushed when clean.
+
+**Claude** made kc's eight #764, the differences left listed: a
+function defined inside a function named as written in an error,
+`Set([q[0]])`, `{$[1]}` of a struct of one Array, a Dictionary in a
+Dictionary's literal, `nowhere` where a number goes, `a += { $0 + 1 }`
+and `a := $[]`; `[v.type](2)` of a `v` whose count C computes is left.
+Three of kelvinc's were found and changed with them: `nowhere` where
+no pointer goes is an `any^`, and a function's name and an anonymous
+function appended to an Array of functions are of the elements' type.
+kc says kelvinc's of a function's name where a number or a pointer
+goes, of braces appended, and of `d[k]` of a Dictionary of functions.
+
+Details are provisional P769.
+
+There are 1671 tests, and all pass with clang and with gcc 15.

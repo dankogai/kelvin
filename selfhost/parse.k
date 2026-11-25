@@ -197,6 +197,7 @@ var local_fns:$[int64]         // the functions defined inside a function, by th
 var local_fn_depths:$[int64]   // and the depth of the block each is in
 var local_enum_depths:$[int64]
 var local_own_of:Dictionary<String, int64>   // each one's own name's token, by its C name
+var local_uses:Dictionary<int64, int64>      // the token a function defined inside a function is named by where it is used, by the node (#764)
 var ended_types:$[int64]       // the types of the function whose blocks have ended
 var hidden_seen:Dictionary<String, int64>    // the C names given so, each once
 var block_depth:int64 = 0
@@ -2883,6 +2884,13 @@ let parse_primary():int64 {
         set_ty(n, y)
         return n
     }
+    if k == T_ID && (tok_is(t, "Dictionary") || tok_is(t, "Set")) && !tok_is(t + 1, "<") && !tok_is(t + 1, ".") {   // Set([1, 2]), Set alone: a Set and a Dictionary are made with their types, Set<T>(...), as kelvinc says it (#764)
+        var m = $"expected an expression, found '"
+        m += tok_text(t)
+        m += "'"
+        parse_error_at(t, m.cstr)
+        return make_node(N_NUM, t)
+    }
     if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary") || tok_is(t, "Set")) && tok_is(t + 1, "<") { return parse_make() }   // (#349), Set<T>() (#460)
     if k == T_ID && (tok_is(t, "__asm__") || tok_is(t, "__asm")) {   // assembly, left out on purpose (#399), as kelvinc says it
         var m = $"'"
@@ -3212,7 +3220,11 @@ let parse_primary():int64 {
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
         if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#391)
         let lf:int64 = local_named(t) ? 0 - 1 : local_fn_named(t)
-        if lf >= 0 { return make_node(N_ID, lf) }        // a function defined in this block or one around it (#180, #697)
+        if lf >= 0 {                                     // a function defined in this block or one around it (#180, #697)
+            let ln:int64 = make_node(N_ID, lf)
+            local_uses[ln] = t                           // its name as written here, of an error's words and place (#764)
+            return ln
+        }
         if at_word(".") && toks[pos + 1].kind == T_ID && !local_named(t) {
             let nt:int64 = type_path(t)                  // point.kind.none, kind.none in point's method (#389)
             while pos < path_end { advance() }
@@ -3902,6 +3914,7 @@ let parse_var(is_let:int64):int64 {
     if at_word("=") || at_word(":=") {          // := of a reference, as a cstr
         if at_word(":=") { nodes[n].c = 1 }
         decl_ops[n] = advance()                  // its = or :=, where kelvinc says an error of it (#683)
+        if at_word("{") && nodes[n].ty >= 0 && types[nodes[n].ty].kind == Y_STRUCT { literal_brace = true }   // a struct's braces are its values, {$[1]} of one Array too, no anonymous function, as kelvinc, which knows the type, reads them (#764)
         set_a(n, parse_expr())
     }
     return n

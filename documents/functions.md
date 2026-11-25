@@ -304,6 +304,15 @@ let u:():() := tick        // the same, the result written out (#141)
   - **An array of functions** is any array's spelling, `[(i64):i64](4)`
     (#403); `Array<(i64):i64>`, `Set` and `Dictionary<String, (i64):i64>`
     hold them too, a dispatch table: `table["inc"]!(5)`.
+    - A function's name there is the overload of the elements' type
+      (#764): `$[twice]`, `xs += twice`, `xs.append(twice)` and
+      `${"double": twice}`.
+    - An anonymous function there takes the elements' type:
+      `xs += { $0 + 1 }`, `xs.append({ $0 + 1 })` and
+      `table["inc"] = { $0 + 1 }`.
+    - `table[k]` alone would be an Optional of a function, which has
+      no spelling yet: force it, `table[k]!`, or walk the table,
+      `for k, f in table`.
   - `typealias op = (i64):i64` (#403) names a function type, which
     `^` may follow, `op^`, and which reads where any type goes:
     `[op](4)`, `Array<op>`, `let apply(f:op, n:i64)`.

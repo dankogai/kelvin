@@ -1924,6 +1924,41 @@ kc reads what it is written in, and little more.
   owner is assigned only as a String.
   - tests/error's set_minus_assign.k, array_minus_assign.k and
     dictionary_minus_assign.k have them.
+- **kc's eight** (#764), the differences left listed after #759:
+  - A function defined inside a function is named as written in an
+    error: parse.k's `local_uses`, the node of a use to the token
+    written, which gen_error and fn_name_refused read, where kc
+    printed the hidden `_kv_main_t1`.
+  - `Set` and `Dictionary` with no `<` are `expected an expression,
+    found 'Set'`, parse.k's.
+  - `{$[1]}` where a struct is declared is its values, parse.k's
+    `literal_brace`, where it was `$0`'s function.
+  - A Dictionary in a Dictionary's literal is checked by
+    dict_entries_fit of the inner type.
+  - `nowhere` where no pointer goes is an `any^`, typed_value_ok's
+    and value_mismatch_text's, an owner's too.
+  - `a := $[]` asks assigns_as before the empty Array's type,
+    gen_assign's and gen_var_of's.
+  - `xs += { $0 + 1 }` of functions was built already, and is
+    kelvinc's since this number.
+  - Found with them, and changed:
+    - a function's name where functions are the elements is the
+      overload of their type: fn_name_refused, which picks, asked by
+      pick_overload of a literal's elements, by gen_array_add, by
+      member_value_ok, and by gen_stmt_of before `+=` is read;
+    - a function's own name where a number, a bool, a String or a
+      record goes, and a function where a pointer goes, are
+      typed_value_ok's sentences, an element's by `fn_id` in
+      fixed_list_fits;
+    - braces appended, a Set's key and a number's entry are
+      `brace_no_value`'s `a list is not a value here`;
+    - `d[k]` of a Dictionary of functions is type_of's `an Optional
+      of a function type has no spelling yet`; `d[k]!` is read as it
+      was.
+  - Left: `[v.type](2)` of a `v` whose count C computes.
+  - tests/run's fn_elements_overloaded.k and
+    struct_one_array_braces.k, and fourteen of tests/error, have
+    them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

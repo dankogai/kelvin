@@ -179,6 +179,10 @@ Kelvin has no `void` type:
   `[5]` of a `[i64^](1)` are errors, `'p' is an i64^, and this is a
   number`, in each place a value goes, where they were C's.
   - `0` alone is taken, C's null: `var p:i64^ := 0` is `nowhere`.
+  - `nowhere` is no number either (#764): `var n:i64 = nowhere` is
+    `'n' is an i64, and this is any^`, where it was C's error.
+  - Nor is a function a pointer: `var p:any^ := f` is `'p' is an
+    any^, and this is (i64):i64`; `f as any^` converts it.
 - **A reference declared without a value is `nowhere`**, so `var p:any^`
   means `var p:any^ := nowhere`.
   - So every local declared without a value has one (#761): a number

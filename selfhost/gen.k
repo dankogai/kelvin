@@ -405,7 +405,7 @@ let literal_open(n:int64):int64 {
 let gen_error(n:int64, what:cstr) {
     if !failed {
         let said:String = as_shown(what)                    // (#600)
-        let at:String = error_at_text(literal_open(n))      // file:line:col, as kelvinc's (#652)
+        let at:String = error_at_text(local_uses.get(n, literal_open(n)))      // file:line:col, as kelvinc's (#652); a function defined inside a function where it is named (#764)
         println(at, ": error: ", said)
     }
     failed = true
@@ -3381,6 +3381,10 @@ let type_of(n:int64):int64 {
             index_case(n, y)
             if failed { return -1 }
         }
+        if yk == Y_DICT && nodes[n].flag == 1 && types[y].elem >= 0 && types[types[y].elem].kind == Y_FN {   // d[k] read of a Dictionary of functions, as kelvinc says it (#764), which kc built
+            gen_error(n, "an Optional of a function type has no spelling yet")
+            return 0 - 1
+        }
         if yk == Y_DICT && nodes[n].flag == 1 { return optional_of(types[y].elem) }    // d[k] read whole (#219)
         if yk == Y_ARRAY || yk == Y_DICT || yk == Y_FIXED { return types[y].elem }   // a fixed array's (#354)
         if yk == Y_ARGV { return base_type(Y_CSTR) }
@@ -3717,11 +3721,13 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     let c_tag:bool = wk == Y_STRUCT && (types[want].elem == 0 - 2 || types[want].elem == 0 - 3)   // struct nope, union u written: no number nor text, as kelvinc says it (#689)
     if wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0) && !(c_tag && (number_lit || text_lit)) { return true }   // C's, a plain enum, an enum with values
     var y:int64 = 0 - 1
-    if !number_lit && !text_lit {
+    let null = k == N_NULL && tok_is(nodes[v].t, "nowhere") && wk != Y_PTR && wk != Y_CSTR && wk != Y_FIXED && wk != Y_ARGV   // nowhere where no pointer goes is an any^, as kelvinc says it (#764)
+    if null { y = type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }
+    if !number_lit && !text_lit && !null {
         let row = k == N_INDEX && !is_slice(v) && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_FIXED && types[types[type_of(nodes[v].a)].elem].kind == Y_FIXED   // a[1] of an array of arrays, an array (#736)
         if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row && !(k == N_TPL && wk == Y_STRING && nodes[v].flag != 1) { return true }   // a template that is a cstr where a String goes, as a cstr variable (#749)
-        if k == N_ID && (is_case_word(v) || var_type(nodes[v].t) < 0) { return true }
-        y = type_of(v)
+        if k == N_ID && (is_case_word(v) || (var_type(nodes[v].t) < 0 && fn_named(nodes[v].t) < 0)) { return true }
+        y = type_of(v)                                   // a function's own name too, 'n' is an i64, and this is ((i64):i64):i64, as kelvinc says it (#764), where it was C's error
         if failed { return false }
         if y < 0 { return true }
         let k0:ykind = types[y].kind
@@ -3745,11 +3751,13 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
             lend = wk == Y_PTR && types[want].elem >= 0 && type_text(types[want].elem) == type_text(y)
         }
         if wk == Y_PTR && y < 0 && no_pointer_number(v) { ok = false }   // a number that is no 0 where a pointer goes, as kelvinc says it (#760), where it was C's error
+        if wk == Y_PTR && y >= 0 && yk == Y_FN { ok = false }   // a function where a pointer goes, 'p' is an any^, and this is (i64):i64, as kelvinc says it (#764), which kc built
     } else if wk == Y_STRUCT {
         ok = !number && !text && (y < 0 || yk != Y_STRUCT || type_text(y) == type_text(want)) && (y < 0 || yk == Y_STRUCT)
     } else {
         ok = !number && !text
     }
+    if null && is_owner(want) { ok = false }             // nowhere where an owner goes, 's' is an Array<i64>, and this is any^, as kelvinc says it (#764)
     if ok { return true }
     var m = lead^.copy()
     var w:String = kelvin_type_text(want)
@@ -4257,6 +4265,7 @@ let dict_key_ok(y:int64, k:int64):bool {
 // whether k is a key of type key of the Dictionary or the Set y (#757): a
 // Set's element is its key, as kelvinc says it
 let key_of_ok(y:int64, key:int64, k:int64):bool {
+    if y >= 0 && types[y].kind == Y_SET && brace_no_value(k) { return false }   // s.insert({ 1 }), as kelvinc says it (#764)
     if failed { return false }
     let kk:nkind = nodes[k].kind
     let number_lit = kk == N_NUM || kk == N_CHAR || (kk == N_UNARY && tok_is(nodes[k].t, "-") && nodes[nodes[k].a].kind == N_NUM)
@@ -10152,6 +10161,8 @@ let array_append_kind(y:int64, v:int64):int64 {
 
 let gen_array_add(y:int64, v:int64, what:cstr) {
     let ey:int64 = types[y].elem
+    if fn_name_refused(v, ey) { return }                 // a function's name where functions are the elements: the overload of their type, or kelvinc's error (#764)
+    if types[ey].kind != Y_FN && brace_no_value(v) { return }   // xs.append({ 1 }) and insert's: a list is not a value here, as kelvinc says it
     let vy:int64 = type_of(v)
     if failed { return }
     if is_owner(ey) && nodes[v].kind == N_ADDR && type_of(nodes[v].a) == ey {   // a borrow, copied in
@@ -12064,6 +12075,7 @@ let member_value_ok(v:int64, f:int64, s:int64):bool {
     let y:int64 = nodes[f].ty
     if y < 0 || failed { return !failed }
     let k:ykind = types[y].kind
+    if k == Y_FN { return !fn_name_refused(v, y) }       // {twice, 1} of a member that is a function: the overload of its type (#764)
     var lead = $"'"
     lead += tok_text(nodes[f].t)
     lead += "' of "
@@ -12206,6 +12218,7 @@ let gen_array(n:int64, given:int64) {
             return
         }
         if given >= 0 && nodes[e].kind != N_EMPTY {      // of the type written, as kelvinc says it (#350); [] fits any (#451)
+            if fn_name_refused(e, elem) { return }
             let bad:String = value_mismatch_text(e, elem)
             if bad.count > 0 && (nodes[e].kind == N_LIST || nodes[e].kind == N_ARRAY) {   // [1] among them, as kelvinc says it
                 var m = $"'[...]' here makes an Array, and an element of "
@@ -12329,8 +12342,14 @@ let dict_entries_fit(n:int64, y:int64):bool {
                 return false
             }
         }
+        if fn_name_refused(v, types[y].elem) { return false }
         if value_case(types[y].elem) >= 0 && !is_case_word(v) && value_mismatch_text(v, types[y].elem).count > 0 {   // an Optional's value: its case's sentence, as kelvinc says it (#757)
             if !case_value_fits(v, value_case(types[y].elem), types[y].elem) { return false }
+        }
+        if types[types[y].elem].kind == Y_DICT && (nodes[v].kind == N_DICT || bare_init(v)) && nodes[v].b >= 0 && nodes[nodes[v].b].next >= 0 {   // {k: v} where a Dictionary's value is a Dictionary: its own entries, said of it, as kelvinc says them (#764)
+            if !dict_entries_fit(v, types[y].elem) { return false }
+            k = nodes[v].next
+            continue
         }
         let bad:String = value_mismatch_text(v, types[y].elem)
         if bad.count > 0 {
@@ -15384,6 +15403,17 @@ let type_text(y:int64):String {
     }
 }
 
+// the word kelvinc writes before a struct's, a union's or an enum's name
+// in the = and := rule (#764), "struct " of an enum with values too, or
+// "" of any other type
+let tag_word(y:int64):String {
+    if y < 0 || types[y].kind != Y_STRUCT || is_variant(y) { return $"" }
+    if enum_int(y) { return $"enum " }
+    let s:int64 = struct_of(y)
+    if s >= 0 { return nodes[s].flag == 1 ? $"union " : $"struct " }
+    return tagged_of(y) >= 0 ? $"struct " : $""
+}
+
 // whether = or := suits y, as kelvinc has it (#233): a reference, a cstr or
 // a T^, takes :=, and a value =; else an error that names t, the name
 // assigned, and what it is
@@ -15397,9 +15427,22 @@ let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     if k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) {
         ty_text = type_text(types[y].elem)
         ty_text += "^"
-    } else if k == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind == Y_STRUCT && struct_of(types[y].elem) >= 0 && !enum_int(types[y].elem) {
-        var st = $"struct "
+    } else if k == Y_PTR && types[y].elem >= 0 && tag_word(types[y].elem).count > 0 {   // struct node^, union u2^, as kelvinc spells them here (#764)
+        var st = tag_word(types[y].elem)
         st += &ty_text
+        ty_text = st.copy()
+    } else if k == Y_STRUCT && tag_word(y).count > 0 {       // 'p' is a value (struct pt), a union's and an enum's by their words (#764)
+        var st = tag_word(y)
+        st += &ty_text
+        ty_text = st.copy()
+    } else if k == Y_FIXED && types[y].name >= 0 && tag_word(types[y].elem).count > 0 {   // [struct pt](1)
+        var st = $"["
+        st += tag_word(types[y].elem)
+        let ew:String = type_text(types[y].elem)
+        st += &ew
+        st += "]("
+        st += String(types[y].name)
+        st += ")"
         ty_text = st.copy()
     }
     var what = $""
@@ -15795,6 +15838,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
             x = nodes[x].next
             continue
         }
+        if fn_name_refused(x, e) { return false }
         if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
             if types[e].name == 0 - 1 || (types[we].kind == Y_FIXED && types[we].name == 0 - 1) {
                 let rc:int64 = count_args(nodes[x].b)
@@ -15811,7 +15855,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
         } else if is_owner(e) && is_place(x) && !is_case_word(x) {   // as an Array's elements (#364)
             owner_assign_error(x)
             return false
-        } else if types[e].kind == Y_PTR && !is_case_word(x) && !no_pointer_number(x) {
+        } else if types[e].kind == Y_PTR && !is_case_word(x) && !no_pointer_number(x) && !fn_id(x) {   // a function is no pointer's element, as kelvinc says it (#764)
             // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557); a number that is no 0 is said (#760)
         } else if types[e].kind == Y_C || types[e].kind == Y_TYPEOF || (types[e].kind == Y_STRUCT && struct_of(e) < 0 && tagged_of(e) < 0 && !enum_int(e)) {
             // an element of a type only C sees, size_t, div_t, is C's to check, as kelvinc leaves it (#729)
@@ -16163,6 +16207,7 @@ let gen_var_of(n:int64) {
     }
     if written && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_LIST && list_refused(n) { return }   // let xs:Array<i64> = [1] (#724)
     if written && nodes[n].a >= 0 && nodes[n].t < eof_pos {   // its value of its type, in Kelvin's words (#255, #612)
+        if !assigns_as(n, nodes[n].t, nodes[n].ty, nodes[n].c == 1) { return }   // = or := first, as kelvinc says it (#764): var n:i32 := nowhere is a value's
         if record_differs(nodes[n].a, nodes[n].ty) { return }
         var lead = $"'"
         lead += tok_text(nodes[n].t)
@@ -16919,6 +16964,9 @@ let braces_refused(a:int64):bool {
 
 let gen_assign(n:int64) {
     if (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && bare_declaration(nodes[n].a) { return }
+    if tok_is(nodes[n].t, ":=") && nodes[nodes[n].a].kind == N_ID && nodes[n].b >= 0 && (nodes[nodes[n].b].kind == N_EMPTY || (nodes[nodes[n].b].kind == N_ARRAY && nodes[nodes[n].b].b < 0)) && var_type(nodes[nodes[n].a].t) >= 0 {   // a := $[]: := of a value first, as kelvinc says it, before the empty Array is asked its type (#764)
+        if !assigns_as(n, nodes[nodes[n].a].t, var_type(nodes[nodes[n].a].t), true) { return }
+    }
     if nodes[n].b >= 0 && bare_init(nodes[n].b) && braces_refused(nodes[n].a) {   // x = {...}: braces are an initializer's, a case's value's, x.c = {a, b}, and an entry's, d[k] = {a, b}, as kelvinc says it (#725); of a member, an element and p^ too (#736)
         tok_error(nodes[nodes[n].b].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
         return
@@ -18032,7 +18080,25 @@ var fn_picked:Dictionary<int64, int64>    // the overload each function's name i
 // overload of the function type y, as kelvinc's pick_overload (#41,
 // #537); with none of that type its error
 let pick_overload(v:int64, y:int64) {
-    if v < 0 || y < 0 || failed || nodes[v].kind != N_ID || types[y].kind != Y_FN || fn_picked.has(v) { return }
+    if v < 0 || y < 0 || failed { return }
+    if (nodes[v].kind == N_ARRAY || nodes[v].kind == N_LIST) && (types[y].kind == Y_ARRAY || types[y].kind == Y_FIXED) && types[y].elem >= 0 && types[types[y].elem].kind == Y_FN {   // $[twice] and [twice] where functions are the elements: each name the overload of their type, with none the element's error at its place (#764)
+        var e = nodes[v].b
+        while e >= 0 {
+            if fn_name_refused(e, types[y].elem) { return }
+            e = nodes[e].next
+        }
+        return
+    }
+    if nodes[v].kind == N_DICT && types[y].kind == Y_DICT && types[y].elem >= 0 && types[types[y].elem].kind == Y_FN {   // ${"a": twice}, its values
+        var k = nodes[v].b
+        while k >= 0 && nodes[k].next >= 0 {
+            let e:int64 = nodes[k].next
+            if fn_name_refused(e, types[y].elem) { return }
+            k = nodes[e].next
+        }
+        return
+    }
+    if nodes[v].kind != N_ID || types[y].kind != Y_FN || fn_picked.has(v) { return }
     let t:int64 = nodes[v].t
     if var_type(t) >= 0 || overloads_of(t) < 2 { return }
     let d:int64 = fn_of_type(t, y)
@@ -18305,7 +18371,7 @@ let gen_fn_value(n:int64, y:int64) {
         var m = $""
         if k == N_ID && var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) >= 0 {   // as kelvinc says it
             m += "no function '"
-            m += tok_text(nodes[n].t)
+            m += tok_text(local_uses.get(n, nodes[n].t))
             m += "' is "
         } else {
             m += "this is "
@@ -18317,7 +18383,7 @@ let gen_fn_value(n:int64, y:int64) {
         m += &w
         if k == N_ID && var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) >= 0 && given >= 0 {   // as kelvinc says it (#223)
             m += ": C's function of the name is not taken where a Kelvin function has it (#223); declare C's beside it, as in 'let "
-            m += tok_text(nodes[n].t)
+            m += tok_text(local_uses.get(n, nodes[n].t))
             m += "(x:f64):f64'"
         } else if !(k == N_ID && var_type(nodes[n].t) < 0) {
             m += " goes"
@@ -21285,9 +21351,54 @@ let gen_fill(t:int64, a:int64, b:int64, in_place:bool) {
     put(in_place ? " } (void)0; })" : " } _kv_mm; })")
 }
 
+// a function's name v where an element, a value or an entry of the
+// function type ey goes, and no function of the name is of it (#764):
+// kelvinc's no function 'f' is T, said, and true
+// {...} where an element, a Set's key or an entry that is no record goes:
+// kelvinc's error at its {, which was C's, or built (#764)
+let brace_no_value(v:int64):bool {
+    if failed { return true }
+    if v < 0 || (!bare_init(v) && nodes[v].kind != N_ANON) { return false }
+    tok_error(nodes[v].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+    return true
+}
+
+// whether x is a function's name, or a variable that is a function
+let fn_id(x:int64):bool {
+    if nodes[x].kind != N_ID || is_case_word(x) { return false }
+    let vy:int64 = var_type(nodes[x].t)
+    if vy >= 0 { return types[vy].kind == Y_FN }
+    return fn_named(nodes[x].t) >= 0
+}
+
+let fn_name_refused(v:int64, ey:int64):bool {
+    if failed { return true }
+    if v < 0 || ey < 0 || types[ey].kind != Y_FN || nodes[v].kind != N_ID { return false }
+    let t:int64 = nodes[v].t
+    if var_type(t) >= 0 || fn_named(t) < 0 { return false }
+    if fn_of_type(t, ey) >= 0 {
+        pick_overload(v, ey)                             // of its overloads the one of the element's type, as kelvinc's pick_overload there (#764)
+        return false
+    }
+    let name:int64 = local_uses.get(v, t)
+    var m = $"no function '"
+    m += tok_text(name)
+    m += "' is "
+    let w:String = kelvin_type_text(ey)
+    m += &w
+    m += ": C's function of the name is not taken where a Kelvin function has it (#223); declare C's beside it, as in 'let "
+    m += tok_text(name)
+    m += "(x:f64):f64'"
+    gen_error(v, m.cstr)
+    return true
+}
+
 // whether v may be the value of an entry of the Dictionary dy, as
 // kelvinc's #246 has it of d[k] = v, ??= and !!= (#460), else its error
 let entry_fits(v:int64, dy:int64):bool {
+    if fn_name_refused(v, types[dy].elem) { return false }
+    let ek:ykind = types[types[dy].elem].kind
+    if (is_number_kind(ek) || ek == Y_BOOL || ek == Y_STRING || ek == Y_CSTR || ek == Y_PTR) && brace_no_value(v) { return false }   // d[k] = { 1 } of a number's: a list is not a value here, as kelvinc says it (#764), which kc built
     let bad:String = value_mismatch_text(v, types[dy].elem)
     if bad.count == 0 { return true }
     var m = $"an entry of "
@@ -21404,6 +21515,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
     let number = k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM)
     if is_case_word(v) { return $"" }                   // none, ok(v), err(e): gen_value reads them by the type (#343)
     if k == N_NULL && (vk == Y_PTR || vk == Y_CSTR || vk == Y_FN) { return $"" }   // nowhere where a pointer goes, an i64^?'s some too (#729)
+    if k == N_NULL && tok_is(nodes[v].t, "nowhere") && wrap_type(vy) < 0 { return $"any^" }   // nowhere where no pointer goes, as kelvinc names it (#764)
     let inner:int64 = wrap_type(vy)
     if inner >= 0 {                                     // an Optional, or the T it holds, wrapped (#343); a Result's ok (#344)
         if k != N_STR && !number {
@@ -23079,6 +23191,10 @@ let gen_stmt_of(n:int64, depth:int64) {
         change_op = nodes[n].t                           // an error of its place's change at its operator, as kelvinc's (#683)
         change_lhs = nodes[n].a
         change_rhs = nodes[n].b                          // and of its value (#686)
+        if tok_is(nodes[n].t, "+=") && nodes[n].b >= 0 && nodes[nodes[n].b].kind == N_ID && nodes[nodes[n].a].kind == N_ID && var_type(nodes[nodes[n].a].t) >= 0 {   // xs += twice of functions: the overload of the elements' type, before the name is asked its own (#764)
+            let ay:int64 = var_type(nodes[nodes[n].a].t)
+            if types[ay].kind == Y_ARRAY && fn_name_refused(nodes[n].b, types[ay].elem) { return }
+        }
         if compound_assign_call(n) || failed { return }  // z += w of z's own +=, in place (#518)
         if compound_by_operator(n) || failed { return }  // z += w, z = z + w of a struct's operator (#42)
         if tok_is(nodes[n].t, "=") && declaration_shaped(nodes[n].a) { put("if (1) ") }   // (#402)
