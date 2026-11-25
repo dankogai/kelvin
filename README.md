@@ -998,3 +998,6 @@ So far the changes from C are these, by topic.
   (#761)
 - `var v:[i64]`, an array of no count and no value, is `[i64] takes
   its count from its elements`, where it was C's error (#762)
+- An Array, a Dictionary and a Set have `+=` alone: `s -= x` is `a Set
+  has no '-=': remove an element with s.remove(x)`, where it was C's
+  error (#763)

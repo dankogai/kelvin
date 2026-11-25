@@ -42,6 +42,9 @@ Dictionary with no values, and keeps its elements in the order added.
   - A String an expression gives is held while its text is copied in,
     `s += f()` and `${f()}` as `s.insert(f())` (#315).
   - `has(x)`; `remove(x)`, `true` if it was there.
+    - A Set has `+=` alone (#763): `s -= x` is an error that names
+      `remove`, `a Set has no '-=': remove an element with
+      s.remove(x)`, where it was C's.
   - `union(&t)`, `intersection(&t)`, `difference(&t)`, new Sets.
   - `clear()`; `reserve(n)`; `copy()`.
   - `map`, `filter` and `reduce` (#307), over the elements in the order

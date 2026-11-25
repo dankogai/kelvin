@@ -17295,6 +17295,17 @@ let gen_assign(n:int64) {
         put(" = _kv_v")
         put_int(sv)
         put("; }\n")
+    } else if (yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) && !tok_is(t, "=") && !tok_is(t, ":=") {   // xs -= v, s *= 2, d += k: an Array, a Dictionary and a Set have += alone, a Dictionary none, as kelvinc says it (#763)
+        var m = yk == Y_ARRAY ? $"an Array" : yk == Y_DICT ? $"a Dictionary" : $"a Set"
+        m += " has no '"
+        m += tok_text(t)
+        m += "'"
+        if tok_is(t, "-=") {
+            m += yk == Y_ARRAY ? ": remove elements with xs.remove(i, n)" : yk == Y_DICT ? ": remove an entry with d.remove(k)" : ": remove an element with s.remove(x)"
+        } else if tok_is(t, "+=") && yk == Y_DICT {
+            m += ": add an entry with d[k] = v"
+        }
+        tok_error(t, m.cstr)
     } else if is_owner(y) {
         gen_error(n, "an owner is assigned only as a String")
     } else if has_element(lhs) && has_call(nodes[n].b) {

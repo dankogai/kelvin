@@ -1915,6 +1915,15 @@ kc reads what it is written in, and little more.
   elements: write [i64](N), or the elements`, gen_fixed_var's, where
   kelvinc left it to C; tests/error's array_no_count_no_value.k has
   it.
+- **An Array, a Dictionary and a Set have += alone** (#763), as
+  kelvinc's since the same number: `s -= x` is `a Set has no '-=':
+  remove an element with s.remove(x)`, an Array's and a Dictionary's
+  with their own `remove`, any other operator `a Set has no '*='`,
+  and a Dictionary's `+=` kelvinc's `a Dictionary has no '+=': add an
+  entry with d[k] = v`, gen_assign, at the operator, where kc said an
+  owner is assigned only as a String.
+  - tests/error's set_minus_assign.k, array_minus_assign.k and
+    dictionary_minus_assign.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

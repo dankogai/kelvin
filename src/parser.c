@@ -10835,6 +10835,18 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 list_push(&x->items, pb);
                 return x;
             }
+            if (strcmp(t->text, "=") && strcmp(t->text, ":=") && strcmp(t->text, "+=") && value_type(lhs)) {
+                /* xs -= v, s *= 2: an Array, a Dictionary and a Set have += alone (#763), where it was C's error,
+                   invalid operands to binary expression */
+                Type *lt = unqualified(value_type(lhs));
+                bool arr = is_array_owner(lt), dict = is_dict_owner(lt), set = is_set_owner(lt);
+                if (arr || dict || set)
+                    error_at(t->pos, "%s has no '%s'%s", arr ? "an Array" : dict ? "a Dictionary" : "a Set", t->text,
+                             strcmp(t->text, "-=") ? ""
+                             : arr                 ? ": remove elements with xs.remove(i, n)"
+                             : dict                ? ": remove an entry with d.remove(k)"
+                                                   : ": remove an element with s.remove(x)");
+            }
             if (!strcmp(t->text, "+=") && builtin_owner(value_type(lhs))) {
                 /* b += x is b.append(x) (#54, #55) */
                 if (is_dict_owner(value_type(lhs)))

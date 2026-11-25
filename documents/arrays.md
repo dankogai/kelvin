@@ -238,6 +238,9 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   - A declaration without a value is empty.
 - **Methods:** `append` (also `+=`), `insert`, `remove`, `pop`, `clear`,
   `reserve`, `compact`, `copy`.
+  - An Array has `+=` alone (#763): `xs -= v` is `an Array has no
+    '-=': remove elements with xs.remove(i, n)`, where it was C's
+    error.
   - **A borrow of one element,** `xs += &x`, `xs.append(&x)` or
     `xs.insert(i, &x)`, appends a copy of `x`, which the Array owns
     (#206): what `xs += x` of an owner says to write.

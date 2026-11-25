@@ -14657,3 +14657,16 @@ its elements`, where it was C's error.
 Details are provisional P767.
 
 There are 1652 tests, and all pass with clang and with gcc 15.
+
+### 810. An Array, a Dictionary and a Set have += alone
+
+**Claude** wrote #762, its battery run and pushed when clean.
+
+**Claude** made the fourth #763: `s -= x` of a Set, an Array or a
+Dictionary is an error that names its `remove`, and any other
+operator of them but `+=` an error too, in both, where it was C's and
+kc's an owner is assigned only as a String. kelvinc's four are done.
+
+Details are provisional P768.
+
+There are 1655 tests, and all pass with clang and with gcc 15.

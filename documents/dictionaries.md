@@ -77,6 +77,8 @@ in [ownership.md](ownership.md); this is the summary.
   a let).
   - `get(k, default)`, for a `V` that does not own.
   - `remove(k)`; `clear()`; `reserve(n)`; `copy()`.
+    - A Dictionary has no `-=` (#763), as it has no `+=`: `d -= k` is
+      `a Dictionary has no '-=': remove an entry with d.remove(k)`.
 - **Properties:** `count`; `size`, `typename`.
   - `keys` and `values` (#66), Arrays of copies in the order added,
     which a variable then owns.
