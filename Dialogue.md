@@ -14585,3 +14585,25 @@ as kc names them, where kelvinc said `Array<struct point>`.
 Details are provisional P763.
 
 There are 1646 tests, and all pass with clang and with gcc 15.
+
+### 806. The review, batch 25
+
+**Claude** wrote #758, its battery run and pushed when clean, its CI
+all green, the order's seven done, and listed what is left.
+
+**User:** review P757 to P763 (recommended)
+
+**Claude** read each row against the code, the batteries' summaries
+and the saved runs and found two faults, each a function's name:
+P761's gen_field for gen_member, and P762's gen_var for gen_var_of;
+and asked how the review should treat them.
+
+**User:** amend 2, confirm all, push (recommended)
+
+**Claude** made it #759: the two amended, P757 to P763 marked
+confirmed, as later numbers amend them, and P764, #759's own row,
+confirmed by #759.
+
+Details are P764, confirmed by #759 itself.
+
+There are 1646 tests, and all pass with clang and with gcc 15.

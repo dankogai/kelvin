@@ -1865,7 +1865,7 @@ kc reads what it is written in, and little more.
 - **Sentences and places of a value's kind** (#757), as kelvinc's:
   - a Set's key: key_of_ok(y, key, k), which dict_key_ok asks of a
     Dictionary's, is asked of each element of a Set's literal of a
-    written type, before their one type is, gen_set and gen_var, and
+    written type, before their one type is, gen_set and gen_var_of, and
     of `s += v`, insert, has and remove, where they were C's errors;
   - an Array's `+=`, append and insert: gen_array_add asks
     typed_value_ok of what is appended, with an element of the Array's
