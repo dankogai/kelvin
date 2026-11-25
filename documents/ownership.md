@@ -39,6 +39,12 @@ never copied implicitly.
   - `var q = r` of a `rat64` is a copy.
   - `var q = r` of a `BigRat` is an error that says to write
     `r.copy()`, or to borrow it, `:= &r`.
+  - An owner is a value, given by `=`, a new one too: `var xs = $[1,
+    2]`. `:=` of an Array, a Dictionary or a Set is an error (#755),
+    `'xs' is a value (Array<i64>): assign it with '=', not ':='`, as of
+    a String, at a declaration and after it.
+    - kelvinc could not tell and built it, so that `a := b` of two
+      Arrays freed one twice.
 - **A module's types keep to it:** `IO` of `<IO>`, `JSON` of `<JSON>`,
   `BigRat` of `<Rational>`, `BigFloat` of `<BigNum>`.
 - **A capital alone does not say it owns.**

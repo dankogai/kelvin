@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #754 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #755 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -111,7 +111,15 @@ known, not what is planned.
     same in C goes, `take3(three)`, the array's pointer, an array of
     no count and rows behind a pointer too, an anonymous function's
     alike, where kc said no function of the name is of the type (#754);
-  - left: the rest listed under "Found while" #746 to #753.
+  - `:=` of an Array, a Dictionary or a Set is an error in both, `'d'
+    is a value (Array<i64>): assign it with '=', not ':='`, at a
+    declaration too, the user's answer, a value: refuse := everywhere,
+    where kelvinc could not tell and built `a := b`, which freed one
+    twice, and kc refused it after the declaration in its own words;
+    kc says the rule of an element and of `p^` too, `this target is a
+    value (i64)`, which it built (#755). tests/run's
+    set_declared_reference.k, #749's, is tests/error's.
+  - left: the rest listed under "Found while" #746 to #755.
 
 - The user's order after #745, kc's two listed differences, after
   kelvinc's faults (#746 to #748), pushed when clean (#749):
@@ -125,10 +133,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1083 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1087 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752 and #754 alike.
+  #752, #754 and #755 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -295,6 +303,9 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #755 was made, not changed:
+  - `{$[1], 2}` of a struct whose first member is an Array is built by
+    kelvinc and kc's `'$0' is a parameter of an anonymous function`.
 - Found while #753 was made, not changed:
   - `h(3, corners)` in a function whose `h` is a parameter of the type
     `(i64, ([[i64](3)](2)):i64):i64` was refused by kc, `no function
@@ -323,8 +334,8 @@ known, not what is planned.
     (i64):i64` and kc's element sentence.
 - Found while #749 was made, not changed:
   - `d := ${2}` and `a := $[2]`, an owner assigned by `:=` after its
-    declaration, are built by kelvinc and kc's `an owner is assigned
-    only as a String`.
+    declaration, were built by kelvinc and kc's `an owner is assigned
+    only as a String`: `'d' is a value (Set<i64>)` in both since #755.
   - A cstr variable as a Dictionary literal's value, `${"k": s}` of a
     `${String: String}`, is C's error of kelvinc's C and kc's `a value
     of Dictionary<String, String> is a String, and this is cstr`.
@@ -398,9 +409,9 @@ known, not what is planned.
   - `var t:String = s` of a cstr variable is kelvinc's `'t' is a
     String, and this is cstr`, and was C's error of kc's C: kc's too
     since #749.
-  - `var d := ${"a"}`, a Set of text given by `:=`, is built by
-    kelvinc and was refused by kc, `'d' is a value (Set<String>)`:
-    built by both since #749.
+  - `var d := ${"a"}`, a Set of text given by `:=`, was built by
+    kelvinc and refused by kc, `'d' is a value (Set<String>)`: built
+    by both since #749, and refused by both since #755, a Set a value.
 - Found while #741 was made, not changed:
   - A number given to a `cstr` parameter of a function defined inside
     a function, `take(5)`, is kelvinc's `'c' of 'take' is a cstr, and
@@ -488,7 +499,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P757 to P759, the details of #752 to #754, until reviewed; the reviews confirmed
+- P757 to P760, the details of #752 to #755, until reviewed; the reviews confirmed
   every row to P756, and a review's own detail row is confirmed by that
   review (#675).
 

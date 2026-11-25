@@ -6510,6 +6510,9 @@ static int ref_kind(Type *t) {
         return 0;
     if (t->kind == T_TYPEOF)
         return ref_kind(t->elem);
+    if (is_array_owner(t) || is_dict_owner(t) || is_set_owner(t))
+        return 0; /* an Array, a Dictionary and a Set are values, as a String is (#755): kelvinc could not tell, and
+                     'a := b' of two built, and freed one twice */
     const char *n = t->name;
     if (!strncmp(n, "struct ", 7) || !strncmp(n, "union ", 6) || !strncmp(n, "enum ", 5))
         return 0;

@@ -14523,3 +14523,22 @@ named the array's pointer and refused `take3(three)`.
 Details are provisional P759.
 
 There are 1631 tests, and all pass with clang and with gcc 15.
+
+### 802. An Array, a Dictionary and a Set are values
+
+**Claude** wrote #754, its battery run and pushed when clean, and
+found, with kc's `d := ${2}`, that kelvinc took `:=` of an Array, a
+Dictionary and a Set, which it could not tell from references:
+`a := b` of two Arrays built and freed one twice; and asked what
+`:=` of them should be.
+
+**User:** a value: refuse := everywhere (recommended)
+
+**Claude** made it #755: `:=` of an Array, a Dictionary or a Set is
+`'d' is a value (Array<i64>): assign it with '=', not ':='` in both,
+at a declaration too; kc judges an element's and `p^`'s as kelvinc.
+#749's test of `var s := ${...}` is an error's test now.
+
+Details are provisional P760.
+
+There are 1634 tests, and all pass with clang and with gcc 15.

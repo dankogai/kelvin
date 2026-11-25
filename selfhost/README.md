@@ -1783,7 +1783,7 @@ kc reads what it is written in, and little more.
     fn_value_no_function.k, fn_value_member_type.k,
     fn_value_returned_type.k and fn_value_assigned_type.k, and
     tests/run's fn_value_rows_named.k, have them.
-- **A cstr variable is no String, and a Set is declared by :=**
+- **A cstr variable is no String, and a Set was declared by :=**
   (#749), as kelvinc's, kc's two listed differences:
   - a cstr variable, a member or a template that is a cstr, where a
     String goes is `'t' is a String, and this is cstr`,
@@ -1794,11 +1794,12 @@ kc reads what it is written in, and little more.
     owner's move and copy were refused first, cstr_place;
   - an Optional's and a Result's case holds a String, `and this is
     cstr`, value_mismatch_text, where it was C's error;
-  - `var d := ${"a"}` is taken, assigns_as, as an Array's and a
-    Dictionary's;
+  - `var d := ${"a"}` was taken, assigns_as, as an Array's and a
+    Dictionary's, until #755, which refuses the three;
   - tests/error's cstr_variable_string.k,
-    cstr_variable_string_param.k and cstr_variable_optional.k, and
-    tests/run's set_declared_reference.k, have them.
+    cstr_variable_string_param.k and cstr_variable_optional.k have
+    them; tests/run's set_declared_reference.k had the Set's until
+    #755.
 - **An element's and a literal's value's kind** (#752) are kelvinc's
   errors in kc's sentences since that number, `an element of [i64](2)
   is an i64, and this is text` and `a value of Dictionary<String, i64>
@@ -1833,6 +1834,19 @@ kc reads what it is written in, and little more.
     pointer in a function type's typedef;
   - tests/run's fn_array_params.k, and tests/error's
     fn_value_rows_type.k and fn_name_const_elements.k, have them.
+- **An Array, a Dictionary and a Set are values** (#755), as kelvinc
+  has them since that number: `:=` of one is `'d' is a value
+  (Array<i64>): assign it with '=', not ':='`, assigns_as, which took
+  `:=` of them as kelvinc did, of a Set since #749; the Array is
+  spelled `Array<T>` there.
+  - An element's and `p^`'s `=` and `:=` are judged too, `this target
+    is a value (i64)` and `this target is a reference (i64^)`,
+    gen_assign, where kc judged a variable's and a member's alone and
+    built `a[0] := 5`.
+  - tests/error's array_declared_reference.k,
+    set_declared_reference.k, owner_reference_assigned.k and
+    element_reference_assigned.k have them; tests/run's
+    set_declared_reference.k is gone.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

@@ -15312,11 +15312,11 @@ let type_text(y:int64):String {
 // assigned, and what it is
 let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     let k:ykind = y >= 0 ? types[y].kind : Y_C
-    if k == Y_C || k == Y_TYPEOF || k == Y_ARRAY || k == Y_DICT || k == Y_SET { return true }   // what only C sees, a C x.type's too (#696); an Array and a Dictionary, as kelvinc
+    if k == Y_C || k == Y_TYPEOF { return true }   // what only C sees, a C x.type's too (#696); an Array, a Dictionary and a Set are values, as kelvinc has them since #755
     if k == Y_STRUCT && struct_of(y) < 0 && tagged_of(y) < 0 && !enum_int(y) { return true }   // a C header's type, jmp_buf, as kelvinc (#696)
     let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_FN || (k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4))   // a function's, a pointer in C (#428); a parameter's array (#524)
     if reference == colon { return true }
-    var ty_text = type_text(y)                           // as kelvinc spells it: a parameter's array its pointer, struct node^
+    var ty_text = k == Y_ARRAY ? kelvin_type_text(y) : type_text(y)   // as kelvinc spells it: a parameter's array its pointer, struct node^; an Array as Array<T> (#755)
     if k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) {
         ty_text = type_text(types[y].elem)
         ty_text += "^"
@@ -16988,6 +16988,9 @@ let gen_assign(n:int64) {
     let named = nodes[lhs].kind == N_ID || nodes[lhs].kind == N_FIELD
     if named && (tok_is(t, "=") || tok_is(t, ":=")) && !assigns_as(n, nodes[lhs].kind == N_FIELD ? 0 - 1 : nodes[lhs].t, y, tok_is(t, ":=")) { return }
     let yk:ykind = types[y].kind
+    let entry = nodes[lhs].kind == N_INDEX && type_of(nodes[lhs].a) >= 0 && types[type_of(nodes[lhs].a)].kind == Y_DICT   // d[k] = v sets an entry, of a function or a pointer too
+    if failed { return }
+    if !named && (tok_is(t, ":=") || (tok_is(t, "=") && !entry)) && !assigns_as(n, 0 - 1, y, tok_is(t, ":=")) { return }   // an element's and p^'s too, this target is a value, as kelvinc says it (#755)
     if named && (tok_is(t, "=") || tok_is(t, ":=")) && nodes[lhs].t < eof_pos {   // what is assigned, of the target's type (#248, #612)
         if record_differs(nodes[n].b, y) { return }
         var lead = nodes[lhs].kind == N_ID ? $"'" : $"'."

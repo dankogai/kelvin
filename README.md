@@ -974,3 +974,6 @@ So far the changes from C are these, by topic.
 - kc reads a function whose parameter is a fixed array as kelvinc:
   its type is `([i64](3)):i64`, and `take3(three)` is built, where
   kc refused it (#754)
+- An Array, a Dictionary and a Set are values: `:=` of one is `'d'
+  is a value (Array<i64>): assign it with '=', not ':='`, where
+  `a := b` built and freed one twice (#755)
