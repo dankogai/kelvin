@@ -123,6 +123,14 @@ let t = [float64](3)               // a let of a constant count is fine
 A `let` of a count computed at run time is an error, since C cannot fill
 a `const` array after declaring it.
 
+- A member and a row that are arrays take it too (#773), and a compound
+  literal: `var g:grid = {[i64](2)}`, `[[i64](2), ([i64])[5, 6]]`.
+- It is of the array's shape, its element and its count: `var a:[i64](2)
+  = [i64](3)` is `'a' is a [i64](2), and this is [i64](3)`, and a
+  compound literal's alike, where kelvinc took any.
+  - An array of no count written takes it: `var a:[i64] = [i64](2)` is
+    two elements.
+
 ### `.count` and `.size`
 
 `a.count` is the number of elements, set when the array is made and

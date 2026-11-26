@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #772 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #773 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -64,6 +64,14 @@ known, not what is planned.
     is i64?, an Optional, where [i64](2) goes`; kc says them of what
     it said an array is not assigned (#772).
   With it kelvinc's two of this order are done.
+  - found while #772 was made, the user's answer, one kind sentence:
+    zeros, `[T](n)`, and a compound literal, `([T])[a, b]`, where an
+    array goes are of its shape, `'a' is a [i64](2), and this is
+    [i64](3)`, a member's and a row's by their leads, where kelvinc
+    took any, and kc said `'a' is [i64](2)` of zeros and `this is
+    [i64](3), where [i64](2) goes` of a literal; a member and a row
+    take them, where they were C's errors; `var a:[i64] = [i64](2)`
+    counts 2, where it counted 1 (#773).
 
 - The user's order after #765, resolve kelvinc then kc, of what was
   left listed, with the answers, each pushed when clean:
@@ -272,10 +280,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1151 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1155 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 and #772 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769 and #771 to #773 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -442,10 +450,15 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #773 was made, not changed:
+  - `var m:[[i64]](2) = [[i64](2), [3, 4]]`, rows of no count written
+    whose first is zeros, is built by kelvinc, the rows of the zeros'
+    count, and C's error of kc's C, array has incomplete element type.
 - Found while #772 was made, not changed:
   - A member that is an array given zeros, `{[i64](2)}`, or a compound
-    literal, `{([i64])[3, 4]}`, is C's error of kelvinc's C,
-    incompatible pointer to integer conversion, and built by kc.
+    literal, `{([i64])[3, 4]}`, was C's error of kelvinc's C,
+    incompatible pointer to integer conversion, and built by kc: built
+    by both since #773.
 - Found while #771 was made, not changed:
   - `Array<i64>(p)` of a `p` that is an `Array<i64>^`, a borrow held
     in a variable, is a copy by kelvinc and kc's `Array<i64>(n) takes
@@ -747,7 +760,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P776 and P777, the details of #771 and #772, until reviewed; the reviews confirmed
+- P776 to P778, the details of #771 to #773, until reviewed; the reviews confirmed
   every row to P775, and a review's own detail row is confirmed by that
   review (#675).
 

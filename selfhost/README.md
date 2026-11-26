@@ -2043,6 +2043,18 @@ kc reads what it is written in, and little more.
   - tests/error's array_declared_struct.k, array_declared_optional.k,
     array_declared_function.k, array_member_given_struct.k and
     array_member_braces.k have them.
+- **Zeros and a compound literal of an array's shape** (#773):
+  `array_shape_wrong` says the kind's sentence of a `[T](n)` or a
+  `([T])[a, b]` of another element or count, `'a' is a [i64](2), and
+  this is [i64](3)`, asked by gen_fixed_var, by member_value_ok and by
+  fixed_list_fits of a row, each with its lead, where kc said `'a' is
+  [i64](2)` of zeros and `this is [i64](3), where [i64](2) goes` of a
+  literal.
+  - A row takes zeros and a compound literal, as kelvinc's since this
+    number: gen_fixed_list writes `{0}` of a row of zeros.
+  - tests/run's array_member_zeros.k and tests/error's
+    array_declared_zeros_shape.k, array_declared_compound_shape.k,
+    array_member_zeros_shape.k and array_row_zeros_shape.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

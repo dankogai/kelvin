@@ -8373,6 +8373,32 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
     }
 }
 
+/* v, zeros [T](n) or a compound literal ([T])[...], where an array of type want goes (#773): of want's elements
+   and, where want writes a count, of that count, else the kind's sentence, 'a' is a [i64](2), and this is [i64](3);
+   kelvinc took any, the list cut or filled as C has it. Where want writes no count, zeros give theirs */
+static void array_shape(Expr *v, Type *want, const char *lead, Pos pos) {
+    if (!v || v->kind != E_COMPOUND || !v->type || v->type->kind != T_ARRAY || !want || want->kind != T_ARRAY)
+        return;
+    unsigned long long wn = 0, gn = 0;
+    bool neg, wc = want->size && int_literal_value(want->size, &wn, &neg);
+    bool gc = v->type->size && int_literal_value(v->type->size, &gn, &neg);
+    if (!gc && !v->type->size && v->a && v->a->kind == E_INIT) { /* ([T])[a, b]: its elements' */
+        gn = (unsigned long long)v->a->items.len;
+        gc = true;
+        for (int i = 0; i < v->a->designators.len; i++)
+            if (v->a->designators.data[i])
+                gc = false;
+    }
+    bare_tags = true;
+    char *we = kelvin_type(own_unqualified(want->elem)), *ge = kelvin_type(own_unqualified(v->type->elem));
+    char *w = kelvin_type(want);
+    bare_tags = false;
+    if (strcmp(we, ge) || (wc && gc && wn != gn))
+        error_at(pos, "%s %s %s, and this is %s", lead, article(w), w, gc ? strfmt("[%s](%llu)", ge, gn) : strfmt("[%s]", ge));
+    if (!want->size && !v->a && v->type->size) /* var a:[i64] = [i64](2): two of them, where one was declared */
+        want->size = v->type->size;
+}
+
 /* v where a struct's member of type want goes (#741), in Kelvin's words,
    as check_typed_value says a declaration's: a number, a bool, text, a
    String and a pointer by it; an array takes [...], zeros, text where
@@ -11267,6 +11293,29 @@ static Expr *parse_initializer_for(Type *t) {
         }
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = string_of_literal(drop_cstr(parse_initializer_for(item), item), item); /* a cstr into a u8^ member (#52) */
+        if (item && item->kind == T_ARRAY && value->kind == E_COMPOUND && value->type && value->type->kind == T_ARRAY) {
+            if (record) {
+                const char *mn = d ? d->text : ((Var *)record->members.data[next])->name;
+                array_shape(value, item, strfmt("'%s' of %s is", mn, record_spelling(record)), value->pos);
+            } else if (t && t->kind == T_ARRAY) {
+                bare_tags = true;
+                char *el = strfmt("an element of %s is", kelvin_type(own_unqualified(t)));
+                bare_tags = false;
+                array_shape(value, item, el, value->pos);
+            }
+            /* a member or a row that is an array given [T](n), zeros, or ([T])[a, b], a compound literal (#773): its
+               list, as a declaration takes it, where C refused the array for a value */
+            if (value->a) {
+                value = value->a;
+            } else {
+                Expr *zl = new_expr(E_INIT, value->pos);
+                Expr *z = new_expr(E_LITERAL, value->pos);
+                z->text = "0";
+                list_push(&zl->designators, NULL);
+                list_push(&zl->items, z);
+                value = zl;
+            }
+        }
         if (record && item && (!braced || unqualified(item)->kind == T_FUNC) && !lost &&
             links <= 1) { /* a member's value of its kind, as a parameter's (#741); a function's begins with a brace (#748) */
             const char *mname = d ? d->text : ((Var *)record->members.data[next])->name;
@@ -12904,6 +12953,7 @@ static Var *parse_var(bool with_init, int let) {
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_record_mismatch(v->init, v->type, v->init->pos);
         Type *at = v->type && v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type; /* a b.type's too (#767) */
+        array_shape(v->init, at, strfmt("'%s' is", v->name), v->init->pos); /* zeros and a compound literal of its shape (#773) */
         if (at && at->kind == T_ARRAY && v->init->kind != E_INIT) /* var a:[i64](3) = 5, where C said an array takes a list (#741) */
             member_value(v->init, at, strfmt("'%s' is", v->name), v->init->pos);
         check_typed_value(v->init, v->type, strfmt("'%s' is", v->name), v->init->pos); /* (#255) */

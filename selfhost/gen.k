@@ -12171,6 +12171,7 @@ let member_value_ok(v:int64, f:int64, s:int64):bool {
     lead += &sw
     lead += " is"
     if k == Y_FIXED {
+        if array_shape_wrong(v, y, &lead) { return false }   // {[i64](3)} of a member that is a [i64](2) (#773)
         let wrong:cstr := wrong_for_array(v, y)
         if wrong[0] == 0 { return !array_kind_wrong(v, y, &lead, false) }   // a struct where a member's array goes (#772)
         let w:String = type_text(y)
@@ -15826,6 +15827,8 @@ let gen_fixed_list(v:int64, y:int64) {
         }
         if nodes[w].kind == N_LIST && nodes[w].flag == 0 && types[e].kind == Y_FIXED {
             gen_fixed_list(w, e)
+        } else if nodes[w].kind == N_LIST && nodes[w].flag == 1 && types[e].kind == Y_FIXED {
+            put("{0}")                                   // a row of zeros, [i64](2) (#773): C takes no array for a value there
         } else {
             gen_value(w, e)
         }
@@ -15944,7 +15947,16 @@ let fixed_list_fits(v:int64, y:int64):bool {
             continue
         }
         if fn_name_refused(x, e) { return false }
-        if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
+        if nodes[x].kind == N_LIST && types[e].kind == Y_FIXED && (nodes[x].flag == 1 || nodes[x].ty >= 0) {   // a row that is zeros, [i64](2), or a compound literal, as kelvinc takes them since #773: of the row's shape
+            var rl = $"an element of "
+            let rw:String = type_text(y)
+            rl += &rw
+            rl += " is"
+            if array_shape_wrong(x, e, &rl) { return false }
+        }
+        if nodes[x].kind == N_LIST && nodes[x].flag == 1 && types[e].kind == Y_FIXED {
+            // zeros, written {0} by gen_fixed_list
+        } else if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
             if types[e].name == 0 - 1 || (types[we].kind == Y_FIXED && types[we].name == 0 - 1) {
                 let rc:int64 = count_args(nodes[x].b)
                 if row0 < 0 { row0 = rc }
@@ -16135,6 +16147,12 @@ let gen_fixed_var(n:int64) {
         put_tok(nodes[n].t)
         put(");\n")
         return
+    }
+    if v >= 0 && nodes[v].kind == N_LIST {               // zeros or a compound literal of another shape (#773)
+        var sl = $"'"
+        sl += tok_text(nodes[n].t)
+        sl += "' is"
+        if array_shape_wrong(v, y, &sl) { return }
     }
     if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 1 {   // [T](n)
         let zy:int64 = type_of(v)
@@ -21496,6 +21514,33 @@ let brace_no_value(v:int64):bool {
     if failed { return true }
     if v < 0 || (!bare_init(v) && nodes[v].kind != N_ANON) { return false }
     tok_error(nodes[v].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+    return true
+}
+
+// v, zeros [T](n) or a compound literal ([T])[...], where an array of
+// type y goes, of another element or count: the kind's sentence after
+// lead (#773), 'a' is a [i64](2), and this is [i64](3), where kc said
+// 'a' is [i64](2) of zeros and this is [i64](3), where [i64](2) goes of
+// a literal; true where it is said
+let array_shape_wrong(v:int64, y:int64, lead:const String^):bool {
+    if failed { return true }
+    if nodes[v].kind != N_LIST || (nodes[v].flag != 1 && nodes[v].ty < 0) { return false }
+    let vy:int64 = plain_fixed(type_of(v))
+    if failed { return true }
+    if vy < 0 || types[vy].kind != Y_FIXED || types[y].kind != Y_FIXED { return false }
+    let py:int64 = plain_fixed(y)
+    if vy == py { return false }
+    if (types[y].name == 0 - 1 || types[y].name == 0 - 3) && types[vy].elem == types[py].elem { return false }   // no count written: the value's
+    var m = lead^.copy()
+    let w:String = type_text(y)
+    m += " "
+    m += article_of(&w)
+    m += " "
+    m += &w
+    m += ", and this is "
+    let vw:String = type_text(vy)
+    m += &vw
+    gen_error(v, m.cstr)
     return true
 }
 

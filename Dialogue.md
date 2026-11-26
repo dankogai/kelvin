@@ -14847,3 +14847,22 @@ of this order are done.
 Details are provisional P777.
 
 There are 1707 tests, and all pass with clang and with gcc 15.
+
+### 820. Zeros and a compound literal of an array's shape
+
+**Claude** wrote #772, its battery run and pushed when clean, and
+asked of what it found with it: kelvinc takes zeros or a compound
+literal of another shape where an array goes, and kc refuses them in
+two sentences of its own.
+
+**User:** one kind sentence (recommended)
+
+**Claude** made it #773: `var a:[i64](2) = [i64](3)` and a compound
+literal's are `'a' is a [i64](2), and this is [i64](3)` in both, a
+member's and a row's by their leads; a member and a row take zeros
+and a compound literal, where they were C's errors; `var a:[i64] =
+[i64](2)` counts 2, where kelvinc counted 1.
+
+Details are provisional P778.
+
+There are 1712 tests, and all pass with clang and with gcc 15.

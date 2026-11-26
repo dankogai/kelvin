@@ -1018,3 +1018,7 @@ So far the changes from C are these, by topic.
   (#771)
 - A struct where an array is declared is `'a' is a [i64](2), and this
   is pt`, the array as written, where it said `an i64^` (#772)
+- Zeros and a compound literal where an array goes are of its shape:
+  `var a:[i64](2) = [i64](3)` is `'a' is a [i64](2), and this is
+  [i64](3)`, where it was taken; a member and a row take them, where
+  they were C's errors (#773)

@@ -1,0 +1,8 @@
+// a compound literal of another count where an array is declared
+// (#773): kelvinc cut it, and kc said this is [i64](3), where [i64](2)
+// goes
+let main():int32 {
+    var a:[int64](2) = ([int64])[3, 4, 5]
+    return 0
+}
+// error: 'a' is a [i64](2), and this is [i64](3)
