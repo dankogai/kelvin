@@ -2741,6 +2741,38 @@ let needs_type(n:int64) {
     gen_error(n, m.cstr)
 }
 
+// an error of the $[...] v at its [, where kelvinc says one of the whole
+// literal: kc's $[ is one token, so a token one past it is made (#769, #774)
+let array_open_error(v:int64, what:cstr) {
+    var lb = $"["
+    let bt:int64 = made_token(&lb)
+    toks[bt].kind = T_PUNCT
+    toks[bt].line = toks[nodes[v].t].line
+    toks[bt].file = toks[nodes[v].t].file
+    toks[bt].src = toks[nodes[v].t].src + 1
+    tok_error(bt, what)
+}
+
+// whether the key or element e of a ${...} of no type written is of a
+// type that is no key, with kelvinc's error (#774): an integer of 8 to
+// 64 bits or a String alone, as parse.k's cstr_key has it of a type
+// written, where kc said its own, a key of Set<f64> is an integer, or
+// built a bool's
+let untyped_key_refused(e:int64):bool {
+    if failed { return true }
+    let y:int64 = dict_key_type(type_of(e))
+    if failed { return true }
+    if y < 0 { return false }
+    let k:ykind = types[y].kind
+    if k == Y_STRING || (is_int_kind(k) && k != Y_I128 && k != Y_U128) || k == Y_C || k == Y_TYPEOF { return false }
+    var m = $"a key of a Dictionary is an integer or a String, not "
+    m += tag_word(y)
+    let w:String = kelvin_type_text(y)
+    m += &w
+    gen_error(e, m.cstr)
+    return true
+}
+
 // whether e is the name of a function of more than one type, which no
 // type written says which of
 let overloaded_name(e:int64):bool {
@@ -2760,13 +2792,7 @@ let literal_names_overload(n:int64, v:int64):bool {
                 if made {                                // at its [
                     gen_error_list(nodes[v].b, "the elements have no one type kelvinc sees here: write Array<T>([...])")
                 } else if k == N_ARRAY {                 // at the [ of its $[, one token of kc's
-                    var lb = $"["
-                    let bt:int64 = made_token(&lb)
-                    toks[bt].kind = T_PUNCT
-                    toks[bt].line = toks[nodes[v].t].line
-                    toks[bt].file = toks[nodes[v].t].file
-                    toks[bt].src = toks[nodes[v].t].src + 1
-                    tok_error(bt, "the elements have no one type kelvinc sees here: write Array<T>([...])")
+                    array_open_error(v, "the elements have no one type kelvinc sees here: write Array<T>([...])")
                 } else if k == N_SET && e == nodes[v].b {
                     gen_error(e, "this element has no type kelvinc sees: write Set<T>({...})")
                 } else if k == N_SET {                   // a later one: unseen beside the first's
@@ -3050,6 +3076,7 @@ let type_of(n:int64):int64 {
         return 0 - 1
     }
     if k == N_NULL && nodes[n].flag == 7 { return type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }   // nowhere whose property is read, an any^, as kelvinc's: its .isNull, .addr, .hex and .cstr a pointer's (#729)
+    if k == N_NULL && tok_is(nodes[n].t, "nowhere") { return type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }   // nowhere is an any^, as kelvinc types it (#774), where kc said a type only C sees: $[nowhere] is an Array<any^>
     if k == N_NULL { return base_type(Y_C) }
     if k == N_SELF {                                     // (#213); a number's, a String's or a Bytes's own (#550)
         if !self_known(n) { return 0 - 1 }               // where there is one (#602)
@@ -3140,6 +3167,7 @@ let type_of(n:int64):int64 {
         }
         if nodes[n].flag == 5 {                         // Array(a) of a fixed array: of its elements (#355)
             let fy:int64 = type_of(nodes[n].a)
+            if fy >= 0 && types[fy].kind == Y_PTR && types[fy].elem >= 0 && types[types[fy].elem].kind == Y_ARRAY { return types[fy].elem }   // Array(p) of a borrow a variable holds, as Array(&a) (#774)
             if fy < 0 || types[fy].kind != Y_FIXED || fixed_inside(types[fy].elem) { return -1 }
             return type_of_kind(Y_ARRAY, types[fy].elem, -1)
         }
@@ -3448,7 +3476,8 @@ let type_of(n:int64):int64 {
             return 0 - 1
         }
         if yk == Y_DICT && nodes[n].flag == 1 { return optional_of(types[y].elem) }    // d[k] read whole (#219)
-        if yk == Y_ARRAY || yk == Y_DICT || yk == Y_FIXED { return types[y].elem }   // a fixed array's (#354)
+        if yk == Y_FIXED { return seen_through(types[y].elem) }   // a fixed array's (#354); a row that is a v.type, v's type (#774)
+        if yk == Y_ARRAY || yk == Y_DICT { return types[y].elem }
         if yk == Y_ARGV { return base_type(Y_CSTR) }
         if yk == Y_PTR && types[y].elem >= 0 && types[types[y].elem].kind != Y_VOID { return types[y].elem }   // p[i] of a T^ is a T, and of a [T](N)^ the row i, as kelvinc's (#726)
         return base_type(Y_U8)
@@ -11749,6 +11778,11 @@ let gen_make_inferred(n:int64) {
         if h { hold_close(p) }
     } else if f == 5 && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_FIXED {   // Array(a) of a fixed array (#355)
         gen_from_fixed(nodes[n].a, 0 - 1)
+    } else if f == 5 && type_of(n) >= 0 && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_PTR {   // Array(p) of a borrow a variable holds: a copy (#774)
+        put_array_name(type_of(n))
+        put("_copy(")
+        gen_expr(nodes[n].a)
+        put(")")
     } else if f == 4 || f == 5 {                         // as kelvinc says it of what is no Array
         gen_error(n, "Array(x) has no element type: write Array<T>(x), or the elements, Array([...])")
     } else if f == 6 {
@@ -11819,6 +11853,13 @@ let gen_make(n:int64) {
         gen_place(p)
         put(")")
         if h { hold_close(p) }
+        return
+    }
+    if nodes[n].flag == 5 && type_of(x) >= 0 && types[type_of(x)].kind == Y_PTR && types[type_of(x)].elem == y {   // Array<T>(p) of a borrow a variable holds: a copy, as kelvinc's (#774), where kc said it takes a count
+        put_array_name(y)
+        put("_copy(")
+        gen_expr(x)
+        put(")")
         return
     }
     if nodes[n].flag == 5 && type_of(x) >= 0 && types[type_of(x)].kind == Y_FIXED {   // Array<T>(a) of a fixed array (#355)
@@ -12266,7 +12307,7 @@ let one_type(n:int64):bool {
     var e = nodes[nodes[n].b].next
     while e >= 0 && y >= 0 {
         if type_of(e) != y {
-            gen_error(n, "the elements have no one type kc sees here: write the Array's type, as name:$[T]")
+            array_open_error(n, "the elements have no one type kelvinc sees here: write Array<T>([...])")   // kelvinc's words at its [ (#774), where kc said its own
             return false
         }
         e = nodes[e].next
@@ -12365,6 +12406,7 @@ let type_text(y:int64):String    // a prototype: one_entry_type names the types 
 // kelvinc asks where no type is written (#267)
 let one_entry_type(n:int64):bool {
     let first:int64 = nodes[n].b
+    if untyped_key_refused(first) { return false }
     let ky = dict_key_type(type_of(first))
     let vy = type_of(nodes[first].next)
     if ky < 0 || vy < 0 {
@@ -12515,6 +12557,7 @@ let gen_dict(n:int64, given:int64) {
 let gen_set(n:int64, first:int64, given:int64) {
     var y = given
     if y < 0 {
+        if untyped_key_refused(first) { return }
         let e0:int64 = dict_key_type(type_of(first))
         var e = nodes[first].next
         while e >= 0 {
@@ -14454,6 +14497,9 @@ let gen_typename(n:int64) {
         return
     }
     var raw:String = types[y].kind == Y_ARGV ? $"cstr^" : kelvin_type_text(y)   // a parameter's [cstr] is its pointer, as kelvinc names it (#730)
+    var rows:int64 = y
+    while rows >= 0 && types[rows].kind == Y_FIXED { rows = types[rows].elem }
+    if rows >= 0 && rows != y && types[rows].kind == Y_TYPEOF { raw = $"?" }   // [v.type](2) of a v whose count C computes: ?, as kelvinc names what it does not see through (#747, #774)
     if const_read(a) {                                   // q[1] through a const i64^, s[1] of a cstr, a[0] of a [const T]: const i64, and a pointer's own const after it, cstr const, as kelvinc names it (#738)
         let pointer = types[y].kind == Y_PTR || types[y].kind == Y_CSTR
         var named = pointer ? raw.copy() : $"const "
@@ -15228,6 +15274,7 @@ let inferred(n:int64):int64 {
         return -1
     }
     if literal_names_overload(n, v) { return -1 }        // var a = $[twice] of an overloaded name: kelvinc's words (#769), before the name is asked which it is
+    if (nodes[v].kind == N_SET || nodes[v].kind == N_DICT) && nodes[v].b >= 0 && untyped_key_refused(nodes[v].b) { return -1 }   // var a = ${1.5}: no key (#774), before the Set is asked its type
     resolve_op(v)
     let k:nkind = nodes[v].kind
     if k == N_ANON && nodes[v].flag == 0 {               // a count of its own parameter, as kelvinc says it (#656)
@@ -15747,6 +15794,7 @@ let put_zero_count(y:int64):bool {
 let fixed_elem_ok(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
+    if k == Y_TYPEOF && seen_through(y) != y { return fixed_elem_ok(seen_through(y)) }   // [v.type](2) of a v that is a [i64](n): rows of v's type, C's __typeof__(v) w[2], as kelvinc writes it (#774)
     if is_owner(y) || fixed_inside(y) { return false }
     return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT || k == Y_PTR || k == Y_FN   // functions too, as kelvinc's (#403, #720)
 }
@@ -16057,7 +16105,7 @@ let fixed_computed(y:int64):bool {
         if types[f].name <= 0 - 10 && !constant_count(0 - 10 - types[f].name) { return true }
         f = types[f].elem
     }
-    return false
+    return types[f].kind == Y_TYPEOF && seen_through(f) != f && f != y   // rows that are a v.type of a count C computes (#774)
 }
 
 // whether n, of y, a count C computes, is a var's in a function, its count
@@ -17109,7 +17157,8 @@ let braces_refused(a:int64):bool {
 
 let gen_assign(n:int64) {
     if (tok_is(nodes[n].t, "=") || tok_is(nodes[n].t, ":=")) && bare_declaration(nodes[n].a) { return }
-    if tok_is(nodes[n].t, "=") && nodes[n].b >= 0 && (nodes[nodes[n].b].kind == N_ARRAY || nodes[nodes[n].b].kind == N_DICT || nodes[nodes[n].b].kind == N_SET) && literal_names_overload(n, nodes[n].b) { return }   // a = $[twice]: an assignment's $[...] is of its elements' type, which an overloaded name has not, as kelvinc says it (#769)
+    if tok_is(nodes[n].t, "=") && nodes[n].b >= 0 && (nodes[nodes[n].b].kind == N_ARRAY || nodes[nodes[n].b].kind == N_DICT || nodes[nodes[n].b].kind == N_SET) && literal_names_overload(n, nodes[n].b) { return }
+    if tok_is(nodes[n].t, "=") && nodes[n].b >= 0 && (nodes[nodes[n].b].kind == N_DICT || nodes[nodes[n].b].kind == N_SET) && nodes[nodes[n].b].b >= 0 && untyped_key_refused(nodes[nodes[n].b].b) { return }   // s = ${1.5}: an assignment's ${...} is of its elements' type, no key's (#774)   // a = $[twice]: an assignment's $[...] is of its elements' type, which an overloaded name has not, as kelvinc says it (#769)
     if tok_is(nodes[n].t, ":=") && nodes[nodes[n].a].kind == N_ID && nodes[n].b >= 0 && (nodes[nodes[n].b].kind == N_EMPTY || (nodes[nodes[n].b].kind == N_ARRAY && nodes[nodes[n].b].b < 0)) && var_type(nodes[nodes[n].a].t) >= 0 {   // a := $[]: := of a value first, as kelvinc says it, before the empty Array is asked its type (#764)
         if !assigns_as(n, nodes[nodes[n].a].t, var_type(nodes[nodes[n].a].t), true) { return }
     }
@@ -18505,7 +18554,7 @@ let gen_fn_value(n:int64, y:int64) {
         given = type_of(n)
     }
     if failed { return }
-    if given >= 0 && types[given].kind == Y_C {          // nowhere, and what only C sees
+    if (given >= 0 && types[given].kind == Y_C) || (k == N_NULL && tok_is(nodes[n].t, "nowhere")) {   // nowhere, an any^ since #774, and what only C sees
         gen_expr(n)
         return
     }

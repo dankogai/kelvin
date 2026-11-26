@@ -1869,7 +1869,13 @@ let cstr_key(key:int64, at:int64) {
     m += tag_word(key)                                   // struct pt, as kelvinc names it here (#769)
     let w:String = kelvin_type_text(key)
     m += &w
-    parse_error_at(at, m.cstr)
+    var place:int64 = at
+    if k == Y_PTR {                                      // a pointer's at its ^, where kelvinc's type is placed (#774)
+        var q:int64 = at
+        while q < pos && !tok_is(q, "^") { q += 1 }
+        if q < pos { place = q }
+    }
+    parse_error_at(place, m.cstr)
 }
 
 // a fixed array where an Array's element or a Dictionary's value goes,

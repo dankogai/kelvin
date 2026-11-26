@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #773 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #774 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -188,6 +188,23 @@ known, not what is planned.
 
 ## kc
 
+- The user's order after #770, kc's of what was left listed and what
+  #771 to #773 found, after kelvinc's three, pushed when clean (#774):
+  - `[v.type](2)` of a `v` whose count C computes, the last of the
+    eight, is built, C's `__typeof__(v) w[2]`, its typename `?`;
+  - `nowhere` is an `any^` to kc, where it was a type only C sees: a
+    literal of no type written that holds it is built, `$[nowhere]`,
+    `${"a": nowhere}` and `[nowhere]`, as kelvinc's;
+  - a key of a `${...}` of no type written that is no key is
+    kelvinc's `a key of a Dictionary is an integer or a String, not
+    f64`, `${nowhere}`'s too, and a pointer's of a type written is
+    said at its `^`;
+  - `$[1, "a"]` is kelvinc's `the elements have no one type kelvinc
+    sees here`, at its `[`;
+  - `Array<T>(p)` and `Array(p)` of a borrow a variable holds are
+    copies;
+  - left: what is listed under "Found while #774 was made".
+
 - The user's order after #765, kc's of what was left listed and what
   #766 to #768 found, after kelvinc's three, pushed when clean (#769),
   each kelvinc's sentence at its place:
@@ -280,10 +297,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1155 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1159 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769 and #771 to #773 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769 and #771 to #774 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -450,6 +467,20 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #774 was made, not changed:
+  - `var q = c ? 1 : 2`, a choice in a declaration of no type written,
+    is kelvinc's `'q' needs a type` of numbers and of pointers, and
+    built by kc; kelvinc infers one of text, as kc's own source has.
+  - `println(w)` of a `w:[v.type](2)` whose `v` is of a count C
+    computes is C's error of kelvinc's C, use of undeclared
+    identifier, and kc's `kc prints a number, a bool, text`; `var
+    w:[v.type](2) = [[1, 2, 3], [4, 5, 6]]` is kelvinc's `'[...]'
+    initializes an array, and this is v.type` and kc's `an array of a
+    count computed at run time takes no elements in C`.
+  - `var a = ${o}` of a struct and `${c}` of an enum are kelvinc's `a
+    key of a Dictionary is an integer or a String, not struct pt`, at
+    the variable's type where it is declared, and kc's at the element,
+    an enum's C's error of kc's C.
 - Found while #773 was made, not changed:
   - `var m:[[i64]](2) = [[i64](2), [3, 4]]`, rows of no count written
     whose first is zeros, is built by kelvinc, the rows of the zeros'
@@ -461,8 +492,9 @@ known, not what is planned.
     by both since #773.
 - Found while #771 was made, not changed:
   - `Array<i64>(p)` of a `p` that is an `Array<i64>^`, a borrow held
-    in a variable, is a copy by kelvinc and kc's `Array<i64>(n) takes
-    a count, and this is Array<i64>^`.
+    in a variable, is a copy by kelvinc and was kc's `Array<i64>(n)
+    takes a count, and this is Array<i64>^`: a copy by both since
+    #774.
   - `var a = Array("a")` is kelvinc's `Array(x) has no element type`
     and kc's `'a' needs a type`; `var a = Array(b)` of rows is
     kelvinc's `an Array of [i64](2) is not here yet` and kc's `'a'
@@ -470,12 +502,13 @@ known, not what is planned.
 - Found while #769 was made, not changed:
   - `nowhere` in a literal of no type written, `var a = $[nowhere]`,
     `${"a": nowhere}` and `[nowhere]`, is built by kelvinc, of `any^`,
-    and refused by kc; `var a = ${nowhere}` is kelvinc's `a key of a
-    Dictionary is an integer or a String, not any^` and C's error of
-    kc's C.
+    and was refused by kc; `var a = ${nowhere}` is kelvinc's `a key of
+    a Dictionary is an integer or a String, not any^` and was C's
+    error of kc's C: kelvinc's in both since #774.
   - `var a = $[1, "a"]` is kelvinc's `the elements have no one type
-    kelvinc sees here: write Array<T>([...])` and kc's `the elements
-    have no one type kc sees here: write the Array's type`; `var a =
+    kelvinc sees here: write Array<T>([...])` and was kc's `the
+    elements have no one type kc sees here: write the Array's type`,
+    kelvinc's in both since #774; `var a =
     $[{ $0 + 1 }]` is kelvinc's `'$0' is a parameter of an anonymous
     function` and kc's `the elements have no type kc sees here`.
   - `var a:[i64](2) = o` of a struct was kelvinc's `'a' is an i64^, and
@@ -626,7 +659,7 @@ known, not what is planned.
   - `w.count` of a `w:v.type` whose `v` is a `[i64](n)` was kc's `this
     member is not known`, and 3 by kelvinc: 3 by both since #756.
   - `var w:[v.type](2)` of such a `v` is `?` by kelvinc's `.typename`
-    and kc's "not yet".
+    and was kc's "not yet": built by kc, and `?`, since #774.
   - `var v:[i64](sizeof(i64))` is built by kelvinc and was refused by
     kc, `[i64](...) takes its count from its elements`: built by both
     since #756.
@@ -760,7 +793,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P776 to P778, the details of #771 to #773, until reviewed; the reviews confirmed
+- P776 to P779, the details of #771 to #774, until reviewed; the reviews confirmed
   every row to P775, and a review's own detail row is confirmed by that
   review (#675).
 

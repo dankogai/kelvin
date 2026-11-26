@@ -2055,6 +2055,28 @@ kc reads what it is written in, and little more.
   - tests/run's array_member_zeros.k and tests/error's
     array_declared_zeros_shape.k, array_declared_compound_shape.k,
     array_member_zeros_shape.k and array_row_zeros_shape.k have them.
+- **kc's of the order after #770** (#774):
+  - `[v.type](2)` of a `v` whose count C computes is built, the last
+    of the eight left after #759: fixed_elem_ok takes a row that is a
+    v.type seen_through tells an array, fixed_computed tells such an
+    array one of a count C computes, so it is declared and zeroed by
+    `memset`, put_ctype writing `__typeof__(v) w[2]`; type_of of an
+    element sees through the row; gen_typename names it `?`.
+  - `nowhere` is an `any^` to type_of, where it was a type only C
+    sees, so a literal of no type written that holds it is of `any^`;
+    gen_fn_value takes it where a function goes, as it did.
+  - `untyped_key_refused` says kelvinc's sentence of a key or an
+    element of a `${...}` of no type written that is no integer and no
+    String, asked by inferred, by gen_set and one_entry_type, and by
+    gen_assign; parse.k's cstr_key says a pointer's at its `^`.
+  - one_type says kelvinc's `the elements have no one type kelvinc
+    sees here`, at the `[`, by `array_open_error`.
+  - gen_make and gen_make_inferred copy the Array a pointer in a
+    variable lends, `Array<T>(p)` and `Array(p)`, as `Array<T>(&a)`.
+  - tests/run's nowhere_untyped_literals.k, typeof_rows_computed.k and
+    array_of_borrow_variable.k, and tests/error's set_untyped_key.k,
+    set_untyped_nowhere.k, dictionary_key_pointer_place.k and
+    dollar_array_mixed.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

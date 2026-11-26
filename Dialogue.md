@@ -14866,3 +14866,19 @@ and a compound literal, where they were C's errors; `var a:[i64] =
 Details are provisional P778.
 
 There are 1712 tests, and all pass with clang and with gcc 15.
+
+### 821. kc's of the order after #770
+
+**Claude** wrote #773, its battery run and pushed when clean,
+kelvinc's of the order done.
+
+**Claude** made kc's #774: `[v.type](2)` of a `v` whose count C
+computes is built, the last of the eight left after #759; `nowhere`
+is an `any^` to kc, so a literal of no type written that holds it
+is built; a key of a `${...}` of no type written and `$[1, "a"]`
+say kelvinc's sentences; `Array<T>(p)` of a borrow a variable
+holds is a copy. kelvinc is as it was.
+
+Details are provisional P779.
+
+There are 1719 tests, and all pass with clang and with gcc 15.
