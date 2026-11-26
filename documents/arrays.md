@@ -160,6 +160,10 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
 - **An array is not set whole** (#648): `a = b`, `a = [3, 4]`,
   `s.a = b` and `a += 1` are kelvinc's error, `an array is not
   assigned: assign its elements, a[i]`, where they were C's.
+  - Nor is one declared with another (#767): `var a:[i64](2) = b`, a
+    member's `{b}`, a row's `[[1, 2], b]`, a pointer and `nowhere`
+    are the same error, where they were C's.
+    - `var a := b` is a pointer to `b`'s elements.
   - A case of an enum with values that holds an array is set whole,
     `v.c = [7, 8]` (#360).
 - **A compound literal** of an array, `([i32])[10, 20, 30]`, declares

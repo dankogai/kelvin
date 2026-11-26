@@ -14737,3 +14737,18 @@ and a Set, so too.
 Details are provisional P771.
 
 There are 1674 tests, and all pass with clang and with gcc 15.
+
+### 814. An array is not declared with another
+
+**Claude** wrote #766, its battery run and pushed when clean.
+
+**Claude** made the second #767: an array declared with another,
+`var a:[i64](2) = b`, a pointer or `nowhere`, a struct's member
+given one and a row are `an array is not assigned: assign its
+elements, a[i]`, the assignment's sentence, in both, where they were
+C's errors and kc's an array is not copied by '='; `var a = b` is
+kelvinc's `'a' is a reference (i64^)` in kc too.
+
+Details are provisional P772.
+
+There are 1679 tests, and all pass with clang and with gcc 15.

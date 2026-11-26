@@ -8360,6 +8360,16 @@ static void member_value(Expr *v, Type *want, const char *lead, Pos pos) {
             bare_tags = false;
             error_at(pos, "%s %s %s, and this is %s", lead, article(shown), shown, text ? "text" : "a number");
         }
+        /* another array, a member's, a call's, a pointer or nowhere (#767): an array is not copied, the sentence of
+           a = b, where C said an array initializer must be an initializer list */
+        Type *ut = vt ? unqualified(vt) : NULL;
+        if (ut && ut->kind == T_TYPEOF)
+            ut = ut->elem ? unqualified(ut->elem) : NULL;
+        bool place = v->kind == E_IDENT || v->kind == E_FIELD || v->kind == E_INDEX || v->kind == E_DEREF ||
+                     v->kind == E_CALL || v->kind == E_METHOD || (v->kind == E_PREFIX && v->op && !strcmp(v->op, "&"));
+        bool null = v->kind == E_LITERAL && v->text && !strcmp(v->text, "nowhere");
+        if (!text && !number && (null || (place && ut && (ut->kind == T_ARRAY || ut->kind == T_PTR))))
+            error_at(pos, "an array is not assigned: assign its elements, a[i]");
         return;
     }
     if (w->kind == T_BASE && (number_kind(w) || !strcmp(w->name, "bool") || is_string(w) || is_cstr(w)))
@@ -12850,8 +12860,9 @@ static Var *parse_var(bool with_init, int let) {
         v->init = optional_of(v->init, v->type, v->init->pos); /* a T into a T? (#72) */
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_record_mismatch(v->init, v->type, v->init->pos);
-        if (v->type && v->type->kind == T_ARRAY && v->init->kind != E_INIT) /* var a:[i64](3) = 5, where C said an array takes a list (#741) */
-            member_value(v->init, v->type, strfmt("'%s' is", v->name), v->init->pos);
+        Type *at = v->type && v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type; /* a b.type's too (#767) */
+        if (at && at->kind == T_ARRAY && v->init->kind != E_INIT) /* var a:[i64](3) = 5, where C said an array takes a list (#741) */
+            member_value(v->init, at, strfmt("'%s' is", v->name), v->init->pos);
         check_typed_value(v->init, v->type, strfmt("'%s' is", v->name), v->init->pos); /* (#255) */
         reject_owner_array(v);
         pick_overload(v->init, v->type);

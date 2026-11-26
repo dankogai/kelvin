@@ -1007,3 +1007,6 @@ So far the changes from C are these, by topic.
   is an i64, and this is any^`, where it was C's error (#764)
 - A String and a Bytes have `+=` alone: `t -= "a"` is `a String has
   no '-='`, where it was C's error (#766)
+- An array is not declared with another: `var a:[i64](2) = b` is `an
+  array is not assigned: assign its elements, a[i]`, where it was C's
+  error (#767)

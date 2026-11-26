@@ -11943,7 +11943,7 @@ let gen_written(v:int64, y:int64) {
         } else if nodes[v].kind == N_STR && (types[types[y].elem].kind == Y_U8 || types[types[y].elem].kind == Y_I8) {   // text into a member's [u8](N), C's array of it, as kelvinc's (#730)
             gen_expr(v)
         } else {
-            gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
+            value_error(v, "an array is not assigned: assign its elements, a[i]")   // a member's (#767)
         }
         return
     }
@@ -12799,7 +12799,7 @@ let gen_value_of(n:int64, y:int64) {
     if y >= 0 && types[y].kind == Y_FIXED && nodes[n].kind == N_LIST {   // a case's [a, b], C's compound literal (#360)
         if nodes[n].flag == 0 && !fixed_list_fits(n, y) { return }
         if nodes[n].flag == 1 && type_of(n) != y {
-            gen_error(n, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
+            gen_error(n, "an array is not assigned: assign its elements, a[i]")
             return
         }
         put("(")
@@ -15817,6 +15817,10 @@ let fixed_list_fits(v:int64, y:int64):bool {
         count += 1
         if nodes[x].kind == N_ADESIG {                   // [i] = v: its place C's to check, as kelvinc leaves it (#715); its value of the element's kind (#757), as kelvinc's since #752
             let dv:int64 = nodes[x].a
+            if dv >= 0 && types[e].kind == Y_FIXED && array_read(dv) {   // [[0] = b] of rows (#767)
+                value_error(dv, "an array is not assigned: assign its elements, a[i]")
+                return false
+            }
             let plain = dv >= 0 && !is_owner(e) && !is_variant(e) && (types[e].kind != Y_PTR || no_pointer_number(dv)) && types[e].kind != Y_C && types[e].kind != Y_TYPEOF && types[e].kind != Y_FIXED && types[e].kind != Y_FN && !(types[e].kind == Y_STRUCT && struct_of(e) < 0 && tagged_of(e) < 0 && !enum_int(e))
             if plain {
                 let bad:String = value_mismatch_text(dv, e)
@@ -15854,6 +15858,9 @@ let fixed_list_fits(v:int64, y:int64):bool {
             if !fixed_list_fits(x, e) { return false }
         } else if is_owner(e) && is_place(x) && !is_case_word(x) {   // as an Array's elements (#364)
             owner_assign_error(x)
+            return false
+        } else if types[e].kind == Y_FIXED && array_read(x) {   // [b, b] of rows: an array is not copied, as kelvinc says it (#767), where it was C's error
+            value_error(x, "an array is not assigned: assign its elements, a[i]")
             return false
         } else if types[e].kind == Y_PTR && !is_case_word(x) && !no_pointer_number(x) && !fn_id(x) {   // a function is no pointer's element, as kelvinc says it (#764)
             // a pointer's element is C's to check, as kelvinc leaves it: text for a u8^, &x, an array, nowhere (#557); a number that is no 0 is said (#760)
@@ -16085,7 +16092,19 @@ let gen_fixed_var(n:int64) {
         gen_error(v, m.cstr)
         return
     } else if v >= 0 {                                   // a copy, as C has none
-        gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
+        if !tok_is(nodes[n].t + 1, ":") {                // var a = b of no type written: an array read is its first element's address, a reference given by =, as kelvinc says it (#767)
+            var m = $"'"
+            m += tok_text(nodes[n].t)
+            m += "' is a reference ("
+            let vy:int64 = type_of(v)
+            if (vy >= 0 && types[vy].kind == Y_FIXED && types[vy].konst == 1) || (nodes[v].kind == N_ID && how_declared(nodes[v].t) == 1) { m += "const " }   // a let's array, read through const
+            let ew:String = kelvin_type_text(types[y].elem)
+            m += &ew
+            m += "^): assign it with ':=', not '='"
+            tok_error(nodes[n].t + 1, m.cstr)
+            return
+        }
+        value_error(v, "an array is not assigned: assign its elements, a[i]")   // the sentence of a = b, as kelvinc's (#767), where kc said an array is not copied by '='
         return
     } else if types[y].name < 0 && types[y].name > 0 - 10 {   // no count: one of constants, [i64](sizeof(i64)) or [i64](K), is declared and zeroed, as one of a number (#756)
         var m = type_text(y)
@@ -21367,6 +21386,18 @@ let brace_no_value(v:int64):bool {
     if v < 0 || (!bare_init(v) && nodes[v].kind != N_ANON) { return false }
     tok_error(nodes[v].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
     return true
+}
+
+// whether x, where an array goes, is another array read, a pointer or
+// nowhere, which C does not copy into one (#767)
+let array_read(x:int64):bool {
+    let k:nkind = nodes[x].kind
+    if k == N_NULL { return true }
+    if k != N_ID && k != N_FIELD && k != N_INDEX && k != N_DEREF && k != N_CALL && k != N_METHOD && k != N_ADDR { return false }
+    if k == N_ID && is_case_word(x) { return false }
+    let y:int64 = type_of(x)
+    if failed || y < 0 { return false }
+    return types[y].kind == Y_FIXED || types[y].kind == Y_PTR || types[y].kind == Y_ARGV
 }
 
 // whether x is a function's name, or a variable that is a function

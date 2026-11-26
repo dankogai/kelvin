@@ -1967,6 +1967,18 @@ kc reads what it is written in, and little more.
     too, where gen_assign read the power first, `'**' takes numbers`.
   - tests/error's string_minus_assign.k, bytes_times_assign.k and
     array_power_assign.k have them.
+- **An array is not declared with another** (#767), as kelvinc's
+  since the same number: `var a:[i64](2) = b`, a member's `{b}` and a
+  row's `[[1, 2], b]` are `an array is not assigned: assign its
+  elements, a[i]`, gen_fixed_var's, gen_written's and
+  fixed_list_fits's by `array_read`, said by value_error, a member
+  read at its `.`, where kc said an array is not copied by '='.
+  - `var a = b`, no type written, is kelvinc's `'a' is a reference
+    (i64^): assign it with ':=', not '='`, at the `=`, `const i64^` of
+    a let's array.
+  - tests/error's array_declared_array.k, array_declared_nowhere.k,
+    array_member_given_array.k, array_rows_given_array.k and
+    array_inferred_by_eq.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
