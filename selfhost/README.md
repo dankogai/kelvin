@@ -2031,6 +2031,18 @@ kc reads what it is written in, and little more.
   - tests/error's array_made_of_text.k, array_made_of_cstr.k,
     array_made_of_address.k, array_made_of_fixed_other.k and
     array_made_of_nowhere.k have them.
+- **A value of another kind where an array goes** (#772):
+  `array_kind_wrong` says kelvinc's sentence of a name, a member, an
+  element, a call or `p^` that is no array read, `'a' is a [i64](2),
+  and this is shape`, an Optional's `this is i64?, an Optional, where
+  [i64](2) goes` where one is declared, and of braces `an array is
+  initialized with '[...]', not '{...}'`, asked by gen_fixed_var and
+  by member_value_ok, where kc said an array is not assigned.
+  - kelvinc names the array as written since this number, where it
+    said `'a' is an i64^`.
+  - tests/error's array_declared_struct.k, array_declared_optional.k,
+    array_declared_function.k, array_member_given_struct.k and
+    array_member_braces.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

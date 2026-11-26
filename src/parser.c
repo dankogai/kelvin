@@ -8403,6 +8403,15 @@ static void member_value(Expr *v, Type *want, const char *lead, Pos pos) {
         bool null = v->kind == E_LITERAL && v->text && !strcmp(v->text, "nowhere");
         if (!text && !number && (null || (place && ut && (ut->kind == T_ARRAY || ut->kind == T_PTR))))
             error_at(pos, "an array is not assigned: assign its elements, a[i]");
+        /* a struct, a union, an Array, a String and any other value kelvinc sees (#772): the array as it is written,
+           'a' is a [i64](2), and this is pt, where check_typed_value named the pointer it is in C, an i64^ */
+        Decl *vr;
+        if (!text && !number && ut && ((ut->kind == T_BASE && type_class(ut, &vr) != 'u') || ut->kind == T_FUNC)) {
+            bare_tags = true;
+            char *shown = kelvin_type(want), *got = kelvin_type(ut);
+            bare_tags = false;
+            error_at(pos, "%s %s %s, and this is %s", lead, article(shown), shown, got);
+        }
         return;
     }
     if (w->kind == T_BASE && (number_kind(w) || !strcmp(w->name, "bool") || is_string(w) || is_cstr(w)))
@@ -12456,7 +12465,8 @@ static void reject_record_mismatch(Expr *value, Type *target, Pos pos) {
     Type *vt = value_type(value);
     if (target && vt && is_optional_type(vt) && !is_optional_type(target)) /* d[k] is one since #218 */
         error_at(pos, "this is %s, an Optional, where %s goes: unwrap it with '!', or give a default with '?\?'",
-                 kelvin_type(unqualified(vt)), kelvin_type(unqualified(target)));
+                 kelvin_type(unqualified(vt)),
+                 kelvin_type(target->kind == T_ARRAY ? target : unqualified(target))); /* an array as written (#772) */
     if (!target || target->kind != T_BASE || !vt || vt->kind != T_BASE)
         return;
     char ct = type_class(target, &rt), cv = type_class(vt, &rv);

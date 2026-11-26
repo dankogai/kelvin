@@ -1016,3 +1016,5 @@ So far the changes from C are these, by topic.
   text`, where it was C's error; `Array<i64>(c)` of a cstr and
   `Array<i64>(&x)` of a number are errors, where they were built
   (#771)
+- A struct where an array is declared is `'a' is a [i64](2), and this
+  is pt`, the array as written, where it said `an i64^` (#772)

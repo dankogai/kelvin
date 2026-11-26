@@ -164,6 +164,9 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
     member's `{b}`, a row's `[[1, 2], b]`, a pointer and `nowhere`
     are the same error, where they were C's.
     - `var a := b` is a pointer to `b`'s elements.
+    - A value of another kind is said by its kind (#772), the array
+      as it is written: `var a:[i64](2) = o` of a struct is `'a' is a
+      [i64](2), and this is pt`.
   - A case of an enum with values that holds an array is set whole,
     `v.c = [7, 8]` (#360).
 - **A compound literal** of an array, `([i32])[10, 20, 30]`, declares

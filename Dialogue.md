@@ -14831,3 +14831,19 @@ the fixed array, is said too.
 Details are provisional P776.
 
 There are 1702 tests, and all pass with clang and with gcc 15.
+
+### 819. A value of another kind where an array goes
+
+**Claude** wrote #771, its battery run and pushed when clean.
+
+**Claude** made the second #772: a struct, an Array, a String, an
+enum with values or a function where an array is declared, or where
+a member that is an array goes, is said with the array as it is
+written, `'a' is a [i64](2), and this is pt`, where kelvinc named
+the pointer it is in C, an `i64^`; not asked, as kc said so already.
+kc says them where it said an array is not assigned. kelvinc's two
+of this order are done.
+
+Details are provisional P777.
+
+There are 1707 tests, and all pass with clang and with gcc 15.

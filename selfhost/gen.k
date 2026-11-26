@@ -12172,7 +12172,7 @@ let member_value_ok(v:int64, f:int64, s:int64):bool {
     lead += " is"
     if k == Y_FIXED {
         let wrong:cstr := wrong_for_array(v, y)
-        if wrong[0] == 0 { return true }
+        if wrong[0] == 0 { return !array_kind_wrong(v, y, &lead, false) }   // a struct where a member's array goes (#772)
         let w:String = type_text(y)
         lead += " "
         lead += article_of(&w)
@@ -16195,6 +16195,10 @@ let gen_fixed_var(n:int64) {
         gen_error(v, m.cstr)
         return
     } else if v >= 0 {                                   // a copy, as C has none
+        var lead = $"'"
+        lead += tok_text(nodes[n].t)
+        lead += "' is"
+        if tok_is(nodes[n].t + 1, ":") && array_kind_wrong(v, y, &lead, true) { return }   // var a:[i64](2) = e of an enum with values, an Optional, a function (#772)
         if !tok_is(nodes[n].t + 1, ":") {                // var a = b of no type written: an array read is its first element's address, a reference given by =, as kelvinc says it (#767)
             var m = $"'"
             m += tok_text(nodes[n].t)
@@ -21492,6 +21496,45 @@ let brace_no_value(v:int64):bool {
     if failed { return true }
     if v < 0 || (!bare_init(v) && nodes[v].kind != N_ANON) { return false }
     tok_error(nodes[v].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+    return true
+}
+
+// v where an array of type y goes, a value of another kind that is no
+// list and no array read: kelvinc's sentence after lead (#772), 'a' is a
+// [i64](2), and this is pt, an Optional's its own, where kc said an
+// array is not assigned; true where it is said
+let array_kind_wrong(v:int64, y:int64, lead:const String^, declared:bool):bool {
+    let k:nkind = nodes[v].kind
+    if k == N_ANON || bare_init(v) {                     // { $0 + 1 } and {1}, as kelvinc says it of braces
+        gen_error(v, "an array is initialized with '[...]', not '{...}' (#48)")
+        return true
+    }
+    if k != N_ID && k != N_FIELD && k != N_INDEX && k != N_CALL && k != N_METHOD && k != N_DEREF { return false }
+    if k == N_ID && is_case_word(v) { return false }
+    if array_read(v) || failed { return failed }
+    let vy:int64 = type_of(v)
+    if failed { return true }
+    if vy < 0 || types[vy].kind == Y_C || types[vy].kind == Y_TYPEOF || types[vy].kind == Y_FIXED || types[vy].kind == Y_PTR { return false }
+    if types[vy].kind == Y_STRUCT && struct_of(vy) < 0 && tagged_of(vy) < 0 && !enum_int(vy) { return false }   // a C header's type
+    let w:String = type_text(y)
+    let vw:String = kelvin_type_text(vy)
+    if declared && some_type(vy) >= 0 {                  // an Optional where an array is declared; a member's is said by its kind
+        var m = $"this is "
+        m += &vw
+        m += ", an Optional, where "
+        m += &w
+        m += " goes: unwrap it with '!', or give a default with '??'"
+        value_error(v, m.cstr)
+        return true
+    }
+    var m = lead^.copy()
+    m += " "
+    m += article_of(&w)
+    m += " "
+    m += &w
+    m += ", and this is "
+    m += &vw
+    value_error(v, m.cstr)
     return true
 }
 
