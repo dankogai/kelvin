@@ -14767,3 +14767,20 @@ sentence was kelvinc's already. kc says it at the `[`, and before
 Details are provisional P773.
 
 There are 1682 tests, and all pass with clang and with gcc 15.
+
+### 816. kc's of the order after #765
+
+**Claude** wrote #768, its battery run and pushed when clean,
+kelvinc's three of the order done.
+
+**Claude** made kc's #769: an Optional's and a struct's operator in
+an assignment, `c += 1` of a cstr, a String's missing operator, an
+overloaded function's name in a literal of no type written,
+`twice(nowhere)`, `:=` of `v as T`, `typealias ip = i64^`,
+`Array<i64>({1, 2})`, a number's variable where an array is declared
+and a struct that is a key say kelvinc's sentences at kelvinc's
+places; rows of bytes take text. kelvinc is as it was.
+
+Details are provisional P774.
+
+There are 1697 tests, and all pass with clang and with gcc 15.

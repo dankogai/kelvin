@@ -1987,6 +1987,39 @@ kc reads what it is written in, and little more.
     value: `make_arg_refused`, which gen_var_of asks first.
   - tests/error's set_made_of_array.k, dictionary_made_of_array.k and
     set_made_declared_reference.k have them.
+- **kc's of the order after #765** (#769), each kelvinc's sentence at
+  its place:
+  - An operator in an assignment:
+    - `q -= 1` of an Optional, and of any enum with values, is `no
+      operator - takes i64? and i64`: resolve_op settles such a type's
+      operators as its own but where `compound_now` says the operator
+      is an assignment's, or it is a unary `-` or `~`.
+    - `o -= 1` of a struct is said at the operator: the token
+      compound_by_operator makes keeps the assignment's place.
+    - `c += 1` and `c -= 1` of a cstr are gen_assign's `a cstr is
+      text, not a cursor`.
+  - `reject_string_math` says `a String has no operator '*'`; inferred
+    asks it, reject_container_math and a Bytes's before `'u' needs a
+    type`.
+  - An overloaded function's name in a literal of no type written is
+    `literal_names_overload`'s, asked by inferred and by gen_assign: an
+    Array's at its `[`, a Dictionary's value at its key, a Set's
+    element, a later one `unseen` beside the first's; `[twice]` is
+    `'a' needs a type`.
+  - `nowhere` fits a pointer's, a cstr's and a function's parameter
+    alone, arg_fit, and is a type kelvinc sees to sees_c_arg, so a tie
+    is kelvinc's error and no `_Generic`.
+  - `:=` of `v as T` is `would be a value`, assigns_as, of a
+    declaration of no type written alone.
+  - parse.k says `expected ';' or a new line before` of what follows a
+    typealias's type on its line, and names a key that is a struct
+    with its word, `struct pt`, by gen.k's tag_word.
+  - `Array<T>({1, 2})` is brace_no_value's; typed_value_ok names a
+    number or text where an array is declared `a number` and `text`,
+    and wrong_for_array reads arithmetic.
+  - fixed_list_fits takes text for a row of bytes of a count.
+  - tests/error's fourteen and tests/run's rows_of_bytes_text.k have
+    them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

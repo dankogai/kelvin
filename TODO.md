@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #768 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #769 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -161,6 +161,29 @@ known, not what is planned.
 
 ## kc
 
+- The user's order after #765, kc's of what was left listed and what
+  #766 to #768 found, after kelvinc's three, pushed when clean (#769),
+  each kelvinc's sentence at its place:
+  - an operator in an assignment: `q -= 1` of an Optional and `-q`,
+    `no operator - takes i64? and i64`; `o -= 1` of a struct at the
+    operator; `c += 1` of a cstr, `a cstr is text, not a cursor`,
+    which kc built;
+  - `var u = t - "a"` of a String, a Bytes, an Array, a Dictionary and
+    a Set says the operator they have not before `'u' needs a type`,
+    and `t * 2` of a String is said so, where it was C's error;
+  - an overloaded function's name in a literal of no type written,
+    `$[twice]`, `${"a": twice}`, `${twice}` and `[twice]`, and
+    `twice(nowhere)`, which fits a pointer's parameter alone;
+  - `var x := y as i64` is `'x' would be a value (i64)`; `typealias
+    ip = i64^` is `expected ';' or a new line before '^'`;
+  - `Array<i64>({1, 2})` is `a list is not a value here`; a number's
+    variable where an array is declared is `a number`; a Set's
+    element that is a struct is `struct pt`;
+  - rows of bytes take text, `var m:[[u8](3)](2) = ["ab", "cd"]`,
+    which kc refused;
+  - left: `[v.type](2)` of a `v` whose count C computes, and what is
+    listed under "Found while #769 was made".
+
 - The user's order after #759, kc's eight left listed, after kelvinc's
   four (#760 to #763), pushed when clean (#764):
   - a function of two types defined inside a function is named as
@@ -230,10 +253,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1127 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1141 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764 and #766 to #768 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764 and #766 to #769 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -400,46 +423,65 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #769 was made, not changed:
+  - `nowhere` in a literal of no type written, `var a = $[nowhere]`,
+    `${"a": nowhere}` and `[nowhere]`, is built by kelvinc, of `any^`,
+    and refused by kc; `var a = ${nowhere}` is kelvinc's `a key of a
+    Dictionary is an integer or a String, not any^` and C's error of
+    kc's C.
+  - `var a = $[1, "a"]` is kelvinc's `the elements have no one type
+    kelvinc sees here: write Array<T>([...])` and kc's `the elements
+    have no one type kc sees here: write the Array's type`; `var a =
+    $[{ $0 + 1 }]` is kelvinc's `'$0' is a parameter of an anonymous
+    function` and kc's `the elements have no type kc sees here`.
+  - `var a:[i64](2) = o` of a struct is kelvinc's `'a' is an i64^, and
+    this is pt` and kc's `'a' is a [i64](2), and this is pt`.
 - Found while #768 was made, not changed:
   - `var a = Array<i64>("a")` is C's error of kelvinc's C and kc's
     `Array<i64>(n) takes a count, and this is text`.
   - `Set<pt>` of a struct is kelvinc's `a key of a Dictionary is an
-    integer or a String, not struct pt` and kc's `not pt`.
+    integer or a String, not struct pt` and was kc's `not pt`:
+    kelvinc's in both since #769.
 - Found while #767 was made, not changed:
   - `var m:[[u8](3)](2) = ["ab", "cd"]`, rows of bytes given text, is
-    built by kelvinc and refused by kc, `an element of [[u8](3)](2) is
-    a [u8](3), and this is text`.
+    built by kelvinc and was refused by kc, `an element of
+    [[u8](3)](2) is a [u8](3), and this is text`: built by both since
+    #769.
 - Found while #766 was made, not changed:
   - `c += 1` and `c -= 1` of a cstr are kelvinc's `a cstr is text, not
-    a cursor` and built by kc.
+    a cursor` and were built by kc: kelvinc's in both since #769.
   - `q -= 1` of an `i64?` is kelvinc's `no operator - takes i64? and
     i64` and C's error of kc's C; `q += "a"` of a `String?` is
     kelvinc's `no operator + takes String? and text` and kc's `an owner
     is assigned only as a String`; `o -= 1` of a struct with no such
     operator is said at the operator by kelvinc and at the line's
-    start by kc.
+    start by kc: each kelvinc's in both since #769.
   - `var u = t - "a"` of a String, a Bytes, an Array and a Dictionary
     is kelvinc's `a String has no operator '-'` and kc's `'u' needs a
-    type`; `var u:String = t * 2` is C's error of kc's C.
+    type`; `var u:String = t * 2` is C's error of kc's C: kelvinc's in
+    both since #769.
   - `Array<i64>({1, 2})` is kelvinc's `a list is not a value here` and
     C's error of kc's C; `var a:[i64](2) = twice(3)` is kelvinc's `this
-    is a number` and kc's `this is i64`.
+    is a number` and kc's `this is i64`: kelvinc's in both since #769.
 - Found while #764 was made, not changed:
   - An overloaded function's name in a literal of no type written,
     `var a := $[twice, twice]` and `${"a": twice}`, is kelvinc's `the
     elements have no one type kelvinc sees here` and `the value of
-    this entry has no type kelvinc sees`, and kc's `'twice' names 2
-    functions`.
+    this entry has no type kelvinc sees`, and was kc's `'twice' names
+    2 functions`: kelvinc's in both since #769.
   - `twice(nowhere)` of an overloaded function is kelvinc's `fits none
-    of its 2 overloads` and C's error of kc's C.
+    of its 2 overloads` and was C's error of kc's C: kelvinc's in both
+    since #769.
   - `var a:[i64](2) = nowhere` was C's error of kelvinc's C, array
     initializer must be an initializer list, and kc's `an array is
     not copied by '='`: `an array is not assigned` in both since #767.
   - `var x := 5 as i64`, `:=` of a conversion, is kelvinc's `'x' would
-    be a value (i64): use '=' for a value` and kc's `'x' is a value
-    (i64): assign it with '=', not ':='`.
+    be a value (i64): use '=' for a value` and was kc's `'x' is a
+    value (i64): assign it with '=', not ':='`: kelvinc's in both
+    since #769.
   - `typealias ip = i64^` is kelvinc's `expected ';' or a new line
-    before '^'` and kc's `expected a declaration`.
+    before '^'` and was kc's `expected a declaration`: kelvinc's in
+    both since #769.
   - `var s := Set<i64>([1, 2])` was kelvinc's `an array is not a value
     here` and kc's `'s' is a value (Set<i64>)`: `Set<i64> takes
     nothing, the elements in {a, b, c}` in both since #768.
@@ -672,7 +714,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P771 to P773, the details of #766 to #768, until reviewed; the reviews confirmed
+- P771 to P774, the details of #766 to #769, until reviewed; the reviews confirmed
   every row to P770, and a review's own detail row is confirmed by that
   review (#675).
 

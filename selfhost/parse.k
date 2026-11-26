@@ -345,6 +345,7 @@ var name_annotation = true
 // int64 or i64 (#151, #430), or -1
 // a number type's word at t in its short spelling: int32 is i32, float64 f64
 let kelvin_type_text(y:int64):String    // a prototype: gen.k's, a type in kelvinc's words
+let tag_word(y:int64):String            // a prototype: gen.k's, the word before a struct's name
 let is_number_kind(k:ykind):bool    // a prototype: gen.k's, of atomic's types (#642)
 
 let short_number(t:int64):String {
@@ -1865,6 +1866,7 @@ let cstr_key(key:int64, at:int64) {
     let k:ykind = types[key].kind
     if k == Y_STRING || ((is_int_kind(k) && k != Y_I128 && k != Y_U128) && types[key].konst == 0) { return }
     var m = $"a key of a Dictionary is an integer or a String, not "
+    m += tag_word(key)                                   // struct pt, as kelvinc names it here (#769)
     let w:String = kelvin_type_text(key)
     m += &w
     parse_error_at(at, m.cstr)
@@ -6455,6 +6457,12 @@ let parse_program() {
             parse_extend()
         } else if at_word("typealias") && toks[pos + 1].kind == T_ID {   // typealias A = T (#149, #550)
             parse_typealias()
+            if !failed && !at_kind(T_NL) && !at_kind(T_EOF) && !at_word(";") && toks[pos - 1].kind != T_NL && !tok_is(pos - 1, ";") {   // typealias ip = i64^: what follows its type on the line, as kelvinc says it (#769)
+                var m = $"expected ';' or a new line before "
+                let d:String = tok_desc(pos)
+                m += &d
+                parse_error(m.cstr)
+            }
         } else if at_word("var") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "(") {   // var f(...) { }, as kelvinc says it
             var m = $"a function is a let: write 'let "
             m += tok_text(pos + 1)
