@@ -14882,3 +14882,19 @@ holds is a copy. kelvinc is as it was.
 Details are provisional P779.
 
 There are 1719 tests, and all pass with clang and with gcc 15.
+
+### 822. The review, batch 28
+
+**Claude** wrote #774 and, while its battery ran, asked what next.
+
+**User:** review P776 to P779 (recommended)
+
+**Claude** read each row against the code and the batteries'
+summaries, gave 19 statements to both compilers again, and found
+none to amend; #774's battery run and pushed when clean, it made the
+review #775: P776 to P779 marked confirmed, as later numbers amend
+them, and P780, #775's own row, confirmed by #775.
+
+Details are P780, confirmed by #775 itself.
+
+There are 1719 tests, and all pass with clang and with gcc 15.
