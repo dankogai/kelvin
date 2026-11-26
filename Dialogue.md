@@ -14990,3 +14990,17 @@ is wrong. kelvinc's two of this order are done.
 Details are provisional P785.
 
 There are 1731 tests, and all pass with clang and with gcc 15.
+
+### 828. kc's of the order after #778
+
+**Claude** wrote #780, its battery run and pushed when clean,
+kelvinc's two of the order done.
+
+**Claude** made kc's #781: a choice of two properties is `'q' needs
+a type`, as kelvinc's; a fixed array read where an element goes is
+its first element's address, `$[b]` an `Array<i64^>`, where kc said
+an Array of [i64](2) is not here yet. kelvinc is as it was.
+
+Details are provisional P786.
+
+There are 1733 tests, and all pass with clang and with gcc 15.

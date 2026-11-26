@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #780 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #781 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -219,6 +219,18 @@ known, not what is planned.
 
 ## kc
 
+- The user's order after #778, kc's of the four left listed and what
+  #780 found, after kelvinc's two, pushed when clean (#781):
+  - a choice of two properties, `c ? a.count : a.count`, of `.size`
+    and of sizeof, is `'q' needs a type`, as kelvinc's, which kc
+    built; a struct's member is typed still;
+  - a fixed array read where an element goes is its first element's
+    address: `$[b]`, `${"k": b}`, `Array([b])` and `[b, c]` of no type
+    written are of `i64^`, and it goes where an `i64^` or an `any^`
+    is the element, as kelvinc's, where kc said an Array of [i64](2)
+    is not here yet;
+  - left: rows of a global let's count printed, kc's C error.
+
 - The user's order after #775, kc's of the five left listed, after
   kelvinc's one (#776), pushed when clean (#777):
   - a choice, `c ? a : b`, in a declaration of no type written is
@@ -345,10 +357,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1169 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1170 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777 and #779 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779 and #781 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -515,14 +527,20 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #781 was made, not changed:
+  - `var a:$[f64^] = $[b]` of a `b:[i64](2)`, a fixed array read where
+    a pointer of another element goes, is built by kelvinc, which
+    leaves a pointer's element to C, and kc's `an element of
+    Array<f64^> is an f64^, and this is i64^`.
 - Found while #780 was made, not changed:
   - `var a = $[b]` of a fixed array `b`, `${"k": b}` and `Array([b])`
     are built by kelvinc, of `i64^`, the array read its first
-    element's address, and kc's `an Array of [i64](2) is not here
-    yet`.
+    element's address, and were kc's `an Array of [i64](2) is not here
+    yet`: built by both since #781.
 - Found while #777 was made, not changed:
   - `var q = c ? a.count : a.count`, a choice of two properties, is
-    kelvinc's `'q' needs a type` and built by kc.
+    kelvinc's `'q' needs a type` and was built by kc: kelvinc's in
+    both since #781.
 - Found while #776 was made, not changed:
   - `println(g)` of a `g:[[i64](N)](2)` whose `N` is a global let is
     printed by kelvinc, `[[0, 0, 0], [0, 0, 0]]`, and C's error of
@@ -861,7 +879,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P784 and P785, the details of #779 and #780, until reviewed; the reviews confirmed
+- P784 to P786, the details of #779 to #781, until reviewed; the reviews confirmed
   every row to P783, and a review's own detail row is confirmed by that
   review (#675).
 

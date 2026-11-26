@@ -2760,7 +2760,7 @@ let array_open_error(v:int64, what:cstr) {
 // built a bool's
 let untyped_key_refused(e:int64):bool {
     if failed { return true }
-    let y:int64 = dict_key_type(type_of(e))
+    let y:int64 = read_elem_type(e, dict_key_type(type_of(e)))   // a fixed array read is an i64^ (#781)
     if failed { return true }
     if y < 0 { return false }
     let k:ykind = types[y].kind
@@ -2773,6 +2773,15 @@ let untyped_key_refused(e:int64):bool {
     return true
 }
 
+// the type an element or a value x of type e gives a literal of no type
+// written: a fixed array read is its first element's address, an i64^,
+// as kelvinc types it (#781), where kc said an Array of [i64](2) is not
+// here yet; a list, [a, b], is a row still
+let read_elem_type(x:int64, e:int64):int64 {
+    if e >= 0 && types[e].kind == Y_FIXED && types[e].name >= 0 && nodes[x].kind != N_LIST { return type_of_kind(Y_PTR, types[e].elem, 0 - 1) }
+    return e
+}
+
 // the type kelvinc sees of an arm of a choice, c ? a : b, where no type
 // is written (#777): none of a number or a character written, of
 // arithmetic, or of a choice it does not type
@@ -2781,6 +2790,12 @@ let choice_arm_type(a:int64):int64 {
     if k == N_NUM || k == N_CHAR || (k == N_UNARY && !tok_is(nodes[a].t, "!")) { return 0 - 1 }   // -x and ~x are arithmetic
     if k == N_BIN && !is_comparison(nodes[a].t) && !tok_is(nodes[a].t, "&&") && !tok_is(nodes[a].t, "||") && !tok_is(nodes[a].t, "??") && !tok_is(nodes[a].t, "!!") && !is_string_plus(a) { return 0 - 1 }   // x ?? d is a T (#72)
     if k == N_COND && !choice_typed(a) { return 0 - 1 }
+    if k == N_SIZEOF || k == N_ALIGN { return 0 - 1 }    // sizeof, a size_t, C's (#781)
+    if k == N_FIELD {                                    // a property, a.count and o.size, is none kelvinc types here; a struct's member is (#781)
+        let by:int64 = type_of(nodes[a].a)
+        if failed { return 0 - 1 }
+        if by < 0 || struct_of(by) < 0 || field_type(by, nodes[a].t) < 0 { return 0 - 1 }
+    }
     return type_of(a)
 }
 
@@ -3078,14 +3093,15 @@ let type_of(n:int64):int64 {
     }
     if k == N_DICT {                                                  // ${k: v}: of the first entry's types (#267)
         let ky:int64 = dict_key_type(type_of(nodes[n].b))
-        let vy:int64 = plain_value(type_of(nodes[nodes[n].b].next))
+        let vy:int64 = read_elem_type(nodes[nodes[n].b].next, plain_value(type_of(nodes[nodes[n].b].next)))   // ${"k": b}: an i64^ (#781)
         if ky < 0 || vy < 0 { return -1 }
         optional_of(vy)                                               // V?, which d[k] read whole is (#219)
         return type_of_kind(Y_DICT, vy, ky)
     }
     if k == N_ARRAY {                                                 // $[a, b]: an Array of a's type (#266)
-        let e:int64 = plain_value(type_of(nodes[n].b))             // of a p:i64^ const an i64^'s, a value of it (#742), of a volatile an i64's (#746)
+        var e:int64 = plain_value(type_of(nodes[n].b))             // of a p:i64^ const an i64^'s, a value of it (#742), of a volatile an i64's (#746)
         if e < 0 { return -1 }
+        e = read_elem_type(nodes[n].b, e)                           // $[b] of a fixed array read: an i64^ (#781)
         return type_of_kind(Y_ARRAY, e, -1)
     }
     if k == N_RANGE { return range_type_of(n) }          // lo..<hi and the rest, a Range<T> (#373)
@@ -3178,7 +3194,7 @@ let type_of(n:int64):int64 {
         }
         let first:int64 = nodes[n].b
         if first < 0 || is_case_word(first) { return -1 }
-        let e:int64 = plain_value(type_of(first))
+        let e:int64 = read_elem_type(first, plain_value(type_of(first)))   // [b, b] of a fixed array read: of i64^ (#781)
         if e < 0 { return -1 }
         var count = 0
         var x = first
@@ -3200,7 +3216,7 @@ let type_of(n:int64):int64 {
             return type_of_kind(Y_ARRAY, types[fy].elem, -1)
         }
         if nodes[n].flag != 3 || nodes[n].b < 0 || is_case_word(nodes[n].b) { return -1 }
-        let e:int64 = nodes[nodes[n].b].kind == N_CHAR ? base_type(Y_U8) : type_of(nodes[n].b)   // Array(['a', 'b']) of u8, as kelvinc's (#451)
+        let e:int64 = nodes[nodes[n].b].kind == N_CHAR ? base_type(Y_U8) : read_elem_type(nodes[n].b, type_of(nodes[n].b))   // Array(['a', 'b']) of u8, as kelvinc's (#451); Array([b]) of a fixed array read, of i64^ (#781)
         if e < 0 { return -1 }
         return type_of_kind(Y_ARRAY, e, -1)
     }
@@ -12339,10 +12355,10 @@ let dollar_retarget(n:int64, y:int64) {
 // whether the elements of $[a, b] have one type, as kelvinc asks of a
 // list where no type is written (#266)
 let one_type(n:int64):bool {
-    let y = type_of(nodes[n].b)
+    let y = read_elem_type(nodes[n].b, type_of(nodes[n].b))   // $[b, c] of two fixed arrays read: each an i64^ (#781)
     var e = nodes[nodes[n].b].next
     while e >= 0 && y >= 0 {
-        if type_of(e) != y {
+        if read_elem_type(e, type_of(e)) != y {
             array_open_error(n, "the elements have no one type kelvinc sees here: write Array<T>([...])")   // kelvinc's words at its [ (#774), where kc said its own
             return false
         }
@@ -21904,6 +21920,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
     if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
     if types[y].kind == Y_CSTR { return $"cstr" }       // a cstr variable, and a template that is one, where a case of another kind goes, a String's too, as kelvinc names it (#749)
     if types[y].kind == Y_FIXED && types[y].name != 0 - 2 && types[y].name != 0 - 4 {   // an array where a value goes is its first element's address, i64^, as kelvinc names it (#736)
+        if vk == Y_PTR && types[vy].elem >= 0 && (types[vy].elem == types[y].elem || types[types[vy].elem].kind == Y_VOID) { return $"" }   // and goes where an i64^ or an any^ goes (#781)
         var w = kelvin_type_text(types[y].elem)
         w += "^"
         return w

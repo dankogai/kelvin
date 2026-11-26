@@ -2110,6 +2110,17 @@ kc reads what it is written in, and little more.
     not a value here.
   - tests/error's array_computed_list.k, array_let_count_list.k and
     typeof_computed_list.k have them.
+- **kc's of the order after #778** (#781):
+  - choice_arm_type gives none of a property, a member read that is
+    no member of a struct by field_type, and of sizeof and alignof, so
+    a choice of `a.count` is `'q' needs a type`, as kelvinc's.
+  - `read_elem_type` gives a fixed array read where an element goes
+    its first element's address, an `i64^`: type_of of `$[b]`, of
+    `${"k": b}`, of `Array([b])` and of `[b, c]` of no type written,
+    one_type and untyped_key_refused ask it, and value_mismatch_text
+    takes one where an `i64^` or an `any^` goes.
+  - tests/error's choice_untyped_properties.k and tests/run's
+    array_of_fixed_reads.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
