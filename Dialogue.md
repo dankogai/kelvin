@@ -14936,3 +14936,20 @@ first is zeros take the zeros' count. kelvinc is as it was.
 Details are provisional P782.
 
 There are 1726 tests, and all pass with clang and with gcc 15.
+
+### 825. The review, batch 29
+
+**Claude** wrote #777, its battery run and pushed when clean, its CI
+all green, and asked what next.
+
+**User:** review P781 and P782 (recommended)
+
+**Claude** read each row against the code and the batteries'
+summaries, gave 12 statements to both compilers again, and found
+none to amend; it made the review #778: P781 and P782 marked
+confirmed, as later numbers amend them, and P783, #778's own row,
+confirmed by #778.
+
+Details are P783, confirmed by #778 itself.
+
+There are 1726 tests, and all pass with clang and with gcc 15.
