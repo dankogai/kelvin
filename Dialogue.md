@@ -14689,3 +14689,27 @@ goes, of braces appended, and of `d[k]` of a Dictionary of functions.
 Details are provisional P769.
 
 There are 1671 tests, and all pass with clang and with gcc 15.
+
+### 812. The review, batch 26
+
+**Claude** wrote #764, its battery run and pushed when clean, its CI
+all green, kelvinc's four and kc's eight done but `[v.type](2)` of a
+count C computes, and asked what next.
+
+**User:** review P765 to P769 (recommended)
+
+**Claude** read each row against the code and the batteries'
+summaries and found two imprecise: P766, which left out an array of a
+v.type kelvinc does not see through, and P769, which gave
+typed_value_ok's work to value_mismatch_text as well and left out
+`Set` followed by a `.`; and asked how the review should treat them.
+
+**User:** amend 2, confirm all, push (recommended)
+
+**Claude** made it #765: the two amended, P765 to P769 marked
+confirmed, as later numbers amend them, and P770, #765's own row,
+confirmed by #765.
+
+Details are P770, confirmed by #765 itself.
+
+There are 1671 tests, and all pass with clang and with gcc 15.

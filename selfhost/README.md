@@ -1929,8 +1929,8 @@ kc reads what it is written in, and little more.
     error: parse.k's `local_uses`, the node of a use to the token
     written, which gen_error and fn_name_refused read, where kc
     printed the hidden `_kv_main_t1`.
-  - `Set` and `Dictionary` with no `<` are `expected an expression,
-    found 'Set'`, parse.k's.
+  - `Set` and `Dictionary` with no `<` and no `.` are `expected an
+    expression, found 'Set'`, parse.k's.
   - `{$[1]}` where a struct is declared is its values, parse.k's
     `literal_brace`, where it was `$0`'s function.
   - A Dictionary in a Dictionary's literal is checked by
