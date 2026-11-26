@@ -14713,3 +14713,27 @@ confirmed by #765.
 Details are P770, confirmed by #765 itself.
 
 There are 1671 tests, and all pass with clang and with gcc 15.
+
+### 813. A String and a Bytes have += alone
+
+**Claude** wrote #765, its battery run and pushed when clean, its CI
+all green, and asked what next.
+
+**User:** resolve kelvinc then kc (recommended)
+
+**Claude** gave what was left listed to both compilers again, found
+two that want a sentence chosen, and asked: of `t -= "a"` of a String,
+and of `var a:[i64](2) = b` of another array.
+
+**User:** `a String has no '-='` (recommended); the assignment's
+sentence (recommended)
+
+**Claude** made the first #766: `t -= "a"` of a String and `b *= 2`
+of a Bytes are `a String has no '-='` and `a Bytes has no '*='` in
+both, where they were C's errors and kc's an owner is assigned only
+as a String; kc says `**=` of them, and of an Array, a Dictionary
+and a Set, so too.
+
+Details are provisional P771.
+
+There are 1674 tests, and all pass with clang and with gcc 15.

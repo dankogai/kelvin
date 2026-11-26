@@ -1005,3 +1005,5 @@ So far the changes from C are these, by topic.
   overload of their type, `xs += twice`, and an anonymous function
   takes it, `xs += { $0 + 1 }`; `nowhere` where a number goes is `'n'
   is an i64, and this is any^`, where it was C's error (#764)
+- A String and a Bytes have `+=` alone: `t -= "a"` is `a String has
+  no '-='`, where it was C's error (#766)

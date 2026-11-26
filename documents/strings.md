@@ -114,6 +114,8 @@ var line = $`${s} has ${s.count} graphemes`    // a String built from a template
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a codepoint
   as an integer, or a String an expression gives), `clear`,
   `reserve`, `compact`, `copy`, `escape` and `unescape`.
+  - A String has `+=` alone (#766): `t -= "a"` is `a String has no
+    '-='`, where it was C's error.
 - **Graphemes** (#522): a String's elements are its grapheme clusters,
   what a reader sees as one character (UAX #29), each a String.
   - `é` written as `e` and a combining acute is one, as are a family

@@ -39,12 +39,23 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #765 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #766 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #765, resolve kelvinc then kc, of what was
+  left listed, with the answers, each pushed when clean:
+  - `t -= "a"` and `t *= 2` of a String, and `b -= 1` of a Bytes, are
+    `a String has no '-='` and `a Bytes has no '-='`, the user's
+    answer, no hint, at the operator, in both, where they were C's
+    errors and kc's an owner is assigned only as a String; `**=` of
+    them, and of an Array, a Dictionary and a Set, is said so by kc
+    too, where it said `'**' takes numbers` (#766);
+  - left: an array declared with an array, the assignment's sentence,
+    the user's answer; `Set<i64>([1, 2])`.
 
 - The user's order after #759, resolve kelvinc then kc, of what was
   left listed, with the answers, each pushed when clean:
@@ -207,10 +218,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1116 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1119 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763 and #764 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764 and #766 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -377,6 +388,21 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #766 was made, not changed:
+  - `c += 1` and `c -= 1` of a cstr are kelvinc's `a cstr is text, not
+    a cursor` and built by kc.
+  - `q -= 1` of an `i64?` is kelvinc's `no operator - takes i64? and
+    i64` and C's error of kc's C; `q += "a"` of a `String?` is
+    kelvinc's `no operator + takes String? and text` and kc's `an owner
+    is assigned only as a String`; `o -= 1` of a struct with no such
+    operator is said at the operator by kelvinc and at the line's
+    start by kc.
+  - `var u = t - "a"` of a String, a Bytes, an Array and a Dictionary
+    is kelvinc's `a String has no operator '-'` and kc's `'u' needs a
+    type`; `var u:String = t * 2` is C's error of kc's C.
+  - `Array<i64>({1, 2})` is kelvinc's `a list is not a value here` and
+    C's error of kc's C; `var a:[i64](2) = twice(3)` is kelvinc's `this
+    is a number` and kc's `this is i64`.
 - Found while #764 was made, not changed:
   - An overloaded function's name in a literal of no type written,
     `var a := $[twice, twice]` and `${"a": twice}`, is kelvinc's `the
@@ -396,9 +422,9 @@ known, not what is planned.
   - `var s := Set<i64>([1, 2])` is kelvinc's `an array is not a value
     here` and kc's `'s' is a value (Set<i64>)`.
 - Found while #763 was made, not changed:
-  - `t -= "a"` and `t *= 2` of a String, and `b -= 1` of a Bytes, are
+  - `t -= "a"` and `t *= 2` of a String, and `b -= 1` of a Bytes, were
     C's errors of kelvinc's C and kc's `an owner is assigned only as a
-    String`.
+    String`: `a String has no '-='` in both since #766.
 - Found while #758 was made, not changed:
   - `a := $[]` of an Array is kelvinc's `'a' is a value (Array<pt>)`
     and was kc's `Array([]) has no element type`: kelvinc's in both
@@ -624,8 +650,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P770, and a review's own
-  detail row is confirmed by that review (#675).
+- P771, the details of #766, until reviewed; the reviews confirmed
+  every row to P770, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

@@ -1959,6 +1959,14 @@ kc reads what it is written in, and little more.
   - tests/run's fn_elements_overloaded.k and
     struct_one_array_braces.k, and fourteen of tests/error, have
     them.
+- **A String and a Bytes have += alone** (#766), as kelvinc's since
+  the same number: `t -= "a"` is `a String has no '-='`, `b *= 2` `a
+  Bytes has no '*='`, gen_assign, at the operator, where kc said an
+  owner is assigned only as a String.
+  - `**=` of them, and of an Array, a Dictionary and a Set, is said so
+    too, where gen_assign read the power first, `'**' takes numbers`.
+  - tests/error's string_minus_assign.k, bytes_times_assign.k and
+    array_power_assign.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

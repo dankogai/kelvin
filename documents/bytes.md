@@ -84,6 +84,8 @@ by codepoint, text always.
   Bytes an expression gives; `b.insert(i, x)` the same at i,
   `b.remove(i, n)` n bytes at i; `b.clear()`, `b.reserve(n)` and
   `b.compact()` as their names say, in place.
+  - A Bytes has `+=` alone (#766): `b -= 1` is `a Bytes has no '-='`,
+    where it was C's error.
 - **`==`** and `!=` compare two Bytes by their bytes, and `<`, `<=`,
   `>` and `>=` order them by their bytes, a shorter one first (#185).
 - **`b + c`** (#188) is a new Bytes of the two: `b` a Bytes or text, `c`

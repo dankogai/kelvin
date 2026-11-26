@@ -17095,7 +17095,7 @@ let gen_assign(n:int64) {
         gen_error(nodes[n].b, m.cstr)
         return
     }
-    if tok_is(t, "**=") {                                // x **= y is x = x ** y (#380), as kelvinc's
+    if tok_is(t, "**=") && types[y].kind != Y_ARRAY && types[y].kind != Y_DICT && types[y].kind != Y_SET && types[y].kind != Y_STRING && types[y].kind != Y_BYTES {   // x **= y is x = x ** y (#380), as kelvinc's; of an Array, a Dictionary, a Set, a String and a Bytes it is an operator they have not (#763, #766)
         if has_call(lhs) {
             gen_error(lhs, "'x **= y' is 'x = x ** y', which evaluates x twice, so x may not hold a call")
             return
@@ -17353,6 +17353,12 @@ let gen_assign(n:int64) {
         } else if tok_is(t, "+=") && yk == Y_DICT {
             m += ": add an entry with d[k] = v"
         }
+        tok_error(t, m.cstr)
+    } else if (yk == Y_STRING || yk == Y_BYTES) && !tok_is(t, "=") && !tok_is(t, ":=") {   // t -= "a", b *= 2: a String and a Bytes have += alone, as kelvinc says it (#766)
+        var m = yk == Y_STRING ? $"a String" : $"a Bytes"
+        m += " has no '"
+        m += tok_text(t)
+        m += "'"
         tok_error(t, m.cstr)
     } else if is_owner(y) {
         gen_error(n, "an owner is assigned only as a String")

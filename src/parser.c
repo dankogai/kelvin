@@ -10855,9 +10855,11 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             }
             if (strcmp(t->text, "=") && strcmp(t->text, ":=") && strcmp(t->text, "+=") && value_type(lhs)) {
                 /* xs -= v, s *= 2: an Array, a Dictionary and a Set have += alone (#763), where it was C's error,
-                   invalid operands to binary expression */
+                   invalid operands to binary expression; a String and a Bytes too, t -= "a" (#766) */
                 Type *lt = unqualified(value_type(lhs));
                 bool arr = is_array_owner(lt), dict = is_dict_owner(lt), set = is_set_owner(lt);
+                if (is_string(lt) || is_bytes(lt))
+                    error_at(t->pos, "%s has no '%s'", is_string(lt) ? "a String" : "a Bytes", t->text);
                 if (arr || dict || set)
                     error_at(t->pos, "%s has no '%s'%s", arr ? "an Array" : dict ? "a Dictionary" : "a Set", t->text,
                              strcmp(t->text, "-=") ? ""
