@@ -1025,3 +1025,7 @@ So far the changes from C are these, by topic.
 - `println(g)` of a `[[i64](n)](2)`, rows of a count C computes, is
   an error that names the rows, `print its rows, println(g[i])`,
   where it was C's error (#776)
+- `var v:[i64](n) = [1, 2, 3]` of a count that is no constant, a
+  let's name too, is `an array of a count computed at run time takes
+  no elements in C`, where it was C's error or leaned on a C
+  compiler's extension (#779)

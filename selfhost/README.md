@@ -2101,6 +2101,15 @@ kc reads what it is written in, and little more.
   - tests/run's choice_untyped_values.k and rows_zeros_first.k, and
     tests/error's choice_untyped_literals.k,
     choice_untyped_pointers.k and array_untyped_text.k have them.
+- **A list where an array's count is computed** (#779): kelvinc says
+  kc's `an array of a count computed at run time takes no elements in
+  C` since that number, by constant_count's rule, a let's name no
+  constant, where it left the count to C.
+  - gen_var_of says the sentence of a list or text given to a
+    `w:v.type` of an array of such a count, where kc said an array is
+    not a value here.
+  - tests/error's array_computed_list.k, array_let_count_list.k and
+    typeof_computed_list.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

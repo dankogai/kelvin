@@ -39,12 +39,26 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #778 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #779 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #778, resolve kelvinc then kc, of the four
+  left listed, each pushed when clean:
+  - a list, a compound literal or text given to an array whose count
+    is no constant of C's, `var v:[i64](n) = [1, 2, 3]`, its rows'
+    too, and a list given to a v.type of such an array, is kc's `an
+    array of a count computed at run time takes no elements in C:
+    give them one by one, a[i] = ...`, at the value, where it was C's
+    error, variable-sized object may not be initialized, and of a
+    v.type kelvinc's `this is v.type: write a value`; a let's name is
+    no constant, the user's answer, kelvinc follows kc, where kelvinc
+    left it to C, which folds a const by an extension; kc says the
+    sentence of a `w:v.type` too (#779);
+  - left: the places of `${o}` of a struct and of `Array(b)` of rows.
 
 - The user's order after #775, resolve kelvinc then kc, of the five
   left listed, with the answers, each pushed when clean:
@@ -325,10 +339,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1164 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1167 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776 and #777 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777 and #779 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -512,9 +526,10 @@ known, not what is planned.
     identifier, and kc's `kc prints a number, a bool, text`: `an array
     of arrays of a count C computes is not printed whole` in both
     since #776; `var
-    w:[v.type](2) = [[1, 2, 3], [4, 5, 6]]` is kelvinc's `'[...]'
+    w:[v.type](2) = [[1, 2, 3], [4, 5, 6]]` was kelvinc's `'[...]'
     initializes an array, and this is v.type` and kc's `an array of a
-    count computed at run time takes no elements in C`.
+    count computed at run time takes no elements in C`: kc's in both
+    since #779.
   - `var a = ${o}` of a struct and `${c}` of an enum are kelvinc's `a
     key of a Dictionary is an integer or a String, not struct pt`, at
     the variable's type where it is declared, and kc's at the element,
@@ -833,8 +848,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P783, and a review's own
-  detail row is confirmed by that review (#675).
+- P784, the details of #779, until reviewed; the reviews confirmed
+  every row to P783, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

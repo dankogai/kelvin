@@ -16441,6 +16441,10 @@ let gen_var(n:int64) {
 let gen_var_of(n:int64) {
     let written = nodes[n].ty >= 0
     if make_arg_refused(nodes[n].a) { return }           // var s := Set<i64>(5): what it takes before = or := is said, as kelvinc's parser says it (#768)
+    if nodes[n].ty >= 0 && types[nodes[n].ty].kind == Y_TYPEOF && seen_through(nodes[n].ty) != nodes[n].ty && nodes[n].a >= 0 && ((nodes[nodes[n].a].kind == N_LIST && nodes[nodes[n].a].flag == 0) || nodes[nodes[n].a].kind == N_STR) {   // var w:v.type = [1, 2, 3] of a v of a count C computes (#779), as kelvinc says it
+        gen_error(nodes[n].a, "an array of a count computed at run time takes no elements in C: give them one by one, a[i] = ...")
+        return
+    }
     if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
     if failed { return }
     if nodes[n].a >= 0 && temp_borrowed(nodes[n].a) { return }   // let p := &$"text" (#187, #612)

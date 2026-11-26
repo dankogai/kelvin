@@ -14953,3 +14953,26 @@ confirmed by #778.
 Details are P783, confirmed by #778 itself.
 
 There are 1726 tests, and all pass with clang and with gcc 15.
+
+### 826. A list where an array's count is computed
+
+**Claude** wrote #778, its battery run and pushed when clean, its CI
+all green, and asked what next.
+
+**User:** resolve kelvinc then kc (recommended)
+
+**Claude** gave the four left listed to both compilers again, found
+that kelvinc builds a list given to an array counted by a let only
+where the C compiler folds the const, and asked which way it goes.
+
+**User:** kelvinc follows kc (recommended)
+
+**Claude** made the first #779: a list given to an array whose
+count is no constant of C's, `var v:[i64](n) = [1, 2, 3]`, a let's
+name too, and to a v.type of one, is kc's `an array of a count
+computed at run time takes no elements in C` in kelvinc, where it
+was C's error or built by an extension.
+
+Details are provisional P784.
+
+There are 1729 tests, and all pass with clang and with gcc 15.

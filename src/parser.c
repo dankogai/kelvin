@@ -799,6 +799,9 @@ static bool is_cstr(Type *t);
 static Expr *drop_cstr(Expr *v, Type *target);
 static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos);
 static void member_value(Expr *v, Type *want, const char *lead, Pos pos);
+static bool computed_decl; /* while a declaration's value is read, at computed_decl_pos (#779) */
+static Pos computed_decl_pos;
+static bool counts_var(Type *t);
 static const char *fn_shown(Decl *d);
 static const char *article(const char *w);
 static bool is_bytes(Type *t);
@@ -11217,6 +11220,14 @@ static Expr *parse_initializer_for(Type *t) {
        (#48); where only C sees the type, either is C's { } */
     Decl *record = NULL;
     char c = t && t->kind == T_BASE ? type_class(t, &record) : 0;
+    if (bracket && t && t->kind == T_TYPEOF && computed_decl) {
+        /* a list where a v.type of an array of a count C computes is declared, alone or as a row (#779): kc's
+           sentence at the declaration's value, where this said the type is v.type: write a value */
+        Type *ot = t->elem ? t->elem : value_type(t->of);
+        if (ot && ot->kind == T_ARRAY)
+            error_at(computed_decl_pos, "an array of a count computed at run time takes no elements in C: give them "
+                                        "one by one, a[i] = ...");
+    }
     if (bracket && t && t->kind != T_ARRAY && (t->kind != T_BASE || c != 'u'))
         error_at(open->pos, "'[...]' initializes an array, and this is %s: %s", kelvin_type(t),
                  c == 's' || c == 'c' ? "a struct or union is initialized with '{...}'" : "write a value");
@@ -12945,7 +12956,16 @@ static Var *parse_var(bool with_init, int let) {
         Token *op = advance();
         check_assign_op(op->text, v->type, what, op->pos, NULL);
         /* a function type types an anonymous function (#32) */
+        computed_decl = true;
+        computed_decl_pos = peek()->pos;
         v->init = parse_initializer_for(v->type);
+        computed_decl = false;
+        if (v->type && v->type->kind == T_ARRAY && counts_var(v->type) &&
+            (v->init->kind == E_INIT || v->init->kind == E_STRING || (v->init->kind == E_COMPOUND && v->init->a)))
+            /* var v:[i64](n) = [1, 2, 3] of a var's n (#779): kc's sentence, where it was C's error, variable-sized
+               object may not be initialized; zeros, [i64](n), are taken */
+            error_at(v->init->pos, "an array of a count computed at run time takes no elements in C: give them one "
+                                   "by one, a[i] = ...");
         count_items(v->type, v->init);
         reject_let_vla(v, let);
         v->init = string_of_literal(drop_cstr(v->init, v->type), v->type); /* a literal into a String (#70) */
@@ -13674,6 +13694,32 @@ static Type *shown_value_type(Expr *x) {
 /* the count of x, a shown array, where C's sizeof is not it: a let array
    parameter's declared length, as for x in it walks (#30, #481); NULL
    for sizeof's */
+/* whether e, a count, is none C's constant (#779), as kc's constant_count has it: a constant is an integer
+   written, sizeof, an enumerator or a name only C sees, and these by a minus and + - * / %. A let's name is none,
+   though C may fold a const of a constant: an extension, which kelvinc left to C, the user's answer */
+static bool count_var(Expr *e) {
+    if (!e)
+        return false;
+    if (e->kind == E_LITERAL || e->kind == E_SIZEOF_TYPE || e->kind == E_SIZEOF_EXPR)
+        return false;
+    if (e->kind == E_IDENT) /* an enumerator, or C's own, a macro or a header's constant */
+        return !(enumerator_named(e->text) || binding_index(e->text) < 0);
+    if (e->kind == E_PREFIX && e->op && (!strcmp(e->op, "-") || !strcmp(e->op, "+")))
+        return count_var(e->a);
+    if (e->kind == E_BINARY && e->op &&
+        (!strcmp(e->op, "+") || !strcmp(e->op, "-") || !strcmp(e->op, "*") || !strcmp(e->op, "/") || !strcmp(e->op, "%")))
+        return count_var(e->a) || count_var(e->b);
+    return true; /* a call, a member, a conversion: computed */
+}
+
+/* whether an array's type t has, at any depth, a count count_var tells */
+static bool counts_var(Type *t) {
+    for (; t && t->kind == T_ARRAY; t = t->elem)
+        if (count_var(t->size))
+            return true;
+    return false;
+}
+
 /* whether a row of an array of arrays, t, has a count that names a local or a parameter, or is a v.type kelvinc
    does not see through (#776): its printer, a C function, could not name the count */
 static bool rows_computed(Type *t) {

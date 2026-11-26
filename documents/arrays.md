@@ -130,6 +130,13 @@ a `const` array after declaring it.
   compound literal's alike, where kelvinc took any.
   - An array of no count written takes it: `var a:[i64] = [i64](2)` is
     two elements.
+- An array of a count computed at run time takes zeros alone (#779):
+  `var v:[i64](n) = [1, 2, 3]` is `an array of a count computed at run
+  time takes no elements in C: give them one by one, a[i] = ...`,
+  where it was C's error.
+  - A count is C's constant where it is a number written, `sizeof`, an
+    enumerator, or these by `+ - * / %`; a let's name is none, though
+    a C compiler may fold it.
 
 ### `.count` and `.size`
 
