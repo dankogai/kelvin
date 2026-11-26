@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #779 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #780 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -58,7 +58,13 @@ known, not what is planned.
     no constant, the user's answer, kelvinc follows kc, where kelvinc
     left it to C, which folds a const by an extension; kc says the
     sentence of a `w:v.type` too (#779);
-  - left: the places of `${o}` of a struct and of `Array(b)` of rows.
+  - a type that a value gives is checked at the value: `var a = ${o}`
+    of a struct, an enum or a float, a Dictionary's key and value of
+    no type written too, and `Array(b)` of an array of arrays, say
+    their errors at the element, the key, the value and `b`, as kc
+    does, where kelvinc said them at the type of the variable's
+    declaration, lines away (#780).
+  With it kelvinc's two of this order are done.
 
 - The user's order after #775, resolve kelvinc then kc, of the five
   left listed, with the answers, each pushed when clean:
@@ -339,7 +345,7 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1167 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1169 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
   #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777 and #779 alike.
@@ -509,6 +515,11 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #780 was made, not changed:
+  - `var a = $[b]` of a fixed array `b`, `${"k": b}` and `Array([b])`
+    are built by kelvinc, of `i64^`, the array read its first
+    element's address, and kc's `an Array of [i64](2) is not here
+    yet`.
 - Found while #777 was made, not changed:
   - `var q = c ? a.count : a.count`, a choice of two properties, is
     kelvinc's `'q' needs a type` and built by kc.
@@ -533,7 +544,8 @@ known, not what is planned.
   - `var a = ${o}` of a struct and `${c}` of an enum are kelvinc's `a
     key of a Dictionary is an integer or a String, not struct pt`, at
     the variable's type where it is declared, and kc's at the element,
-    an enum's in kelvinc's words too since #774.
+    an enum's in kelvinc's words too since #774: at the element in
+    both since #780.
 - Found while #773 was made, not changed:
   - `var m:[[i64]](2) = [[i64](2), [3, 4]]`, rows of no count written
     whose first is zeros, is built by kelvinc, the rows of the zeros'
@@ -553,7 +565,8 @@ known, not what is planned.
     and was kc's `'a' needs a type`; `var a = Array(b)` of rows is
     kelvinc's `an Array of [i64](2) is not here yet` and was kc's `'a'
     needs a type`: kelvinc's words in both since #777, the second at
-    the array given by kc and at its declared type by kelvinc.
+    the array given by kc and at its declared type by kelvinc, at the
+    array given in both since #780.
 - Found while #769 was made, not changed:
   - `nowhere` in a literal of no type written, `var a = $[nowhere]`,
     `${"a": nowhere}` and `[nowhere]`, is built by kelvinc, of `any^`,
@@ -848,7 +861,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P784, the details of #779, until reviewed; the reviews confirmed
+- P784 and P785, the details of #779 and #780, until reviewed; the reviews confirmed
   every row to P783, and a review's own detail row is confirmed by that
   review (#675).
 

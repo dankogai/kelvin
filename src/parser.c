@@ -802,6 +802,7 @@ static void member_value(Expr *v, Type *want, const char *lead, Pos pos);
 static bool computed_decl; /* while a declaration's value is read, at computed_decl_pos (#779) */
 static Pos computed_decl_pos;
 static bool counts_var(Type *t);
+static const Pos *value_type_at; /* where a type a value gave is checked (#780) */
 static const char *fn_shown(Decl *d);
 static const char *article(const char *w);
 static bool is_bytes(Type *t);
@@ -4701,7 +4702,9 @@ static Expr *parse_primary(void) {
         if (!at) {
             Type *xt = x ? value_type(x) : NULL;
             if (xt && xt->kind == T_ARRAY && xt->elem) {
+                value_type_at = &x->pos; /* Array(b) of rows: at b (#780) */
                 check_array_elem(xt->elem);
+                value_type_at = NULL;
                 at = e->type = array_type(t, xt->elem);
             } else if (xt && xt->kind == T_PTR && is_array_owner(xt->elem)) {
                 at = e->type = xt->elem;
@@ -11566,10 +11569,15 @@ static Expr *array_of_list(Token *t, Type *at, bool dollar) {
     return e;
 }
 
+/* where a type that a value gave is checked, the value's place: an error of it is said there, not where the
+   value's variable was declared, which the type remembers (#780) */
+static const Pos *value_type_at;
+
 /* what may be an element of an Array (#57) */
 static void check_array_elem(Type *elem) {
     if (elem->kind == T_ARRAY || (elem->kind == T_BASE && !strcmp(elem->name, "any")))
-        error_at(elem->pos, "an Array of %s is not here yet: an element is a value C returns", kelvin_type(elem));
+        error_at(value_type_at ? *value_type_at : elem->pos, "an Array of %s is not here yet: an element is a value C returns",
+                 kelvin_type(elem));
 }
 
 /* the inside of $[...] that spells t: [T] for an Array<T>, else T */
@@ -11653,14 +11661,15 @@ static bool is_dict_owner(Type *t) {
 static void check_dict_key(Type *key) {
     static const char *ints[] = {"i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", NULL};
     if (is_cstr(key))
-        error_at(key->pos, "a key of a Dictionary is a String, not a cstr: the Dictionary keeps a copy of the text, "
+        error_at(value_type_at ? *value_type_at : key->pos, "a key of a Dictionary is a String, not a cstr: the Dictionary keeps a copy of the text, "
                            "and is read with a cstr or a String");
     if (is_string(key))
         return;
     for (int i = 0; key->kind == T_BASE && ints[i]; i++)
         if (!strcmp(key->name, ints[i]))
             return;
-    error_at(key->pos, "a key of a Dictionary is an integer or a String, not %s", kelvin_type(key));
+    error_at(value_type_at ? *value_type_at : key->pos, "a key of a Dictionary is an integer or a String, not %s",
+             kelvin_type(key));
 }
 
 /* Dictionary<K, V> as a type: a T_BASE named by both, with its C name,
@@ -12031,7 +12040,9 @@ static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first) {
         if (!kt)
             error_at(open->pos, "${} has no element type here: write Set<T>(), or give the variable a type, as in "
                                 "'var s:${String} = ${}'");
+        value_type_at = e->items.len ? &((Expr *)e->items.data[0])->pos : NULL; /* ${o}: at the element (#780) */
         st = e->type = set_type(t, kt);
+        value_type_at = NULL;
     }
     if (!e->items.len)
         e->text = "";
@@ -12302,6 +12313,13 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first, bool dol
     }
     expect_p("}");
     if (!dt) {
+        if (e->items.len) { /* ${o: 1}: a key's and a value's at their places (#780) */
+            value_type_at = &((Expr *)e->designators.data[0])->pos;
+            check_dict_key(kt);
+            value_type_at = &((Expr *)e->items.data[0])->pos;
+            check_array_elem(vt);
+            value_type_at = NULL;
+        }
         dt = e->type = dict_type(t, kt, vt);
         e->dollar = dollar; /* (#616) */
     }

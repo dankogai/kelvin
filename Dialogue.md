@@ -14976,3 +14976,17 @@ was C's error or built by an extension.
 Details are provisional P784.
 
 There are 1729 tests, and all pass with clang and with gcc 15.
+
+### 827. A type that a value gives is checked at the value
+
+**Claude** wrote #779, its battery run and pushed when clean.
+
+**Claude** made the second #780: `var a = ${o}` of a struct and
+`Array(b)` of an array of arrays say their errors at the element and
+at `b`, as kc does, where kelvinc said them at the type of the
+variable's declaration; not asked, the place being the value that
+is wrong. kelvinc's two of this order are done.
+
+Details are provisional P785.
+
+There are 1731 tests, and all pass with clang and with gcc 15.
