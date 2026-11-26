@@ -14784,3 +14784,26 @@ places; rows of bytes take text. kelvinc is as it was.
 Details are provisional P774.
 
 There are 1697 tests, and all pass with clang and with gcc 15.
+
+### 817. The review, batch 27
+
+**Claude** wrote #769, its battery run and pushed when clean, its CI
+all green, kelvinc's three and kc's of the order done, and asked what
+next.
+
+**User:** review P771 to P774 (recommended)
+
+**Claude** read each row against the code and the batteries'
+summaries and found two loose about a function's name: P772, which
+did not name parse_initializer_for, and P773, which said primary of
+parse_primary; and asked how the review should treat them.
+
+**User:** amend 2, confirm all, push (recommended)
+
+**Claude** made it #770: the two amended, P771 to P774 marked
+confirmed, as later numbers amend them, and P775, #770's own row,
+confirmed by #770.
+
+Details are P775, confirmed by #770 itself.
+
+There are 1697 tests, and all pass with clang and with gcc 15.
