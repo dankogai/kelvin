@@ -2020,6 +2020,17 @@ kc reads what it is written in, and little more.
   - fixed_list_fits takes text for a row of bytes of a count.
   - tests/error's fourteen and tests/run's rows_of_bytes_text.k have
     them.
+- **What an Array<T>(x) takes** (#771): kelvinc says kc's sentences
+  since that number, gen_make's `Array<i64>(n) takes a count, and this
+  is text` and `Array<i64>(&a) copies an Array<i64>, and this lends
+  i64`, and gen_from_fixed's `Array<i64>(a) takes a fixed array of
+  i64`, where it left them to C or built them.
+  - kc says the count's sentence of `nowhere` too, `this is any^`,
+    where it was C's error, and the fixed array's of rows before `an
+    Array of [i64](2) is not here yet`.
+  - tests/error's array_made_of_text.k, array_made_of_cstr.k,
+    array_made_of_address.k, array_made_of_fixed_other.k and
+    array_made_of_nowhere.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

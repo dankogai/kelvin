@@ -11683,7 +11683,7 @@ let gen_make_set(n:int64, y:int64, w:const String^) {
 let gen_from_fixed(x:int64, y:int64) {
     let fy:int64 = type_of(x)
     let fe:int64 = types[fy].elem
-    if fixed_inside(fe) {                                // as kelvinc says it
+    if fixed_inside(fe) && !(y >= 0 && fe != types[y].elem) {   // as kelvinc says it; of another element's, Array<i64>(rows), the sentence below first (#771)
         var m = $"an Array of "
         let ew:String = type_text(fe)
         m += &ew
@@ -11834,10 +11834,11 @@ let gen_make(n:int64) {
         }
         let k:nkind = nodes[x].kind
         let c_named = xy >= 0 && types[xy].kind == Y_STRUCT && decl_named(types[xy].name, D_STRUCT) < 0 && decl_named(types[xy].name, D_ENUM) < 0   // a C header's size_t (#470)
-        if k == N_STR || (xy >= 0 && !is_number_kind(types[xy].kind) && types[xy].kind != Y_BOOL && types[xy].kind != Y_C && !c_named) {
+        let null = k == N_NULL && tok_is(nodes[x].t, "nowhere")   // Array<i64>(nowhere), an any^, as kelvinc says it (#771)
+        if k == N_STR || null || (xy >= 0 && !is_number_kind(types[xy].kind) && types[xy].kind != Y_BOOL && types[xy].kind != Y_C && !c_named) {
             var m = w.copy()
             m += "(n) takes a count, and this is "
-            let xw:String = k == N_STR ? $"text" : kelvin_type_text(xy)
+            let xw:String = k == N_STR ? $"text" : null ? $"any^" : kelvin_type_text(xy)
             m += &xw
             gen_error(x, m.cstr)
             return

@@ -1012,3 +1012,7 @@ So far the changes from C are these, by topic.
   error (#767)
 - `Set<i64>([1, 2])` says what a Set takes, `the elements in {a, b,
   c}`, where it said to write a compound literal (#768)
+- `Array<i64>("a")` is `Array<i64>(n) takes a count, and this is
+  text`, where it was C's error; `Array<i64>(c)` of a cstr and
+  `Array<i64>(&x)` of a number are errors, where they were built
+  (#771)

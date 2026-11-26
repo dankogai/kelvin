@@ -39,12 +39,25 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #770 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #771 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #770, resolve kelvinc then kc, of what was
+  left listed, with the answers, each pushed when clean:
+  - `Array<T>(x)` of an x that is no count, no fixed array of T and no
+    borrow of an Array of T says kc's sentences, the user's answer:
+    `Array<i64>(n) takes a count, and this is text`, a String's, a
+    struct's, a cstr's, a pointer's and `nowhere`'s alike;
+    `Array<i64>(&a) copies an Array<i64>, and this lends i64`; and
+    `Array<i64>(a) takes a fixed array of i64, and this is [f64](3)`,
+    where they were C's errors, and a cstr's, an `&x`'s and another
+    element's fixed array were built (#771);
+  - left: an array declared with a struct, an Array or a String,
+    which kelvinc names `i64^`.
 
 - The user's order after #765, resolve kelvinc then kc, of what was
   left listed, with the answers, each pushed when clean:
@@ -253,10 +266,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1141 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1146 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764 and #766 to #769 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769 and #771 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -423,6 +436,14 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #771 was made, not changed:
+  - `Array<i64>(p)` of a `p` that is an `Array<i64>^`, a borrow held
+    in a variable, is a copy by kelvinc and kc's `Array<i64>(n) takes
+    a count, and this is Array<i64>^`.
+  - `var a = Array("a")` is kelvinc's `Array(x) has no element type`
+    and kc's `'a' needs a type`; `var a = Array(b)` of rows is
+    kelvinc's `an Array of [i64](2) is not here yet` and kc's `'a'
+    needs a type`.
 - Found while #769 was made, not changed:
   - `nowhere` in a literal of no type written, `var a = $[nowhere]`,
     `${"a": nowhere}` and `[nowhere]`, is built by kelvinc, of `any^`,
@@ -437,8 +458,9 @@ known, not what is planned.
   - `var a:[i64](2) = o` of a struct is kelvinc's `'a' is an i64^, and
     this is pt` and kc's `'a' is a [i64](2), and this is pt`.
 - Found while #768 was made, not changed:
-  - `var a = Array<i64>("a")` is C's error of kelvinc's C and kc's
-    `Array<i64>(n) takes a count, and this is text`.
+  - `var a = Array<i64>("a")` was C's error of kelvinc's C and kc's
+    `Array<i64>(n) takes a count, and this is text`: kc's in both
+    since #771.
   - `Set<pt>` of a struct is kelvinc's `a key of a Dictionary is an
     integer or a String, not struct pt` and was kc's `not pt`:
     kelvinc's in both since #769.
@@ -714,8 +736,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P775, and a review's own
-  detail row is confirmed by that review (#675).
+- P776, the details of #771, until reviewed; the reviews confirmed
+  every row to P775, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

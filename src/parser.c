@@ -4711,6 +4711,33 @@ static Expr *parse_primary(void) {
             Type *xt = value_type(x);
             if (owner_place(x))
                 error_at(x->pos, "Array<T>(a) would copy an owner: write a.copy(), or Array<T>(&a)");
+            /* Array<T>(x) of an x that is no count, no fixed array and no borrow of an Array of T (#771), in kc's
+               sentences: C's error before, and a cstr's and an &x's were built */
+            Type *ut = xt ? unqualified(xt) : NULL;
+            if (ut && ut->kind == T_TYPEOF)
+                ut = ut->elem ? unqualified(ut->elem) : NULL;
+            Decl *xr;
+            bool null = x->kind == E_LITERAL && x->text && !strcmp(x->text, "nowhere");
+            bool count = ut && ut->kind == T_BASE && (number_kind(ut) || !strcmp(ut->name, "bool") || type_class(ut, &xr) == 'u');
+            bare_tags = true;
+            char *w = kelvin_type(at);
+            if (xt && xt->kind == T_ARRAY) {
+                /* a fixed array, copied in: of T's elements, where one of another's was copied as it lay */
+                if (xt->elem && at->elem && strcmp(kelvin_type(own_unqualified(xt->elem)), kelvin_type(own_unqualified(at->elem))))
+                    error_at(x->pos, "%s(a) takes a fixed array of %s, and this is %s", w, kelvin_type(at->elem),
+                             kelvin_type(xt));
+            } else if (ut && ut->kind == T_PTR && !is_cstr(ut)) {
+                if (!(ut->elem && is_array_owner(unqualified(ut->elem)) && !strcmp(kelvin_type(unqualified(ut->elem)), w))) {
+                    if (x->kind == E_PREFIX && x->op && !strcmp(x->op, "&"))
+                        error_at(x->pos, "%s(&a) copies %s %s, and this lends %s", w, article(w), w,
+                                 ut->elem ? kelvin_type(unqualified(ut->elem)) : "not one");
+                    error_at(x->pos, "%s(n) takes a count, and this is %s", w, kelvin_type(ut));
+                }
+            } else if (x->kind == E_STRING || null || (ut && ut->kind != T_ARRAY && !count)) {
+                error_at(x->pos, "%s(n) takes a count, and this is %s", w,
+                         x->kind == E_STRING ? "text" : null ? "any^" : kelvin_type(ut));
+            }
+            bare_tags = false;
             e->text = xt && xt->kind == T_ARRAY ? "fixed" : xt && xt->kind == T_PTR ? "copy" : "zeros";
             if (xt && xt->kind == T_ARRAY && !xt->size)
                 error_at(x->pos, "the fixed array's count is not known here");

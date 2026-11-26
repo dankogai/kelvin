@@ -239,6 +239,13 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     - `$[$"a", $"b"]`, which wrote each `$`, is the same Array.
   - `Array<T>()`, `Array<T>(n)` of n zero elements.
   - `Array(a)` of a fixed array, `Array(&other)` a copy.
+    - Anything else is an error that says so (#771):
+      - `Array<i64>("a")` is `Array<i64>(n) takes a count, and this is
+        text`;
+      - `Array<i64>(&x)` of a number is `Array<i64>(&a) copies an
+        Array<i64>, and this lends i64`;
+      - `Array<i64>(b)` of a `[f64](3)` is `Array<i64>(a) takes a fixed
+        array of i64, and this is [f64](3)`.
   - A declaration without a value is empty.
 - **Methods:** `append` (also `+=`), `insert`, `remove`, `pop`, `clear`,
   `reserve`, `compact`, `copy`.

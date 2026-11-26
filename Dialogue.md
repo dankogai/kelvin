@@ -14807,3 +14807,27 @@ confirmed by #770.
 Details are P775, confirmed by #770 itself.
 
 There are 1697 tests, and all pass with clang and with gcc 15.
+
+### 818. What an Array<T>(x) takes
+
+**Claude** wrote #770, its battery run and pushed when clean, its CI
+all green.
+
+**User:** resolve kelvinc then kc
+
+**Claude** gave what was left listed to both compilers again and
+asked two things: whether each is pushed when clean, and which
+sentence kelvinc says of `Array<i64>("a")`.
+
+**User:** push each when clean (recommended); kc's two sentences
+(recommended)
+
+**Claude** made the first #771: `Array<T>(x)` of an x that is no
+count, no fixed array of T and no borrow of an Array of T says kc's
+sentences in kelvinc, where they were C's errors, and a cstr's, an
+`&x`'s and another element's fixed array were built; kc's third, of
+the fixed array, is said too.
+
+Details are provisional P776.
+
+There are 1702 tests, and all pass with clang and with gcc 15.
