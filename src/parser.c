@@ -13674,7 +13674,31 @@ static Type *shown_value_type(Expr *x) {
 /* the count of x, a shown array, where C's sizeof is not it: a let array
    parameter's declared length, as for x in it walks (#30, #481); NULL
    for sizeof's */
+/* whether a row of an array of arrays, t, has a count that names a local or a parameter, or is a v.type kelvinc
+   does not see through (#776): its printer, a C function, could not name the count */
+static bool rows_computed(Type *t) {
+    for (Type *r = t; r;) {
+        if (r->kind == T_TYPEOF) {
+            if (!r->elem)
+                return true;
+            r = r->elem;
+        } else if (r->kind == T_ARRAY) {
+            if (r->size_local || names_local(r->size))
+                return true;
+            r = r->elem;
+        } else {
+            return false;
+        }
+    }
+    return false;
+}
+
 static Expr *shown_count(Expr *x) {
+    Type *st = shown_value_type(x);
+    if (st && st->kind == T_TYPEOF && st->elem)
+        st = st->elem;
+    if (st && st->kind == T_ARRAY && rows_computed(st->elem)) /* println(g) of a [[i64](n)](2) (#776): C's error before */
+        error_at(x->pos, "an array of arrays of a count C computes is not printed whole: print its rows, println(g[i])");
     Var *param = x->kind == E_IDENT ? param_named(x->text) : NULL;
     if (!param || !param->type || param->type->kind != T_ARRAY || !param->type->size)
         return NULL;

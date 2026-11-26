@@ -2077,6 +2077,14 @@ kc reads what it is written in, and little more.
     array_of_borrow_variable.k, and tests/error's set_untyped_key.k,
     set_untyped_nowhere.k, dictionary_key_pointer_place.k and
     dollar_array_mixed.k have them.
+- **An array of arrays of a count C computes is not printed whole**
+  (#776), as kelvinc's since the same number: fixed_ok says it of a
+  fixed array one of whose rows has a count that count_names_local
+  tells a local's, or is a v.type, before it asks whether the
+  elements print, where kc said its own `kc prints a number, a bool,
+  text` or left it to C.
+  - tests/error's print_rows_computed.k and
+    print_typeof_rows_computed.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

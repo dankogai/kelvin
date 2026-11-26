@@ -107,6 +107,11 @@ var text = ages.pretty                   // a String, where print does not show 
     - A `[u8](N)` is a C buffer, shown as its text.
     - A let array parameter, `xs:[i64](3)`, shows its declared length; a
       var one, a pointer that may have moved, is an error.
+    - An array of arrays whose rows' count C computes, `[[i64](n)](2)`
+      of a local `n`, is not printed whole (#776): `an array of arrays
+      of a count C computes is not printed whole: print its rows,
+      println(g[i])`, where it was C's error. A row prints, and so does
+      an array of one count C computes.
   - A union is `<union name>`, an IO `<IO>`.
 - **Text inside a value is quoted** (#123): a `String`, a `Bytes` or a
   `cstr` there is `"text"`, escaped as `\"`, `\\`, `\n`, `\r`, `\t`,

@@ -1022,3 +1022,6 @@ So far the changes from C are these, by topic.
   `var a:[i64](2) = [i64](3)` is `'a' is a [i64](2), and this is
   [i64](3)`, where it was taken; a member and a row take them, where
   they were C's errors (#773)
+- `println(g)` of a `[[i64](n)](2)`, rows of a count C computes, is
+  an error that names the rows, `print its rows, println(g[i])`,
+  where it was C's error (#776)

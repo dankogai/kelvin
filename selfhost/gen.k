@@ -8600,6 +8600,14 @@ let fixed_ok(y:int64, v:int64):bool {
         return false
     }
     var e = types[y].elem
+    var r = e                                            // a row whose count names a local, or that is a v.type of one: no printer of it, as kelvinc says it (#776), where it was C's error
+    while r >= 0 && (types[r].kind == Y_FIXED || types[r].kind == Y_TYPEOF) {
+        if types[r].kind == Y_TYPEOF || (types[r].name <= 0 - 10 && count_names_local(0 - 10 - types[r].name)) {
+            gen_error(v, "an array of arrays of a count C computes is not printed whole: print its rows, println(g[i])")
+            return false
+        }
+        r = types[r].elem
+    }
     while types[e].kind == Y_FIXED { e = types[e].elem }
     if !elem_shown(e) && !shown_by_type(e) {
         gen_error(v, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")

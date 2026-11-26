@@ -39,12 +39,23 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #775 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #776 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #775, resolve kelvinc then kc, of the five
+  left listed, with the answers, each pushed when clean:
+  - an array of arrays whose rows' count names a local, `var
+    g:[[i64](n)](2)`, and rows that are a v.type of one, are not
+    printed whole, by println, print, `.pretty` or a template: `an
+    array of arrays of a count C computes is not printed whole: print
+    its rows, println(g[i])`, the user's answer, an error that names
+    the rows, in both, where it was C's error, use of undeclared
+    identifier, and kc's own or C's (#776).
+  With it kelvinc's one of this order is done.
 
 - The user's order after #770, resolve kelvinc then kc, of what was
   left listed, with the answers, each pushed when clean:
@@ -297,10 +308,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1159 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1161 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769 and #771 to #774 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774 and #776 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -467,13 +478,19 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #776 was made, not changed:
+  - `println(g)` of a `g:[[i64](N)](2)` whose `N` is a global let is
+    printed by kelvinc, `[[0, 0, 0], [0, 0, 0]]`, and C's error of
+    kc's C, fields must have a constant size.
 - Found while #774 was made, not changed:
   - `var q = c ? 1 : 2`, a choice in a declaration of no type written,
     is kelvinc's `'q' needs a type` of numbers and of pointers, and
     built by kc; kelvinc infers one of text, as kc's own source has.
   - `println(w)` of a `w:[v.type](2)` whose `v` is of a count C
-    computes is C's error of kelvinc's C, use of undeclared
-    identifier, and kc's `kc prints a number, a bool, text`; `var
+    computes was C's error of kelvinc's C, use of undeclared
+    identifier, and kc's `kc prints a number, a bool, text`: `an array
+    of arrays of a count C computes is not printed whole` in both
+    since #776; `var
     w:[v.type](2) = [[1, 2, 3], [4, 5, 6]]` is kelvinc's `'[...]'
     initializes an array, and this is v.type` and kc's `an array of a
     count computed at run time takes no elements in C`.
@@ -793,8 +810,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P780, and a review's own
-  detail row is confirmed by that review (#675).
+- P781, the details of #776, until reviewed; the reviews confirmed
+  every row to P780, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

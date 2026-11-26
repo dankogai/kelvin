@@ -14898,3 +14898,27 @@ them, and P780, #775's own row, confirmed by #775.
 Details are P780, confirmed by #775 itself.
 
 There are 1719 tests, and all pass with clang and with gcc 15.
+
+### 823. An array of arrays of a count C computes is not printed whole
+
+**Claude** wrote #775, its battery run and pushed when clean, its CI
+all green, and asked what next.
+
+**User:** resolve kelvinc then kc (recommended)
+
+**Claude** gave the five left listed to both compilers again and
+asked two things: what `println(g)` of an array of arrays of a count
+C computes does, and which way a choice in a declaration of no type
+written goes.
+
+**User:** an error that names the rows (recommended); kc follows
+kelvinc (recommended)
+
+**Claude** made the first #776: `println(g)` of a `[[i64](n)](2)`,
+and of rows that are a v.type of such a count, is `an array of
+arrays of a count C computes is not printed whole: print its rows,
+println(g[i])` in both, where it was C's error.
+
+Details are provisional P781.
+
+There are 1721 tests, and all pass with clang and with gcc 15.
