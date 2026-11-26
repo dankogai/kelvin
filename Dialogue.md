@@ -14752,3 +14752,18 @@ kelvinc's `'a' is a reference (i64^)` in kc too.
 Details are provisional P772.
 
 There are 1679 tests, and all pass with clang and with gcc 15.
+
+### 815. What a Set and a Dictionary take
+
+**Claude** wrote #767, its battery run and pushed when clean.
+
+**Claude** made the third #768: `Set<i64>([1, 2])` and a Dictionary's
+say what they take, kelvinc's own sentence of `Set<i64>(5)`, at the
+`[`, where kelvinc said an array is not a value here: write a
+compound literal, which a Set does not take; not asked, as the
+sentence was kelvinc's already. kc says it at the `[`, and before
+`:=` of a value. kelvinc's three of this order are done.
+
+Details are provisional P773.
+
+There are 1682 tests, and all pass with clang and with gcc 15.

@@ -4598,6 +4598,9 @@ static Expr *parse_primary(void) {
             e->text = "";
             e->type = st;
             if (!is_p(peek(), ")")) {
+                if (is_p(peek(), "[")) /* Set<i64>([1, 2]) (#768): its own sentence, where the [ was an array that is no value here */
+                    error_at(peek()->pos, "%s takes nothing, the elements in {a, b, c}, or a borrow of another, '&s'",
+                             kelvin_type(st));
                 Expr *x = parse_assign();
                 Type *xt = value_type(x);
                 if (!(xt && xt->kind == T_PTR && is_set_owner(xt->elem) && !strcmp(xt->elem->name, st->name)))
@@ -4635,6 +4638,9 @@ static Expr *parse_primary(void) {
             e->text = "";
             e->type = dt;
             if (!is_p(peek(), ")")) {
+                if (is_p(peek(), "[")) /* Dictionary<K, V>([1, 2]) (#768) */
+                    error_at(peek()->pos, "%s takes nothing, the entries in {k: v, ...}, or a borrow of another, '&d'",
+                             kelvin_type(dt));
                 Expr *x = parse_assign();
                 Type *xt = value_type(x);
                 if (!(xt && xt->kind == T_PTR && is_dict_owner(xt->elem) && !strcmp(xt->elem->name, dt->name)))

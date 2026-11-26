@@ -2685,6 +2685,12 @@ let parse_make():int64 {
         nodes[n].a = parse_brace_body(advance())
         nodes[n].flag = 3
     } else if !tok_is(nodes[n].t, "Array") && !at_word(")") {   // &d, a copy (#351), &s (#460)
+        if at_word("[") {                                // Set<i64>([1, 2]), Dictionary<K, V>(["a": 1]): its own sentence at the [, as kelvinc's parser says it (#768)
+            var m:String = kelvin_type_text(nodes[n].ty)
+            m += tok_is(nodes[n].t, "Set") ? " takes nothing, the elements in {a, b, c}, or a borrow of another, '&s'" : " takes nothing, the entries in {k: v, ...}, or a borrow of another, '&d'"
+            parse_error_at(pos, m.cstr)
+            return n
+        }
         nodes[n].a = parse_expr()
         nodes[n].flag = nodes[nodes[n].a].kind == N_ADDR ? 4 : 5
     } else if tok_is(nodes[n].t, "Array") && !at_word(")") {   // &a, a copy; n, a count (#350)

@@ -35,6 +35,9 @@ Dictionary with no values, and keeps its elements in the order added.
   - `${}` where the type is written (`${:}` is an empty Dictionary);
     `Set<T>()`; a declaration without a value is empty.
   - `Set<T>({a, b, c})`; `Set<T>(&other)` a copy.
+    - Anything else is an error that says so (#768): `Set<i64>([1, 2])`
+      is `Set<i64> takes nothing, the elements in {a, b, c}, or a
+      borrow of another, '&s'`.
   - `{a, b, c}` works where the type is written, as a member's value
     or an initializer.
 - **Methods:** `insert(x)` (also `+=`), `true` if it was new;

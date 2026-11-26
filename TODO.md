@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #767 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #768 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -60,7 +60,14 @@ known, not what is planned.
     `an array is not assigned: assign its elements, a[i]`, the user's
     answer, at the value, in both, where they were C's errors and
     kc's an array is not copied by '=' (#767);
-  - left: `Set<i64>([1, 2])`.
+  - `Set<i64>([1, 2])` and `Dictionary<String, i64>(["a": 1])` are
+    kelvinc's own `Set<i64> takes nothing, the elements in {a, b, c},
+    or a borrow of another, '&s'` and the Dictionary's, at the `[`,
+    where kelvinc said an array is not a value here: write a compound
+    literal, which a Set does not take either; kc says them at the
+    `[` too, and what a Set or a Dictionary takes before `:=` of a
+    value, as kelvinc reads them (#768).
+  With it kelvinc's three of this order are done.
 
 - The user's order after #759, resolve kelvinc then kc, of what was
   left listed, with the answers, each pushed when clean:
@@ -223,10 +230,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1124 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1127 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 and #767 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764 and #766 to #768 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -393,6 +400,11 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #768 was made, not changed:
+  - `var a = Array<i64>("a")` is C's error of kelvinc's C and kc's
+    `Array<i64>(n) takes a count, and this is text`.
+  - `Set<pt>` of a struct is kelvinc's `a key of a Dictionary is an
+    integer or a String, not struct pt` and kc's `not pt`.
 - Found while #767 was made, not changed:
   - `var m:[[u8](3)](2) = ["ab", "cd"]`, rows of bytes given text, is
     built by kelvinc and refused by kc, `an element of [[u8](3)](2) is
@@ -428,8 +440,9 @@ known, not what is planned.
     (i64): assign it with '=', not ':='`.
   - `typealias ip = i64^` is kelvinc's `expected ';' or a new line
     before '^'` and kc's `expected a declaration`.
-  - `var s := Set<i64>([1, 2])` is kelvinc's `an array is not a value
-    here` and kc's `'s' is a value (Set<i64>)`.
+  - `var s := Set<i64>([1, 2])` was kelvinc's `an array is not a value
+    here` and kc's `'s' is a value (Set<i64>)`: `Set<i64> takes
+    nothing, the elements in {a, b, c}` in both since #768.
 - Found while #763 was made, not changed:
   - `t -= "a"` and `t *= 2` of a String, and `b -= 1` of a Bytes, were
     C's errors of kelvinc's C and kc's `an owner is assigned only as a
@@ -659,7 +672,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P771 and P772, the details of #766 and #767, until reviewed; the reviews confirmed
+- P771 to P773, the details of #766 to #768, until reviewed; the reviews confirmed
   every row to P770, and a review's own detail row is confirmed by that
   review (#675).
 

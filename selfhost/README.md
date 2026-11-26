@@ -1979,6 +1979,14 @@ kc reads what it is written in, and little more.
   - tests/error's array_declared_array.k, array_declared_nowhere.k,
     array_member_given_array.k, array_rows_given_array.k and
     array_inferred_by_eq.k have them.
+- **What a Set and a Dictionary take** (#768): `Set<i64>([1, 2])` and
+  `Dictionary<K, V>(["a": 1])` are said at the `[` by parse_make, in
+  kelvinc's words since the same number, where kc said the first
+  where it was written and `expected ']'` of the second.
+  - `var s := Set<i64>(5)` says what a Set takes before `:=` of a
+    value: `make_arg_refused`, which gen_var_of asks first.
+  - tests/error's set_made_of_array.k, dictionary_made_of_array.k and
+    set_made_declared_reference.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

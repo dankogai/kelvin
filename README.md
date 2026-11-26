@@ -1010,3 +1010,5 @@ So far the changes from C are these, by topic.
 - An array is not declared with another: `var a:[i64](2) = b` is `an
   array is not assigned: assign its elements, a[i]`, where it was C's
   error (#767)
+- `Set<i64>([1, 2])` says what a Set takes, `the elements in {a, b,
+  c}`, where it said to write a compound literal (#768)

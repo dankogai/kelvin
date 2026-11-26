@@ -48,6 +48,10 @@ in [ownership.md](ownership.md); this is the summary.
   - `${:}` where the type is written; `Dictionary<K, V>()`; a
     declaration without a value is empty.
   - `Dictionary<K, V>({k: v, ...})`; `Dictionary<K, V>(&other)` a copy.
+    - Anything else is an error that says so (#768):
+      `Dictionary<String, i64>(["a": 1])` is `Dictionary<String, i64>
+      takes nothing, the entries in {k: v, ...}, or a borrow of
+      another, '&d'`.
 - **`d[k]` read whole is an Optional** (#218): `some` of a copy of the
   value, or `none` where the key is missing.
   - `d[k]!` is the value, or the end of the program; `d[k] ?? v` gives a

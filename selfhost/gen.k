@@ -16212,6 +16212,7 @@ let gen_var(n:int64) {
 
 let gen_var_of(n:int64) {
     let written = nodes[n].ty >= 0
+    if make_arg_refused(nodes[n].a) { return }           // var s := Set<i64>(5): what it takes before = or := is said, as kelvinc's parser says it (#768)
     if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
     if failed { return }
     if nodes[n].a >= 0 && temp_borrowed(nodes[n].a) { return }   // let p := &$"text" (#187, #612)
@@ -21398,6 +21399,25 @@ let array_read(x:int64):bool {
     let y:int64 = type_of(x)
     if failed || y < 0 { return false }
     return types[y].kind == Y_FIXED || types[y].kind == Y_PTR || types[y].kind == Y_ARGV
+}
+
+// whether v is Set<T>(x) or Dictionary<K, V>(x) of an x that is no borrow
+// of one of its type, with kelvinc's error, which gen_make_set and
+// gen_make_dict say where the value is written (#768)
+let make_arg_refused(v:int64):bool {
+    if failed { return true }
+    if v < 0 || nodes[v].kind != N_MAKE || nodes[v].ty < 0 { return false }
+    let y:int64 = nodes[v].ty
+    let yk:ykind = types[y].kind
+    if (yk != Y_SET && yk != Y_DICT) || (nodes[v].flag != 4 && nodes[v].flag != 5) { return false }
+    let x:int64 = nodes[v].a
+    let p:int64 = nodes[v].flag == 4 ? nodes[x].a : 0 - 1
+    if p >= 0 && type_of(p) == y { return failed }
+    if failed { return true }
+    var m:String = kelvin_type_text(y)
+    m += yk == Y_SET ? " takes nothing, the elements in {a, b, c}, or a borrow of another, '&s'" : " takes nothing, the entries in {k: v, ...}, or a borrow of another, '&d'"
+    gen_error(x, m.cstr)
+    return true
 }
 
 // whether x is a function's name, or a variable that is a function
