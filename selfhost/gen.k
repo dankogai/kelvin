@@ -2773,6 +2773,34 @@ let untyped_key_refused(e:int64):bool {
     return true
 }
 
+// the type kelvinc sees of an arm of a choice, c ? a : b, where no type
+// is written (#777): none of a number or a character written, of
+// arithmetic, or of a choice it does not type
+let choice_arm_type(a:int64):int64 {
+    let k:nkind = nodes[a].kind
+    if k == N_NUM || k == N_CHAR || (k == N_UNARY && !tok_is(nodes[a].t, "!")) { return 0 - 1 }   // -x and ~x are arithmetic
+    if k == N_BIN && !is_comparison(nodes[a].t) && !tok_is(nodes[a].t, "&&") && !tok_is(nodes[a].t, "||") && !tok_is(nodes[a].t, "??") && !tok_is(nodes[a].t, "!!") && !is_string_plus(a) { return 0 - 1 }   // x ?? d is a T (#72)
+    if k == N_COND && !choice_typed(a) { return 0 - 1 }
+    return type_of(a)
+}
+
+// whether kelvinc types the choice v where no type is written, as its
+// value_type has it: a function's where an arm is one, or two arms of
+// one type it sees that is no pointer's, text's or array's; a word, none
+// or ok(v), takes the other arm's, as it did (#232)
+let choice_typed(v:int64):bool {
+    let b:int64 = nodes[v].b
+    let c:int64 = nodes[v].c
+    if is_word_value(b) || is_word_value(c) { return true }
+    let yb:int64 = choice_arm_type(b)
+    let yc:int64 = choice_arm_type(c)
+    if failed { return true }
+    if (yb >= 0 && types[yb].kind == Y_FN) || (yc >= 0 && types[yc].kind == Y_FN) { return true }
+    if yb < 0 || yc < 0 || yb != yc { return false }
+    let k:ykind = types[yb].kind
+    return k != Y_PTR && k != Y_CSTR && k != Y_FIXED && k != Y_ARGV && k != Y_C && k != Y_TYPEOF
+}
+
 // whether e is the name of a function of more than one type, which no
 // type written says which of
 let overloaded_name(e:int64):bool {
@@ -15285,6 +15313,10 @@ let inferred(n:int64):int64 {
     if (nodes[v].kind == N_SET || nodes[v].kind == N_DICT) && nodes[v].b >= 0 && untyped_key_refused(nodes[v].b) { return -1 }   // var a = ${1.5}: no key (#774), before the Set is asked its type
     resolve_op(v)
     let k:nkind = nodes[v].kind
+    if k == N_COND && !choice_typed(v) {                 // var q = c ? 1 : 2: kelvinc infers a choice's type of two values of one type it sees that is no pointer's, or of a function (#777), which kc built
+        if !failed { needs_type(n) }
+        return -1
+    }
     if k == N_ANON && nodes[v].flag == 0 {               // a count of its own parameter, as kelvinc says it (#656)
         var p:int64 = nodes[v].a
         while p >= 0 {
@@ -15381,6 +15413,20 @@ let inferred(n:int64):int64 {
     if k == N_NULL && !held_dollars.has(v) { return type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }   // var r := nowhere, an any^, as kelvinc infers it (#729)
     if bare_init(v) || k == N_NULL || word {
         needs_type(n)                                  // as kelvinc says it
+        return -1
+    }
+    if k == N_MAKE && tok_is(nodes[v].t, "Array") && nodes[v].ty < 0 && (nodes[v].flag == 4 || nodes[v].flag == 5) && nodes[v].a >= 0 && type_of(v) < 0 && !failed {   // Array("a"), Array(o), Array(&x) of what is no Array's and no fixed array: kelvinc's words (#777), where kc said 'a' needs a type
+        let ay:int64 = nodes[v].flag == 5 ? type_of(nodes[v].a) : 0 - 1
+        if failed { return -1 }
+        if ay >= 0 && types[ay].kind == Y_FIXED && fixed_inside(types[ay].elem) {
+            var m = $"an Array of "
+            let ew:String = type_text(types[ay].elem)
+            m += &ew
+            m += " is not here yet: an element is a value C returns"
+            gen_error(nodes[v].a, m.cstr)
+            return -1
+        }
+        gen_error(v, "Array(x) has no element type: write Array<T>(x), or the elements, Array([...])")
         return -1
     }
     if k == N_MAKE && tok_is(nodes[v].t, "Array") && nodes[v].ty < 0 && nodes[v].flag == 5 && nodes[v].a >= 0 && (nodes[nodes[v].a].kind == N_NUM || (type_of(nodes[v].a) >= 0 && is_int_kind(types[type_of(nodes[v].a)].kind))) {   // Array(3) of a count, as kelvinc says it
@@ -15954,7 +16000,8 @@ let gen_array_literal(n:int64) {
 // type, as gen_array asks of $[a, b], no more than its count (#354); of
 // ([T](N))[a, b], its type y, or one of its elements where y has no count (#419)
 let fixed_list_fits(v:int64, y:int64):bool {
-    let e:int64 = types[y].elem
+    var e:int64 = types[y].elem
+    if zeros_row(v, e) >= 0 { e = zeros_row(v, e) }      // rows of no count written whose first is zeros, [[i64](2), [3, 4]]: the zeros' count, as kelvinc takes it (#777)
     if nodes[v].ty >= 0 && nodes[v].flag == 0 {
         let vy:int64 = plain_fixed(type_of(v))
         if vy != plain_fixed(y) && !(types[y].name == 0 - 1 && types[vy].kind == Y_FIXED && types[vy].elem == e) {   // [const T](N) of ([T](N))[a, b] (#425)
@@ -16232,7 +16279,7 @@ let gen_fixed_var(n:int64) {
         }
         if nodes[v].b >= 0 && !fixed_list_fits(v, y) { return }
         let first:int64 = nodes[v].b
-        let rows:int64 = first >= 0 && nodes[first].kind == N_LIST && nodes[first].flag == 0 ? counted(types[y].elem, first) : types[y].elem   // a row's count its first row's, as kelvinc's (#717)
+        let rows:int64 = zeros_row(v, types[y].elem) >= 0 ? zeros_row(v, types[y].elem) : first >= 0 && nodes[first].kind == N_LIST && nodes[first].flag == 0 ? counted(types[y].elem, first) : types[y].elem   // a row's count its first row's, as kelvinc's (#717); of zeros, theirs (#777)
         if types[y].name < 0 && types[y].name > 0 - 10 {   // [T] of its elements; [T](LIMIT + 1) keeps its count (#451)
             let konst = types[y].konst == 1
             y = type_of_kind(Y_FIXED, rows, type_of(v) >= 0 ? types[type_of(v)].name : 0)
@@ -21572,6 +21619,17 @@ let brace_no_value(v:int64):bool {
     if v < 0 || (!bare_init(v) && nodes[v].kind != N_ANON) { return false }
     tok_error(nodes[v].t, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
     return true
+}
+
+// the row type of the list v whose rows, of type e, write no count and
+// whose first is zeros, [T](n), of e's elements: the zeros' type, or -1
+let zeros_row(v:int64, e:int64):int64 {
+    if e < 0 || types[e].kind != Y_FIXED || (types[e].name != 0 - 1 && types[e].name != 0 - 3) { return 0 - 1 }
+    let first:int64 = nodes[v].b
+    if first < 0 || nodes[first].kind != N_LIST || nodes[first].flag != 1 { return 0 - 1 }
+    let zy:int64 = plain_fixed(type_of(first))
+    if failed || zy < 0 || types[zy].kind != Y_FIXED || types[zy].elem != types[e].elem { return 0 - 1 }
+    return zy
 }
 
 // v, zeros [T](n) or a compound literal ([T])[...], where an array of

@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #776 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #777 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -199,6 +199,23 @@ known, not what is planned.
 
 ## kc
 
+- The user's order after #775, kc's of the five left listed, after
+  kelvinc's one (#776), pushed when clean (#777):
+  - a choice, `c ? a : b`, in a declaration of no type written is
+    `'q' needs a type` unless its arms are two values of one type
+    kelvinc sees that is no pointer's, text's or array's, or one is a
+    function, the user's answer, kc follows kelvinc: of numbers
+    written, of pointers, of text, of arithmetic and of two types,
+    which kc built;
+  - `Array("a")`, `Array(o)` and `Array(&x)` of no type written are
+    kelvinc's `Array(x) has no element type`, and `Array(b)` of rows
+    its `an Array of [i64](2) is not here yet`, where kc said `'a'
+    needs a type`;
+  - rows of no count written whose first is zeros take the zeros'
+    count, where it was C's error;
+  - left: what is listed under "Found while #777 was made", and the
+    places of `${o}` of a struct and of `Array(b)` of rows.
+
 - The user's order after #770, kc's of what was left listed and what
   #771 to #773 found, after kelvinc's three, pushed when clean (#774):
   - `[v.type](2)` of a `v` whose count C computes, the last of the
@@ -308,10 +325,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1161 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1164 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774 and #776 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776 and #777 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -478,14 +495,18 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #777 was made, not changed:
+  - `var q = c ? a.count : a.count`, a choice of two properties, is
+    kelvinc's `'q' needs a type` and built by kc.
 - Found while #776 was made, not changed:
   - `println(g)` of a `g:[[i64](N)](2)` whose `N` is a global let is
     printed by kelvinc, `[[0, 0, 0], [0, 0, 0]]`, and C's error of
     kc's C, fields must have a constant size.
 - Found while #774 was made, not changed:
   - `var q = c ? 1 : 2`, a choice in a declaration of no type written,
-    is kelvinc's `'q' needs a type` of numbers and of pointers, and
-    built by kc; kelvinc infers one of text, as kc's own source has.
+    is kelvinc's `'q' needs a type` of numbers and of pointers, and was
+    built by kc; kelvinc infers one of two Strings, as kc's own source
+    has: kelvinc's rule in both since #777.
   - `println(w)` of a `w:[v.type](2)` whose `v` is of a count C
     computes was C's error of kelvinc's C, use of undeclared
     identifier, and kc's `kc prints a number, a bool, text`: `an array
@@ -497,11 +518,12 @@ known, not what is planned.
   - `var a = ${o}` of a struct and `${c}` of an enum are kelvinc's `a
     key of a Dictionary is an integer or a String, not struct pt`, at
     the variable's type where it is declared, and kc's at the element,
-    an enum's C's error of kc's C.
+    an enum's in kelvinc's words too since #774.
 - Found while #773 was made, not changed:
   - `var m:[[i64]](2) = [[i64](2), [3, 4]]`, rows of no count written
     whose first is zeros, is built by kelvinc, the rows of the zeros'
-    count, and C's error of kc's C, array has incomplete element type.
+    count, and was C's error of kc's C, array has incomplete element
+    type: built by both since #777.
 - Found while #772 was made, not changed:
   - A member that is an array given zeros, `{[i64](2)}`, or a compound
     literal, `{([i64])[3, 4]}`, was C's error of kelvinc's C,
@@ -513,9 +535,10 @@ known, not what is planned.
     takes a count, and this is Array<i64>^`: a copy by both since
     #774.
   - `var a = Array("a")` is kelvinc's `Array(x) has no element type`
-    and kc's `'a' needs a type`; `var a = Array(b)` of rows is
-    kelvinc's `an Array of [i64](2) is not here yet` and kc's `'a'
-    needs a type`.
+    and was kc's `'a' needs a type`; `var a = Array(b)` of rows is
+    kelvinc's `an Array of [i64](2) is not here yet` and was kc's `'a'
+    needs a type`: kelvinc's words in both since #777, the second at
+    the array given by kc and at its declared type by kelvinc.
 - Found while #769 was made, not changed:
   - `nowhere` in a literal of no type written, `var a = $[nowhere]`,
     `${"a": nowhere}` and `[nowhere]`, is built by kelvinc, of `any^`,
@@ -810,7 +833,7 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P781, the details of #776, until reviewed; the reviews confirmed
+- P781 and P782, the details of #776 and #777, until reviewed; the reviews confirmed
   every row to P780, and a review's own detail row is confirmed by that
   review (#675).
 

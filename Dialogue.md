@@ -14922,3 +14922,17 @@ println(g[i])` in both, where it was C's error.
 Details are provisional P781.
 
 There are 1721 tests, and all pass with clang and with gcc 15.
+
+### 824. kc's of the order after #775
+
+**Claude** wrote #776, its battery run and pushed when clean.
+
+**Claude** made kc's #777: a choice in a declaration of no type
+written is `'q' needs a type` by kelvinc's rule, the user's answer,
+kc follows kelvinc; `Array("a")` of no type written says kelvinc's
+`Array(x) has no element type`; rows of no count written whose
+first is zeros take the zeros' count. kelvinc is as it was.
+
+Details are provisional P782.
+
+There are 1726 tests, and all pass with clang and with gcc 15.

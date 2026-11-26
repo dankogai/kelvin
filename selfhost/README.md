@@ -2085,6 +2085,22 @@ kc reads what it is written in, and little more.
   text` or left it to C.
   - tests/error's print_rows_computed.k and
     print_typeof_rows_computed.k have them.
+- **kc's of the order after #775** (#777):
+  - A choice in a declaration of no type written: `choice_typed`, as
+    kelvinc's value_type of `c ? a : b`, takes a function's arm, or two
+    arms of one type that is no pointer's, cstr's or array's and none
+    only C sees; `choice_arm_type` gives none of a number or a
+    character written, of a unary but `!`, and of arithmetic; a word,
+    none or ok(v), takes the other arm's, as it did. inferred says
+    `'q' needs a type` of the rest, which kc built.
+  - inferred says kelvinc's `Array(x) has no element type` of an
+    Array(x) or Array(&x) of no type written whose type type_of does
+    not see, and `an Array of [i64](2) is not here yet` of rows.
+  - `zeros_row` gives rows of no count written, whose first is zeros,
+    the zeros' type, to fixed_list_fits and gen_fixed_var.
+  - tests/run's choice_untyped_values.k and rows_zeros_first.k, and
+    tests/error's choice_untyped_literals.k,
+    choice_untyped_pointers.k and array_untyped_text.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
