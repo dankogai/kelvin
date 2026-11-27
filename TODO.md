@@ -39,12 +39,25 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #782 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #783 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #782, resolve kelvinc then kc, of the three
+  left listed, each pushed when clean:
+  - a count that is no integer, `var v:[i64](3.0)`, text, a struct, a
+    pointer, a String and `nowhere`, is kc's `an array's count is an
+    integer, and this is f64`, at the count, wherever a type is read,
+    where it was C's error, size of array has non-integer type; kc
+    says it before a list's sentence, and of a float or text written
+    in a member's and a parameter's type, where it left them to C
+    (#783).
+  With it kelvinc's one of this order is done: a pointer of another
+  element where a pointer is an Array's element is kc's to follow
+  kelvinc in, which leaves it to C, as both do of a declaration.
 
 - The user's order after #778, resolve kelvinc then kc, of the four
   left listed, each pushed when clean:
@@ -357,10 +370,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1170 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1173 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779 and #781 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781 and #783 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -529,9 +542,10 @@ known, not what is planned.
     `[i64](3) has no member 'sum'`, and kc's too since #736.
 - Found while #782, the review, was made, not changed:
   - `var v:[i64](3.0) = [1, 2, 3]`, a list given to an array whose
-    count is a float written, is C's error of kelvinc's C, size of
+    count is a float written, was C's error of kelvinc's C, size of
     array has non-integer type, and kc's `an array of a count computed
-    at run time takes no elements in C`.
+    at run time takes no elements in C`: `an array's count is an
+    integer, and this is f64` in both since #783.
 - Found while #781 was made, not changed:
   - `var a:$[f64^] = $[b]` of a `b:[i64](2)`, a fixed array read where
     a pointer of another element goes, is built by kelvinc, which
@@ -884,8 +898,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P787, and a review's own
-  detail row is confirmed by that review (#675).
+- P788, the details of #783, until reviewed; the reviews confirmed
+  every row to P787, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

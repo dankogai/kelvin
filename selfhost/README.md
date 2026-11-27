@@ -2121,6 +2121,14 @@ kc reads what it is written in, and little more.
     takes one where an `i64^` or an `any^` goes.
   - tests/error's choice_untyped_properties.k and tests/run's
     array_of_fixed_reads.k have them.
+- **A count is an integer** (#783), kelvinc's since that number, in
+  kc's sentence: `an array's count is an integer, and this is f64`.
+  - computed_ok says it of a float's or text's count before a list's
+    `takes no elements in C`, as kelvinc reads the type first.
+  - parse.k says it of a float or text written where any array's type
+    is read, a member's and a parameter's too, which kc left to C.
+  - tests/error's array_count_float.k, array_count_text_member.k and
+    array_count_struct.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

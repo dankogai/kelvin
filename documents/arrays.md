@@ -137,6 +137,9 @@ a `const` array after declaring it.
   - A count is C's constant where it is a number written, `sizeof`, an
     enumerator, or these by `+ - * / %`; a let's name is none, though
     a C compiler may fold it.
+- A count is an integer (#783): `var v:[i64](3.0)` is `an array's count
+  is an integer, and this is f64`, text's and a struct's alike, where
+  it was C's error.
 
 ### `.count` and `.size`
 

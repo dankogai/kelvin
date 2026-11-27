@@ -16205,6 +16205,22 @@ let computed_ok(n:int64, y:int64, v:int64):bool {
         gen_error(n, m.cstr)
         return false
     }
+    var cf:int64 = y                                     // a count that is no integer first, [i64](3.0) = [1, 2, 3], as kelvinc reads the type before the value (#783)
+    while types[cf].kind == Y_FIXED {
+        if types[cf].name <= 0 - 10 {
+            let c0:int64 = 0 - 10 - types[cf].name
+            let cy0:int64 = type_of(c0)
+            if failed { return false }
+            if nodes[c0].kind == N_STR || (cy0 >= 0 && (types[cy0].kind == Y_F64 || types[cy0].kind == Y_F32)) {
+                var m = $"an array's count is an integer, and this is "
+                let w:String = nodes[c0].kind == N_STR ? $"text" : kelvin_type_text(cy0)
+                m += &w
+                gen_error(c0, m.cstr)
+                return false
+            }
+        }
+        cf = types[cf].elem
+    }
     if v >= 0 && !(nodes[v].kind == N_LIST && nodes[v].flag == 1) {
         gen_error(v, "an array of a count computed at run time takes no elements in C: give them one by one, a[i] = ...")
         return false

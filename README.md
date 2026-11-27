@@ -1029,3 +1029,5 @@ So far the changes from C are these, by topic.
   let's name too, is `an array of a count computed at run time takes
   no elements in C`, where it was C's error or leaned on a C
   compiler's extension (#779)
+- `var v:[i64](3.0)` is `an array's count is an integer, and this is
+  f64`, where it was C's error (#783)

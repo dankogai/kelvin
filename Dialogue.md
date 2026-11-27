@@ -15028,3 +15028,21 @@ to P786 marked confirmed, as later numbers amend them, and P787,
 Details are P787, confirmed by #782 itself.
 
 There are 1733 tests, and all pass with clang and with gcc 15.
+
+### 830. A count is an integer
+
+**Claude** wrote #782, its battery run and pushed when clean, its CI
+all green, and asked what next.
+
+**User:** resolve kelvinc then kc (recommended)
+
+**Claude** gave the three left listed to both compilers again: a
+pointer of another element is left to C by both where a pointer is
+declared, so an Array's element is kc's to follow kelvinc in; and
+made kelvinc's #783: `var v:[i64](3.0)`, text, a struct and a
+pointer where a count is written are kc's `an array's count is an
+integer, and this is f64`, where they were C's errors.
+
+Details are provisional P788.
+
+There are 1736 tests, and all pass with clang and with gcc 15.

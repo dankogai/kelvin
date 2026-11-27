@@ -346,6 +346,7 @@ var name_annotation = true
 // a number type's word at t in its short spelling: int32 is i32, float64 f64
 let kelvin_type_text(y:int64):String    // a prototype: gen.k's, a type in kelvinc's words
 let tag_word(y:int64):String            // a prototype: gen.k's, the word before a struct's name
+let float_tok(t:int64):bool             // a prototype: gen.k's, whether a number's token is a float's
 let is_number_kind(k:ykind):bool    // a prototype: gen.k's, of atomic's types (#642)
 
 let short_number(t:int64):String {
@@ -1978,6 +1979,10 @@ let parse_bare_type():int64 {
             }
             if count < 0 {                           // a count C computes, a local's (#366): -10 - its node
                 count = 0 - 10 - parse_expr()
+                let cn:int64 = 0 - 10 - count            // a float or text written is no count, of a member's and a parameter's type too, as kelvinc says it where the type is read (#783)
+                if !failed && (nodes[cn].kind == N_STR || (nodes[cn].kind == N_NUM && float_tok(nodes[cn].t))) {
+                    parse_error_at(nodes[cn].t, nodes[cn].kind == N_STR ? "an array's count is an integer, and this is text" : "an array's count is an integer, and this is f64")
+                }
             } else {
                 advance()
             }

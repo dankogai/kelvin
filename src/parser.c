@@ -803,6 +803,9 @@ static bool computed_decl; /* while a declaration's value is read, at computed_d
 static Pos computed_decl_pos;
 static bool counts_var(Type *t);
 static const Pos *value_type_at; /* where a type a value gave is checked (#780) */
+static const char *literal_type(Expr *e);
+static const char *number_kind(Type *t);
+static const char *literal_arithmetic(Expr *e);
 static const char *fn_shown(Decl *d);
 static const char *article(const char *w);
 static bool is_bytes(Type *t);
@@ -1591,6 +1594,26 @@ static Type *parse_type_in0(TypeContext ctx) {
             advance();
             a->size = parse_assign();
             a->size_local = names_local(a->size);
+            { /* a count is an integer (#783), kc's sentence: C's error before, size of array has non-integer type */
+                Type *ct = value_type(a->size);
+                Type *cu = ct ? unqualified(ct) : NULL;
+                const char *lit = literal_type(a->size);
+                if (!lit && a->size->kind == E_BINARY)
+                    lit = literal_arithmetic(a->size); /* 1.5 + 1.5 */
+                bool null = a->size->kind == E_LITERAL && a->size->text && !strcmp(a->size->text, "nowhere");
+                bool text = a->size->kind == E_STRING || is_text_expr(a->size);
+                bool flt = (lit && (!strcmp(lit, "f64") || !strcmp(lit, "f32"))) ||
+                           (cu && cu->kind == T_BASE && (!strcmp(cu->name, "f64") || !strcmp(cu->name, "f32")));
+                Decl *cr;
+                bool other = cu && !text && !flt &&
+                             !(cu->kind == T_BASE && (number_kind(cu) || !strcmp(cu->name, "bool") || type_class(cu, &cr) == 'u')) &&
+                             cu->kind != T_TYPEOF;
+                bare_tags = true;
+                if (text || flt || other || null)
+                    error_at(a->size->pos, "an array's count is an integer, and this is %s",
+                             text ? "text" : null ? "any^" : flt && !cu ? lit : kelvin_type(cu));
+                bare_tags = false;
+            }
             if (a->size_local && zero_size(elem)) /* (#499) */
                 error_at(a->size->pos,
                          "an array of %s, whose elements have no size, takes a constant length: its count is the "
