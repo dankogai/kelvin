@@ -15004,3 +15004,27 @@ an Array of [i64](2) is not here yet. kelvinc is as it was.
 Details are provisional P786.
 
 There are 1733 tests, and all pass with clang and with gcc 15.
+
+### 829. The review, batch 30
+
+**Claude** wrote #781, its battery run and pushed when clean, its CI
+all green, and asked what next.
+
+**User:** review P784 to P786 (recommended)
+
+**Claude** read each row against the code and the batteries'
+summaries, gave 13 statements to both compilers again, and found one
+row imprecise: P784 said kelvinc's rule takes an integer written,
+where it takes any number written, so a count of 3.0 with a list is
+C's error in kelvinc and kc's sentence; and asked how the review
+should treat it.
+
+**User:** amend 1, confirm all, push (recommended)
+
+**Claude** made it #782: P784 amended, the difference listed, P784
+to P786 marked confirmed, as later numbers amend them, and P787,
+#782's own row, confirmed by #782.
+
+Details are P787, confirmed by #782 itself.
+
+There are 1733 tests, and all pass with clang and with gcc 15.
