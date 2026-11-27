@@ -3722,6 +3722,37 @@ let article_of(w:const String^):cstr {
     return "a"
 }
 
+// how a mismatch's sentence ends, as kelvinc's check_element_value ends
+// it (#784): a let's borrow where a T^ that may change what it borrows
+// goes, an Array's element, a Dictionary's value and an Optional's case
+// alike, and a value of the type the pointer borrows, give a borrow
+let this_is(v:int64, vy:int64, bad:const String^):String {
+    var t:int64 = vy
+    if t >= 0 && wrap_type(t) >= 0 { t = wrap_type(t) }
+    let k:nkind = nodes[v].kind
+    var m = $""
+    if t >= 0 && types[t].kind == Y_PTR && (k == N_ID || k == N_FIELD || k == N_ADDR || k == N_INDEX || k == N_CALL) && !is_case_word(v) {
+        let y:int64 = type_of(v)
+        if y >= 0 && types[y].kind == Y_PTR && ptr_const(y) && !ptr_const(t) && (k == N_ADDR || is_owner(types[y].elem)) {
+            m += ", which may change what it borrows, and this is "
+            m += bad
+            m += ", a let's: write const in the type taken, or borrow a var"
+            return m
+        }
+        if y >= 0 && types[t].elem >= 0 && type_text(types[t].elem) == type_text(own_plain(y)) {
+            m += ", and this is "
+            m += bad
+            m += ": give a borrow, '&"
+            m += k == N_ID ? tok_text(nodes[v].t) : $"x"
+            m += "'"
+            return m
+        }
+    }
+    m += ", and this is "
+    m += bad
+    return m
+}
+
 // whether value n goes where a t goes: not a const T^, a let's borrow,
 // where a T^ that may change what it borrows goes (#272, #273); who
 // names what takes it, as kelvinc's lead
@@ -3875,7 +3906,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     if null { y = type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }
     if !number_lit && !text_lit && !null {
         let row = k == N_INDEX && !is_slice(v) && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_FIXED && types[types[type_of(nodes[v].a)].elem].kind == Y_FIXED   // a[1] of an array of arrays, an array (#736)
-        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row && !(k == N_TPL && wk == Y_STRING && nodes[v].flag != 1) { return true }   // a template that is a cstr where a String goes, as a cstr variable (#749)
+        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row && !(k == N_TPL && wk == Y_STRING && nodes[v].flag != 1) && !(k == N_ADDR && wk == Y_PTR) { return true }   // a template that is a cstr where a String goes, as a cstr variable (#749); &x where a pointer goes, a let's borrow told (#784)
         if k == N_ID && (is_case_word(v) || (var_type(nodes[v].t) < 0 && fn_named(nodes[v].t) < 0)) { return true }
         y = type_of(v)                                   // a function's own name too, 'n' is an i64, and this is ((i64):i64):i64, as kelvinc says it (#764), where it was C's error
         if failed { return false }
@@ -3889,6 +3920,20 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     let text = text_lit || yk == Y_CSTR
     var ok = true
     var lend = false
+    if wk == Y_PTR && yk == Y_PTR && !ptr_const(want) && ptr_const(y) && (k == N_ADDR || is_owner(types[y].elem)) {   // a let's borrow where a T^ that may change what it borrows goes, a += &x of an Array<i64^>, as kelvinc says it (#784), which kc built
+        var m = lead^.copy()
+        let w:String = kelvin_type_text(want)
+        m += " "
+        m += article_of(&w)
+        m += " "
+        m += &w
+        m += ", which may change what it borrows, and this is "
+        let got:String = kelvin_type_text(y)
+        m += &got
+        m += ", a let's: write const in the type taken, or borrow a var"
+        value_error(v, m.cstr)
+        return false
+    }
     if is_number_kind(wk) || wk == Y_BOOL {
         ok = number
     } else if wk == Y_STRING {
@@ -6225,9 +6270,13 @@ let put_show_name(y:int64) {
     }
 }
 
-// self->path, and t's name after it where t is one
+// self->path, and t's name after it where t is one; _kv_fpath where the
+// value shown is a local of the printer's block, a pointer to rows of a
+// count C computes, which no struct's member is (#784)
+var self_local = false
+
 let put_self(path:cstr, t:int64) {
-    put("self->")
+    put(self_local ? "_kv_f" : "self->")
     put(path)
     if t >= 0 { put_tok(t) }
 }
@@ -8666,11 +8715,25 @@ let fixed_ok(y:int64, v:int64):bool {
 // at the level after, each on a line of its own where level is not -1
 let put_fixed_top(w:int64, y:int64, target:cstr, wn:int64, level:cstr) {
     let cy:int64 = shown_count_of(y, w)
-    put("{ const struct { const __typeof__((")         // its elements by a pointer, self->a, which an array of a count C computes takes too (#699)
-    gen_expr(w)
-    put(")[0]) *a; } _kv_fs = { (")
-    gen_expr(w)
-    put(") }, *self = &_kv_fs; size_t _kv_fc = ")       // its count, read before o names the output, as a variable o may be the array (#699)
+    var rows = false                                     // rows of a count C computes, a global let's: a pointer to them is no struct's member in C, fields must have a constant size, so it is a local, _kv_fa (#784), where it was C's error
+    var r = types[y].elem
+    while r >= 0 && types[r].kind == Y_FIXED {
+        if types[r].name <= 0 - 10 { rows = true }
+        r = types[r].elem
+    }
+    if rows {
+        put("{ const __typeof__((")
+        gen_expr(w)
+        put(")[0]) *_kv_fa = (")
+        gen_expr(w)
+        put("); size_t _kv_fc = ")
+    } else {
+        put("{ const struct { const __typeof__((")     // its elements by a pointer, self->a, which an array of a count C computes takes too (#699)
+        gen_expr(w)
+        put(")[0]) *a; } _kv_fs = { (")
+        gen_expr(w)
+        put(") }, *self = &_kv_fs; size_t _kv_fc = ")   // its count, read before o names the output, as a variable o may be the array (#699)
+    }
     if cy != y && types[cy].name >= 0 {                  // a parameter's, as declared
         put("((size_t)")
         put_int(types[cy].name)
@@ -8705,7 +8768,10 @@ let put_fixed_top(w:int64, y:int64, target:cstr, wn:int64, level:cstr) {
     put(") + 1; (void)_kv_nl;\n    kv_out_put(o, \"[\");\n    for (size_t _kv_t = 0; _kv_t < _kv_fc; _kv_t++)\n    {\n    kv_out_sep(o, ")
     put(level)
     put(", _kv_t == 0);\n    ")
+    let was = self_local
+    self_local = rows
     show_value(types[y].elem, "a[_kv_t]", 0 - 1, "_kv_nl")
+    self_local = was
     put("    }\n    kv_out_end(o, ")
     put(level)
     put(");\n    kv_out_put(o, \"]\"); } ")
@@ -12308,6 +12374,7 @@ let fits_value(n:int64, t:int64):bool {
     if k == N_NULL && (tk == Y_PTR || tk == Y_CSTR || tk == Y_FN) { return true }   // nowhere where a pointer goes: some(nowhere) of an i64^? (#729)
     if k == N_NUM && tk == Y_PTR && zero_literal(nodes[n].t) { return true }   // 0, C's null, where a pointer's Optional goes (#760)
     if own_plain(type_of(n)) == t { return true }       // a p:i64^ const is an i64^ where a value goes (#742)
+    if tk == Y_PTR && type_of(n) >= 0 && ((types[type_of(n)].kind == Y_PTR && !(ptr_const(type_of(n)) && !ptr_const(t) && (k == N_ADDR || is_owner(types[type_of(n)].elem)))) || (types[type_of(n)].kind == Y_FIXED && types[type_of(n)].name >= 0)) { return true }   // a pointer of another element, or a fixed array read, where a pointer's Optional goes: C's to check, as kelvinc leaves it (#784)
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
 
@@ -12421,8 +12488,8 @@ let gen_array(n:int64, given:int64) {
                 m += article_of(&ew)
                 m += " "
                 m += &ew
-                m += ", and this is "
-                m += &bad
+                let tail:String = this_is(e, elem, &bad)   // a let's borrow and a value to borrow, as kelvinc ends it (#784)
+                m += &tail
                 value_error(e, m.cstr)
                 return
             }
@@ -12543,8 +12610,8 @@ let dict_entries_fit(n:int64, y:int64):bool {
             m += article_of(&ew)
             m += " "
             m += &ew
-            m += ", and this is "
-            m += &bad
+            let tail:String = this_is(v, types[y].elem, &bad)   // a let's borrow and a value to borrow, as kelvinc ends it (#784)
+            m += &tail
             value_error(v, m.cstr)
             return false
         }
@@ -12726,8 +12793,8 @@ let case_value_fits(v:int64, m:int64, whole:int64):bool {
     msg += article_of(&cw)
     msg += " "
     msg += &cw
-    msg += ", and this is "
-    msg += &bad
+    let tail:String = this_is(v, c, &bad)   // a let's borrow and a value to borrow, as kelvinc ends it (#784)
+    msg += &tail
     value_error(v, msg.cstr)
     return false
 }
@@ -16056,8 +16123,8 @@ let fixed_list_fits(v:int64, y:int64):bool {
                     m += article_of(&ew)
                     m += " "
                     m += &ew
-                    m += ", and this is "
-                    m += &bad
+                    let tail:String = this_is(dv, e, &bad)   // a let's borrow and a value to borrow, as kelvinc ends it (#784)
+                    m += &tail
                     value_error(dv, m.cstr)
                     return false
                 }
@@ -21811,8 +21878,8 @@ let entry_fits(v:int64, dy:int64):bool {
     m += article_of(&ew)
     m += " "
     m += &ew
-    m += ", and this is "
-    m += &bad
+    let tail:String = this_is(v, types[dy].elem, &bad)   // a let's borrow and a value to borrow, as kelvinc ends it (#784)
+    m += &tail
     tok_error(value_tok(v), m.cstr)                      // at the assignment's operator, as kelvinc's (#686)
     return false
 }
@@ -21933,10 +22000,11 @@ let value_mismatch_text(v:int64, vy:int64):String {
     if number { return is_number_kind(vk) ? $"" : $"a number" }
     let y:int64 = own_plain(type_of(v))                 // a p:i64^ const is an i64^ where a value goes (#742)
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
+    if vk == Y_PTR && types[y].kind == Y_PTR && !(ptr_const(y) && !ptr_const(vy) && (k == N_ADDR || is_owner(types[y].elem))) { return $"" }   // a pointer of another element where a pointer goes is C's to check, as kelvinc leaves it and as both leave a declaration's (#784), where kc said an element of Array<f64^> is an f64^, and this is i64^; a let's borrow, &x of a let or a const T^ of an owner, where a T^ that may change it goes, is told
     if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
     if types[y].kind == Y_CSTR { return $"cstr" }       // a cstr variable, and a template that is one, where a case of another kind goes, a String's too, as kelvinc names it (#749)
     if types[y].kind == Y_FIXED && types[y].name != 0 - 2 && types[y].name != 0 - 4 {   // an array where a value goes is its first element's address, i64^, as kelvinc names it (#736)
-        if vk == Y_PTR && types[vy].elem >= 0 && (types[vy].elem == types[y].elem || types[types[vy].elem].kind == Y_VOID) { return $"" }   // and goes where an i64^ or an any^ goes (#781)
+        if vk == Y_PTR { return $"" }                    // and goes where a pointer goes (#781); of another element C's to check, as kelvinc leaves it (#784)
         var w = kelvin_type_text(types[y].elem)
         w += "^"
         return w

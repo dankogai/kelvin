@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #783 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #784 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -57,7 +57,9 @@ known, not what is planned.
     (#783).
   With it kelvinc's one of this order is done: a pointer of another
   element where a pointer is an Array's element is kc's to follow
-  kelvinc in, which leaves it to C, as both do of a declaration.
+  kelvinc in, which leaves it to C, as both do of a declaration, and
+  kc's since #784, as the rows of a global let's count printed are:
+  the three are done.
 
 - The user's order after #778, resolve kelvinc then kc, of the four
   left listed, each pushed when clean:
@@ -232,6 +234,30 @@ known, not what is planned.
 
 ## kc
 
+- The user's order after #782, kc's of the three left listed and what
+  they found, after kelvinc's one (#783), pushed when clean (#784):
+  - a pointer of another element where a pointer is an Array's
+    element, a Dictionary's value or an Optional's case is left to C,
+    as kelvinc leaves it and as both leave a declaration's: `var
+    a:$[f64^] = $[b]` of a `b:[i64](2)` and `$[&x]` of an i64, where
+    kc said `an element of Array<f64^> is an f64^, and this is i64^`;
+    a const pointer's variable that is no owner's too;
+  - a fixed array read goes where a pointer's Optional goes, `var
+    q:i64^? = b`, its first element's address, where it was C's error;
+  - rows of a count that is a global let's are printed whole,
+    `println(g)` of a `g:[[i64](N)](2)`, as kelvinc prints them, where
+    it was C's error, fields must have a constant size;
+  - a let's borrow where a T^ that may change what it borrows is an
+    Array's element, a Dictionary's value or entry, or an Optional's
+    case ends kelvinc's way, `..., which may change what it borrows,
+    and this is const i64^, a let's: write const in the type taken, or
+    borrow a var`; of `a += &x`, `.append` and `.insert`, which kc
+    built;
+  - a value of the type a pointer borrows, given where the pointer is
+    a list's element, a Dictionary's value or entry, or an Optional's
+    case, ends `: give a borrow, '&x'`, as kelvinc's;
+  - left: what is listed under "Found while #784 was made".
+
 - The user's order after #778, kc's of the four left listed and what
   #780 found, after kelvinc's two, pushed when clean (#781):
   - a choice of two properties, `c ? a.count : a.count`, of `.size`
@@ -242,7 +268,8 @@ known, not what is planned.
     written are of `i64^`, and it goes where an `i64^` or an `any^`
     is the element, as kelvinc's, where kc said an Array of [i64](2)
     is not here yet;
-  - left: rows of a global let's count printed, kc's C error.
+  - left: rows of a global let's count printed, kc's C error; printed
+    since #784.
 
 - The user's order after #775, kc's of the five left listed, after
   kelvinc's one (#776), pushed when clean (#777):
@@ -370,10 +397,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1173 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1178 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781 and #783 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783 and #784 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -540,6 +567,21 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #784 was made, not changed:
+  - `var d:${String: i64} = ${}`, an empty Dictionary written `${}`
+    where its type is written, is `an empty Dictionary is written
+    ${:}` in both, kelvinc's at the `}` and kc's at the `$`.
+  - `d.set("k", 1)` of a Dictionary is kelvinc's `a Dictionary has no
+    method 'set': has, find, get, remove, clear, reserve and copy, and
+    the properties count and isEmpty`, and kc's `this method is not
+    known`.
+  - `var a:$[i64^] = $[x + 1]` of an i64 `x`, arithmetic where a
+    pointer is the element, and an Optional's case alike, ends `and
+    this is a number` in kelvinc and `and this is i64` in kc.
+  - `var g:[[String](N)](2)` of a global let's `N` is kelvinc's `an
+    array of owners is not here yet: a struct may hold them`, as of a
+    count written in both, and kc's `kc reads a fixed array as a
+    variable, a struct's member, ...`.
 - Found while #782, the review, was made, not changed:
   - `var v:[i64](3.0) = [1, 2, 3]`, a list given to an array whose
     count is a float written, was C's error of kelvinc's C, size of
@@ -549,8 +591,9 @@ known, not what is planned.
 - Found while #781 was made, not changed:
   - `var a:$[f64^] = $[b]` of a `b:[i64](2)`, a fixed array read where
     a pointer of another element goes, is built by kelvinc, which
-    leaves a pointer's element to C, and kc's `an element of
-    Array<f64^> is an f64^, and this is i64^`.
+    leaves a pointer's element to C, and was kc's `an element of
+    Array<f64^> is an f64^, and this is i64^`: left to C by both since
+    #784.
 - Found while #780 was made, not changed:
   - `var a = $[b]` of a fixed array `b`, `${"k": b}` and `Array([b])`
     are built by kelvinc, of `i64^`, the array read its first
@@ -562,8 +605,9 @@ known, not what is planned.
     both since #781.
 - Found while #776 was made, not changed:
   - `println(g)` of a `g:[[i64](N)](2)` whose `N` is a global let is
-    printed by kelvinc, `[[0, 0, 0], [0, 0, 0]]`, and C's error of
-    kc's C, fields must have a constant size.
+    printed by kelvinc, `[[0, 0, 0], [0, 0, 0]]`, and was C's error of
+    kc's C, fields must have a constant size: printed by both since
+    #784.
 - Found while #774 was made, not changed:
   - `var q = c ? 1 : 2`, a choice in a declaration of no type written,
     is kelvinc's `'q' needs a type` of numbers and of pointers, and was
@@ -898,9 +942,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P788, the details of #783, until reviewed; the reviews confirmed
-  every row to P787, and a review's own detail row is confirmed by that
-  review (#675).
+- P788 and P789, the details of #783 and #784, until reviewed; the
+  reviews confirmed every row to P787, and a review's own detail row is
+  confirmed by that review (#675).
 
 ## Open design
 

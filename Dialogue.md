@@ -15046,3 +15046,20 @@ integer, and this is f64`, where they were C's errors.
 Details are provisional P788.
 
 There are 1736 tests, and all pass with clang and with gcc 15.
+
+### 831. kc's of the order after #782
+
+**Claude** wrote #783, its battery run and pushed when clean, its CI
+all green, kelvinc's one of the order done.
+
+**Claude** made kc's #784: a pointer of another element where a
+pointer is an element is left to C, as kelvinc leaves it; a fixed
+array read goes where a pointer's Optional goes; rows of a global
+let's count are printed whole, the printer holding them by a local,
+where it was C's error; and, found on the way, a let's borrow and a
+value to borrow where a pointer is an element end kelvinc's way,
+`a += &x` of a let refused, which kc built. kelvinc is as it was.
+
+Details are provisional P789.
+
+There are 1743 tests, and all pass with clang and with gcc 15.

@@ -2129,6 +2129,33 @@ kc reads what it is written in, and little more.
     is read, a member's and a parameter's too, which kc left to C.
   - tests/error's array_count_float.k, array_count_text_member.k and
     array_count_struct.k have them.
+- **A pointer where a pointer is an element** (#784), as kelvinc's
+  check_element_value has it, of an Array's element, a Dictionary's
+  value or entry, and an Optional's case alike.
+  - value_mismatch_text and fits_value leave a pointer of another
+    element to C, `var a:$[f64^] = $[&x]` of an i64, as kelvinc does
+    and as both do of a declaration; a fixed array read too, which
+    goes where a pointer's Optional goes, `var q:i64^? = b`.
+  - A let's borrow, `&x` of a let or a `const T^` of an owner, where a
+    `T^` that may change what it borrows goes is told: this_is ends
+    the sentence `, which may change what it borrows, and this is
+    const i64^, a let's: write const in the type taken, or borrow a
+    var`, and typed_value_ok says it of `a += &x`, `.append` and
+    `.insert`, which kc built.
+  - this_is ends a value of the type the pointer borrows with `: give
+    a borrow, '&x'`.
+  - tests/error's let_borrow_element.k, let_borrow_value.k,
+    let_borrow_case.k, borrow_hint_value.k and borrow_hint_case.k, and
+    tests/run's pointer_optional_fixed.k have them.
+- **Rows of a global let's count are printed whole** (#784), as
+  kelvinc prints them: `println(g)` of a `g:[[i64](N)](2)`.
+  - put_fixed_top holds the rows by a local, `_kv_fa`, where a row's
+    count is one C computes, and put_self names it by self_local: a
+    pointer to such rows is no struct's member in C, fields must have
+    a constant size, which was kc's C error.
+  - Rows whose count names a local are refused still, by #776's
+    sentence, as kelvinc's.
+  - tests/run's rows_global_let_printed.k has it.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
