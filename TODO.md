@@ -8,7 +8,7 @@ cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
 error (#662); a literal that does not fit its type, kelvinc's error
 (#663); a constant shift past its type's width, kelvinc's error (#665);
-the reviews of P662 to P793 (#664, #666, #670, #673 to #675, #679, #691, #709, #723, #731, #735, #739, #745, #751, #759, #765, #770, #775, #778, #782, #785, #788); and a member of arithmetic
+the reviews of P662 to P795 (#664, #666, #670, #673 to #675, #679, #691, #709, #723, #731, #735, #739, #745, #751, #759, #765, #770, #775, #778, #782, #785, #788, #790); and a member of arithmetic
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
 no member 'foo'`, where it was C's error (#669); and an integer literal
 past u64's greatest, or past i64's in a declaration with no type,
@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #789 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #790 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -618,6 +618,15 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #790, the review, was made, not changed:
+  - `var n = true ? a.frob() : 1`, a method an Array has not in an
+    arm of a choice, in a declaration of no type written, is kelvinc's
+    `an Array has no method 'frob': ...` and kc's `'n' needs a type`;
+    alone, in arithmetic and in parentheses both say kelvinc's since
+    #789.
+  - `var f:(i64):i64 := x + 1`, arithmetic where a function goes, is
+    C's error of kelvinc's C, incompatible integer to pointer
+    conversion, and kc's `this is i64, where (i64):i64 goes`.
 - Found while #788, the review, was made, not changed:
   - `var o:pt = x + 1` of a struct, arithmetic of numbers where a
     struct, a Bytes, an Array, a Dictionary or a Set goes, in a
@@ -1028,9 +1037,8 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P794, the details of #789, until reviewed; the reviews confirmed
-  every row to P793, and a review's own detail row is confirmed by that
-  review (#675).
+- None: the reviews confirmed every row to P795, and a review's own
+  detail row is confirmed by that review (#675).
 
 ## Open design
 

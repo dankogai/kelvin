@@ -15158,3 +15158,22 @@ is an owner not copied. kelvinc is as it was.
 Details are provisional P794.
 
 There are 1760 tests, and all pass with clang and with gcc 15.
+
+### 837. The review, batch 33
+
+**Claude** wrote #789, its battery run and pushed when clean, its CI
+all green, and asked what next.
+
+**User:** review P794 (recommended)
+
+**Claude** read the row against the code and the battery's summary,
+gave 29 statements to both compilers again, ran kc over every
+program, and found nothing to amend; two differences found on the
+way are listed, a method an owner has not in an arm of a choice, and
+arithmetic where a function goes. It made the review #790: P794
+marked confirmed, as later numbers amend it, and P795, #790's own
+row, confirmed by #790.
+
+Details are P795, confirmed by #790 itself.
+
+There are 1760 tests, and all pass with clang and with gcc 15.
