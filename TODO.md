@@ -8,7 +8,7 @@ cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
 error (#662); a literal that does not fit its type, kelvinc's error
 (#663); a constant shift past its type's width, kelvinc's error (#665);
-the reviews of P662 to P790 (#664, #666, #670, #673 to #675, #679, #691, #709, #723, #731, #735, #739, #745, #751, #759, #765, #770, #775, #778, #782, #785); and a member of arithmetic
+the reviews of P662 to P793 (#664, #666, #670, #673 to #675, #679, #691, #709, #723, #731, #735, #739, #745, #751, #759, #765, #770, #775, #778, #782, #785, #788); and a member of arithmetic
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
 no member 'foo'`, where it was C's error (#669); and an integer literal
 past u64's greatest, or past i64's in a declaration with no type,
@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #787 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #788 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -598,6 +598,15 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #788, the review, was made, not changed:
+  - `var o:pt = x + 1` of a struct, arithmetic of numbers where a
+    struct, a Bytes, an Array, a Dictionary or a Set goes, in a
+    declaration and an assignment, is kelvinc's `'o' is a pt, and this
+    is a number` and C's error of kc's C; where a pointer, a String or
+    a cstr goes both say it since #787.
+  - `let f = { (o:pt):i64 in o.x }`, an anonymous function given with
+    `=`, is `'f' is a reference (...): assign it with ':='` in both,
+    its type named `(struct pt):i64` by kelvinc and `(pt):i64` by kc.
 - Found while #787 was made, not changed:
   - `var n = d.frob(1, 2)`, a method a Dictionary has not in a
     declaration of no type written, is kelvinc's `a Dictionary has no
@@ -998,9 +1007,8 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P791 and P792, the details of #786 and #787, until reviewed; the
-  reviews confirmed every row to P790, and a review's own detail row is
-  confirmed by that review (#675).
+- None: the reviews confirmed every row to P793, and a review's own
+  detail row is confirmed by that review (#675).
 
 ## Open design
 

@@ -15121,3 +15121,22 @@ to a Dictionary say kelvinc's sentences. kelvinc is as it was.
 Details are provisional P792.
 
 There are 1755 tests, and all pass with clang and with gcc 15.
+
+### 835. The review, batch 32
+
+**Claude** wrote #787, its battery run and pushed when clean, its CI
+all green, the six of the order done, and asked what next.
+
+**User:** review P791 and P792 (recommended)
+
+**Claude** read each row against the code and the batteries'
+summaries, gave 34 statements to both compilers again, ran kc over
+every program, and found no row to amend; two differences found on
+the way are listed, arithmetic where a struct or an owner goes,
+which kc leaves to C, and the name of an anonymous function's type.
+It made the review #788: P791 and P792 marked confirmed, as later
+numbers amend them, and P793, #788's own row, confirmed by #788.
+
+Details are P793, confirmed by #788 itself.
+
+There are 1755 tests, and all pass with clang and with gcc 15.
