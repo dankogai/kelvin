@@ -39,12 +39,25 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #790 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #791 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
 
 ## Faults in kelvinc
+
+- The user's order after #790, resolve kelvinc then kc, of the two the
+  review listed, each pushed when clean:
+  - arithmetic of numbers where a function goes, `take(x + 1)` and
+    `var f:(i64):i64 := x + 1`, is `this is a number, where (i64):i64
+    goes`, the user's answer, and `..., and this is a number` of an
+    element, a value and an entry, where kelvinc left it to C,
+    incompatible integer to pointer conversion; each arm of a choice
+    is asked, `take(true ? twice : x)`, which kelvinc built by its
+    first arm's type; kc says the same, where it said `this is i64`
+    (#791).
+  With it kelvinc's one of this order is done; kc's is a method an
+  owner has not in a choice's arms and before a member.
 
 - The user's order after #785, resolve kelvinc then kc, of the six
   left listed, each pushed when clean:
@@ -448,10 +461,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1194 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1197 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784, #786, #787 and #789 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784, #786, #787, #789 and #791 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -618,15 +631,31 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #791 was made, not changed:
+  - `take(p + 1)` of a `p:i64^`, pointer arithmetic where a function
+    goes, is built by kelvinc, which sees no type of it, C warning,
+    and kc's `this is i64^, where (i64):i64 goes`.
+  - A choice of two variables of one type, `true ? x : y`, where
+    another type goes: `var s:String = true ? x : y`, a struct's and a
+    pointer's alike, is kelvinc's `'s' is a String, and this is i64`
+    and C's error of kc's C; `var a:$[i64^] = $[true ? x : y]` ends
+    `: give a borrow, '&x'` in kelvinc and not in kc; and `$[true ? x
+    : y]` where a String is the element is kelvinc's `..., and this is
+    i64` and kc's `an owner is not copied by '='`.
+  - #787 and #789 named such a choice `a number` in kc, where kelvinc
+    names its type, i64, as it types a choice of two values of one
+    type (#777): put right by #791, which names a number only what
+    kelvinc sees no type of.
 - Found while #790, the review, was made, not changed:
   - `var n = true ? a.frob() : 1`, a method an Array has not in an
     arm of a choice, in a declaration of no type written, is kelvinc's
     `an Array has no method 'frob': ...` and kc's `'n' needs a type`;
     alone, in arithmetic and in parentheses both say kelvinc's since
     #789.
-  - `var f:(i64):i64 := x + 1`, arithmetic where a function goes, is
+  - `var f:(i64):i64 := x + 1`, arithmetic where a function goes, was
     C's error of kelvinc's C, incompatible integer to pointer
-    conversion, and kc's `this is i64, where (i64):i64 goes`.
+    conversion, and kc's `this is i64, where (i64):i64 goes`: `this is
+    a number, where (i64):i64 goes` in both since #791.
 - Found while #788, the review, was made, not changed:
   - `var o:pt = x + 1` of a struct, arithmetic of numbers where a
     struct, a Bytes, an Array, a Dictionary or a Set goes, in a
@@ -1037,8 +1066,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P795, and a review's own
-  detail row is confirmed by that review (#675).
+- P796, the details of #791, until reviewed; the reviews confirmed
+  every row to P795, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

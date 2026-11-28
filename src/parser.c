@@ -8308,12 +8308,28 @@ static void check_entry_value(Expr *v, Type *dt, Pos pos) {
 static void check_fn_value(Expr *v, Type *want, const char *lead, Pos pos) {
     if (v->kind == E_IDENT && (v->cands.len || v->target))
         return;
+    if (v->kind == E_TERNARY && !v->op && v->b && v->c) { /* a choice: each arm is one, as kc asks it (#791), where an arm that is none was C's, or built by its first arm's type; an element's and an entry's where an arm is a function */
+        Type *ct = lead ? value_type(v) : NULL;
+        if (!lead || (ct && unqualified(ct)->kind == T_FUNC)) {
+            check_fn_value(v->b, want, NULL, pos);
+            check_fn_value(v->c, want, NULL, pos);
+            return;
+        }
+    }
     Type *g = value_type(v);
     bool seen = g != NULL; /* a literal is "text" or "a number" where an element's or an entry's is said (#752) */
     if (!g && (number_expr(v) || v->kind == E_STRING || is_text_expr(v) || seen_bool(v)))
         g = v->kind == E_STRING || is_text_expr(v) ? base_type("cstr", v->pos) : seen_bool(v) ? base_type("bool", v->pos) : inferred_type(v, v->pos);
     g = g ? unqualified(g) : NULL;
     Decl *rec;
+    if (!g && number_expr(v)) { /* arithmetic kelvinc sees no type of, x + 1, is a number (#791): C's error before */
+        bare_tags = true;
+        char *w = kelvin_type(want);
+        bare_tags = false;
+        if (lead)
+            error_at(pos, "%s %s %s, and this is a number", lead, article(w), w);
+        error_at(v->pos, "this is a number, where %s goes", w);
+    }
     if (!g || g->kind == T_TYPEOF || (g->kind == T_BASE && type_class(g, &rec) == 'u'))
         return;
     if (g->kind == T_FUNC && fn_types_same(g, want))

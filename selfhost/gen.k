@@ -2839,6 +2839,21 @@ let choice_typed(v:int64):bool {
     return k != Y_PTR && k != Y_CSTR && k != Y_FIXED && k != Y_ARGV && k != Y_C && k != Y_TYPEOF
 }
 
+// whether v is arithmetic kelvinc sees no type of: a binary, a unary, or
+// a choice it does not type (#791); what it names a number where a typed
+// value is checked
+let untyped_arith(v:int64):bool {
+    let k:nkind = nodes[v].kind
+    return k == N_BIN || k == N_UNARY || (k == N_COND && !choice_typed(v))
+}
+
+// whether an arm of the choice v is a function, by its type
+let fn_arm(v:int64):bool {
+    let yb:int64 = choice_arm_type(nodes[v].b)
+    let yc:int64 = choice_arm_type(nodes[v].c)
+    return (yb >= 0 && types[yb].kind == Y_FN) || (yc >= 0 && types[yc].kind == Y_FN)
+}
+
 // whether e is the name of a function of more than one type, which no
 // type written says which of
 let overloaded_name(e:int64):bool {
@@ -3923,7 +3938,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     let number_lit = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM) || (k == N_BOOL && wk == Y_PTR)   // true where a pointer goes is a number to kelvinc (#760)
     let text_lit = k == N_STR
     var arith = false                                    // x + 1, -x, x > 0 and a choice of numbers: a number, as kelvinc names what it sees no type of (#787), which kc left to C
-    if !number_lit && (k == N_BIN || k == N_UNARY || k == N_COND) && !is_number_kind(wk) && wk != Y_BOOL && wk != Y_FIXED && wk != Y_ARGV && !(wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0)) {   // where a struct or an owner goes too (#788)
+    if !number_lit && untyped_arith(v) && !is_number_kind(wk) && wk != Y_BOOL && wk != Y_FIXED && wk != Y_ARGV && !(wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0)) {   // where a struct or an owner goes too (#788)
         let ay:int64 = type_of(v)
         if failed { return false }
         arith = ay >= 0 && (is_number_kind(types[ay].kind) || types[ay].kind == Y_BOOL)
@@ -10451,7 +10466,7 @@ let gen_array_add(y:int64, v:int64, what:cstr) {
         m += " "
         m += &ew
         m += ", and this is "
-        let lit = nodes[v].kind == N_NUM || nodes[v].kind == N_CHAR || ((nodes[v].kind == N_BIN || nodes[v].kind == N_UNARY || nodes[v].kind == N_COND) && (is_number_kind(types[vy].kind) || types[vy].kind == Y_BOOL))   // x + 1 too, as kelvinc names it (#787)
+        let lit = nodes[v].kind == N_NUM || nodes[v].kind == N_CHAR || (untyped_arith(v) && (is_number_kind(types[vy].kind) || types[vy].kind == Y_BOOL))   // x + 1 too, as kelvinc names it (#787)
         let vw:String = lit ? $"a number" : kelvin_type_text(vy)
         m += &vw
         gen_error(v, m.cstr)
@@ -10468,7 +10483,7 @@ let gen_array_add(y:int64, v:int64, what:cstr) {
         lead += " is"
         if types[ey].kind == Y_FN {                      // a function's: a number, text, a value of another kind, or a function written of another type
             let k:nkind = nodes[v].kind
-            let number = k == N_NUM || k == N_CHAR
+            let number = k == N_NUM || k == N_CHAR || k == N_BOOL || (untyped_arith(v) && vy >= 0 && (is_number_kind(types[vy].kind) || types[vy].kind == Y_BOOL))   // true and x + 1 too, a number, as kelvinc names them there (#791)
             let gy:int64 = number || k == N_STR ? 0 - 1 : k == N_ANON && nodes[v].flag == 0 ? anon_type(v) : k == N_ANON || (k == N_ID && var_type(nodes[v].t) < 0) ? ey : vy
             if failed { return }
             if number || k == N_STR || (gy >= 0 && types[gy].kind != Y_C && gy != ey && !fn_same(gy, ey)) {
@@ -18826,7 +18841,9 @@ let gen_fn_value(n:int64, y:int64) {
             m += "' is "
         } else {
             m += "this is "
-            let g:String = given >= 0 ? kelvin_type_text(given) : $"no function"
+            let truth = (k == N_BIN && is_comparison(nodes[n].t)) || (k == N_UNARY && tok_is(nodes[n].t, "!"))   // x > 0 and !x: a bool, as kelvinc sees them
+            let arith = (k == N_BIN || k == N_UNARY) && !truth && given >= 0 && is_number_kind(types[given].kind) && literal_arith(n) == 0   // x + 1 where a function goes: a number, as kelvinc names arithmetic it sees no type of (#791), where kc said i64
+            let g:String = arith ? $"a number" : truth ? $"bool" : given >= 0 ? kelvin_type_text(given) : $"no function"
             m += &g
             m += ", where "
         }
@@ -22090,7 +22107,8 @@ let value_mismatch_text(v:int64, vy:int64):String {
     if number { return is_number_kind(vk) ? $"" : $"a number" }
     let y:int64 = own_plain(type_of(v))                 // a p:i64^ const is an i64^ where a value goes (#742)
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
-    if (k == N_BIN || k == N_UNARY || k == N_COND) && (is_number_kind(types[y].kind) || types[y].kind == Y_BOOL) { return $"a number" }   // x + 1, -x, x > 0 and a choice of numbers: a number, as kelvinc names what it sees no type of (#787), where kc said i64
+    if k == N_COND && vk == Y_FN && fn_arm(v) { return $"" }   // a choice with a function's arm where a function goes: each arm is asked, as kelvinc asks it (#791)
+    if untyped_arith(v) && (is_number_kind(types[y].kind) || types[y].kind == Y_BOOL) { return $"a number" }   // x + 1, -x, x > 0 and a choice of numbers: a number, as kelvinc names what it sees no type of (#787), where kc said i64
     if vk == Y_PTR && types[y].kind == Y_PTR && !(ptr_const(y) && !ptr_const(vy) && (k == N_ADDR || is_owner(types[y].elem))) { return $"" }   // a pointer of another element where a pointer goes is C's to check, as kelvinc leaves it and as both leave a declaration's (#784), where kc said an element of Array<f64^> is an f64^, and this is i64^; a let's borrow, &x of a let or a const T^ of an owner, where a T^ that may change it goes, is told
     if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
     if types[y].kind == Y_CSTR { return $"cstr" }       // a cstr variable, and a template that is one, where a case of another kind goes, a String's too, as kelvinc names it (#749)

@@ -282,6 +282,11 @@ let u:():() := tick        // the same, the result written out (#141)
     - A value that is no function is the same error, `this is cstr,
       where (i64):i64 goes`, where C refused a number and took text
       and a pointer with a warning; `nowhere` goes.
+    - Arithmetic of numbers there, `take(x + 1)`, is `this is a
+      number, where (i64):i64 goes` (#791), where it was C's error.
+    - Each arm of a choice, `c ? f : g`, is asked (#791): an arm that
+      is no function is the error, where the first arm's type built
+      it.
     - A function's name of no such type is `no function 'half' is
       (i64):i64` (#223), a struct's member's too.
     - An array parameter is the pointer C makes of it, and rows of a

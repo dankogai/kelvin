@@ -15177,3 +15177,21 @@ row, confirmed by #790.
 Details are P795, confirmed by #790 itself.
 
 There are 1760 tests, and all pass with clang and with gcc 15.
+
+### 838. Arithmetic where a function goes is a number
+
+**Claude** wrote #790 and, its battery running, asked what next, and
+what both compilers should say of arithmetic where a function goes.
+
+**User:** resolve kelvinc then kc (recommended); `this is a number`
+(recommended)
+
+**Claude** made kelvinc's #791: `take(x + 1)` is `this is a number,
+where (i64):i64 goes`, where kelvinc left it to C, and each arm of a
+choice where a function goes is asked, as kc asks it; kc says the
+same words, and names a choice a number only where kelvinc does not
+type it, which #787 and #789 had wrong of a choice of two variables.
+
+Details are provisional P796.
+
+There are 1763 tests, and all pass with clang and with gcc 15.

@@ -1031,3 +1031,5 @@ So far the changes from C are these, by topic.
   compiler's extension (#779)
 - `var v:[i64](3.0)` is `an array's count is an integer, and this is
   f64`, where it was C's error (#783)
+- `take(x + 1)` where a function goes is `this is a number, where
+  (i64):i64 goes`, where it was C's error (#791)

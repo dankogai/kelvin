@@ -2205,6 +2205,22 @@ kc reads what it is written in, and little more.
   - tests/error's arithmetic_where_struct.k, arithmetic_where_array.k,
     anon_fn_struct_type_named.k, owner_no_method_untyped.k and
     owner_reference_untyped.k have them.
+- **Arithmetic where a function goes** (#791), kelvinc's since that
+  number, the user's answer: `this is a number, where (i64):i64 goes`.
+  - gen_fn_value names a binary or a unary of numbers `a number`, and
+    a comparison and `!x` `bool`, as kelvinc sees them; arithmetic of
+    literals is its type still, `this is i64`.
+  - gen_array_add names `true`, arithmetic and a choice kelvinc does
+    not type `a number` where a function is the element.
+  - untyped_arith tells what kelvinc sees no type of, a binary, a
+    unary, or a choice that choice_typed does not type: #787 and #789
+    named every choice of numbers `a number`, where kelvinc names a
+    typed one's type.
+  - value_mismatch_text passes a choice with a function's arm, by
+    fn_arm, so gen_fn_value asks each arm.
+  - tests/error's arithmetic_where_function.k,
+    arithmetic_element_function.k and choice_arm_no_function.k have
+    them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.
