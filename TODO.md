@@ -8,7 +8,7 @@ cstr is immutable (#660); a constant index past a fixed array's end,
 kelvinc's error (#661); an integer divided by a constant 0, kelvinc's
 error (#662); a literal that does not fit its type, kelvinc's error
 (#663); a constant shift past its type's width, kelvinc's error (#665);
-the reviews of P662 to P787 (#664, #666, #670, #673 to #675, #679, #691, #709, #723, #731, #735, #739, #745, #751, #759, #765, #770, #775, #778, #782); and a member of arithmetic
+the reviews of P662 to P790 (#664, #666, #670, #673 to #675, #679, #691, #709, #723, #731, #735, #739, #745, #751, #759, #765, #770, #775, #778, #782, #785); and a member of arithmetic
 whose type is C's, `(n + 1).foo` of a `u8`, which is kelvinc's `i32 has
 no member 'foo'`, where it was C's error (#669); and an integer literal
 past u64's greatest, or past i64's in a declaration with no type,
@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #784 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #785 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -567,6 +567,17 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #785, the review, was made, not changed:
+  - `var q:i64^? = b` of a `b:[i64](n)` whose count C computes, a
+    local's or a global let's, a fixed array read where a pointer's
+    Optional goes, is built by kelvinc, its first element's address,
+    and C's error of kc's C, initializing a struct with an array; of a
+    count written both build it since #784.
+  - `var a:$[i64^] = $[b]` of a `b:[i64](n)` whose count C computes,
+    a local's or a global let's, is built by kelvinc and C's error of
+    kc's C, use of undeclared identifier 'n' or a variable length
+    array at file scope; `var a = $[b]` of it is kc's `an Array of
+    [i64](n) is not here yet: an element is a value C returns`.
 - Found while #784 was made, not changed:
   - `var d:${String: i64} = ${}`, an empty Dictionary written `${}`
     where its type is written, is `an empty Dictionary is written
@@ -942,9 +953,8 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P788 and P789, the details of #783 and #784, until reviewed; the
-  reviews confirmed every row to P787, and a review's own detail row is
-  confirmed by that review (#675).
+- None: the reviews confirmed every row to P790, and a review's own
+  detail row is confirmed by that review (#675).
 
 ## Open design
 

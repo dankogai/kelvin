@@ -15063,3 +15063,27 @@ value to borrow where a pointer is an element end kelvinc's way,
 Details are provisional P789.
 
 There are 1743 tests, and all pass with clang and with gcc 15.
+
+### 832. The review, batch 31
+
+**Claude** wrote #784, its battery run and pushed when clean, its CI
+all green, the three of the order done, and asked what next.
+
+**User:** review P788 and P789 (recommended)
+
+**Claude** read each row against the code and the batteries'
+summaries, gave 35 statements to both compilers again, ran kc over
+every program, and found one row imprecise: P789 said kc takes a
+fixed array read where a pointer's Optional goes, where it takes one
+of a count written, so one of a count C computes is C's error in kc
+and built by kelvinc; and asked how the review should treat it.
+
+**User:** amend 1, confirm all, push (recommended)
+
+**Claude** made it #785: P789 amended, the differences listed, P788
+and P789 marked confirmed, as later numbers amend them, and P790,
+#785's own row, confirmed by #785.
+
+Details are P790, confirmed by #785 itself.
+
+There are 1743 tests, and all pass with clang and with gcc 15.
