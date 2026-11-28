@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #791 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #792 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -57,7 +57,8 @@ known, not what is planned.
     first arm's type; kc says the same, where it said `this is i64`
     (#791).
   With it kelvinc's one of this order is done; kc's is a method an
-  owner has not in a choice's arms and before a member.
+  owner has not in a choice's arms and before a member, done with
+  #792: the two are done.
 
 - The user's order after #785, resolve kelvinc then kc, of the six
   left listed, each pushed when clean:
@@ -255,6 +256,24 @@ known, not what is planned.
   #663), and so is a constant shift past its width (#665).
 
 ## kc
+
+- The user's order after #790, kc's of the two the review listed and
+  what they found, after kelvinc's one (#791), pushed when clean
+  (#792):
+  - a method an Array, a String, a Dictionary or a Set has not, in an
+    arm of a choice or its condition, `var n = true ? a.frob() : 1`,
+    and before a member of what it would give, `a.frob().count`, says
+    the type's sentence, as kelvinc's, where kc said `'n' needs a
+    type` or `this member is not known`;
+  - a choice of two variables of one type, which kelvinc types, is
+    checked as a variable is where another type goes: `var s:String =
+    true ? x : y` is `'s' is a String, and this is i64`, a struct's, a
+    Bytes' and a pointer's alike, where it was C's error; where a
+    pointer is the element it ends `: give a borrow, '&x'`; and where
+    a String is the element it is no String, where kc said an owner
+    is not copied.
+  - left: what is listed under "Found while #791 was made", pointer
+    arithmetic where a function goes.
 
 - The user's choice after #788, the batch of the four known, pushed
   when clean (#789):
@@ -461,10 +480,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1197 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1202 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784, #786, #787, #789 and #791 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784, #786, #787, #789, #791 and #792 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -641,7 +660,8 @@ known, not what is planned.
     and C's error of kc's C; `var a:$[i64^] = $[true ? x : y]` ends
     `: give a borrow, '&x'` in kelvinc and not in kc; and `$[true ? x
     : y]` where a String is the element is kelvinc's `..., and this is
-    i64` and kc's `an owner is not copied by '='`.
+    i64` and kc's `an owner is not copied by '='`: kelvinc's in
+    both since #792, each of the three.
   - #787 and #789 named such a choice `a number` in kc, where kelvinc
     names its type, i64, as it types a choice of two values of one
     type (#777): put right by #791, which names a number only what
@@ -649,9 +669,9 @@ known, not what is planned.
 - Found while #790, the review, was made, not changed:
   - `var n = true ? a.frob() : 1`, a method an Array has not in an
     arm of a choice, in a declaration of no type written, is kelvinc's
-    `an Array has no method 'frob': ...` and kc's `'n' needs a type`;
-    alone, in arithmetic and in parentheses both say kelvinc's since
-    #789.
+    `an Array has no method 'frob': ...` and was kc's `'n' needs a
+    type`; alone, in arithmetic and in parentheses both say kelvinc's
+    since #789, in a choice since #792.
   - `var f:(i64):i64 := x + 1`, arithmetic where a function goes, was
     C's error of kelvinc's C, incompatible integer to pointer
     conversion, and kc's `this is i64, where (i64):i64 goes`: `this is
@@ -1066,9 +1086,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P796, the details of #791, until reviewed; the reviews confirmed
-  every row to P795, and a review's own detail row is confirmed by that
-  review (#675).
+- P796 and P797, the details of #791 and #792, until reviewed; the
+  reviews confirmed every row to P795, and a review's own detail row is
+  confirmed by that review (#675).
 
 ## Open design
 

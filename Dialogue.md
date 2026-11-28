@@ -15195,3 +15195,18 @@ type it, which #787 and #789 had wrong of a choice of two variables.
 Details are provisional P796.
 
 There are 1763 tests, and all pass with clang and with gcc 15.
+
+### 839. kc's of the order after #790
+
+**Claude** wrote #791, its battery run and pushed when clean,
+kelvinc's one of the order done.
+
+**Claude** made kc's #792: a method an owner has not is told in a
+choice's arms and before a member of what it would give; and a
+choice of two variables of one type, which kelvinc types, is
+checked as a variable is, `'s' is a String, and this is i64`, which
+kc left to C. kelvinc is as it was.
+
+Details are provisional P797.
+
+There are 1768 tests, and all pass with clang and with gcc 15.

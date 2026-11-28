@@ -2221,6 +2221,24 @@ kc reads what it is written in, and little more.
   - tests/error's arithmetic_where_function.k,
     arithmetic_element_function.k and choice_arm_no_function.k have
     them.
+- **A method an owner has not, in more places** (#792):
+  owner_method_missing looks in a choice's condition and arms too,
+  and member_unknown asks it of what a member is read of before it
+  says `this member is not known`, so `a.frob().count` says the
+  method's sentence.
+  - tests/error's owner_no_method_choice.k and
+    owner_no_method_member.k have them.
+- **A choice kelvinc types is checked as a variable** (#792), where a
+  type that is not its own goes: by choice_typed.
+  - typed_value_ok types it, so a declaration and an assignment say
+    `'s' is a String, and this is i64`, which were C's errors.
+  - this_is ends a mismatch `: give a borrow, '&x'` of one whose type
+    the pointer borrows.
+  - gen_array says an owner is not copied of a choice only where its
+    type is an owner's.
+  - tests/error's choice_typed_where_string.k,
+    choice_typed_borrow_hint.k and choice_typed_element_string.k have
+    them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

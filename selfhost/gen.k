@@ -2738,6 +2738,7 @@ let owner_method_missing(v:int64):bool {
     let k:nkind = nodes[v].kind
     if k == N_BIN { return owner_method_missing(nodes[v].a) || owner_method_missing(nodes[v].b) }
     if k == N_UNARY { return owner_method_missing(nodes[v].a) }
+    if k == N_COND { return owner_method_missing(nodes[v].a) || owner_method_missing(nodes[v].b) || owner_method_missing(nodes[v].c) }   // a choice's condition and arms too (#791)
     if k != N_METHOD { return false }
     let y:int64 = type_of(nodes[v].a)
     if failed { return true }
@@ -3769,7 +3770,7 @@ let this_is(v:int64, vy:int64, bad:const String^):String {
     if t >= 0 && wrap_type(t) >= 0 { t = wrap_type(t) }
     let k:nkind = nodes[v].kind
     var m = $""
-    if t >= 0 && types[t].kind == Y_PTR && (k == N_ID || k == N_FIELD || k == N_ADDR || k == N_INDEX || k == N_CALL) && !is_case_word(v) {
+    if t >= 0 && types[t].kind == Y_PTR && (k == N_ID || k == N_FIELD || k == N_ADDR || k == N_INDEX || k == N_CALL || (k == N_COND && choice_typed(v))) && !is_case_word(v) {
         let y:int64 = type_of(v)
         if y >= 0 && types[y].kind == Y_PTR && ptr_const(y) && !ptr_const(t) && (k == N_ADDR || is_owner(types[y].elem)) {
             m += ", which may change what it borrows, and this is "
@@ -3950,7 +3951,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     if null { y = type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }
     if !number_lit && !text_lit && !null && !arith {
         let row = k == N_INDEX && !is_slice(v) && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_FIXED && types[types[type_of(nodes[v].a)].elem].kind == Y_FIXED   // a[1] of an array of arrays, an array (#736)
-        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row && !(k == N_TPL && wk == Y_STRING && nodes[v].flag != 1) && !(k == N_ADDR && wk == Y_PTR) { return true }   // a template that is a cstr where a String goes, as a cstr variable (#749); &x where a pointer goes, a let's borrow told (#784)
+        if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !(k == N_COND && choice_typed(v)) && !row && !(k == N_TPL && wk == Y_STRING && nodes[v].flag != 1) && !(k == N_ADDR && wk == Y_PTR) { return true }   // a template that is a cstr where a String goes, as a cstr variable (#749); &x where a pointer goes, a let's borrow told (#784)
         if k == N_ID && (is_case_word(v) || (var_type(nodes[v].t) < 0 && fn_named(nodes[v].t) < 0)) { return true }
         y = type_of(v)                                   // a function's own name too, 'n' is an i64, and this is ((i64):i64):i64, as kelvinc says it (#764), where it was C's error
         if failed { return false }
@@ -4401,6 +4402,7 @@ let member_unknown(n:int64, y:int64) {
         gen_error(n, e.cstr)
         return
     }
+    if nodes[n].a >= 0 && owner_method_missing(nodes[n].a) { return }   // a.frob().count: the method an owner has not, as kelvinc says it first (#791)
     gen_error(n, "this member is not known")
 }
 
@@ -12524,7 +12526,7 @@ let gen_array(n:int64, given:int64) {
     put(" = {0}; ")
     var e = nodes[n].b
     while e >= 0 && !failed {
-        if is_owner(elem) && is_place(e) && !is_case_word(e) && !cstr_place(e) {   // none is no place (#343); a cstr variable's kind is said (#749)
+        if is_owner(elem) && is_place(e) && !is_case_word(e) && !cstr_place(e) && !(nodes[e].kind == N_COND && type_of(e) >= 0 && !is_owner(type_of(e))) {   // none is no place (#343); a cstr variable's kind is said (#749)
             owner_assign_error(e)
             return
         }
