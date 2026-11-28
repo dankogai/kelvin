@@ -2729,8 +2729,31 @@ let with_key_misused(n:int64):bool {
     return true
 }
 
+// whether v, or what its arithmetic is of, calls a method an Array, a
+// String, a Dictionary or a Set has not: its sentence then, as kelvinc
+// says it before it asks a declaration's type (#789); the call's C is
+// written aside and dropped
+let gen_method_of(n:int64)    // a prototype
+let owner_method_missing(v:int64):bool {
+    let k:nkind = nodes[v].kind
+    if k == N_BIN { return owner_method_missing(nodes[v].a) || owner_method_missing(nodes[v].b) }
+    if k == N_UNARY { return owner_method_missing(nodes[v].a) }
+    if k != N_METHOD { return false }
+    let y:int64 = type_of(nodes[v].a)
+    if failed { return true }
+    if y < 0 { return false }
+    let yk:ykind = types[y].kind
+    if yk != Y_ARRAY && yk != Y_STRING && yk != Y_DICT && yk != Y_SET { return false }
+    var before:String = out.copy()
+    out = $""
+    gen_method_of(v)
+    out = before.copy()
+    return failed
+}
+
 // kelvinc's words of a variable whose type is not seen: 'x' needs a type
 let needs_type(n:int64) {
+    if nodes[n].kind == S_VAR && nodes[n].a >= 0 && owner_method_missing(nodes[n].a) { return }
     var m = $"'"
     m += tok_text(nodes[n].t)
     m += "' needs a type: write '"
@@ -3900,7 +3923,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     let number_lit = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM) || (k == N_BOOL && wk == Y_PTR)   // true where a pointer goes is a number to kelvinc (#760)
     let text_lit = k == N_STR
     var arith = false                                    // x + 1, -x, x > 0 and a choice of numbers: a number, as kelvinc names what it sees no type of (#787), which kc left to C
-    if !number_lit && (k == N_BIN || k == N_UNARY || k == N_COND) && (wk == Y_PTR || wk == Y_STRING || wk == Y_CSTR) {
+    if !number_lit && (k == N_BIN || k == N_UNARY || k == N_COND) && !is_number_kind(wk) && wk != Y_BOOL && wk != Y_FIXED && wk != Y_ARGV && !(wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0)) {   // where a struct or an owner goes too (#788)
         let ay:int64 = type_of(v)
         if failed { return false }
         arith = ay >= 0 && (is_number_kind(types[ay].kind) || types[ay].kind == Y_BOOL)
@@ -15724,6 +15747,21 @@ let tag_word(y:int64):String {
     return tagged_of(y) >= 0 ? $"struct " : $""
 }
 
+// y's name with struct, union or enum before a tag's and a pointer to
+// one's, as kelvinc spells a function's parameters and result where it
+// says how a function is assigned (#789)
+let tagged_text(y:int64):String {
+    var s = $""
+    if y >= 0 && types[y].kind == Y_PTR && types[y].elem >= 0 {
+        s = tag_word(types[y].elem)
+    } else if y >= 0 && types[y].kind == Y_STRUCT {
+        s = tag_word(y)
+    }
+    let w:String = kelvin_type_text(y)
+    s += &w
+    return s
+}
+
 // whether = or := suits y, as kelvinc has it (#233): a reference, a cstr or
 // a T^, takes :=, and a value =; else an error that names t, the name
 // assigned, and what it is
@@ -15740,6 +15778,23 @@ let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     } else if k == Y_PTR && types[y].elem >= 0 && tag_word(types[y].elem).count > 0 {   // struct node^, union u2^, as kelvinc spells them here (#764)
         var st = tag_word(types[y].elem)
         st += &ty_text
+        ty_text = st.copy()
+    } else if k == Y_FN {                                // 'f' is a reference ((struct pt):i64), a struct's and a pointer to one by their words in a function's type too, as kelvinc spells them here (#789)
+        var st = $"("
+        var p:int64 = types[y].name
+        while p >= 0 {
+            let w:String = tagged_text(types[p].elem)
+            st += &w
+            p = types[p].name
+            if p >= 0 { st += ", " }
+        }
+        if types[y].konst == 4 { st += ", ..." }
+        st += ")"
+        if types[y].elem >= 0 {
+            st += ":"
+            let w:String = tagged_text(types[y].elem)
+            st += &w
+        }
         ty_text = st.copy()
     } else if k == Y_STRUCT && tag_word(y).count > 0 {       // 'p' is a value (struct pt), a union's and an enum's by their words (#764)
         var st = tag_word(y)
@@ -16611,6 +16666,10 @@ let gen_var_of(n:int64) {
     let y:int64 = nodes[n].ty
     pick_overload(nodes[n].a, y)                         // let h:(T):R := over (#537)
     if failed { return }
+    if nodes[n].a >= 0 && nodes[n].c == 1 && !tok_is(nodes[n].t + 1, ":") && y >= 0 && is_owner(y) && is_place(nodes[n].a) && !is_case_word(nodes[n].a) {   // var b := a of an owner, no type written: an owner is not copied, as kelvinc says it first (#789), where kc said 'b' is a value
+        owner_assign_error(nodes[n].a)
+        return
+    }
     if nodes[n].a >= 0 && !assigns_as(n, nodes[n].t, y, nodes[n].c == 1) { return }
     if nodes[n].a >= 0 && y >= 0 && types[y].kind == Y_SET && nodes[nodes[n].a].kind == N_SET {   // a Set's elements of the type written, each a key of it, before they are asked their one type (#757)
         var e:int64 = nodes[nodes[n].a].b

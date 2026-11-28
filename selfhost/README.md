@@ -2189,6 +2189,22 @@ kc reads what it is written in, and little more.
   `{}`, which kc built.
   - tests/error's rows_of_owners_computed.k and dict_bare_braces.k
     have them.
+- **The four known after #788** (#789), each as kelvinc says it.
+  - typed_value_ok takes arithmetic for a number wherever a type that
+    is no number's is wanted, a struct's and an owner's too: `'o' is a
+    pt, and this is a number`, which was C's error.
+  - assigns_as spells a function's type with tagged_text, `(struct
+    pt):i64`, a struct's and a pointer to one by their words, as it
+    spelled a value's and a pointer's.
+  - needs_type asks owner_method_missing first: a method an Array, a
+    String, a Dictionary or a Set has not, in the value or what its
+    arithmetic is of, says the type's sentence; the call's C is
+    written aside by gen_method_of and dropped.
+  - A declaration of no type written given an owner's variable by
+    `:=` says owner_assign_error's sentence before assigns_as's.
+  - tests/error's arithmetic_where_struct.k, arithmetic_where_array.k,
+    anon_fn_struct_type_named.k, owner_no_method_untyped.k and
+    owner_reference_untyped.k have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

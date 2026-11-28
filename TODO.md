@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #788 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #789 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -243,6 +243,26 @@ known, not what is planned.
 
 ## kc
 
+- The user's choice after #788, the batch of the four known, pushed
+  when clean (#789):
+  - arithmetic of numbers where a struct, a Bytes, an Array, a
+    Dictionary or a Set goes, in a declaration and an assignment, ends
+    `and this is a number`, `'o' is a pt, and this is a number`, as
+    kelvinc's, where it was C's error of kc's C;
+  - an anonymous function given with `=` is `'f' is a reference
+    ((struct pt):i64)`, a struct's and a pointer to one by their words
+    in a function's type, as kelvinc spells them there, where kc said
+    `(pt):i64`;
+  - a method an Array, a String, a Dictionary or a Set has not, in a
+    declaration of no type written, `var n = d.frob()`, says the
+    type's sentence, where kc said `'n' needs a type`; a method it has
+    that gives no value says `'n' needs a type` in both still;
+  - `var b := a` of an owner's variable, no type written, is `an owner
+    is not copied by '=' (#54)`, as kelvinc says it first, where kc
+    said `'b' is a value`: found while the batch was made.
+  With it the differences found since #782 are resolved; what older
+  numbers found and left is listed below still.
+
 - The user's order after #785, kc's of the six left listed and what
   they found, after kelvinc's one (#786), pushed when clean (#787):
   - a fixed array of a count C computes, a local's or a global let's,
@@ -428,10 +448,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1189 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1194 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784, #786 and #787 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784, #786, #787 and #789 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -602,16 +622,17 @@ known, not what is planned.
   - `var o:pt = x + 1` of a struct, arithmetic of numbers where a
     struct, a Bytes, an Array, a Dictionary or a Set goes, in a
     declaration and an assignment, is kelvinc's `'o' is a pt, and this
-    is a number` and C's error of kc's C; where a pointer, a String or
-    a cstr goes both say it since #787.
+    is a number` and was C's error of kc's C; where a pointer, a
+    String or a cstr goes both say it since #787, and here since #789.
   - `let f = { (o:pt):i64 in o.x }`, an anonymous function given with
     `=`, is `'f' is a reference (...): assign it with ':='` in both,
-    its type named `(struct pt):i64` by kelvinc and `(pt):i64` by kc.
+    its type named `(struct pt):i64` by kelvinc and, until #789,
+    `(pt):i64` by kc.
 - Found while #787 was made, not changed:
   - `var n = d.frob(1, 2)`, a method a Dictionary has not in a
     declaration of no type written, is kelvinc's `a Dictionary has no
-    method 'frob': ...` and kc's `'n' needs a type`; as a statement
-    both say kelvinc's since #787.
+    method 'frob': ...` and was kc's `'n' needs a type`; as a
+    statement both say kelvinc's since #787, and here since #789.
 - Found while #786 was made, not changed:
   - `var d:${String: i64} = {}`, a bare `{}` given to a Dictionary, is
     kelvinc's `an empty Dictionary is written ${:}`, at the `{`, and
@@ -1007,8 +1028,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- None: the reviews confirmed every row to P793, and a review's own
-  detail row is confirmed by that review (#675).
+- P794, the details of #789, until reviewed; the reviews confirmed
+  every row to P793, and a review's own detail row is confirmed by that
+  review (#675).
 
 ## Open design
 

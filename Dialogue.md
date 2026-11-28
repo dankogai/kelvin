@@ -15140,3 +15140,21 @@ numbers amend them, and P793, #788's own row, confirmed by #788.
 Details are P793, confirmed by #788 itself.
 
 There are 1755 tests, and all pass with clang and with gcc 15.
+
+### 836. kc's of the four known after #788
+
+**Claude** wrote #788, its battery run and pushed when clean, its CI
+all green; while it ran it had made, in a copy, kc follow kelvinc in
+the three listed and a fourth found on the way, and asked what next.
+
+**User:** apply the batch as #789 (recommended)
+
+**Claude** made it #789: arithmetic is `a number` where a struct or
+an owner goes; a function's type names a struct `struct pt` where a
+function given with `=` is refused; a method an owner has not is
+told in a declaration of no type written; `var b := a` of an owner
+is an owner not copied. kelvinc is as it was.
+
+Details are provisional P794.
+
+There are 1760 tests, and all pass with clang and with gcc 15.
