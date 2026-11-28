@@ -15104,3 +15104,20 @@ The five left of the order are kc's.
 Details are provisional P791.
 
 There are 1744 tests, and all pass with clang and with gcc 15.
+
+### 834. kc's of the order after #785
+
+**Claude** wrote #786, its battery run and pushed when clean,
+kelvinc's one of the order done.
+
+**Claude** made kc's #787: a fixed array of a count C computes read
+where a pointer's Optional or an Array's element goes is its first
+element's address; a method an owner has not is told with what the
+type has; arithmetic of numbers is `a number` wherever a typed
+value is checked, `var p:i64^ := x + 1` and `a += x + 1` too, which
+kc left to C; rows of owners of a count C computes and `{}` given
+to a Dictionary say kelvinc's sentences. kelvinc is as it was.
+
+Details are provisional P792.
+
+There are 1755 tests, and all pass with clang and with gcc 15.

@@ -2778,7 +2778,7 @@ let untyped_key_refused(e:int64):bool {
 // as kelvinc types it (#781), where kc said an Array of [i64](2) is not
 // here yet; a list, [a, b], is a row still
 let read_elem_type(x:int64, e:int64):int64 {
-    if e >= 0 && types[e].kind == Y_FIXED && types[e].name >= 0 && nodes[x].kind != N_LIST { return type_of_kind(Y_PTR, types[e].elem, 0 - 1) }
+    if e >= 0 && types[e].kind == Y_FIXED && (types[e].name >= 0 || types[e].name <= 0 - 10) && nodes[x].kind != N_LIST { return type_of_kind(Y_PTR, types[e].elem, 0 - 1) }   // of a count C computes too (#787), where kc's C named the count where it is not in scope
     return e
 }
 
@@ -3899,12 +3899,18 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
     let k:nkind = nodes[v].kind
     let number_lit = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM) || (k == N_BOOL && wk == Y_PTR)   // true where a pointer goes is a number to kelvinc (#760)
     let text_lit = k == N_STR
+    var arith = false                                    // x + 1, -x, x > 0 and a choice of numbers: a number, as kelvinc names what it sees no type of (#787), which kc left to C
+    if !number_lit && (k == N_BIN || k == N_UNARY || k == N_COND) && (wk == Y_PTR || wk == Y_STRING || wk == Y_CSTR) {
+        let ay:int64 = type_of(v)
+        if failed { return false }
+        arith = ay >= 0 && (is_number_kind(types[ay].kind) || types[ay].kind == Y_BOOL)
+    }
     let c_tag:bool = wk == Y_STRUCT && (types[want].elem == 0 - 2 || types[want].elem == 0 - 3)   // struct nope, union u written: no number nor text, as kelvinc says it (#689)
     if wk == Y_STRUCT && (struct_of(want) < 0 || tagged_of(want) >= 0) && !(c_tag && (number_lit || text_lit)) { return true }   // C's, a plain enum, an enum with values
     var y:int64 = 0 - 1
     let null = k == N_NULL && tok_is(nodes[v].t, "nowhere") && wk != Y_PTR && wk != Y_CSTR && wk != Y_FIXED && wk != Y_ARGV   // nowhere where no pointer goes is an any^, as kelvinc says it (#764)
     if null { y = type_of_kind(Y_PTR, base_type(Y_VOID), 0 - 1) }
-    if !number_lit && !text_lit && !null {
+    if !number_lit && !text_lit && !null && !arith {
         let row = k == N_INDEX && !is_slice(v) && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_FIXED && types[types[type_of(nodes[v].a)].elem].kind == Y_FIXED   // a[1] of an array of arrays, an array (#736)
         if k != N_ID && k != N_FIELD && k != N_CAST && k != N_DSTR && k != N_CALL && !row && !(k == N_TPL && wk == Y_STRING && nodes[v].flag != 1) && !(k == N_ADDR && wk == Y_PTR) { return true }   // a template that is a cstr where a String goes, as a cstr variable (#749); &x where a pointer goes, a let's borrow told (#784)
         if k == N_ID && (is_case_word(v) || (var_type(nodes[v].t) < 0 && fn_named(nodes[v].t) < 0)) { return true }
@@ -3916,7 +3922,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
         if k0 == Y_STRUCT && (tagged_of(y) >= 0 || (struct_of(y) < 0 && !enum_int(y))) { return true }
     }
     let yk:ykind = y >= 0 ? types[y].kind : Y_C
-    let number = number_lit || (y >= 0 && (is_number_kind(yk) || yk == Y_BOOL || enum_int(y)))
+    let number = number_lit || arith || (y >= 0 && (is_number_kind(yk) || yk == Y_BOOL || enum_int(y)))
     let text = text_lit || yk == Y_CSTR
     var ok = true
     var lend = false
@@ -3945,7 +3951,7 @@ let typed_value_ok(v:int64, want:int64, lead:const String^):bool {
             ok = false
             lend = wk == Y_PTR && types[want].elem >= 0 && type_text(types[want].elem) == type_text(y)
         }
-        if wk == Y_PTR && y < 0 && no_pointer_number(v) { ok = false }   // a number that is no 0 where a pointer goes, as kelvinc says it (#760), where it was C's error
+        if wk == Y_PTR && y < 0 && (no_pointer_number(v) || arith) { ok = false }   // a number that is no 0 where a pointer goes, as kelvinc says it (#760), where it was C's error
         if wk == Y_PTR && y >= 0 && yk == Y_FN { ok = false }   // a function where a pointer goes, 'p' is an any^, and this is (i64):i64, as kelvinc says it (#764), which kc built
     } else if wk == Y_STRUCT {
         ok = !number && !text && (y < 0 || yk != Y_STRUCT || type_text(y) == type_text(want)) && (y < 0 || yk == Y_STRUCT)
@@ -10422,7 +10428,7 @@ let gen_array_add(y:int64, v:int64, what:cstr) {
         m += " "
         m += &ew
         m += ", and this is "
-        let lit = nodes[v].kind == N_NUM || nodes[v].kind == N_CHAR
+        let lit = nodes[v].kind == N_NUM || nodes[v].kind == N_CHAR || ((nodes[v].kind == N_BIN || nodes[v].kind == N_UNARY || nodes[v].kind == N_COND) && (is_number_kind(types[vy].kind) || types[vy].kind == Y_BOOL))   // x + 1 too, as kelvinc names it (#787)
         let vw:String = lit ? $"a number" : kelvin_type_text(vy)
         m += &vw
         gen_error(v, m.cstr)
@@ -11457,6 +11463,20 @@ let gen_method_of(n:int64) {
         gen_error(n, m.cstr)
     } else if yk == Y_FIXED {                            // [i64](3) has no member 'sum', as kelvinc says it (#736)
         member_unknown(n, y)
+    } else if yk == Y_ARRAY || yk == Y_STRING || yk == Y_DICT || yk == Y_SET {   // d.set("k", 1): a Dictionary has no method 'set', and what it has, as kelvinc says it (#787), where kc said this method is not known
+        var m = yk == Y_ARRAY ? $"an Array" : yk == Y_STRING ? $"a String" : yk == Y_DICT ? $"a Dictionary" : $"a Set"
+        m += " has no method '"
+        m += tok_text(t)
+        if yk == Y_ARRAY {
+            m += "': append, insert, remove, pop, clear, reserve, compact, copy, join, joined and gather, and the properties count, isEmpty, capacity and at"
+        } else if yk == Y_STRING {
+            m += "': append, clear, reserve, compact, copy, escape, unescape, find, has, starts, ends, trim and gather, and the properties count, isEmpty, bytes and cstr"
+        } else if yk == Y_DICT {
+            m += "': has, find, get, remove, clear, reserve and copy, and the properties count and isEmpty"
+        } else {
+            m += "': insert, has, remove, clear, reserve, copy, union, intersection and difference, and the properties count, isEmpty and elements"
+        }
+        gen_error(n, m.cstr)
     } else if !method_elsewhere(n) {
         gen_error(n, "this method is not known")
     }
@@ -12194,6 +12214,10 @@ let gen_written(v:int64, y:int64) {
         }
         return
     }
+    if y >= 0 && types[y].kind == Y_DICT && nodes[v].kind == N_INIT && nodes[v].b < 0 && nodes[v].ty < 0 {   // {} given to a Dictionary, as kelvinc says it, at its { (#787), which kc built
+        gen_error(v, "an empty Dictionary is written ${:}")
+        return
+    }
     if nodes[v].kind != N_EMPTY {
         gen_value(v, y)
         return
@@ -12374,7 +12398,7 @@ let fits_value(n:int64, t:int64):bool {
     if k == N_NULL && (tk == Y_PTR || tk == Y_CSTR || tk == Y_FN) { return true }   // nowhere where a pointer goes: some(nowhere) of an i64^? (#729)
     if k == N_NUM && tk == Y_PTR && zero_literal(nodes[n].t) { return true }   // 0, C's null, where a pointer's Optional goes (#760)
     if own_plain(type_of(n)) == t { return true }       // a p:i64^ const is an i64^ where a value goes (#742)
-    if tk == Y_PTR && type_of(n) >= 0 && ((types[type_of(n)].kind == Y_PTR && !(ptr_const(type_of(n)) && !ptr_const(t) && (k == N_ADDR || is_owner(types[type_of(n)].elem)))) || (types[type_of(n)].kind == Y_FIXED && types[type_of(n)].name >= 0)) { return true }   // a pointer of another element, or a fixed array read, where a pointer's Optional goes: C's to check, as kelvinc leaves it (#784)
+    if tk == Y_PTR && type_of(n) >= 0 && ((types[type_of(n)].kind == Y_PTR && !(ptr_const(type_of(n)) && !ptr_const(t) && (k == N_ADDR || is_owner(types[type_of(n)].elem)))) || (types[type_of(n)].kind == Y_FIXED && types[type_of(n)].name != 0 - 2 && types[type_of(n)].name != 0 - 4)) { return true }   // a pointer of another element, or a fixed array read, where a pointer's Optional goes: C's to check, as kelvinc leaves it (#784)
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
 
@@ -16047,6 +16071,13 @@ let counted(y:int64, v:int64):int64 {
     return konst ? const_fixed(r) : r
 }
 
+// whether y, an array's element, is an owner, or rows of them at any depth (#787)
+let rows_own(y:int64):bool {
+    var e = y
+    while e >= 0 && types[e].kind == Y_FIXED { e = types[e].elem }
+    return e >= 0 && is_owner(e)
+}
+
 // ([T](N))[a, b] where no type is written (#419): C's (T [N]){a, b}, its
 // elements checked as a declaration's, as kelvinc writes it
 let gen_array_literal(n:int64) {
@@ -16056,7 +16087,7 @@ let gen_array_literal(n:int64) {
         return
     }
     if !fixed_elem_ok(types[y].elem) {
-        if is_owner(types[y].elem) {                     // as kelvinc says it
+        if rows_own(types[y].elem) {                     // as kelvinc says it; of rows of them too, of a count C computes (#787)
             gen_error(n, "an array of owners is not here yet: a struct may hold them")
         } else {
             fixed_refused(n)
@@ -16329,7 +16360,7 @@ let gen_fixed_var(n:int64) {
         y = const_fixed(type_of_kind(Y_FIXED, types[y].elem, 0 - 1))   // its elements const still, as its typename says (#733)
     }
     if !fixed_elem_ok(types[y].elem) {
-        if is_owner(types[y].elem) {                     // as kelvinc says it
+        if rows_own(types[y].elem) {                     // as kelvinc says it; of rows of them too, of a count C computes (#787)
             gen_error(n, "an array of owners is not here yet: a struct may hold them")
         } else {
             fixed_refused(n)
@@ -22000,6 +22031,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
     if number { return is_number_kind(vk) ? $"" : $"a number" }
     let y:int64 = own_plain(type_of(v))                 // a p:i64^ const is an i64^ where a value goes (#742)
     if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
+    if (k == N_BIN || k == N_UNARY || k == N_COND) && (is_number_kind(types[y].kind) || types[y].kind == Y_BOOL) { return $"a number" }   // x + 1, -x, x > 0 and a choice of numbers: a number, as kelvinc names what it sees no type of (#787), where kc said i64
     if vk == Y_PTR && types[y].kind == Y_PTR && !(ptr_const(y) && !ptr_const(vy) && (k == N_ADDR || is_owner(types[y].elem))) { return $"" }   // a pointer of another element where a pointer goes is C's to check, as kelvinc leaves it and as both leave a declaration's (#784), where kc said an element of Array<f64^> is an f64^, and this is i64^; a let's borrow, &x of a let or a const T^ of an owner, where a T^ that may change it goes, is told
     if types[y].kind == Y_CSTR && vk == Y_PTR && types[vy].elem >= 0 && (types[types[vy].elem].kind == Y_U8 || types[types[vy].elem].kind == Y_I8) { return $"" }   // a cstr where a u8^ goes, as text does (#730)
     if types[y].kind == Y_CSTR { return $"cstr" }       // a cstr variable, and a template that is one, where a case of another kind goes, a String's too, as kelvinc names it (#749)

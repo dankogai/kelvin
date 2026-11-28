@@ -2156,6 +2156,39 @@ kc reads what it is written in, and little more.
   - Rows whose count names a local are refused still, by #776's
     sentence, as kelvinc's.
   - tests/run's rows_global_let_printed.k has it.
+- **A fixed array of a count C computes read as a pointer** (#787), as
+  one of a count written is (#781, #784): fits_value takes it where a
+  pointer's Optional goes, and read_elem_type types it its first
+  element's address where it is an element, a value or a row, so no
+  Array of `[i64](n)` is made, whose C named the count out of scope.
+  - tests/run's array_of_computed_reads.k has it.
+- **A method an owner has not** (#787), in kelvinc's words: an Array, a
+  String, a Dictionary and a Set say `a Dictionary has no method
+  'set': has, find, get, ...`, each with what it has, where kc said
+  `this method is not known`.
+  - In a declaration of no type written, `var n = d.frob()`, kc says
+    `'n' needs a type` still, listed in TODO.md.
+  - tests/error's dict_no_method.k, array_no_method.k,
+    string_no_method.k and set_no_method.k have them.
+- **Arithmetic is a number** (#787), as kelvinc names a value it sees
+  no type of: a binary, a unary and a choice whose type is a number's
+  or a bool.
+  - value_mismatch_text names it `a number` where an element, a value,
+    an entry or a case is refused, and gen_array_add where an owner is
+    the element.
+  - typed_value_ok takes it for a number where a pointer, a String or
+    a cstr goes, `var p:i64^ := x + 1` and `a += x + 1`, which kc left
+    to C.
+  - tests/error's arithmetic_where_pointer.k,
+    arithmetic_element_added.k, arithmetic_case_pointer.k and
+    arithmetic_where_string.k have them.
+- **Rows of owners, and {} given to a Dictionary** (#787), as kelvinc
+  says them: rows_own finds an owner under rows of any count, so
+  `var g:[[String](N)](2)` is `an array of owners is not here yet`;
+  gen_written says `an empty Dictionary is written ${:}` of a bare
+  `{}`, which kc built.
+  - tests/error's rows_of_owners_computed.k and dict_bare_braces.k
+    have them.
 - **uchr is no more** (#528), as kelvinc's: kc's lexer says so at the
   word, `uchr`, `n.uchr` or `for c:uchr in s`, naming the `u32`, and
   `.utf32` or `.codepoint` of a number is an error that says it is one.

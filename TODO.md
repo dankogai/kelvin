@@ -39,7 +39,7 @@ known, not what is planned.
     KELVIN_VERSION and the VS Code package's; Design.md's status; the
     README's line of the release notes; and, on the user's word after
     it, the tag v0.4.1 and the release Kelvin 0.4.1.
-  - The next CHANGELOG entry is from #751 on: #751 to #786 so far.
+  - The next CHANGELOG entry is from #751 on: #751 to #787 so far.
   - The version: kelvinc's KELVIN_VERSION and the VS Code package's.
   - The README's line of the release notes.
   - The tag and the release.
@@ -52,7 +52,8 @@ known, not what is planned.
     where its type is written, is `an empty Dictionary is written
     ${:}` at the value's start, the `$`, the user's answer, kelvinc
     follows kc, where kelvinc said it at the `}` (#786).
-  With it kelvinc's one of this order is done; the five left are kc's.
+  With it kelvinc's one of this order is done; the five left are kc's,
+  done with #787: the six are done.
 
 - The user's order after #782, resolve kelvinc then kc, of the three
   left listed, each pushed when clean:
@@ -242,6 +243,28 @@ known, not what is planned.
 
 ## kc
 
+- The user's order after #785, kc's of the six left listed and what
+  they found, after kelvinc's one (#786), pushed when clean (#787):
+  - a fixed array of a count C computes, a local's or a global let's,
+    read where a pointer's Optional or an Array's element goes is its
+    first element's address, `var q:i64^? = b` and `$[b]` of a
+    `b:[i64](n)`, as kelvinc takes it, where it was C's error of kc's
+    C or kc's `an Array of [i64](n) is not here yet`;
+  - a method an Array, a String, a Dictionary or a Set has not,
+    `d.set("k", 1)`, is told with what the type has, `a Dictionary
+    has no method 'set': has, find, get, ...`, as kelvinc's, where kc
+    said `this method is not known`;
+  - arithmetic of numbers, `x + 1`, `-x`, `x > 0` and a choice of
+    them, where a pointer, a String or a cstr goes ends `and this is
+    a number`, as kelvinc names what it sees no type of: where kc
+    named its type, i64, of an element, a value, an entry and a case,
+    and left a declaration's and `a += x + 1` to C;
+  - rows of owners of a count C computes, `var g:[[String](N)](2)`,
+    are `an array of owners is not here yet`, as kelvinc's;
+  - `{}` given to a Dictionary is `an empty Dictionary is written
+    ${:}`, at its `{`, as kelvinc's, which kc built.
+  - left: what is listed under "Found while #787 was made".
+
 - The user's order after #782, kc's of the three left listed and what
   they found, after kelvinc's one (#783), pushed when clean (#784):
   - a pointer of another element where a pointer is an Array's
@@ -405,10 +428,10 @@ known, not what is planned.
     Array's and a Dictionary's.
   With it both are done; what was found on the way is listed below.
 
-- kc says each of the 1179 programs kelvinc refuses in kelvinc's words:
+- kc says each of the 1189 programs kelvinc refuses in kelvinc's words:
   the 990 of #652 to #656, and those of #659 to #678, #702, #705, #724,
   #725, #727, #733, #736, #740, #741, #742, #743, #744, #748, #749,
-  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784 and #786 alike.
+  #752, #754, #755, #757, #760, #762, #763, #764, #766 to #769, #771 to #774, #776, #777, #779, #781, #783, #784, #786 and #787 alike.
 - kc places each of those errors at kelvinc's line and column, matched
   in batches as the user ordered after #680 (#681 to #689), and
   selfhost/errors.sh compares them (#690), but one, listed in
@@ -575,21 +598,29 @@ known, not what is planned.
     and a cstr's `s[1]` `const u8`: kc's too since #738.
   - A method a fixed array has not, `r[1].sum()`, is kelvinc's
     `[i64](3) has no member 'sum'`, and kc's too since #736.
+- Found while #787 was made, not changed:
+  - `var n = d.frob(1, 2)`, a method a Dictionary has not in a
+    declaration of no type written, is kelvinc's `a Dictionary has no
+    method 'frob': ...` and kc's `'n' needs a type`; as a statement
+    both say kelvinc's since #787.
 - Found while #786 was made, not changed:
   - `var d:${String: i64} = {}`, a bare `{}` given to a Dictionary, is
     kelvinc's `an empty Dictionary is written ${:}`, at the `{`, and
-    built by kc, an empty Dictionary.
+    was built by kc, an empty Dictionary: kelvinc's in both since
+    #787.
 - Found while #785, the review, was made, not changed:
   - `var q:i64^? = b` of a `b:[i64](n)` whose count C computes, a
     local's or a global let's, a fixed array read where a pointer's
     Optional goes, is built by kelvinc, its first element's address,
-    and C's error of kc's C, initializing a struct with an array; of a
-    count written both build it since #784.
+    and was C's error of kc's C, initializing a struct with an array;
+    of a count written both build it since #784, of a count C computes
+    since #787.
   - `var a:$[i64^] = $[b]` of a `b:[i64](n)` whose count C computes,
     a local's or a global let's, is built by kelvinc and C's error of
     kc's C, use of undeclared identifier 'n' or a variable length
-    array at file scope; `var a = $[b]` of it is kc's `an Array of
-    [i64](n) is not here yet: an element is a value C returns`.
+    array at file scope; `var a = $[b]` of it was kc's `an Array of
+    [i64](n) is not here yet: an element is a value C returns`: built
+    by both since #787.
 - Found while #784 was made, not changed:
   - `var d:${String: i64} = ${}`, an empty Dictionary written `${}`
     where its type is written, is `an empty Dictionary is written
@@ -598,14 +629,15 @@ known, not what is planned.
   - `d.set("k", 1)` of a Dictionary is kelvinc's `a Dictionary has no
     method 'set': has, find, get, remove, clear, reserve and copy, and
     the properties count and isEmpty`, and kc's `this method is not
-    known`.
+    known`: kelvinc's in both since #787.
   - `var a:$[i64^] = $[x + 1]` of an i64 `x`, arithmetic where a
     pointer is the element, and an Optional's case alike, ends `and
-    this is a number` in kelvinc and `and this is i64` in kc.
+    this is a number` in kelvinc and ended `and this is i64` in kc: a
+    number in both since #787.
   - `var g:[[String](N)](2)` of a global let's `N` is kelvinc's `an
     array of owners is not here yet: a struct may hold them`, as of a
-    count written in both, and kc's `kc reads a fixed array as a
-    variable, a struct's member, ...`.
+    count written in both, and was kc's `kc reads a fixed array as a
+    variable, a struct's member, ...`: kelvinc's in both since #787.
 - Found while #782, the review, was made, not changed:
   - `var v:[i64](3.0) = [1, 2, 3]`, a list given to an array whose
     count is a float written, was C's error of kelvinc's C, size of
@@ -966,9 +998,9 @@ known, not what is planned.
 
 ## Provisional rows
 
-- P791, the details of #786, until reviewed; the reviews confirmed
-  every row to P790, and a review's own detail row is confirmed by that
-  review (#675).
+- P791 and P792, the details of #786 and #787, until reviewed; the
+  reviews confirmed every row to P790, and a review's own detail row is
+  confirmed by that review (#675).
 
 ## Open design
 
