@@ -12255,8 +12255,8 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first, bool dol
     if (!first && !dt && is_p(peek(), "}")) /* ${}: an empty Set, typed */
         error_at(open->pos, "${} has no element type here: write Set<T>(), or give the variable a type, as in "
                             "'var s:${String} = ${}'");
-    if (!first && dt && is_p(peek(), "}"))
-        error_at(peek()->pos, "an empty Dictionary is written ${:}");
+    if (!first && dt && is_p(peek(), "}")) /* at the value's start, the $ of ${}, as kc says it (#786): it was at the } */
+        error_at(t->pos, "an empty Dictionary is written ${:}");
     if (!first && accept_p(":")) { /* ${:}: empty */
         if (!dt)
             error_at(open->pos, "${:} has no key and value types here: write Dictionary<K, V>(), or give the "

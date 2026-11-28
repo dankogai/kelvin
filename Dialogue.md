@@ -15087,3 +15087,20 @@ and P789 marked confirmed, as later numbers amend them, and P790,
 Details are P790, confirmed by #785 itself.
 
 There are 1743 tests, and all pass with clang and with gcc 15.
+
+### 833. The place of ${} where a Dictionary's type is written
+
+**Claude** wrote #785 and, its battery running, asked what next,
+and where `an empty Dictionary is written ${:}` should be said,
+kelvinc's `}` or kc's `$`.
+
+**User:** resolve kelvinc then kc (recommended); the `$`, kelvinc
+follows kc (recommended)
+
+**Claude** made kelvinc's #786: `var d:${String: i64} = ${}` says
+its error at the `$`, as kc does, where kelvinc said it at the `}`.
+The five left of the order are kc's.
+
+Details are provisional P791.
+
+There are 1744 tests, and all pass with clang and with gcc 15.
